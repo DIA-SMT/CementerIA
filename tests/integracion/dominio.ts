@@ -1,4 +1,4 @@
-// Ayudas para los tests del dominio de expedientes (semana 2).
+// Ayudas para los tests del dominio de expedientes (semanas 2 y 3).
 //
 // A diferencia de escenario.ts, estos tests usan la semilla real (áreas con sus
 // códigos, las 4 plantillas, los usuarios ficticios por área): las reglas de
@@ -9,12 +9,14 @@
 // globales.
 
 import { randomUUID } from "node:crypto";
+import type { AlmacenAdjuntos } from "@/lib/adjuntos/almacen";
 import { sembrar } from "../../prisma/semilla/sembrar";
 import { USUARIOS_FICTICIOS } from "../../prisma/semilla/usuarios";
 import { conActorEn } from "@/lib/db/actor";
 import type { Cliente, Transaccion } from "@/lib/db/crear-cliente";
-import { crearServicioExpedientes, type DatosAlta, type PersonaEntrada, type ServicioExpedientes } from "@/lib/dominio/expedientes";
+import { crearServicioExpedientes, type DatosAlta, type PersonaEntrada, type ResultadoPase, type ServicioExpedientes } from "@/lib/dominio/expedientes";
 import { esRol, type UsuarioPermisos } from "@/lib/dominio/permisos";
+import { analizarDefinicion, type DefinicionPlantilla } from "@/lib/dominio/plantillas/esquema";
 import { hoyEnTucuman } from "@/lib/fechas";
 
 /** El mismo CUIL de admin que usa semilla.test.ts. */
@@ -24,11 +26,12 @@ export async function asegurarSemilla(prisma: Cliente): Promise<void> {
   await sembrar(prisma, { adminCuil: ADMIN_CUIL });
 }
 
-export function servicio(prisma: Cliente, ahora?: () => Date): ServicioExpedientes {
+export function servicio(prisma: Cliente, ahora?: () => Date, almacen?: AlmacenAdjuntos): ServicioExpedientes {
   return crearServicioExpedientes({
     leer: prisma,
     escribir: (usuarioId, motivo, fn) => conActorEn(prisma, usuarioId, motivo, fn),
     ahora,
+    almacen,
   });
 }
 
@@ -158,4 +161,82 @@ export async function forzarEstado(prisma: Cliente, numero: string, estado: "arc
       },
     }),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Semana 3: recorrer el flujo con el dominio
+// ---------------------------------------------------------------------------
+
+/** El usuario de la semilla del área responsable del expediente (en un paso externo, la custodia). */
+export async function responsable(prisma: Cliente, numero: string): Promise<UsuarioPermisos> {
+  const e = await prisma.expediente.findUniqueOrThrow({
+    where: { numeroInterno: numero },
+    select: { areaResponsable: { select: { codigo: true } } },
+  });
+  return usuario(prisma, e.areaResponsable.codigo as CodigoUsuario);
+}
+
+export async function definicionDe(prisma: Cliente, numero: string): Promise<DefinicionPlantilla> {
+  const e = await prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: numero }, select: { plantilla: { select: { definicion: true } } } });
+  const r = analizarDefinicion(e.plantilla.definicion);
+  if (!r.ok) throw new Error("definición inválida");
+  return r.definicion;
+}
+
+export interface OpcionesPaso {
+  /** Fecha para las subtareas con `dato: fecha` (por defecto, hoy). */
+  fecha?: string;
+}
+
+/**
+ * Hace, como el responsable, lo que falta para salir del paso actual: tilda
+ * las subtareas (con fecha o con un texto) y marca presentados los
+ * documentos. Devuelve la versión final.
+ */
+export async function completarPaso(exp: ServicioExpedientes, prisma: Cliente, numero: string, opciones: OpcionesPaso = {}): Promise<number> {
+  const quien = await responsable(prisma, numero);
+  const def = await definicionDe(prisma, numero);
+  const v = await exp.validarPase(quien, numero);
+  let version = v.version;
+  for (const f of v.faltan) {
+    if (f.tipo === "subtarea") {
+      const s = def.pasos.flatMap((p) => p.subtareas).find((x) => x.clave === f.clave);
+      const dato = s?.dato === "fecha" ? (opciones.fecha ?? hoyEnTucuman()) : s?.dato === "texto" ? `N-${f.clave}` : null;
+      version = (await exp.tildarSubtarea(quien, numero, f.clave, dato, version, comando())).version;
+    } else if (f.tipo === "documento") {
+      version = (await exp.marcarDocumento(quien, numero, f.clave, "presentado", null, version, comando())).version;
+    } else {
+      throw new Error(`completarPaso: falta el campo extra ${f.clave}`);
+    }
+  }
+  return version;
+}
+
+/** Completa el paso y da el pase al siguiente, como el responsable. */
+export async function avanzar(
+  exp: ServicioExpedientes,
+  prisma: Cliente,
+  numero: string,
+  opciones: OpcionesPaso & { fechaPase?: string } = {},
+): Promise<ResultadoPase> {
+  const version = await completarPaso(exp, prisma, numero, opciones);
+  const quien = await responsable(prisma, numero);
+  const v = await exp.validarPase(quien, numero);
+  const siguiente = v.destinos.find((d) => d.tipo === "siguiente");
+  if (!siguiente) throw new Error(`avanzar: ${numero} no tiene paso siguiente`);
+  return exp.darPase(quien, numero, siguiente.clave, version, comando(), { fechaEfectiva: opciones.fechaPase });
+}
+
+/** La fila del expediente, para mirar la proyección. */
+export function proyeccion(prisma: Cliente, numero: string) {
+  return prisma.expediente.findUniqueOrThrow({
+    where: { numeroInterno: numero },
+    include: { areaActual: { select: { codigo: true } }, areaResponsable: { select: { codigo: true } } },
+  });
+}
+
+/** Los movimientos del expediente, en orden. */
+export async function movimientos(prisma: Cliente, numero: string) {
+  const e = await prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: numero }, select: { id: true } });
+  return prisma.movimiento.findMany({ where: { expedienteId: e.id }, orderBy: { secuencia: "asc" } });
 }

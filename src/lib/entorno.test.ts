@@ -224,6 +224,16 @@ describe("arranque (src/instrumentation.ts)", () => {
     expect(validarEntornoAlIniciar({ SESSION_SECRET: SECRETO, DATABASE_URL: BASE }).nodeEnv).toBe("development");
   });
 
+  it("en producción exige ADJUNTOS_DIR, absoluta (en desarrollo usa ./.data/adjuntos)", () => {
+    const prod = { NODE_ENV: "production", SESSION_SECRET: SECRETO, DATABASE_URL: BASE };
+    expect(problemasDe(() => validarEntornoAlIniciar(prod))).toEqual([expect.stringMatching(/^ADJUNTOS_DIR: falta/)]);
+    expect(problemasDe(() => validarEntornoAlIniciar({ ...prod, ADJUNTOS_DIR: "datos/adjuntos" }))).toEqual([
+      expect.stringMatching(/^ADJUNTOS_DIR: en producción tiene que ser una ruta absoluta/),
+    ]);
+    expect(validarEntornoAlIniciar({ ...prod, ADJUNTOS_DIR: "/var/lib/cementeria/adjuntos" }).produccion).toBe(true);
+    expect(validarEntornoAlIniciar({ SESSION_SECRET: SECRETO, DATABASE_URL: BASE }).produccion).toBe(false);
+  });
+
   it("register() termina el proceso en producción con AUTH_DEV_LOGIN definida", async () => {
     // next start atrapa el error de register() y sigue escuchando: por eso
     // register() mismo hace process.exit(1). Acá se simula para no matar el
@@ -237,6 +247,7 @@ describe("arranque (src/instrumentation.ts)", () => {
       vi.stubEnv("NODE_ENV", "production");
       vi.stubEnv("SESSION_SECRET", SECRETO);
       vi.stubEnv("DATABASE_URL", BASE);
+      vi.stubEnv("ADJUNTOS_DIR", "/var/lib/cementeria/adjuntos");
       vi.stubEnv("AUTH_DEV_LOGIN", "1");
       await expect(register()).rejects.toThrow("process.exit(1)");
       expect(consola).toHaveBeenCalledWith(expect.stringMatching(/"arranque\.rechazado".*AUTH_DEV_LOGIN/));

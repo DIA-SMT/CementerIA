@@ -1,4 +1,5 @@
 import "server-only";
+import { crearAlmacenEnDisco, raizAdjuntos, type AlmacenAdjuntos } from "@/lib/adjuntos/almacen";
 import { prisma } from "@/lib/db/cliente";
 import { conActor } from "@/lib/db/transaccion";
 import { crearServicioExpedientes } from "./index";
@@ -14,8 +15,26 @@ import { crearServicioExpedientes } from "./index";
  * const ficha = await expedientes.obtenerFicha(usuario, numero, { ip });
  *
  * `prisma` es perezoso: importar esto no abre conexiones (next build no tiene
- * DATABASE_URL).
+ * DATABASE_URL). El almacenamiento de adjuntos también: la carpeta
+ * (`ADJUNTOS_DIR`, o `./.data/adjuntos` en desarrollo) se resuelve en el primer
+ * uso, no al importar.
  */
-export const expedientes = crearServicioExpedientes({ leer: prisma, escribir: conActor });
+
+let almacen: AlmacenAdjuntos | undefined;
+
+function obtenerAlmacen(): AlmacenAdjuntos {
+  almacen ??= crearAlmacenEnDisco(raizAdjuntos());
+  return almacen;
+}
+
+const almacenPerezoso: AlmacenAdjuntos = {
+  recibir: (contenido, maxBytes) => obtenerAlmacen().recibir(contenido, maxBytes),
+  confirmar: (archivo, ruta) => obtenerAlmacen().confirmar(archivo, ruta),
+  descartar: (archivo) => obtenerAlmacen().descartar(archivo),
+  abrir: (ruta) => obtenerAlmacen().abrir(ruta),
+  barrerTemporales: (antesDe) => obtenerAlmacen().barrerTemporales(antesDe),
+};
+
+export const expedientes = crearServicioExpedientes({ leer: prisma, escribir: conActor, almacen: almacenPerezoso });
 
 export * from "./index";

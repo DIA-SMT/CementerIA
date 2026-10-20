@@ -24,9 +24,15 @@ export function exigirNumero(numero: string): string {
   return canonico;
 }
 
+/**
+ * @param totalPasos los pasos de la plantilla del expediente: con él (y
+ *   `pasoOrden`) se completan `pasoFinal` y `primerPaso`, que deciden el pase y
+ *   la devolución. Sin él, quedan sin informar.
+ */
 export async function permisosDelExpediente(
   lector: Lector,
-  expediente: { id: bigint; estado: string; areaResponsableId: number },
+  expediente: { id: bigint; estado: string; areaResponsableId: number; cargaHistorica?: boolean; pasoOrden?: number },
+  totalPasos?: number,
 ): Promise<ExpedientePermisos> {
   const movimientos = await lector.movimiento.findMany({
     where: { expedienteId: expediente.id },
@@ -44,10 +50,13 @@ export async function permisosDelExpediente(
     areaResponsableId: expediente.areaResponsableId,
     areasRecorridas: [...areas],
     tuvoPases,
+    cargaHistorica: expediente.cargaHistorica,
+    pasoFinal: totalPasos !== undefined && expediente.pasoOrden !== undefined ? expediente.pasoOrden >= totalPasos : undefined,
+    primerPaso: expediente.pasoOrden !== undefined ? expediente.pasoOrden <= 1 : undefined,
   };
 }
 
-export type AccionAcceso = "ver_expediente" | "ver_datos_completos" | "imprimir";
+export type AccionAcceso = "ver_expediente" | "ver_datos_completos" | "imprimir" | "ver_adjunto" | "descargar_adjunto";
 
 export interface OpcionesAcceso {
   /** IP del cliente (`ipDeSolicitud()` de src/lib/auth/red.ts), para auditoria.accesos. */

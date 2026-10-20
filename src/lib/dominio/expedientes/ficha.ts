@@ -9,6 +9,16 @@ import { leerDefinicion, type CodigoNombre } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, exigirMotivo, limpiarMotivo, noEncontrado } from "./errores";
 import { mostrarContacto, type ContactoMostrado } from "./enmascarar";
+import {
+  destinosPosibles,
+  faltantesDelPaso,
+  subtareasReiniciables,
+  type DestinoPase,
+  type Faltante,
+  type PrecisionFecha,
+  type RefPaso,
+  type SubtareaReiniciable,
+} from "./flujo";
 import { leerItems, type EstadoDocumento } from "./items";
 import { numeroCorto } from "./numero";
 import { areasDelPaso } from "./proyeccion";
@@ -179,6 +189,38 @@ export interface MovimientoFicha {
   personasCreadas: Array<{ id: string; rol: string; orden: number; reemplazaA: string | null }>;
 }
 
+/** Un adjunto vigente, para el visor (`/adjuntos/[movimientoId]`). */
+export interface AdjuntoFicha {
+  /** El id del movimiento `adjunto`. */
+  movimientoId: string;
+  /** Clave del documento, o null si es suelto. */
+  documento: string | null;
+  nombre: string;
+  mime: string;
+  bytes: number;
+  registradoEn: Date;
+  usuario: UsuarioFicha;
+}
+
+/** Lo que la ficha necesita para el diálogo "Dar pase" y el botón "Faltan N" (3.3). */
+export interface PaseFicha {
+  /** Lo que falta para pasar al paso siguiente. Vacío en el último paso. */
+  faltan: Faltante[];
+  /** Destinos posibles, con lo que falta para cada uno. Vacío en el último paso. */
+  destinos: DestinoPase[];
+}
+
+/** Lo que la ficha necesita para el diálogo "Devolver" (3.4). */
+export interface DevolucionFicha {
+  /** Los pasos anteriores al actual, del primero al último. */
+  destinos: RefPaso[];
+  /**
+   * Las subtareas tildadas de los pasos anteriores. Al elegir el destino, se
+   * ofrecen las de `paso.orden >= destino.orden`.
+   */
+  subtareasReiniciables: SubtareaReiniciable[];
+}
+
 export interface PlazoFicha {
   desde: FechaISO | null;
   diasHabiles: number;
@@ -226,7 +268,14 @@ export interface Ficha {
   areaActual: AreaFicha;
   areaResponsable: AreaFicha;
   enAreaDesde: Date;
+  /**
+   * La precisión con que se registró `enAreaDesde` (la del movimiento que lo
+   * fijó): con `dia`, se muestra solo la fecha (`formatearSegunPrecision`).
+   */
+  enAreaDesdePrecision: PrecisionFecha;
   recibidoEn: Date | null;
+  /** Ídem para `recibidoEn`. */
+  recibidoEnPrecision: PrecisionFecha;
   plazo: PlazoFicha | null;
   situaciones: Situacion[];
   expedienteAnterior: string | null;
@@ -242,6 +291,12 @@ export interface Ficha {
   conceptos: ConceptoFicha[];
   /** Ordenado por fecha efectiva y secuencia, del más viejo al más nuevo. */
   historial: MovimientoFicha[];
+  /** Adjuntos vigentes, del más viejo al más nuevo; null si están enmascarados (`datosCompletos` false). */
+  adjuntos: AdjuntoFicha[] | null;
+  cantidadAdjuntos: number;
+  /** "Faltan N" y los destinos del pase. */
+  pase: PaseFicha;
+  devolucion: DevolucionFicha;
   /** true si el contacto y los adjuntos se ven completos. */
   datosCompletos: boolean;
   /** Qué puede hacer el usuario (los mismos permisos que exigen las acciones). */
@@ -251,6 +306,17 @@ export interface Ficha {
     editarContacto: Decision;
     completarCamposExtra: Decision;
     imprimir: Decision;
+    /**
+     * Semana 3. `confirmarRecepcion` es el permiso: el botón va solo si
+     * además `situaciones` incluye `sin_confirmar`. `darPase` también depende
+     * de `pase.destinos` (con `faltan` vacío, se puede; si no, "Faltan N").
+     */
+    confirmarRecepcion: Decision;
+    tildarSubtarea: Decision;
+    marcarDocumento: Decision;
+    adjuntar: Decision;
+    darPase: Decision;
+    devolver: Decision;
   };
 }
 
@@ -259,6 +325,9 @@ export interface Ficha {
 // ---------------------------------------------------------------------------
 
 const MS_48_HORAS = 48 * 60 * 60 * 1000;
+
+/** Los movimientos que fijan `en_area_desde` o `recibido_en`. */
+const TIPOS_UBICACION: ReadonlySet<string> = new Set(["alta", "recepcion", "pase", "devolucion", "estado"]);
 
 const INCLUIR = {
   tipoTramite: { select: { codigo: true, nombre: true } },
@@ -361,10 +430,10 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
   const e = await tx.expediente.findUnique({ where: { numeroInterno: numero }, include: INCLUIR });
   if (!e) throw noEncontrado(numero);
 
-  const permisos = await permisosDelExpediente(tx, e);
+  const def = leerDefinicion(e.plantilla.definicion, e.plantilla.codigo, e.plantilla.version);
+  const permisos = await permisosDelExpediente(tx, e, def.pasos.length);
   const ver = evaluarPermiso("ver_datos_completos", permisos, usuario);
   const completo = ver.permitido && !ver.requiereMotivo;
-  const def = leerDefinicion(e.plantilla.definicion, e.plantilla.codigo, e.plantilla.version);
   const items = leerItems(e.items);
 
   // De a una: dentro de la transacción todo va por la misma conexión.
@@ -525,6 +594,50 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     else if (plazo.faltan <= DIAS_PLAZO_POR_VENCER) situaciones.push("plazo_por_vencer");
   }
 
+  // La precisión de en_area_desde y recibido_en: la del último movimiento de
+  // ubicación con esa fecha (un alta con fecha de inicio pasada o un pase
+  // cargado "el 15" tienen precisión de día y no muestran "00:00").
+  const precisionDe = (instante: Date | null): PrecisionFecha => {
+    if (instante === null) return "minuto";
+    let precision: PrecisionFecha = "minuto";
+    let secuencia = -1;
+    for (const m of movimientos) {
+      if (TIPOS_UBICACION.has(m.tipo) && m.fechaEfectiva.getTime() === instante.getTime() && m.secuencia > secuencia) {
+        secuencia = m.secuencia;
+        precision = m.precisionFecha === "dia" ? "dia" : "minuto";
+      }
+    }
+    return precision;
+  };
+
+  const movimientoPorId = new Map(movimientos.map((m) => [m.id.toString(), m]));
+  const adjuntosVigentes: AdjuntoFicha[] = Object.entries(items.adjuntos)
+    .filter(([, a]) => a.vigente)
+    .map(([id, a]) => {
+      const m = movimientoPorId.get(id);
+      const d = (m?.datos ?? {}) as Record<string, unknown>;
+      return {
+        movimientoId: id,
+        documento: a.documento,
+        nombre: typeof d.nombre === "string" ? d.nombre : "archivo",
+        mime: typeof d.mime === "string" ? d.mime : "application/octet-stream",
+        bytes: typeof d.bytes === "number" ? d.bytes : 0,
+        registradoEn: m?.registradoEn ?? e.creadoEn,
+        usuario: m ? usuarioFicha(m.usuario) : usuarioFicha(e.creador),
+      };
+    })
+    .sort((a, b) => a.registradoEn.getTime() - b.registradoEn.getTime());
+
+  const enCurso = e.pasoOrden < def.pasos.length;
+  const pase: PaseFicha = {
+    faltan: enCurso ? faltantesDelPaso(def, items, datosExtra, e.pasoOrden) : [],
+    destinos: destinosPosibles(def, items, datosExtra, e.pasoOrden, e.pasoRetornoClave),
+  };
+  const devolucion: DevolucionFicha = {
+    destinos: def.pasos.slice(0, Math.max(0, e.pasoOrden - 1)).map((p, i) => ({ clave: p.clave, nombre: p.nombre, orden: i + 1 })),
+    subtareasReiniciables: subtareasReiniciables(def, items, e.pasoOrden),
+  };
+
   const versionPublicada = publicada?.version ?? null;
   const hayVersionNueva = versionPublicada !== null && versionPublicada > e.plantilla.version;
   const toAreaFicha = (a: { id: number; codigo: string; nombre: string; tipo: string }): AreaFicha => a;
@@ -580,7 +693,9 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     areaActual: toAreaFicha(e.areaActual),
     areaResponsable: toAreaFicha(e.areaResponsable),
     enAreaDesde: e.enAreaDesde,
+    enAreaDesdePrecision: precisionDe(e.enAreaDesde),
     recibidoEn: e.recibidoEn,
+    recibidoEnPrecision: precisionDe(e.recibidoEn),
     plazo,
     situaciones,
     expedienteAnterior: e.expedienteAnterior?.numeroInterno ?? null,
@@ -596,6 +711,10 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     personasHistoricas: historicas,
     conceptos: def.conceptos.map((c) => ({ clave: c.clave, nombre: c.nombre, via: c.via, paso: refPaso(c.paso) ?? { clave: c.paso, nombre: c.paso } })),
     historial,
+    adjuntos: completo ? adjuntosVigentes : null,
+    cantidadAdjuntos: adjuntosVigentes.length,
+    pase,
+    devolucion,
     datosCompletos: completo,
     acciones: {
       verDatosCompletos: ver,
@@ -603,6 +722,12 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
       editarContacto: evaluarPermiso("editar_contacto", permisos, usuario),
       completarCamposExtra: evaluarPermiso("completar_campos_extra", permisos, usuario),
       imprimir: evaluarPermiso("imprimir", permisos, usuario),
+      confirmarRecepcion: evaluarPermiso("confirmar_recepcion", permisos, usuario),
+      tildarSubtarea: evaluarPermiso("tildar_subtarea", permisos, usuario),
+      marcarDocumento: evaluarPermiso("marcar_documento", permisos, usuario),
+      adjuntar: evaluarPermiso("adjuntar", permisos, usuario),
+      darPase: evaluarPermiso("dar_pase", permisos, usuario),
+      devolver: evaluarPermiso("devolver", permisos, usuario),
     },
   };
   return { ficha, id: e.id };
@@ -657,8 +782,12 @@ export interface ContactoCompleto {
 export interface DatosCompletos {
   numero: string;
   personas: ContactoCompleto[];
-  /** Adjuntos vigentes por documento (ids de movimientos `adjunto`). */
-  adjuntos: Array<{ documento: string | null; movimientoId: string }>;
+  /**
+   * Adjuntos vigentes por documento (ids de movimientos `adjunto`), con el
+   * nombre, el tipo y el tamaño para listarlos (la ficha los trae en `null`
+   * para quien no trabaja el expediente).
+   */
+  adjuntos: Array<{ documento: string | null; movimientoId: string; nombre: string; mime: string; bytes: number }>;
 }
 
 /**
@@ -696,6 +825,14 @@ export async function verDatosCompletos(
       orderBy: { id: "asc" },
     });
     const items = leerItems(e.items);
+    const idsAdjuntos = Object.entries(items.adjuntos)
+      .filter(([id, a]) => a.vigente && /^\d{1,18}$/.test(id))
+      .map(([id]) => BigInt(id));
+    const movAdjuntos = await tx.movimiento.findMany({
+      where: { id: { in: idsAdjuntos }, expedienteId: e.id, tipo: "adjunto" },
+      select: { id: true, datos: true },
+      orderBy: { id: "asc" },
+    });
     await registrarAcceso(tx, {
       usuarioId: usuario.id,
       accion: "ver_datos_completos",
@@ -716,9 +853,17 @@ export async function verDatosCompletos(
         email: p.email,
         domicilio: p.domicilio,
       })),
-      adjuntos: Object.entries(items.adjuntos)
-        .filter(([, a]) => a.vigente)
-        .map(([id, a]) => ({ documento: texto(a.documento), movimientoId: id })),
+      adjuntos: movAdjuntos.map((m) => {
+        const id = m.id.toString();
+        const d = (m.datos ?? {}) as Record<string, unknown>;
+        return {
+          documento: texto(items.adjuntos[id]?.documento),
+          movimientoId: id,
+          nombre: typeof d.nombre === "string" ? d.nombre : "archivo",
+          mime: typeof d.mime === "string" ? d.mime : "application/octet-stream",
+          bytes: typeof d.bytes === "number" ? d.bytes : 0,
+        };
+      }),
     };
   });
 }

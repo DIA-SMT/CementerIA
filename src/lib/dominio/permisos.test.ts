@@ -319,3 +319,69 @@ describe("semana 2: alta, ficha, edición y carátula", () => {
     expect(evaluarPermiso("editar_contacto", enComputo, computo)).toEqual({ permitido: true, requiereMotivo: false });
   });
 });
+
+describe("semana 3: pases, recepción, subtareas, documentos, adjuntos y bandejas", () => {
+  const flujo = ["confirmar_recepcion", "tildar_subtarea", "dar_pase", "devolver"] as const;
+
+  it("las acciones del flujo, solo en trámite o en espera de pago en la DIM (3.1)", () => {
+    for (const accion of flujo) {
+      expect(puede(accion, expediente({ estado: "espera_pago_dim" }), liquidacion), accion).toBe(true);
+      for (const estado of ["concluido", "archivado", "anulado"] as const) {
+        expect(evaluarPermiso(accion, expediente({ estado }), liquidacion), `${accion} ${estado}`).toEqual({
+          permitido: false,
+          motivo: "estado_no_admite",
+        });
+      }
+    }
+  });
+
+  it("con la carga histórica abierta no hay pases ni devoluciones, pero sí recepción y subtareas", () => {
+    const historico = expediente({ cargaHistorica: true });
+    expect(evaluarPermiso("dar_pase", historico, liquidacion)).toEqual({ permitido: false, motivo: "carga_historica_abierta" });
+    expect(evaluarPermiso("devolver", historico, liquidacion)).toEqual({ permitido: false, motivo: "carga_historica_abierta" });
+    expect(puede("confirmar_recepcion", historico, liquidacion)).toBe(true);
+    expect(puede("tildar_subtarea", historico, liquidacion)).toBe(true);
+  });
+
+  it("el último paso no da pase (se concluye) y el primero no devuelve", () => {
+    expect(evaluarPermiso("dar_pase", expediente({ pasoFinal: true }), liquidacion)).toEqual({ permitido: false, motivo: "paso_final" });
+    expect(puede("devolver", expediente({ pasoFinal: true }), liquidacion)).toBe(true);
+    expect(evaluarPermiso("devolver", expediente({ primerPaso: true }), liquidacion)).toEqual({ permitido: false, motivo: "primer_paso" });
+    expect(puede("dar_pase", expediente({ primerPaso: true }), liquidacion)).toBe(true);
+  });
+
+  it("antes que el estado, el área: quien no es responsable recibe no_es_responsable", () => {
+    expect(evaluarPermiso("dar_pase", expediente({ estado: "archivado" }), legal)).toEqual({ permitido: false, motivo: "no_es_responsable" });
+    expect(evaluarPermiso("dar_pase", expediente({ cargaHistorica: true }), admin)).toEqual({ permitido: false, motivo: "admin_no_opera" });
+  });
+
+  it("la custodia de un paso externo es la responsable: Tributario opera lo que está en la DIM", () => {
+    const tributario = usuario("operador", "TRIBUTARIO");
+    const enDim = expediente({ estado: "espera_pago_dim", areaResponsableId: AREAS.TRIBUTARIO.id });
+    for (const accion of [...flujo, "marcar_documento", "adjuntar"] as const) expect(puede(accion, enDim, tributario), accion).toBe(true);
+    expect(puede("dar_pase", enDim, liquidacion)).toBe(false);
+  });
+
+  it("documentación y adjuntos: nunca en archivado ni anulado; el responsable, también en concluido", () => {
+    for (const accion of ["marcar_documento", "adjuntar"] as const) {
+      for (const estado of ["archivado", "anulado"] as const) {
+        expect(evaluarPermiso(accion, expediente({ estado }), liquidacion)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+        expect(evaluarPermiso(accion, expediente({ estado }), mesa)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+      }
+      expect(puede(accion, expediente({ estado: "concluido" }), liquidacion)).toBe(true);
+      expect(evaluarPermiso(accion, expediente({ estado: "concluido" }), mesa)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+      expect(puede(accion, expediente({ estado: "espera_pago_dim" }), mesa)).toBe(true);
+    }
+  });
+
+  it("la bandeja: operadores con área; Dirección y el admin, no", () => {
+    for (const u of [mesa, computo, liquidacion, legal]) expect(puede("ver_bandeja", null, u)).toBe(true);
+    expect(evaluarPermiso("ver_bandeja", null, direccion)).toEqual({ permitido: false, motivo: "solo_lectura" });
+    expect(evaluarPermiso("ver_bandeja", null, admin)).toEqual({ permitido: false, motivo: "admin_no_opera" });
+  });
+
+  it("exigirPermiso tira con el motivo del flujo", () => {
+    expect(() => exigirPermiso("dar_pase", expediente({ pasoFinal: true }), liquidacion)).toThrow(PermisoDenegado);
+    expect(exigirPermiso("devolver", expediente(), liquidacion)).toEqual({ requiereMotivo: false });
+  });
+});

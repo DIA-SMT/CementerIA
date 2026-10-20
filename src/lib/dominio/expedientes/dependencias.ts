@@ -1,3 +1,4 @@
+import type { AlmacenAdjuntos } from "@/lib/adjuntos/almacen";
 import type { Transaccion } from "@/lib/db/crear-cliente";
 
 /**
@@ -39,4 +40,9 @@ export interface DependenciasExpedientes {
   escribir: Escritor;
   /** El reloj. Por defecto `new Date()`; los tests lo fijan. */
   ahora?: () => Date;
+  /**
+   * Dónde se guardan los adjuntos (src/lib/adjuntos/almacen.ts). Solo lo usan
+   * `subirAdjunto` y `leerAdjunto`; la app lo arma con `ADJUNTOS_DIR`.
+   */
+  almacen?: AlmacenAdjuntos;
 }

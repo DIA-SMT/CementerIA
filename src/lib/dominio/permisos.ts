@@ -9,9 +9,12 @@
  * Semana 1: están las reglas que se deciden con el rol y el área, y las de
  * "responsable" y "pasó por su área", que solo comparan áreas. Semana 2 (alta,
  * ficha, edición, carátula): imprimir, y que en archivado y anulado no se
- * editan datos ni personas (3.1). La semana 3 suma lo que depende del flujo
- * (carga histórica abierta, paso final) junto con los pases. Las validaciones
- * del pase (3.3) y del alta no van acá: son de la acción, no del permiso.
+ * editan datos ni personas (3.1). Semana 3 (pases, recepción, devoluciones,
+ * subtareas, documentos, adjuntos y bandejas): lo que depende del flujo. Las
+ * acciones del área responsable van solo en estados activos; no hay pases ni
+ * devoluciones con la carga histórica abierta; el último paso no da pase (se
+ * concluye) y el primero no devuelve. Las validaciones del pase (3.3) y del
+ * alta no van acá: son de la acción, no del permiso.
  */
 
 export const ROLES = ["operador", "lectura", "admin"] as const;
@@ -29,6 +32,11 @@ export const AREA_DIRECCION = "DIRECCION";
 export const ESTADOS_EXPEDIENTE = ["en_tramite", "espera_pago_dim", "concluido", "archivado", "anulado"] as const;
 export type EstadoExpediente = (typeof ESTADOS_EXPEDIENTE)[number];
 const ESTADOS_ACTIVOS: ReadonlySet<EstadoExpediente> = new Set(["en_tramite", "espera_pago_dim"]);
+
+/** En trámite o en espera de pago en la DIM: los únicos estados en que el expediente se mueve (3.1). */
+export function esEstadoActivo(estado: EstadoExpediente): boolean {
+  return ESTADOS_ACTIVOS.has(estado);
+}
 /** En archivado y anulado no se editan datos ni personas (3.1). */
 const ESTADOS_SIN_EDICION: ReadonlySet<EstadoExpediente> = new Set(["archivado", "anulado"]);
 
@@ -62,6 +70,7 @@ export const ACCIONES = [
   "exportar_csv",
   "administrar", // plantillas, usuarios, catálogos, auditoría
   "imprimir", // carátula e historial (queda en auditoria.accesos)
+  "ver_bandeja", // /bandeja: Por confirmar, En mi área y Afuera (operadores)
 ] as const;
 export type Accion = (typeof ACCIONES)[number];
 
@@ -73,7 +82,12 @@ export interface UsuarioPermisos {
   area: { id: number; codigo: string } | null;
 }
 
-/** Lo que el permiso necesita saber del expediente. La semana 3 lo amplía. */
+/**
+ * Lo que el permiso necesita saber del expediente. Los campos del flujo
+ * (semana 3) son opcionales para evaluar las reglas de las semanas 1 y 2 sin
+ * ellos: si no vienen, el permiso no los controla, pero la acción igual los
+ * valida. `permisosDelExpediente()` los completa siempre.
+ */
 export interface ExpedientePermisos {
   estado: EstadoExpediente;
   /** `area_responsable_id`: quién lo opera (el área del paso, o su custodia). */
@@ -82,6 +96,12 @@ export interface ExpedientePermisos {
   areasRecorridas: readonly number[];
   /** Hubo al menos un pase: desde ahí, editar identificatorios exige motivo (3.2). */
   tuvoPases: boolean;
+  /** "Expediente iniciado antes del sistema" con la transcripción abierta: no hay pases ni devoluciones (3.3, punto 1). */
+  cargaHistorica?: boolean;
+  /** Está en el último paso: no da pase, se concluye (3.3, punto 2). */
+  pasoFinal?: boolean;
+  /** Está en el primer paso: no hay a dónde devolverlo (3.4). */
+  primerPaso?: boolean;
 }
 
 /** Para corregir un movimiento: su autor y cuándo se registró. */
@@ -109,7 +129,10 @@ export type MotivoDenegacion =
   | "no_es_autor"
   | "plazo_vencido"
   | "requiere_expediente"
-  | "requiere_movimiento";
+  | "requiere_movimiento"
+  | "carga_historica_abierta"
+  | "paso_final"
+  | "primer_paso";
 
 export type Decision = { permitido: true; requiereMotivo: boolean } | { permitido: false; motivo: MotivoDenegacion };
 
@@ -200,15 +223,32 @@ export function evaluarPermiso(
     case "tildar_subtarea":
     case "dar_pase":
     case "devolver":
-    case "concluir":
+    case "concluir": {
       // El admin no da pases ordinarios (3.2).
-      return delResponsable();
+      const decision = delResponsable();
+      if (!decision.permitido || !expediente) return decision;
+      // No hay pases en concluido, archivado ni anulado (3.1): el expediente se
+      // mueve y se trabaja solo en trámite o en espera de pago en la DIM.
+      if (!ESTADOS_ACTIVOS.has(expediente.estado)) return no("estado_no_admite");
+      if ((accion === "dar_pase" || accion === "devolver") && expediente.cargaHistorica) return no("carga_historica_abierta");
+      if (accion === "dar_pase" && expediente.pasoFinal) return no("paso_final");
+      if (accion === "devolver" && expediente.primerPaso) return no("primer_paso");
+      return decision;
+    }
+
+    case "ver_bandeja":
+      // La bandeja es de las áreas que operan: Dirección y el admin van al panel (sección 5).
+      if (lectura) return no("solo_lectura");
+      if (admin) return no("admin_no_opera");
+      return usuario.area ? SI : no("area_no_habilitada");
 
     case "marcar_documento":
     case "adjuntar": {
       if (lectura) return no("solo_lectura");
       if (admin) return no("admin_no_opera");
       if (!expediente) return no("requiere_expediente");
+      // En archivado y anulado solo se admiten notas y correcciones (3.1).
+      if (ESTADOS_SIN_EDICION.has(expediente.estado)) return no("estado_no_admite");
       if (esResponsable(usuario, expediente)) return SI;
       if (mesa) return ESTADOS_ACTIVOS.has(expediente.estado) ? SI : no("estado_no_admite");
       return no("no_es_responsable");

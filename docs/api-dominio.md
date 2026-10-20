@@ -1,9 +1,12 @@
-# API del dominio de expedientes (semana 2)
+# API del dominio de expedientes (semanas 2 y 3)
 
-Referencia para quien hace las pantallas de la semana 2: alta (`/expedientes/nuevo`),
+Referencia para quien hace las pantallas. Semana 2: alta (`/expedientes/nuevo`),
 ficha (`/expedientes/[numero]`), edición (`/expedientes/[numero]/editar`),
-buscador (`/expedientes`) e imprimibles (`/expedientes/[numero]/imprimir?hoja=caratula|historial`).
-Las pantallas ya están hechas sobre esta API (sección 11).
+buscador (`/expedientes`) e imprimibles (`/expedientes/[numero]/imprimir?hoja=caratula|historial`);
+esas pantallas ya están hechas sobre esta API (sección 11). Semana 3 (sección
+12): recepción, subtareas, documentos, adjuntos, pase con "Faltan N",
+devolución y bandejas; sus pantallas (los diálogos de la ficha, `/bandeja`, el
+contador del encabezado y los Route Handlers de adjuntos) están en la sección 13.
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -15,6 +18,8 @@ en el código: esto es el mapa.
 | `@/lib/dominio/permisos` | `evaluarPermiso`, `exigirPermiso`, `PermisoDenegado` (semana 1, con lo nuevo de la semana 2) |
 | `@/lib/fechas` | Fechas `YYYY-MM-DD`, hoy en Tucumán, `datetime-local`, formato es-AR |
 | `@/lib/dominio/busqueda` | La columna `busqueda` y la caja única (el servicio la expone como `expedientes.buscar`) |
+| `@/lib/adjuntos/tipos` | Semana 3. `MAXIMO_BYTES_ADJUNTO`, `detectarTipo()` (magic bytes), `esHeic()`. Puro: el navegador lo puede usar para avisar antes de subir |
+| `@/lib/adjuntos/almacen` | Semana 3. `AlmacenAdjuntos` (interfaz), `crearAlmacenEnDisco()`, `raizAdjuntos()`, `barrerTemporales()`. Servidor |
 
 ## 1. Cómo se usa
 
@@ -76,7 +81,12 @@ Dos clases, para distinguir con `instanceof`:
 | `conflicto_version` | Bloqueo optimista | Mostrar "Otro usuario modificó el expediente; recargá" (`MENSAJE_CONFLICTO_VERSION`) |
 | `estado_no_admite` | Editar un archivado o anulado | Mostrar el mensaje |
 | `motivo_requerido` | Falta el motivo (10 caracteres o más, `LARGO_MINIMO_MOTIVO`) | Pedir el motivo (`errores[0].ruta === "motivo"`) |
-| `sin_cambios` | Una edición que no cambia nada | Avisar y no navegar |
+| `sin_cambios` | Una edición que no cambia nada; tildar lo ya tildado; marcar un documento como ya está | Avisar y no navegar |
+| `faltan_requisitos` | Semana 3. El pase no puede salir: `message` es "Faltan N: …" y `errores` trae una entrada por faltante (`subtareas.LIQ_PAGO`, `documentos.DNI`, `datosExtra.concesion_hasta`) | Abrir la lista de lo que falta (mejor: no llegar acá, ver `ficha.pase`) |
+| `destino_invalido` | Semana 3. El paso elegido no es un destino del pase o de la devolución | Recargar los destinos |
+| `ya_recibido` | Semana 3. Confirmar una recepción ya confirmada | Recargar |
+| `adjunto_invalido` | Semana 3. No es PDF, JPG ni PNG por su contenido, está vacío, o es una foto HEIC ("Subilo como JPG") | Mostrar el mensaje |
+| `adjunto_muy_grande` | Semana 3. Más de 10 MB | Mostrar el mensaje |
 
 En una Server Action conviene atrapar los dos y devolver un estado serializable
 (por ejemplo `{ ok: false, codigo, mensaje, errores }`) para `useActionState`;
@@ -307,11 +317,17 @@ Registra `ver_expediente` en `auditoria.accesos`. Cualquiera la ve. Lo que trae
 | Personas | `personas[]` vigentes (por rol en el orden de la plantilla) y `personasHistoricas[]` (versiones viejas y bajas): `etiquetaRol`, nombre, DNI, `fallecido`, `vinculo`, `esContacto`, `suprimida`, `contacto` |
 | Conceptos | `conceptos[]` con el paso en que se liquidan |
 | Historial | `historial[]` del más viejo al más nuevo (fecha efectiva, secuencia): `fechaEfectiva` + `precisionFecha`, `registradoEn`, `diferido` (> 48 h), `usuario.corto` ("J. Pérez"), áreas y pasos, `motivo`, `observacion`, `fuente`, `cargaHistorica`, `datos`, `corregidoPor`, `personasCreadas` (con `reemplazaA` para mostrar la diferencia entre versiones) |
-| Permisos | `datosCompletos` y `acciones` (`verDatosCompletos`, `editarIdentificatorios`, `editarContacto`, `completarCamposExtra`, `imprimir`) |
+| Permisos | `datosCompletos` y `acciones` (`verDatosCompletos`, `editarIdentificatorios`, `editarContacto`, `completarCamposExtra`, `imprimir`; semana 3: `confirmarRecepcion`, `tildarSubtarea`, `marcarDocumento`, `adjuntar`, `darPase`, `devolver`) |
+| Semana 3 | `enAreaDesdePrecision` y `recibidoEnPrecision` (`dia` o `minuto`); `pase` (`faltan`, `destinos`); `devolucion` (`destinos`, `subtareasReiniciables`); `adjuntos` (vigentes, o `null` enmascarados) y `cantidadAdjuntos`. Ver 12.9 |
 
 Línea de tiempo, como pide 2.13(c): `formatearSegunPrecision(m.fechaEfectiva,
 m.precisionFecha)` · "cargado el `formatearFecha(m.registradoEn)` por
 `m.usuario.corto`" · "fuente: `m.fuente`".
+
+"En el área desde" y "Recibido el": `formatearSegunPrecision(ficha.enAreaDesde,
+ficha.enAreaDesdePrecision)` y lo mismo con `recibidoEn`. Un alta con fecha de
+inicio pasada o un pase cargado "el 15" tienen precisión de día: con
+`formatearFechaHora` se veía "19/10/2026 00:00" (corregido en la ficha).
 
 **Contacto enmascarado** (decisión 13): si `datosCompletos` es `false`, cada
 `persona.contacto` viene con `enmascarado: true` (`"•••• •••-••90"`,
@@ -325,7 +341,9 @@ Pide motivo (10 caracteres o más) a quien no trabaja el expediente y lo
 registra en `auditoria.accesos` (`ver_datos_completos`, `detalle.motivo`).
 Devuelve el contacto sin enmascarar de todas las versiones no suprimidas (por
 `id`, para cruzar con `ficha.personas` y `personasHistoricas`) y los adjuntos
-vigentes. Errores: `motivo_requerido`, `no_encontrado`.
+vigentes: `{ documento, movimientoId, nombre, mime, bytes }` (semana 3: con el
+nombre, el tipo y el tamaño, para que la ficha liste los adjuntos que trae en
+`null`). Errores: `motivo_requerido`, `no_encontrado`.
 
 ## 6. Imprimibles (`/expedientes/[numero]/imprimir?hoja=caratula|historial`)
 
@@ -418,8 +436,24 @@ Lo de la semana 1 sigue igual (`evaluarPermiso(accion, expediente, usuario)`,
 - `editar_identificatorios`, `editar_contacto` y `completar_campos_extra`
   devuelven `estado_no_admite` en archivado y anulado (3.1).
 
+Cambios de la semana 3 (3.1, 3.2 y 3.3 punto 1):
+
+- `confirmar_recepcion`, `tildar_subtarea`, `dar_pase`, `devolver` (y
+  `concluir`): el operador del área responsable (en un paso externo, la
+  custodia), solo en `en_tramite` o `espera_pago_dim` (`estado_no_admite`).
+- `dar_pase` y `devolver`: no con la carga histórica abierta
+  (`carga_historica_abierta`); `dar_pase` no en el último paso
+  (`paso_final`: se concluye) y `devolver` no en el primero (`primer_paso`).
+- `marcar_documento` y `adjuntar`: el responsable (también en concluido) y Mesa
+  de Entradas en estados activos; nadie en archivado ni anulado.
+- Acción nueva `ver_bandeja`: operadores con área (Dirección y el admin van al panel).
+- `ExpedientePermisos` suma `cargaHistorica`, `pasoFinal` y `primerPaso`
+  (opcionales; `permisosDelExpediente()` los completa). `MotivoDenegacion`
+  suma `carga_historica_abierta`, `paso_final` y `primer_paso`
+  (`TEXTO_DENEGACION` tiene sus textos).
+
 Para la ficha no hace falta llamar a `evaluarPermiso`: `ficha.acciones` ya trae
-las decisiones de lo que se puede hacer en la semana 2.
+las decisiones de lo que se puede hacer.
 
 ## 9. Fechas (`@/lib/fechas`)
 
@@ -446,8 +480,13 @@ const cliente = crearCliente();
 const expedientes = crearServicioExpedientes({
   leer: cliente,
   escribir: (usuarioId, motivo, fn) => conActorEn(cliente, usuarioId, motivo, fn),
+  // Solo para subirAdjunto y leerAdjunto:
+  almacen: crearAlmacenEnDisco(raizAdjuntos()),
 });
 ```
+
+En la app, `expedientes` de `servidor.ts` ya trae el almacén en disco
+(`ADJUNTOS_DIR`, o `./.data/adjuntos` en desarrollo), creado en el primer uso.
 
 ## 11. Las pantallas (semana 2)
 
@@ -478,3 +517,425 @@ Lo que usa cada pantalla, para la semana 3:
 - El enlace de WhatsApp (`enlaceWhatsapp()`) arma `https://wa.me/549…` con un
   mensaje que solo lleva el N° interno y el área de quien escribe; se ofrece
   solo con el contacto sin enmascarar.
+
+## 12. Semana 3: el flujo
+
+Pases, recepción, devoluciones, subtareas, documentos, adjuntos, bandejas y
+"Faltan N" (propuesta, 3.3 a 3.5, decisión 8 y sección 5). Todo está en
+`expedientes` (`servidor.ts`); los módulos son `recepcion.ts`, `subtareas.ts`,
+`documentos.ts`, `adjuntos.ts`, `pase.ts`, `devolucion.ts`, `bandejas.ts` y,
+puro, `flujo.ts` (lo que falta, destinos, fechas, plazo).
+
+### 12.1 Reglas comunes de las acciones
+
+Cada acción que inserta un movimiento sigue el mismo esqueleto
+(`operacion.ts`, `ejecutarAccion`), en una transacción de `conActor()`:
+
+1. **Idempotencia primero**: si el `comandoId` ya hizo esa acción en el
+   expediente, devuelve lo de la primera vez con `repetido: true`, sin validar
+   nada (ni la versión). El `version` del resultado es el ACTUAL.
+2. `SELECT … FOR UPDATE` y otra vez la idempotencia (dos reintentos
+   simultáneos del mismo comando no hacen la acción dos veces).
+3. **`versionVista`**: la `version` que mostraba la pantalla (ficha o fila de
+   la bandeja). Si cambió: `conflicto_version` ("Otro usuario modificó el
+   expediente; recargá"). Va antes que el estado y el permiso: si otro dio el
+   pase en el medio, el mensaje es ese y no "no sos el responsable".
+4. Estado (`estado_no_admite`), permiso (`PermisoDenegado`) y las
+   validaciones de la acción.
+5. **Recepción implícita**: si el área donde está el papel actúa sin haber
+   confirmado (`recibido_en` nulo), primero se inserta una `recepcion` con
+   `{implicita: true}`, `fecha_efectiva = en_area_desde` (con su precisión) y el
+   mismo `comando_id`. La dispara solo el área donde está el papel: que Mesa de
+   Entradas marque un documento de un expediente que está en Legal no es una
+   recepción de Legal.
+6. El movimiento, la proyección y `version + 1` (una vez por acción, aunque
+   haya recepción implícita). El resultado trae la `version` nueva para la
+   próxima acción.
+
+**Fecha efectiva** (`EntradaFechaEfectiva`, opcional en todas): nada = ahora
+(precisión de minuto); `"2026-10-15"` = ese día (precisión de día, 00:00 de
+Tucumán); `"2026-10-15T14:30"` (`datetime-local`) = esa hora en Tucumán; o un
+`Date`. Se controla (`validacion`, ruta `fechaEfectiva`): no futura (un minuto
+de tolerancia), hasta 30 días atrás, no anterior a `fecha_inicio`. Pase,
+devolución y recepción, además, no anterior al último movimiento de ubicación
+(alta, recepción explícita, pase, devolución o estado), por día si alguno de
+los dos tiene precisión de día. Las subtareas, documentos y adjuntos no entran
+en esa regla (decisión 6).
+
+Una Server Action típica:
+
+```ts
+"use server";
+export async function darPase(_: Estado, form: FormData): Promise<Estado> {
+  const usuario = await exigirUsuario();
+  try {
+    const r = await expedientes.darPase(usuario, String(form.get("numero")), String(form.get("pasoDestino")),
+      Number(form.get("versionVista")), String(form.get("comandoId")),
+      { fechaEfectiva: String(form.get("fecha") ?? ""), motivo: String(form.get("motivo") ?? "") });
+    return { ok: true, version: r.version };
+  } catch (e) {
+    return estadoDeError(e); // src/lib/presentacion/errores.ts: ErrorDominio y PermisoDenegado
+  }
+}
+```
+
+### 12.2 Recepción
+
+`expedientes.confirmarRecepcion(usuario, numero, versionVista, comandoId, { fechaEfectiva? }): Promise<ResultadoRecepcion>`
+
+```ts
+{ numero, version, repetido, movimientoId, recibidoEn: Date }
+```
+
+La confirma el área responsable (en un paso interno, donde está el papel).
+Movimiento `recepcion` con `{implicita: false}`; `recibido_en` = su fecha
+efectiva. Errores: `PermisoDenegado`, `no_encontrado`, `conflicto_version`,
+`estado_no_admite`, `ya_recibido`, `validacion` (fecha anterior a la llegada,
+futura…).
+
+`expedientes.confirmarRecepciones(usuario, seleccion: { numero, version }[], comandoId, { fechaEfectiva? }): Promise<ResultadoItemLote[]>`
+
+El lote de la pestaña Por confirmar: cada expediente en su transacción; los que
+fallan no frenan a los demás. Un `comandoId` para todo el lote (la
+idempotencia es por expediente: reintentar no repite nada).
+
+```ts
+[{ ok: true, numero, version, repetido, movimientoId, recibidoEn },
+ { ok: false, numero, codigo: "conflicto_version" | "ya_recibido" | "permiso" | …, mensaje }]
+```
+
+### 12.3 Subtareas
+
+`expedientes.tildarSubtarea(usuario, numero, clave, dato, versionVista, comandoId, { fechaEfectiva?, observacion? }): Promise<ResultadoSubtarea>`
+
+`expedientes.destildarSubtarea(usuario, numero, clave, motivo, versionVista, comandoId, { fechaEfectiva?, observacion? }): Promise<ResultadoSubtarea>`
+
+```ts
+{ numero, version, repetido, movimientoId, clave, hecha, dato: string | null, recepcionImplicita: boolean }
+```
+
+- Solo las del **paso actual** (`validacion`, ruta `subtarea`, "Solo se tildan
+  las subtareas del paso actual"), solo el responsable (la custodia en un
+  paso externo), en estados activos.
+- `dato` según `subtareas[].dato`: `fecha` → `"YYYY-MM-DD"`, no futura ni
+  anterior al inicio; `texto` → hasta 200 caracteres (`LARGO_MAXIMO_DATO_TEXTO`);
+  `null` si la subtarea no lleva dato. Con `dato_obligatorio`, sin dato es
+  `validacion` (ruta `dato`: "Indicá la fecha" / "Completá el dato").
+  Tildar otra vez con otro dato lo cambia; con el mismo, `sin_cambios`.
+- Destildar exige `motivo` (10 o más; `motivo_requerido`).
+- **Paso externo** (DIM, cementerio) y subtarea con `dato: fecha`: la fecha del
+  movimiento es ese día, con precisión de día (3.5). Sin el límite de 30 días:
+  es la fecha del papel que vuelve, no un registro demorado.
+- **Plazo** (3.6): tildar la subtarea de inicio del plazo del paso actual carga
+  `plazo_desde`; la de cierre (DIM_PLAN_INICIADO), `plazo_cumplido_en`.
+  Destildarlas los vacía. (El vencimiento y el semáforo son de la semana 4.)
+- Movimiento `subtarea` con `{subtarea, hecha, dato, paso}`; actualiza `items`
+  (tildarla saca la marca de "reiniciada") y `busqueda`.
+
+### 12.4 Documentos
+
+`expedientes.marcarDocumento(usuario, numero, clave, estado, observacion, versionVista, comandoId, { fechaEfectiva? }): Promise<ResultadoDocumento>`
+
+```ts
+estado: "presentado" | "no_corresponde" | "pendiente"   // ESTADOS_MARCABLES; "historico" no se marca a mano
+// →
+{ numero, version, repetido, movimientoId, clave, estado, observacion, recepcionImplicita }
+```
+
+- `no_corresponde` exige `observacion` (`validacion`, ruta `observacion`).
+  Con `pendiente` la observación se descarta.
+- Cualquier documento de la plantilla. Quién (3.2): el responsable (también en
+  concluido) y Mesa de Entradas en estados activos; nadie en archivado ni anulado.
+- Movimiento `documento` con `{documento, estado}` y la observación en
+  `observacion`; `items.documentos[clave]` conserva sus adjuntos.
+
+### 12.5 Adjuntos
+
+**Subida** (para el Route Handler `POST /api/expedientes/[numero]/adjuntos`,
+fuera del `matcher` del proxy y con `client_max_body_size 12m` en nginx):
+
+`expedientes.subirAdjunto(usuario, numero, contenido: ReadableStream<Uint8Array>, { nombre, documento }, versionVista, comandoId): Promise<ResultadoAdjunto>`
+
+```ts
+// En el Route Handler, sin leer el cuerpo antes (los metadatos van en la URL o en headers):
+const r = await expedientes.subirAdjunto(usuario, numero, request.body, {
+  nombre: url.searchParams.get("nombre") ?? "archivo",
+  documento: url.searchParams.get("documento"),   // clave, o null
+}, Number(url.searchParams.get("version")), url.searchParams.get("comando") ?? "");
+// →
+{ numero, version, repetido, movimientoId, documento, nombre, mime, bytes, sha256, recepcionImplicita }
+```
+
+1. Antes de leer el cuerpo: comando repetido (devuelve lo de entonces y cancela
+   el cuerpo), expediente, estado, permiso `adjuntar` y documento (que exista y
+   no tenga `adjunto: "no"`, como las actas de defunción).
+2. El cuerpo, en streaming a `tmp/<uuid>` con sha256 al vuelo y fsync; corta
+   pasados 10 MB (`adjunto_muy_grande`) y borra lo escrito.
+3. El tipo por magic bytes: PDF, JPG o PNG. Si no: `adjunto_invalido` ("Solo se
+   admiten PDF, JPG o PNG", "Subilo como JPG" para HEIC, "El archivo está
+   vacío"), y se borra el temporal.
+4. En `conActor()`: el movimiento `adjunto` con
+   `{nombre, mime, bytes, sha256, documento, ruta}` (ruta `AAAA/MM/<uuid>`) e
+   `items` (`adjuntos[id] = {documento, vigente: true}` y el id en la lista del
+   documento). Adjuntar **no** marca el documento como presentado.
+5. Hecho el commit, el rename a `AAAA/MM/<uuid>` (0440 en Linux). Si la
+   transacción falló (por ejemplo `conflicto_version`), se borra el temporal.
+
+El `nombre` se guarda limpio (sin carpetas ni caracteres de control, 150 como
+máximo); en el disco el archivo se llama con el UUID. El id del adjunto es el
+`movimientoId`. Si `request.body` es `null` (cuerpo vacío), pasar un stream
+vacío: da `adjunto_invalido` ("El archivo está vacío").
+
+**Lectura** (para `/adjuntos/[movimientoId]`, `?descargar=1`):
+
+`expedientes.leerAdjunto(usuario, movimientoId, { descargar?, motivo?, ip? }): Promise<AdjuntoLeido>`
+
+```ts
+{ numero, movimientoId, nombre, mime, bytes, sha256, disposicion: "inline" | "attachment",
+  contenido: ReadableStream<Uint8Array> }
+// El Route Handler:
+return new Response(a.contenido, { headers: {
+  "Content-Type": a.mime,
+  "Content-Disposition": `${a.disposicion}; filename*=UTF-8''${encodeURIComponent(a.nombre)}`,
+  "Content-Security-Policy": "sandbox; default-src 'none'",
+  "X-Content-Type-Options": "nosniff",
+  "Cache-Control": "private, no-store",
+} });
+```
+
+Permiso de ver los datos completos (3.2): quien no trabaja el expediente tiene
+que mandar `motivo` (10 o más; si no, `motivo_requerido`), como en "Ver datos
+completos". Registra `ver_adjunto` o `descargar_adjunto` en `auditoria.accesos`
+(`detalle: { movimiento, motivo? }`). Un id que no es un adjunto vigente:
+`no_encontrado`.
+
+**Almacén** (`@/lib/adjuntos/almacen`): `ADJUNTOS_DIR` (en producción
+obligatoria y absoluta; la app no arranca sin ella) o `./.data/adjuntos` en
+desarrollo. **Barrido** de temporales de más de 24 h: `npm run adjuntos:barrer`
+(`scripts/barrer-adjuntos-tmp.ts`, opción `--horas N`), o
+`barrerTemporales(almacen, ahora, horas)` desde otro script.
+
+### 12.6 Pase y "Faltan N"
+
+`expedientes.validarPase(usuario, numero): Promise<ValidacionPase>` (no escribe ni registra accesos)
+
+```ts
+{ numero, version,
+  paso: RefPaso,                    // { clave, nombre, orden }
+  faltan: Faltante[],               // para el paso siguiente: el "Faltan N" del botón
+  destinos: DestinoPase[],          // vacío en el último paso
+  permiso: Decision }               // dar_pase para este usuario
+
+type Faltante =
+  | { tipo: "subtarea"; clave; nombre; paso: RefPaso; motivo: "sin_tildar" | "sin_dato" | "reiniciada"; mensaje }
+  | { tipo: "documento"; clave; nombre; exigirAlSalirDe: RefPaso; motivo: "pendiente" | "sin_observacion" | "sin_adjunto"; mensaje }
+  | { tipo: "campo_extra"; clave; etiqueta; exigirAlSalirDe: RefPaso; mensaje };
+
+interface DestinoPase extends RefPaso {
+  tipo: "siguiente" | "reenvio" | "omitiendo";
+  esRetorno: boolean;               // es el paso que devolvió
+  pasosSalteados: string[];         // reenvío directo
+  pasosOmitidos: string[];          // omitiendo: exige motivo
+  requiereMotivo: boolean;
+  faltan: Faltante[];               // vacío = disponible
+}
+```
+
+Qué falta (3.3, puntos 4 a 6): las subtareas `obligatoria` del paso sin tildar
+o sin el dato que pide `dato_obligatorio`; los documentos `obligatorio` con
+`exigir_al_salir_de` en el paso o en uno anterior (acumulativo) que no están
+presentados, `no_corresponde` con observación o `historico` (y si
+`adjunto: obligatorio`, presentados con un adjunto vigente); los campos extra
+`obligatorio` exigibles hasta el paso, vacíos. Los de `exigir_al_salir_de: null`
+son para Concluir (semana 4).
+
+Destinos (3.3, punto 8): el **siguiente**; el **reenvío directo** al paso que
+devolvió (`paso_retorno_clave`) si el actual y los intermedios están completos,
+incluso lo que reinició la devolución aunque no sea obligatorio; y los
+posteriores **salteando solo omitibles**, con motivo. Cada uno con su `faltan`:
+el diálogo los ofrece todos y deshabilita los que tienen algo.
+
+`expedientes.darPase(usuario, numero, pasoDestino, versionVista, comandoId, { fechaEfectiva?, motivo?, observacion? }): Promise<ResultadoPase>`
+
+```ts
+{ numero, version, repetido, movimientoId,
+  recepcionImplicitaId: string | null,
+  paso: RefPaso,                              // el destino
+  areaActual: { id, codigo, nombre },         // el área concreta ($CEMENTERIO resuelto)
+  areaResponsable: { id, codigo, nombre },    // la custodia en un paso externo
+  sinConfirmar: boolean,                      // el destino tiene que confirmar la recepción
+  estado: "en_tramite" | "espera_pago_dim" }
+```
+
+Errores: `PermisoDenegado` (no es el responsable, `carga_historica_abierta`,
+`paso_final`), `no_encontrado`, `conflicto_version`, `estado_no_admite`,
+`destino_invalido`, `faltan_requisitos`, `motivo_requerido` (omitiendo),
+`validacion` (fecha).
+
+Efectos: el `pase` (`datos: {pasos_omitidos, pasos_salteados}`,
+`estado_anterior`/`estado_nuevo` si cambia, área de origen y de destino
+concretas); en el expediente, paso, áreas, `estado` del paso destino (la DIM:
+`espera_pago_dim`), `en_area_desde` = fecha efectiva, `recibido_en` (= esa fecha
+si el destino es externo o es del área del usuario; si no, null: "sin
+confirmar"), `plazo_*` (se cargan al entrar a un paso con plazo y se limpian
+al salir), `paso_retorno_clave` (null al llegar) y `version + 1`.
+
+**El último paso no tiene salida en la semana 3**: `dar_pase` da `paso_final` y
+Concluir es de la semana 4. Mientras tanto se puede trabajar ahí (confirmar,
+tildar, documentos, adjuntos) y devolver.
+
+### 12.7 Devolución
+
+`expedientes.devolver(usuario, numero, pasoDestino, motivo, subtareasARehacer, versionVista, comandoId, { fechaEfectiva?, observacion? }): Promise<ResultadoDevolucion>`
+
+```ts
+{ numero, version, repetido, movimientoId, recepcionImplicitaId,
+  paso: RefPaso,                 // el destino
+  pasoRetorno: string | null,    // a dónde se podrá reenviar directo
+  subtareasReiniciadas: string[], sinConfirmar, estado }
+```
+
+- A cualquier paso anterior (`destino_invalido` si no); no desde el primero
+  (`primer_paso`) ni con la carga histórica abierta.
+- `motivo` de 10 o más (`motivo_requerido`). Atajos del diálogo: "Falta
+  firma", "Error en boleta", "Falta documentación" (el comienzo del texto).
+- No valida subtareas ni documentos.
+- `subtareasARehacer`: claves de subtareas tildadas de los pasos desde el
+  destino hasta el anterior al actual (`ficha.devolucion.subtareasReiniciables`
+  con `paso.orden >= destino.orden`); otra cosa es `validacion` (ruta
+  `subtareas.<clave>`). Pasan a `hecha: false` con `reiniciada_por_mov`.
+- `paso_retorno_clave`: el paso que devolvió; en devoluciones encadenadas, el
+  más avanzado.
+- Estado del paso destino (sale de `espera_pago_dim`), plazo limpio (o cargado
+  si el destino tiene plazo).
+- La bandeja del destino muestra la etiqueta `devuelto` con el área y el motivo.
+
+### 12.8 Bandejas
+
+`expedientes.bandeja(usuario, pestana): Promise<Bandeja>` con `pestana` en `PESTANAS_BANDEJA`:
+
+| Pestaña | Qué trae |
+|---|---|
+| `por_confirmar` | El papel está en el área del usuario y nadie confirmó (`recibido_en` nulo) |
+| `en_mi_area` | El área del usuario es la responsable y el papel está en ella (con y sin confirmar). Los que custodia afuera van en Afuera |
+| `afuera` | Pasos externos cuya custodia es el área del usuario. Mesa de Entradas ve todo lo que está afuera; lo que no custodia viene con `soloConsulta: true` |
+
+Plazos y Carga histórica son de la semana 4. Siempre estados activos, del que
+llegó antes al más nuevo, 200 filas como máximo (`hayMas`).
+
+```ts
+{ pestana, area: { id, codigo }, hayMas,
+  filas: [{ numero, numeroCorto, numeroMunicipal, titular /* "APELLIDO, Nombres" */,
+            tramite: { tipo, plantilla, codigo, version }, paso: { clave, nombre, orden, total },
+            estado, version /* para el lote */, areaActual: { codigo, nombre, externa }, areaResponsable,
+            enAreaDesde, recibidoEn,
+            diasEnArea /* hábiles, f_dias_habiles_entre */, diasAlerta, demorado /* diasEnArea >= diasAlerta */,
+            etiquetas: Array<{ tipo: "sin_confirmar" }
+                           | { tipo: "devuelto"; porArea; desdePaso; motivo }   // "Devuelto por Asesoría Legal: …"
+                           | { tipo: "plazo"; desde; diasHabiles; cumplidoEn }>,
+            soloConsulta,
+            puedeConfirmar,   // sin confirmar y con permiso confirmar_recepcion: casilla y botón "Confirmar"
+            paseRapido }] }   // RefPaso del siguiente, o null (ver abajo)
+```
+
+`paseRapido` es el "Dar pase rápido" de la sección 5: viene solo si el usuario
+puede dar el pase (`dar_pase`), no falta nada y el **único** destino es el
+paso siguiente (`destinosPosibles` con un solo elemento `siguiente` y
+`faltan` vacío). Con reenvío directo u omitibles hay que elegir: eso va en la
+ficha. Lo que Mesa de Entradas solo consulta afuera no tiene acciones.
+
+Permiso `ver_bandeja`: operadores con área (`PermisoDenegado` para Dirección y el admin).
+
+`expedientes.contadorPorConfirmar(usuario): Promise<number>`: el contador del
+encabezado (0 para quien no tiene bandeja).
+
+`expedientes.contadoresBandeja(usuario): Promise<ContadoresBandeja>`: cuántos
+hay en cada pestaña, con las mismas condiciones que `bandeja()`:
+`{ por_confirmar, en_mi_area, afuera, afueraCustodia }` (`afueraCustodia`: lo
+de Afuera que custodia el área; para Mesa de Entradas, `afuera` incluye lo que
+solo consulta). Todo en 0 para quien no tiene bandeja. Para los números de las
+pestañas y para abrir la que tiene trabajo (`pestanaPorDefecto` en
+`src/lib/presentacion/flujo.ts`).
+
+### 12.9 Lo que la ficha suma
+
+| Campo | Para qué |
+|---|---|
+| `enAreaDesdePrecision`, `recibidoEnPrecision` | `formatearSegunPrecision(…)`: sin hora si es de día |
+| `acciones.confirmarRecepcion` | El permiso; el botón va si además `situaciones` incluye `sin_confirmar` |
+| `acciones.tildarSubtarea`, `marcarDocumento`, `adjuntar`, `darPase`, `devolver` | Qué botones mostrar (las mismas reglas que exige la acción) |
+| `pase.faltan` | "Faltan N" (vacío en el último paso) y el panel "Qué falta para avanzar", con acceso directo a cada cosa (`tipo` y `clave`) |
+| `pase.destinos` | El diálogo "Dar pase" (ver 12.6) |
+| `devolucion.destinos` | Los pasos anteriores, para el diálogo "Devolver" |
+| `devolucion.subtareasReiniciables` | Las tildadas de los pasos anteriores (`paso.orden`); ofrecer las del destino en adelante |
+| `adjuntos` | Vigentes (`movimientoId`, `documento`, `nombre`, `mime`, `bytes`, `registradoEn`, `usuario`), o `null` si están enmascarados; `cantidadAdjuntos` siempre |
+
+Después de cada acción, recargar la ficha (o usar la `version` del resultado
+para la siguiente).
+
+### 12.10 Pendientes para la semana 4
+
+Concluir (el último paso hoy no tiene salida), archivar, anular, reabrir,
+correcciones (incluido `retirar_adjunto`, que ya respeta
+`items.adjuntos[id].vigente`), vencimiento y semáforo del plazo DIM, pestañas
+Plazos y Carga histórica, transcripción y "Terminar carga histórica" (que marca
+`historica`, ya aceptado por "Faltan N").
+
+## 13. Las pantallas (semana 3)
+
+| Ruta | Qué llama |
+|---|---|
+| `/bandeja?pestana=` | `contadoresBandeja` (números de las pestañas y la que se abre sin `?pestana=`: Por confirmar, En mi área o Afuera, la primera con trabajo) y `bandeja`. Lote: `accionRecepciones`; fila: `accionRecepcion` y "Dar pase rápido" (`accionPase` con `fila.paseRapido` y `fila.version`) |
+| Encabezado (`(app)/layout.tsx`) | `contadorPorConfirmar` para los operadores, enlazado a `/bandeja?pestana=por_confirmar` |
+| `/expedientes/[numero]` | `obtenerFicha`; los diálogos de `[numero]/flujo/` llaman a `accionRecepcion`, `accionSubtarea` (tildar y destildar), `accionDocumento`, `accionPase`, `accionDevolucion` y `verDatosCompletos` (los adjuntos de quien no trabaja el expediente) |
+| `POST /api/expedientes/[numero]/adjuntos?nombre=&documento=&version=&comando=` | El archivo es el cuerpo (sin multipart). `subirAdjunto` con `request.body`. JSON: 201 `{ ok: true, …ResultadoAdjunto }` (200 si es un comando repetido) o `{ ok: false, codigo, mensaje, errores }` con 401, 403 (permiso u origen), 404, 409 (versión), 413, 415 (tipo, HEIC) o 422. Fuera del `matcher` del proxy |
+| `GET /adjuntos/[movimientoId]` (`?descargar=1`, `?motivo=` o `X-Motivo`) | `leerAdjunto`. Los headers de 12.5; los errores en texto plano con los mismos headers (401, 403 `motivo_requerido` o permiso, 404). El proxy la cubre (sin cookie, a /login) y la ruta vuelve a pedir el usuario |
+
+- **Server Actions** en `src/app/(app)/expedientes/acciones.ts`
+  (`accionRecepcion`, `accionRecepciones`, `accionSubtarea`,
+  `accionDocumento`, `accionPase`, `accionDevolucion`): reciben un objeto
+  (no FormData), lo validan con zod en `src/lib/presentacion/acciones.ts`
+  (`procesar…`, probados en `tests/integracion/pantallas-flujo.test.ts`) y,
+  si salió bien, llaman a `refresh()` de `next/cache`: la misma respuesta trae
+  la página re-renderizada (la ficha con la versión nueva, la bandeja y el
+  contador). Devuelven `{ ok: true, version, repetido, mensaje }` o el
+  `EstadoError` de siempre. Ojo: el proxy renueva la cookie de sesión en cada
+  request, y Next re-renderiza la página en toda respuesta de una Server Action
+  que cambia cookies; así que también tras un error (por ejemplo
+  `conflicto_version`) la ficha de fondo ya viene con la versión nueva.
+- **Route Handlers**: la lógica está en `src/lib/presentacion/adjuntos-http.ts`
+  (`responderSubida`, `responderLectura`), sin Next; los `route.ts` solo ponen
+  `getUsuarioActual()` y el servicio. Tras una subida, el navegador pide
+  `router.refresh()` (un Route Handler no puede).
+- **`comandoId`**: lo genera cada diálogo al abrirse (`nuevoComandoId()`:
+  `crypto.randomUUID()` o, fuera de un contexto seguro, `getRandomValues()`);
+  un reintento desde el mismo diálogo no repite la acción. **`versionVista`**:
+  la mayor entre la de la ficha y la que devolvió la última acción.
+- **Diálogos**: `<dialog>` nativo con `showModal()` (`src/components/dialogo.tsx`):
+  el resto queda inerte, Escape cierra, el foco va a `data-autofocus` y vuelve
+  al botón que lo abrió. Errores: `src/components/aviso-error.tsx` (con
+  "Recargar la página" para `conflicto_version`, `ya_recibido` y
+  `destino_invalido`).
+- **"Faltan N"** (`itemsFaltan` en `src/lib/presentacion/flujo.ts`): cada
+  faltante con su acceso directo (subtarea → diálogo Tildar; documento →
+  Marcar, o Adjuntar si falta el archivo; campo extra → el formulario de
+  edición con el foco en el campo, `#campo-datosExtra-<clave>`). Desde el
+  diálogo "Dar pase", al terminar el acceso directo se vuelve al pase.
+- **Fecha efectiva** en recepción, pase, devolución y tildar: "Ahora" (por
+  defecto, se manda vacío), "Otro día y hora" (`datetime-local`, precisión de
+  minuto) o "Solo el día" (precisión de día), de hoy a 30 días atrás
+  (`limitesFecha`). En un paso externo, una subtarea con `dato: fecha` no
+  pide fecha: es la del dato.
+- **Adjuntos en el navegador** (`src/lib/presentacion/imagen.ts`): tipo por
+  magic bytes y nombre (HEIC: "subila como JPG"), PDF de hasta 10 MB; las
+  imágenes se reducen a 2000 px de lado mayor y se recomprimen como JPEG 0,8
+  con canvas (fondo blanco para PNG con transparencia; si no hacía falta
+  reducir y la original pesa menos, va la original). El 413 de nginx y la
+  sesión vencida tienen su mensaje (`mensajeRespuestaSubida`).
+- **Visor**: `<img>` para imágenes e `<iframe>` para PDF sobre
+  `/adjuntos/[id]` (Chrome muestra el PDF aun con `Content-Security-Policy:
+  sandbox`); "Descargar" es un enlace aparte (`?descargar=1`). Quien no
+  trabaja el expediente ve "Hay N adjuntos" y "Ver adjuntos": con el motivo,
+  `verDatosCompletos` devuelve la lista y cada vista o descarga lleva
+  `?motivo=` (queda en `auditoria.accesos` con `ver_adjunto`).
+

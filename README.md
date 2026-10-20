@@ -14,8 +14,15 @@ edición, carátula e historial, en `src/lib/dominio/`, con su referencia en
 [docs/api-dominio.md](docs/api-dominio.md)) y sus pantallas: buscador
 (`/expedientes`, también desde la búsqueda del encabezado), alta
 (`/expedientes/nuevo`), ficha de solo lectura, edición e imprimibles (carátula
-con QR e historial, A4). Los pases y las bandejas (semana 3) y el panel faltan;
-hoy dicen "En construcción".
+con QR e historial, A4). De la **semana 3** está el dominio del flujo (pases
+con "Faltan N", recepción, devoluciones, subtareas, documentos, adjuntos y
+bandejas; [docs/api-dominio.md](docs/api-dominio.md), sección 12) y sus pantallas
+(sección 13): `/bandeja` con las pestañas Por confirmar, En mi área y Afuera
+(confirmar de a uno o en lote, "Dar pase rápido"), el contador "Por confirmar"
+del encabezado, los diálogos de la ficha (confirmar recepción, "Qué falta para
+avanzar" y "Dar pase · Faltan N", devolver, tildar, documentos, adjuntar con
+visor) y los Route Handlers de adjuntos. El panel sigue "En construcción"
+(semana 4).
 
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
@@ -102,6 +109,7 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run db:local:detener` | Lo detiene |
 | `npm run db:reset` | Base vacía, migraciones (`prisma migrate deploy`) y semilla |
 | `npm run db:seed` | Solo la semilla. Idempotente: crea lo que falta y no toca lo que existe |
+| `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`<ADJUNTOS_DIR>/tmp/`) de más de 24 h (`-- --horas N` para otra antigüedad) |
 | `npm run db:migrate` | `prisma migrate dev`, para crear una migración nueva |
 | `npm run db:deploy` | `prisma migrate deploy`, como en un despliegue |
 | `node scripts/db-local.mjs reiniciar-datos` | **Borra** el clúster local entero y lo crea de nuevo (por ejemplo, para cambiar la clave del superusuario) |
@@ -124,16 +132,22 @@ src/
   proxy.ts                 renovación deslizante de la sesión (no autoriza)
   instrumentation.ts       valida el entorno al arrancar (lib/arranque.ts)
   app/                     rutas: /login, /auth/*, /dev/login, /sin-acceso y,
-                           en (app)/, las pantallas con sesión
+                           en (app)/, las pantallas con sesión; los adjuntos en
+                           /adjuntos/[movimientoId] y POST /api/expedientes/[numero]/adjuntos
   lib/db/                  cliente de Prisma (solo lectura) y conActor() (escrituras)
   lib/auth/                Cidituc, sesión, cookies, ingreso y salida
   lib/dominio/             permisos, navegación, CUIL y plantillas (esquema zod y
                            validación de "Publicar"); búsqueda (busqueda.ts) y
                            expedientes/ (alta, edición, ficha, carátula, esquemas
-                           zod armados en tiempo de ejecución). Ver docs/api-dominio.md
+                           zod armados en tiempo de ejecución); semana 3: recepción,
+                           subtareas, documentos, adjuntos, pase, devolución,
+                           bandejas y flujo.ts (puro). Ver docs/api-dominio.md
+  lib/adjuntos/            tipos por magic bytes y el almacén en disco (AlmacenAdjuntos)
   lib/presentacion/        lógica de las pantallas, sin Next: modelo del formulario, parámetros
-                           del buscador, URL del QR, enlace wa.me, textos y la lógica de las
-                           Server Actions (acciones.ts)
+                           del buscador, URL del QR, enlace wa.me, textos, la lógica de las
+                           Server Actions (acciones.ts) y, semana 3, "Faltan N", pestañas y
+                           fecha efectiva (flujo.ts), reducción de imágenes (imagen.ts) y los
+                           Route Handlers de adjuntos (adjuntos-http.ts)
   lib/fechas.ts            fechas YYYY-MM-DD, hoy en Tucumán, datetime-local y formato es-AR
   lib/entorno.ts           variables de entorno validadas con zod
   generated/               cliente de Prisma generado (no se versiona)
@@ -265,6 +279,7 @@ Documentadas una por una en [.env.example](.env.example).
 | `CIDITUC_DERIVADOR_URL`, `CIDITUC_CLAVE` | Origen del derivador y clave de esta instancia (`cementeria` o `cementeria-staging`) |
 | `CIDITUC_API_URL` | Backend contra el que se valida el token; https en producción |
 | `CIDITUC_CA_PEM` | Opcional: certificado intermedio que reemplaza al embebido |
+| `ADJUNTOS_DIR` | Carpeta de los adjuntos, fuera del webroot. Obligatoria y absoluta en producción; en desarrollo, `./.data/adjuntos` |
 
 ## Documentos
 

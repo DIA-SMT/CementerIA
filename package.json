@@ -17,6 +17,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "node scripts/db-local.mjs recrear-base && prisma migrate deploy && npm run db:seed",
     "db:seed": "tsx prisma/seed.ts",
+    "adjuntos:barrer": "tsx scripts/barrer-adjuntos-tmp.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

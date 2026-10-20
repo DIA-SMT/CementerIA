@@ -1,14 +1,20 @@
 import Form from "next/form";
 import Link from "next/link";
-import { LogOut, Search } from "lucide-react";
+import { Inbox, LogOut, Search } from "lucide-react";
 import { exigirUsuario } from "@/lib/auth/sesion";
-import { inicioPara, navegacionPara } from "@/lib/dominio/navegacion";
+import { expedientes } from "@/lib/dominio/expedientes/servidor";
+import { inicioPara, navegacionPara, puedeVerPantalla } from "@/lib/dominio/navegacion";
+import { rutaBandeja } from "@/lib/presentacion/flujo";
 import { NavegacionPrincipal } from "./navegacion";
 
 /**
  * Cáscara de las pantallas con sesión: encabezado con la navegación del rol,
- * búsqueda global (lleva a /expedientes?q=), nombre, área y Salir (sección 5,
+ * búsqueda global (lleva a /expedientes?q=), el contador "Por confirmar"
+ * (enlazado a esa pestaña de la bandeja), nombre, área y Salir (sección 5,
  * "Navegación por rol"). Al imprimir no sale: los imprimibles van solos.
+ *
+ * Las Server Actions del flujo llaman a `refresh()`: la respuesta trae también
+ * este layout, así que el contador se actualiza al confirmar o dar un pase.
  *
  * Este layout NO es la barrera: Next puede renderizar una página sin volver a
  * renderizar su layout (navegación del lado del cliente), así que cada página
@@ -19,6 +25,8 @@ export default async function LayoutConSesion({ children }: { children: React.Re
   const usuario = await exigirUsuario();
   const items = navegacionPara(usuario);
   const area = usuario.area?.nombre ?? (usuario.rol === "admin" ? "Administración del sistema" : "Sin área");
+  const conBandeja = puedeVerPantalla(usuario, "bandeja");
+  const porConfirmar = conBandeja ? await expedientes.contadorPorConfirmar(usuario) : 0;
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -51,6 +59,21 @@ export default async function LayoutConSesion({ children }: { children: React.Re
               <span className="sr-only">Buscar</span>
             </button>
           </Form>
+
+          {conBandeja ? (
+            <Link
+              href={rutaBandeja("por_confirmar")}
+              className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800 ${
+                porConfirmar > 0 ? "border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100" : "border-slate-300 text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              <Inbox className="h-4 w-4" aria-hidden="true" />
+              Por confirmar
+              <span className={`rounded-full px-1.5 text-xs font-semibold ${porConfirmar > 0 ? "bg-amber-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                {porConfirmar}
+              </span>
+            </Link>
+          ) : null}
 
           <div className="ml-auto flex items-center gap-4">
             <div className="text-right leading-tight">

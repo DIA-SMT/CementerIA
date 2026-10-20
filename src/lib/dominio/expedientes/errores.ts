@@ -24,7 +24,17 @@ export type CodigoErrorDominio =
   /** La acción exige motivo (10 caracteres o más) y no vino. */
   | "motivo_requerido"
   /** Una edición que no cambia nada. */
-  | "sin_cambios";
+  | "sin_cambios"
+  /** El pase no puede salir: falta lo que dice `errores` ("Faltan N", 3.3 puntos 4 a 6). */
+  | "faltan_requisitos"
+  /** El paso elegido no es un destino posible del pase o de la devolución. */
+  | "destino_invalido"
+  /** La recepción ya estaba confirmada. */
+  | "ya_recibido"
+  /** El archivo no es PDF, JPG ni PNG (por su contenido, no por el nombre), o está vacío. */
+  | "adjunto_invalido"
+  /** El archivo supera los 10 MB. */
+  | "adjunto_muy_grande";
 
 export interface ErrorCampo {
   /** Dónde: `personas[1].dni`, `ubicacion.lote`. Vacía si es del formulario entero. */
@@ -61,6 +71,12 @@ export function noEncontrado(numero: string): ErrorDominio {
 export function limpiarMotivo(motivo: string | null | undefined): string | null {
   const m = motivo?.replace(/\s+/g, " ").trim() ?? "";
   return m === "" ? null : m;
+}
+
+/** Una acción del flujo sobre un expediente en un estado que no la admite (3.1). */
+export function estadoNoAdmite(estado: string, accion: string): ErrorDominio {
+  const texto = estado === "espera_pago_dim" ? "en espera de pago en la DIM" : estado.replace("_", " ");
+  return new ErrorDominio("estado_no_admite", `El expediente está ${texto}: no se puede ${accion}`);
 }
 
 /** Exige un motivo de 10 caracteres o más y lo devuelve limpio. */

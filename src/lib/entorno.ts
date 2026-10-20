@@ -212,6 +212,18 @@ export function validarEntornoAlIniciar(fuente: Readonly<Record<string, string |
   if (!fuente.DATABASE_URL?.trim()) {
     throw new EntornoInvalido(["DATABASE_URL: falta (rol cementeria_app)"]);
   }
+  // Los adjuntos van a una carpeta fuera del webroot (sección 6, "Adjuntos").
+  // En desarrollo hay un valor por defecto (./.data/adjuntos); en producción
+  // se exige al arrancar y no en la primera subida.
+  const adjuntos = fuente.ADJUNTOS_DIR?.trim();
+  if (resultado.produccion && !adjuntos) {
+    throw new EntornoInvalido(["ADJUNTOS_DIR: falta (carpeta de los adjuntos, fuera del webroot, por ejemplo /var/lib/cementeria/adjuntos)"]);
+  }
+  // Absoluta en POSIX (`/var/…`) o en Windows (`C:\…`), sin importar node:path:
+  // este módulo también lo lee el proxy.
+  if (resultado.produccion && adjuntos && !/^(\/|[A-Za-z]:[\\/])/.test(adjuntos)) {
+    throw new EntornoInvalido(["ADJUNTOS_DIR: en producción tiene que ser una ruta absoluta"]);
+  }
   log.info("entorno.validado", {
     nodeEnv: resultado.nodeEnv,
     cidituc: resultado.cidituc.habilitado,
