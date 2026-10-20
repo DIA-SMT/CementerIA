@@ -1,0 +1,445 @@
+// Modelo de datos de CementerIA. Especificación: docs/propuesta-mvp.md, sección 2.
+//
+// Este archivo describe tablas, columnas, claves e índices (también los
+// parciales, GIN trigram y jsonb_path_ops, para que `prisma migrate diff` no
+// proponga borrarlos). Lo que Prisma no sabe expresar vive en SQL escrito a
+// mano en las migraciones: CHECKs, columnas identity, funciones, triggers,
+// GRANTs y el usuario SISTEMA. Ver prisma/migrations/*_reglas_base.
+//
+// Nombres: modelos y campos en camelCase para TypeScript; tablas y columnas en
+// snake_case con @@map/@map.
+//
+// Fechas: `@db.Date` llega a JS como Date a medianoche UTC. El dominio las
+// maneja como texto YYYY-MM-DD (sección 6, "Fechas"); la conversión es de
+// src/lib/fechas.ts, nunca de quien lee el campo.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  // Índices parciales (WHERE) declarados en el esquema: sin esto el diff los
+  // vería como sobrantes y los borraría.
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  // Las URLs no van acá desde Prisma 7: la de migraciones está en
+  // prisma.config.ts y la de runtime en src/lib/db/crear-cliente.ts.
+  schemas  = ["public", "auditoria"]
+}
+
+// ---------------------------------------------------------------------------
+// Catálogos
+// ---------------------------------------------------------------------------
+
+/// Áreas de la Dirección (internas) y destinos sin usuarios (externas: la DIM y
+/// los cementerios). CHECKs: tipo in (interna, externa); una externa siempre
+/// recibe pases.
+model Area {
+  id          Int     @id @default(autoincrement()) @db.SmallInt
+  codigo      String  @unique
+  nombre      String
+  tipo        String  @default("interna")
+  recibePases Boolean @default(true) @map("recibe_pases")
+  activa      Boolean @default(true)
+  orden       Int     @default(0) @db.SmallInt
+
+  cementerio             Cementerio?
+  usuarios               Usuario[]
+  expedientesActuales    Expediente[] @relation("ExpedienteAreaActual")
+  expedientesResponsable Expediente[] @relation("ExpedienteAreaResponsable")
+  movimientosUsuario     Movimiento[] @relation("MovimientoAreaUsuario")
+  movimientosOrigen      Movimiento[] @relation("MovimientoAreaOrigen")
+  movimientosDestino     Movimiento[] @relation("MovimientoAreaDestino")
+
+  @@map("areas")
+  @@schema("public")
+}
+
+model Cementerio {
+  id              Int      @id @default(autoincrement()) @db.SmallInt
+  codigo          String   @unique
+  nombre          String
+  /// Su área externa: a donde va el papel en un paso "$CEMENTERIO".
+  areaId          Int      @unique @map("area_id") @db.SmallInt
+  /// Arreglo de {clave, etiqueta, tipo: texto|entero, obligatorio, patron, activo}.
+  camposUbicacion Json     @default("[]") @map("campos_ubicacion")
+  /// Códigos de tipos_monumento habilitados (sin FK: los valida la app).
+  tiposMonumento  String[] @default([]) @map("tipos_monumento")
+  activo          Boolean  @default(true)
+
+  area        Area         @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  expedientes Expediente[]
+
+  @@map("cementerios")
+  @@schema("public")
+}
+
+model TipoMonumento {
+  id     Int     @id @default(autoincrement()) @db.SmallInt
+  codigo String  @unique
+  nombre String
+  activo Boolean @default(true)
+
+  expedientes Expediente[]
+
+  @@map("tipos_monumento")
+  @@schema("public")
+}
+
+model TipoTramite {
+  id     Int     @id @default(autoincrement()) @db.SmallInt
+  codigo String  @unique
+  nombre String
+  activo Boolean @default(true)
+
+  plantillas  Plantilla[]
+  expedientes Expediente[]
+
+  @@map("tipos_tramite")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Usuarios
+// ---------------------------------------------------------------------------
+
+/// El id 1 es el usuario técnico SISTEMA (lo inserta la migración, inactivo):
+/// con él escriben la semilla y los scripts.
+model Usuario {
+  id            Int       @id @default(autoincrement())
+  cuil          String    @unique @db.Char(11)
+  /// `id_persona` de Cidituc como texto; se vincula en el primer ingreso.
+  ciditucId     String?   @unique @map("cidituc_id")
+  nombre        String
+  apellido      String
+  email         String?
+  areaId        Int?      @map("area_id") @db.SmallInt
+  rol           String    @default("operador")
+  activo        Boolean   @default(true)
+  /// Al incrementarse invalida todas las sesiones del usuario.
+  sesionVersion Int       @default(0) @map("sesion_version")
+  ultimoIngreso DateTime? @map("ultimo_ingreso") @db.Timestamptz
+  creadoEn      DateTime  @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  area                 Area?             @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  plantillasCreadas    Plantilla[]       @relation("PlantillaCreadaPor")
+  plantillasPublicadas Plantilla[]       @relation("PlantillaPublicadaPor")
+  expedientesCreados   Expediente[]
+  movimientos          Movimiento[]
+  aniosCerrados        FeriadoAnio[]
+  cambios              AuditoriaCambio[]
+  accesos              AuditoriaAcceso[]
+
+  @@map("usuarios")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Plantillas (una fila por versión; congelada al publicarse)
+// ---------------------------------------------------------------------------
+
+model Plantilla {
+  id            Int       @id @default(autoincrement())
+  codigo        String
+  version       Int       @db.SmallInt
+  tipoTramiteId Int       @map("tipo_tramite_id") @db.SmallInt
+  nombre        String
+  estado        String    @default("borrador")
+  /// Esquema zod `DefinicionPlantilla` (sección 2.5).
+  definicion    Json
+  notasCambio   String?   @map("notas_cambio")
+  creadoPor     Int       @map("creado_por")
+  publicadoPor  Int?      @map("publicado_por")
+  creadoEn      DateTime  @default(now()) @map("creado_en") @db.Timestamptz
+  publicadoEn   DateTime? @map("publicado_en") @db.Timestamptz
+
+  tipoTramite TipoTramite  @relation(fields: [tipoTramiteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  creador     Usuario      @relation("PlantillaCreadaPor", fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  publicador  Usuario?     @relation("PlantillaPublicadaPor", fields: [publicadoPor], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  expedientes Expediente[]
+
+  @@unique([codigo, version])
+  /// Como máximo una versión publicada y un borrador por código.
+  @@unique([codigo], map: "plantillas_codigo_publicada_key", where: raw("estado = 'publicada'"))
+  @@unique([codigo], map: "plantillas_codigo_borrador_key", where: raw("estado = 'borrador'"))
+  @@map("plantillas")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Expedientes (estado actual: la proyección del historial)
+// ---------------------------------------------------------------------------
+
+model Expediente {
+  id                   BigInt    @id @default(autoincrement())
+  anio                 Int       @db.SmallInt
+  secuencia            Int
+  /// CEM-2026-00042
+  numeroInterno        String    @unique @map("numero_interno")
+  numeroMunicipal      String?   @map("numero_municipal")
+  /// Trigger expedientes_preparar: mayúsculas, solo alfanuméricos.
+  numeroMunicipalNorm  String?   @map("numero_municipal_norm")
+  fechaInicio          DateTime  @map("fecha_inicio") @db.Date
+  tipoTramiteId        Int       @map("tipo_tramite_id") @db.SmallInt
+  /// Versión exacta de la plantilla.
+  plantillaId          Int       @map("plantilla_id")
+  expedienteAnteriorId BigInt?   @map("expediente_anterior_id")
+  cementerioId         Int       @map("cementerio_id") @db.SmallInt
+  tipoMonumento        String    @map("tipo_monumento")
+  ubicacion            Json      @default("{}")
+  /// Trigger: pares clave=valor no vacíos, ordenados por clave. NULL si no hay.
+  ubicacionClave       String?   @map("ubicacion_clave")
+  ubicacionTexto       String    @default("") @map("ubicacion_texto")
+  padron               String?
+  /// Trigger expedientes_preparar.
+  padronNorm           String?   @map("padron_norm")
+  formaPago            String?   @map("forma_pago")
+  observaciones        String?
+  /// Valores de `campos_extra` de la plantilla.
+  datosExtra           Json      @default("{}") @map("datos_extra")
+  estado               String    @default("en_tramite")
+  estadoPrevio         String?   @map("estado_previo")
+  ubicacionArchivo     String?   @map("ubicacion_archivo")
+  pasoClave            String    @map("paso_clave")
+  pasoOrden            Int       @map("paso_orden") @db.SmallInt
+  pasoRetornoClave     String?   @map("paso_retorno_clave")
+  /// Dónde está el papel.
+  areaActualId         Int       @map("area_actual_id") @db.SmallInt
+  /// Quién lo opera: el área del paso o su custodia.
+  areaResponsableId    Int       @map("area_responsable_id") @db.SmallInt
+  enAreaDesde          DateTime  @map("en_area_desde") @db.Timestamptz
+  /// NULL = recepción sin confirmar.
+  recibidoEn           DateTime? @map("recibido_en") @db.Timestamptz
+  plazoDesde           DateTime? @map("plazo_desde") @db.Date
+  plazoDiasHabiles     Int?      @map("plazo_dias_habiles") @db.SmallInt
+  plazoCumplidoEn      DateTime? @map("plazo_cumplido_en") @db.Date
+  /// Estado de subtareas, documentos y adjuntos por clave (sección 2.6).
+  items                Json      @default("{}")
+  cargaHistorica       Boolean   @default(false) @map("carga_historica")
+  /// La arma la app (lib/dominio/busqueda.ts) en la misma transacción.
+  busqueda             String    @default("")
+  creadoPor            Int       @map("creado_por")
+  creadoEn             DateTime  @default(now()) @map("creado_en") @db.Timestamptz
+  /// Lo mantiene el trigger expedientes_preparar.
+  actualizadoEn        DateTime  @default(now()) @map("actualizado_en") @db.Timestamptz
+  /// Bloqueo optimista: +1 en cada acción que inserta un movimiento.
+  version              Int       @default(0)
+
+  tipoTramite        TipoTramite         @relation(fields: [tipoTramiteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  plantilla          Plantilla           @relation(fields: [plantillaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  expedienteAnterior Expediente?         @relation("ExpedienteReiniciado", fields: [expedienteAnteriorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reiniciadoEn       Expediente[]        @relation("ExpedienteReiniciado")
+  cementerio         Cementerio          @relation(fields: [cementerioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  monumento          TipoMonumento       @relation(fields: [tipoMonumento], references: [codigo], onDelete: Restrict, onUpdate: Restrict)
+  areaActual         Area                @relation("ExpedienteAreaActual", fields: [areaActualId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaResponsable    Area                @relation("ExpedienteAreaResponsable", fields: [areaResponsableId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  creador            Usuario             @relation(fields: [creadoPor], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  personas           ExpedientePersona[]
+  movimientos        Movimiento[]
+  accesos            AuditoriaAcceso[]
+
+  @@unique([anio, secuencia])
+  @@index([numeroMunicipalNorm])
+  @@index([padronNorm])
+  @@index([ubicacion(ops: JsonbPathOps)], type: Gin)
+  @@index([cementerioId, ubicacionClave], where: raw("ubicacion_clave IS NOT NULL"))
+  @@index([busqueda(ops: raw("gin_trgm_ops"))], type: Gin)
+  /// Bandejas.
+  @@index([areaResponsableId, estado])
+  /// Pestaña "Por confirmar".
+  @@index([areaActualId], where: raw("recibido_en IS NULL"))
+  /// Panel.
+  @@index([estado, enAreaDesde])
+  /// Listados por tipo.
+  @@index([tipoTramiteId, fechaInicio])
+  /// Pestaña Plazos.
+  @@index([plazoDesde], where: raw("plazo_desde IS NOT NULL"))
+  @@map("expedientes")
+  @@schema("public")
+}
+
+/// Copia versionada de las personas declaradas en un expediente. Editar crea
+/// una fila nueva; la anterior pasa a vigente = false. El trigger
+/// expediente_personas_proteger solo admite esa baja y la supresión.
+model ExpedientePersona {
+  id               BigInt    @id @default(autoincrement())
+  expedienteId     BigInt    @map("expediente_id")
+  rol              String
+  orden            Int       @default(1) @db.SmallInt
+  apellido         String?
+  nombres          String?
+  /// Solo dígitos.
+  dni              String?
+  fallecido        Boolean   @default(false)
+  fechaDefuncion   DateTime? @map("fecha_defuncion") @db.Date
+  vinculo          String?
+  telefono         String?
+  telefonoWhatsapp Boolean   @default(false) @map("telefono_whatsapp")
+  email            String?
+  domicilio        String?
+  esContacto       Boolean   @default(false) @map("es_contacto")
+  vigente          Boolean   @default(true)
+  reemplazadaPorId BigInt?   @map("reemplazada_por_id")
+  /// Movimiento `alta` o `edicion` que la creó (se inserta antes que ella).
+  creadaMovId      BigInt    @map("creada_mov_id")
+  /// Supresión por Ley 25.326.
+  suprimidaEn      DateTime? @map("suprimida_en") @db.Timestamptz
+  /// Trigger: f_normalizar(apellido || ' ' || nombres).
+  nombreNorm       String    @default("") @map("nombre_norm")
+
+  expediente     Expediente          @relation(fields: [expedienteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reemplazadaPor ExpedientePersona?  @relation("PersonaReemplazo", fields: [reemplazadaPorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reemplaza      ExpedientePersona[] @relation("PersonaReemplazo")
+  creadaMov      Movimiento          @relation(fields: [creadaMovId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([expedienteId, rol, orden], map: "expediente_personas_vigente_key", where: raw("vigente"))
+  /// Un solo contacto vigente por expediente.
+  @@unique([expedienteId], map: "expediente_personas_contacto_key", where: raw("es_contacto AND vigente"))
+  @@index([expedienteId])
+  @@index([dni])
+  @@index([nombreNorm(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@map("expediente_personas")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Movimientos (historial; solo inserción)
+// ---------------------------------------------------------------------------
+
+/// Inmutable: el trigger movimientos_inmutables rechaza UPDATE, DELETE y
+/// TRUNCATE, y movimientos_sellar fija secuencia, registrado_en y
+/// area_usuario_id, y exige usuario_id = app.usuario_id. Insertar siempre
+/// dentro de conActor().
+model Movimiento {
+  id                  BigInt   @id @default(autoincrement())
+  expedienteId        BigInt   @map("expediente_id")
+  /// La asigna el trigger (max + 1 por expediente); el 0 es solo para que
+  /// Prisma no la pida.
+  secuencia           Int      @default(0)
+  tipo                String
+  /// Con precision_fecha = 'dia' se guarda a las 00:00 de Tucumán.
+  fechaEfectiva       DateTime @map("fecha_efectiva") @db.Timestamptz
+  precisionFecha      String   @default("minuto") @map("precision_fecha")
+  /// El trigger siempre lo pisa con now().
+  registradoEn        DateTime @default(now()) @map("registrado_en") @db.Timestamptz
+  usuarioId           Int      @map("usuario_id")
+  /// Lo completa el trigger desde usuarios.
+  areaUsuarioId       Int?     @map("area_usuario_id") @db.SmallInt
+  pasoOrigen          String?  @map("paso_origen")
+  pasoDestino         String?  @map("paso_destino")
+  areaOrigenId        Int?     @map("area_origen_id") @db.SmallInt
+  areaDestinoId       Int?     @map("area_destino_id") @db.SmallInt
+  estadoAnterior      String?  @map("estado_anterior")
+  estadoNuevo         String?  @map("estado_nuevo")
+  observacion         String?
+  motivo              String?
+  /// Sin datos personales: solo ids de expediente_personas (sección 2.8).
+  datos               Json     @default("{}")
+  corrigeMovimientoId BigInt?  @map("corrige_movimiento_id")
+  cargaHistorica      Boolean  @default(false) @map("carga_historica")
+  fuente              String?
+  /// Idempotencia: un comando por acción del usuario.
+  comandoId           String   @map("comando_id") @db.Uuid
+
+  expediente        Expediente          @relation(fields: [expedienteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  usuario           Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaUsuario       Area?               @relation("MovimientoAreaUsuario", fields: [areaUsuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaOrigen        Area?               @relation("MovimientoAreaOrigen", fields: [areaOrigenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  areaDestino       Area?               @relation("MovimientoAreaDestino", fields: [areaDestinoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  corrigeMovimiento Movimiento?         @relation("MovimientoCorreccion", fields: [corrigeMovimientoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  correcciones      Movimiento[]        @relation("MovimientoCorreccion")
+  personasCreadas   ExpedientePersona[]
+
+  @@unique([expedienteId, secuencia])
+  @@unique([expedienteId, comandoId, tipo])
+  @@index([usuarioId, registradoEn])
+  // El WHERE va escrito como lo devuelve PostgreSQL (`tipo IN (…)` lo guarda
+  // así); escrito como IN, el diff lo ve distinto y propone recrear el índice.
+  @@index([areaDestinoId, fechaEfectiva], where: raw("tipo = ANY (ARRAY['pase'::text, 'devolucion'::text])"))
+  /// "Pasó por el área".
+  @@index([expedienteId, areaDestinoId])
+  @@index([tipo, registradoEn])
+  @@map("movimientos")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Feriados
+// ---------------------------------------------------------------------------
+
+model Feriado {
+  fecha       DateTime @id @db.Date
+  descripcion String
+  /// nacional, provincial, municipal, asueto o feria.
+  ambito      String   @default("nacional")
+  norma       String?
+
+  @@map("feriados")
+  @@schema("public")
+}
+
+/// Un año "cerrado" tiene todos sus feriados cargados; un vencimiento en un año
+/// abierto se muestra como provisorio.
+model FeriadoAnio {
+  anio       Int       @id @db.SmallInt
+  cerrado    Boolean   @default(false)
+  cerradoPor Int?      @map("cerrado_por")
+  cerradoEn  DateTime? @map("cerrado_en") @db.Timestamptz
+
+  cerrador Usuario? @relation(fields: [cerradoPor], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("feriados_anios")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Auditoría (esquema `auditoria`; solo inserción)
+// ---------------------------------------------------------------------------
+
+/// Cambios de configuración (usuarios, plantillas, catálogos, feriados). Lo
+/// escribe el trigger auditar_cambio(); no guarda expedientes ni personas.
+model AuditoriaCambio {
+  id         BigInt   @id @default(autoincrement())
+  tabla      String
+  registroId String   @map("registro_id")
+  /// I, U o D.
+  operacion  String   @db.Char(1)
+  antes      Json?
+  despues    Json?
+  /// De app.usuario_id.
+  usuarioId  Int      @map("usuario_id")
+  /// De app.motivo.
+  motivo     String?
+  txid       BigInt   @default(dbgenerated("txid_current()"))
+  en         DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([tabla, registroId])
+  @@map("cambios")
+  @@schema("auditoria")
+}
+
+/// Ingresos, aperturas de ficha, vistas de datos completos y de adjuntos,
+/// impresiones y exportaciones.
+model AuditoriaAcceso {
+  id           BigInt   @id @default(autoincrement())
+  /// NULL en un ingreso rechazado.
+  usuarioId    Int?     @map("usuario_id")
+  accion       String
+  expedienteId BigInt?  @map("expediente_id")
+  /// Incluye el motivo de `ver_datos_completos`.
+  detalle      Json     @default("{}")
+  ip           String?  @db.Inet
+  en           DateTime @default(now()) @db.Timestamptz
+
+  usuario    Usuario?    @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  expediente Expediente? @relation(fields: [expedienteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([expedienteId, en])
+  @@index([usuarioId, en])
+  @@map("accesos")
+  @@schema("auditoria")
+}
