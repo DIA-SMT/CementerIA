@@ -47,3 +47,6 @@ next-env.d.ts
 # Base local y adjuntos de desarrollo
 /.local/
 /.data/
+
+# Configuración local de Claude Code (puertos de la vista previa)
+/.claude/

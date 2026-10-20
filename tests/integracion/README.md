@@ -113,6 +113,29 @@ lo que necesita, con códigos únicos y datos ficticios.
 | `crearRolDePrueba(prefijo, grants)` / `borrarRolDePrueba` / `enTransaccionCon(url, fn)` | Roles LOGIN de prueba (por ejemplo, con `GRANT SET ON PARAMETER session_replication_role`) |
 | `quitarActor(c)`, `errorDe(r)`, `fila(c, sql)` | Varios |
 
+### Tests del dominio: `dominio.ts`
+
+Los tests del dominio de expedientes (alta, edición, ficha, búsqueda) no van en
+una transacción que se revierte: el dominio abre la suya con `conActorEn()`.
+Usan la semilla real, porque las reglas de permisos miran el código de área
+(`MESA_ENTRADAS`, `COMPUTO`…) y las plantillas apuntan a esas áreas. Lo que
+crean se confirma: nombres, padrones y DNI únicos, y nada de contar filas
+globales.
+
+| Ayuda | Para qué |
+|---|---|
+| `asegurarSemilla(prisma)` | Corre `sembrar()` (idempotente) en el `beforeAll` |
+| `servicio(prisma, ahora?)` | `crearServicioExpedientes()` con el cliente y `conActorEn()` |
+| `usuario(prisma, "MESA_ENTRADAS" | … | "ADMIN")` | El usuario ficticio de la semilla, como lo da `getUsuarioActual()` |
+| `datosAlta(prisma, cambios?)` | Un alta válida de `RENOV_CONTADO` en el Oeste, con ubicación, padrón y titular únicos |
+| `titular()`, `unicoLetras()`, `dniUnico()`, `comando()` | Piezas sueltas |
+| `simularPase(prisma, numero, usuario, paso, fecha?)` | Inserta un `pase` y mueve la proyección (los pases son de la semana 3) |
+| `forzarEstado(prisma, numero, estado)` | Archivado, anulado o concluido, a mano (semana 4) |
+
+`escenario.ts` crea sus expedientes con el año 1999: los del dominio numeran el
+año en curso con `max + 1`, y un expediente confirmado con una secuencia al
+azar en ese año les correría la numeración.
+
 ## Cuidados
 
 - **Filas de un trigger que no se dispara.** UPDATE, DELETE y los triggers por
@@ -209,9 +232,15 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 | `funciones.test.ts` | `f_normalizar`, `f_actor`, días hábiles con fines de semana y feriados | 2.9, 2.11 |
 | `privilegios.test.ts` | Privilegios exactos de la app, DDL prohibido, roles, dueños, triggers `ENABLE ALWAYS`, columnas identity, `pg_indexes` | 2, 2.11, 2.13(b), 6 |
 | `replica.test.ts` | Los demás triggers también se disparan con `session_replication_role = replica` | 2.11 |
-| `fechas.test.ts` | Proceso en UTC y base en hora de Tucumán; columnas `date` y precisión de día | 6, "Fechas" |
+| `fechas.test.ts` | Proceso en UTC y base en hora de Tucumán; columnas `date` y precisión de día; las sesiones de Prisma en UTC (sin eso, `@prisma/adapter-pg` corría 3 horas cada `timestamptz`) | 6, "Fechas" |
 | `conactor.test.ts` | `conActorEn()` fija actor y motivo solo para la transacción | 2, "Convenciones" |
-| `semilla.test.ts` | La semilla corre con el rol de la app como SISTEMA, pasa los triggers y es idempotente (confirma sus filas) | 6, "Desarrollo local" |
+| `semilla.test.ts` | La semilla corre con el rol de la app como SISTEMA, pasa los triggers y es idempotente (confirma sus filas). Si otro archivo sembró antes, su "primera corrida" no crea nada | 6, "Desarrollo local" |
+| `semilla-expedientes.test.ts` | Los 30 expedientes ficticios: con la función de alta, repartidos entre plantillas y cementerios, en el primer paso, ficticios e idempotentes | 6, "Desarrollo local" |
+| `alta.test.ts` | Alta normal e histórica, proyección, movimiento y personas; validaciones; plantilla no publicada; cementerio sin configurar; permisos; numeración sin huecos y concurrente; idempotencia; avisos de duplicados | 2.6, 2.7, 2.13(c), (d) y (f), 3.1 |
+| `edicion.test.ts` | Movimiento `edicion` con antes y después; personas versionadas (baja, reemplazo, alta, contacto); bloqueo optimista; idempotencia; motivo después del primer pase; permisos de 3.2; archivado y anulado; fecha de inicio | 2.7, 2.8, 2.13(b), 3.2 |
+| `busqueda.test.ts` | Normalización TS = base; caja única (texto con acentos, DNI con puntos, CUIL, N° municipal con barra, forma corta, prefijo CEM); filtros de ubicación, anulados, estado y plantilla; máximo 50 | 2.13(g) |
+| `ficha.test.ts` | Ficha completa; enmascarado según 3.2 y decisión 13; `ver_expediente`, `ver_datos_completos` e `imprimir` en `auditoria.accesos`; "hay vN"; historial con versiones de persona; carátula sin contacto | 5, 2.10, 2.13(a), 3.2 |
+| `pantallas.test.ts` | La lógica de las Server Actions de las pantallas (`src/lib/presentacion/acciones.ts`) con FormData como el del formulario: alta (destino carátula o ficha, doble clic, errores por campo, formulario roto, sin permiso), aviso de duplicados, edición (conflicto de versión, sin cambios, permiso), "Ver datos completos"; hoja del historial (sin contacto, registra `imprimir`) y opciones del buscador | 5, 3.2, decisión 13 |
 
 Si una regla de la base no cumple la propuesta, el test se escribe igual, como
 especificación, con `it.fails` y un comentario `DEFECTO:` que diga qué falta. La

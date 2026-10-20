@@ -91,7 +91,7 @@ describe("reglas que no necesitan expediente (semana 1)", () => {
   });
 
   it("Dirección (lectura) no hace ninguna acción que escriba", () => {
-    const lecturas: readonly Accion[] = ["ver_expediente", "ver_datos_completos", "ver_panel", "exportar_csv"];
+    const lecturas: readonly Accion[] = ["ver_expediente", "ver_datos_completos", "ver_panel", "exportar_csv", "imprimir"];
     for (const accion of ACCIONES) {
       if (lecturas.includes(accion)) continue;
       expect(puede(accion, expediente(), direccion), accion).toBe(false);
@@ -270,5 +270,52 @@ describe("exigirPermiso", () => {
     }
     expect(atrapado).toBeInstanceOf(PermisoDenegado);
     expect(atrapado).toMatchObject({ accion: "dar_pase", motivo: "admin_no_opera" });
+  });
+});
+
+describe("semana 2: alta, ficha, edición y carátula", () => {
+  it("imprimir (carátula, historial): todos, también Dirección", () => {
+    for (const u of [mesa, computo, legal, direccion, admin]) {
+      expect(evaluarPermiso("imprimir", expediente(), u)).toEqual({ permitido: true, requiereMotivo: false });
+    }
+  });
+
+  it("en archivado y anulado no se editan datos, contacto ni campos extra (3.1), ni siquiera Mesa o el admin", () => {
+    const acciones = ["editar_identificatorios", "editar_contacto", "completar_campos_extra"] as const;
+    for (const estado of ["archivado", "anulado"] as const) {
+      for (const accion of acciones) {
+        for (const u of [mesa, admin]) {
+          expect(evaluarPermiso(accion, expediente({ estado }), u), `${accion} ${estado}`).toEqual({
+            permitido: false,
+            motivo: "estado_no_admite",
+          });
+        }
+      }
+    }
+  });
+
+  it("en concluido y en espera de pago en la DIM sí se editan", () => {
+    for (const estado of ["concluido", "espera_pago_dim"] as const) {
+      expect(puede("editar_identificatorios", expediente({ estado }), mesa)).toBe(true);
+      expect(puede("editar_contacto", expediente({ estado }), liquidacion)).toBe(true);
+      expect(puede("completar_campos_extra", expediente({ estado }), admin)).toBe(true);
+    }
+  });
+
+  it("observaciones y contacto: no los edita un área que no es la responsable, aunque haya pasado por ella", () => {
+    expect(evaluarPermiso("editar_contacto", expediente(), computo)).toEqual({ permitido: false, motivo: "no_es_responsable" });
+    expect(evaluarPermiso("completar_campos_extra", expediente(), legal)).toEqual({ permitido: false, motivo: "no_es_responsable" });
+  });
+
+  it("el alta sin expediente: el primer pase todavía no existe, no pide motivo", () => {
+    expect(evaluarPermiso("editar_identificatorios", null, mesa)).toEqual({ permitido: true, requiereMotivo: false });
+    expect(evaluarPermiso("editar_identificatorios", null, computo)).toEqual({ permitido: false, motivo: "requiere_expediente" });
+  });
+
+  it("Cómputo responsable: identificatorios sí, y con motivo si ya hubo pases", () => {
+    const enComputo = expediente({ areaResponsableId: AREAS.COMPUTO.id, tuvoPases: true });
+    expect(evaluarPermiso("editar_identificatorios", enComputo, computo)).toEqual({ permitido: true, requiereMotivo: true });
+    // Pero el contacto lo edita por ser la responsable, sin motivo.
+    expect(evaluarPermiso("editar_contacto", enComputo, computo)).toEqual({ permitido: true, requiereMotivo: false });
   });
 });

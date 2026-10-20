@@ -6,18 +6,22 @@
 // admin inicial (ADMIN_INICIAL_CUIL) y un usuario ficticio por área. Datos en
 // prisma/semilla/; el porqué de cada uno, ahí.
 //
+// Después, y aparte, los 30 expedientes ficticios de la sección 6: los da de
+// alta el usuario ficticio de Mesa de Entradas con la función de alta del
+// dominio (prisma/semilla/expedientes.ts), cada uno en su transacción.
+//
 // Es IDEMPOTENTE: crea lo que falta y deja como está lo que ya existe (ver
-// prisma/semilla/sembrar.ts). Correrla dos veces no cambia nada.
+// prisma/semilla/sembrar.ts; los expedientes, por su comando_id fijo).
+// Correrla dos veces no cambia nada.
 //
 // Opciones:
-//   --sin-ficticios   sin los usuarios de prueba por área. Es la única forma en
-//                     que corre con NODE_ENV=production.
-//
-// Los 30 expedientes ficticios de la sección 6 llegan con el alta (semana 2):
-// necesitan su lógica (número interno, movimiento `alta`, personas).
+//   --sin-ficticios   sin los usuarios de prueba por área ni los expedientes
+//                     ficticios. Es la única forma en que corre con
+//                     NODE_ENV=production.
 
 import { config as cargarEnv } from "dotenv";
 import { crearCliente } from "../src/lib/db/crear-cliente";
+import { sembrarExpedientes } from "./semilla/expedientes";
 import { sembrar } from "./semilla/sembrar";
 import { ADMIN_CUIL_DESARROLLO } from "./semilla/usuarios";
 
@@ -50,6 +54,15 @@ async function main(): Promise<void> {
             .join(", ")}.`,
     );
     for (const a of avisos) console.warn(`Aviso: ${a}`);
+
+    if (!sinFicticios) {
+      const expedientes = await sembrarExpedientes(cliente);
+      console.log(
+        expedientes.creados === 0
+          ? `Expedientes ficticios: ya estaban los ${expedientes.existentes}.`
+          : `Expedientes ficticios: ${expedientes.creados} creados (${expedientes.numeros[0]} a ${expedientes.numeros.at(-1)}).`,
+      );
+    }
   } finally {
     await cliente.$disconnect();
   }

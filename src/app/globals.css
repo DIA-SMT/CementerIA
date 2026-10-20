@@ -21,3 +21,18 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/*
+ * Imprimibles (sección 5): A4, sin librería de PDF. El encabezado de la app y
+ * los botones llevan `print:hidden`.
+ */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+}

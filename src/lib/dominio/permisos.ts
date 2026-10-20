@@ -7,10 +7,11 @@
  * las dos cosas, así un botón visible nunca termina en un "no autorizado".
  *
  * Semana 1: están las reglas que se deciden con el rol y el área, y las de
- * "responsable" y "pasó por su área", que solo comparan áreas. La semana 3 suma
- * lo que depende del flujo (estados, carga histórica abierta, paso final) junto
- * con la ficha y los pases. Las validaciones del pase (3.3) no van acá: son de
- * la acción, no del permiso.
+ * "responsable" y "pasó por su área", que solo comparan áreas. Semana 2 (alta,
+ * ficha, edición, carátula): imprimir, y que en archivado y anulado no se
+ * editan datos ni personas (3.1). La semana 3 suma lo que depende del flujo
+ * (carga histórica abierta, paso final) junto con los pases. Las validaciones
+ * del pase (3.3) y del alta no van acá: son de la acción, no del permiso.
  */
 
 export const ROLES = ["operador", "lectura", "admin"] as const;
@@ -28,6 +29,8 @@ export const AREA_DIRECCION = "DIRECCION";
 export const ESTADOS_EXPEDIENTE = ["en_tramite", "espera_pago_dim", "concluido", "archivado", "anulado"] as const;
 export type EstadoExpediente = (typeof ESTADOS_EXPEDIENTE)[number];
 const ESTADOS_ACTIVOS: ReadonlySet<EstadoExpediente> = new Set(["en_tramite", "espera_pago_dim"]);
+/** En archivado y anulado no se editan datos ni personas (3.1). */
+const ESTADOS_SIN_EDICION: ReadonlySet<EstadoExpediente> = new Set(["archivado", "anulado"]);
 
 /** Una fila por renglón de la tabla 3.2 (las que agrupan varias acciones, separadas). */
 export const ACCIONES = [
@@ -58,6 +61,7 @@ export const ACCIONES = [
   "ver_panel",
   "exportar_csv",
   "administrar", // plantillas, usuarios, catálogos, auditoría
+  "imprimir", // carátula e historial (queda en auditoria.accesos)
 ] as const;
 export type Accion = (typeof ACCIONES)[number];
 
@@ -171,6 +175,8 @@ export function evaluarPermiso(
   switch (accion) {
     case "ver_expediente":
     case "ver_panel":
+    case "imprimir":
+      // Los imprimibles son de todos (sección 5); la carátula no lleva teléfono ni domicilio.
       return SI;
 
     case "ver_datos_completos": {
@@ -215,6 +221,9 @@ export function evaluarPermiso(
       if (accion === "archivar_concluido" && expediente && expediente.estado !== "concluido") {
         return no("estado_no_admite");
       }
+      if (accion !== "archivar_concluido" && expediente && ESTADOS_SIN_EDICION.has(expediente.estado)) {
+        return no("estado_no_admite");
+      }
       if (admin || mesa) return SI;
       if (!expediente) return no("requiere_expediente");
       return esResponsable(usuario, expediente) ? SI : no("no_es_responsable");
@@ -223,6 +232,7 @@ export function evaluarPermiso(
     case "editar_identificatorios": {
       if (lectura) return no("solo_lectura");
       if (!expediente) return admin || mesa ? SI : no("requiere_expediente");
+      if (ESTADOS_SIN_EDICION.has(expediente.estado)) return no("estado_no_admite");
       // De las áreas responsables, solo Cómputo edita identificatorios.
       const habilitado = admin || mesa || (esResponsable(usuario, expediente) && areaEs(usuario, AREA_COMPUTO));
       if (!habilitado) return no(esResponsable(usuario, expediente) ? "area_no_habilitada" : "no_es_responsable");

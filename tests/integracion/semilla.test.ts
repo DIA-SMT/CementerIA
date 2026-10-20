@@ -1,9 +1,11 @@
 // La semilla (prisma/semilla) contra la base efímera: corre con el rol de la
 // app, como SISTEMA, y tiene que pasar todos los triggers y CHECKs.
 //
-// Este archivo CONFIRMA lo que siembra (no es una transacción que se revierte):
-// los demás tests no dependen de la semilla y usan códigos únicos, así que no
-// chocan con ella.
+// Este archivo CONFIRMA lo que siembra (no es una transacción que se revierte).
+// Los tests de la base no dependen de la semilla y usan códigos únicos; los del
+// dominio de expedientes (alta, edición, ficha, búsqueda) sí la necesitan y la
+// corren antes (es idempotente). Como el orden de los archivos no está fijo,
+// la "primera corrida" de acá puede ser la segunda: ver yaSembrada.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sembrar, type ResumenSemilla } from "../../prisma/semilla/sembrar";
@@ -23,8 +25,11 @@ const CODIGOS_PLANTILLAS = PLANTILLAS.map((p) => p.codigo);
 
 const prisma = clientePrisma();
 let primera: ResumenSemilla;
+/** Otro archivo de la corrida ya sembró (los del dominio de expedientes lo hacen). */
+let yaSembrada = false;
 
 beforeAll(async () => {
+  yaSembrada = (await prisma.area.count({ where: { codigo: { in: AREAS.map((a) => a.codigo) } } })) > 0;
   primera = await sembrar(prisma, { adminCuil: ADMIN });
 });
 
@@ -38,6 +43,13 @@ async function consultar<F extends Record<string, unknown>>(sql: string, params:
 
 describe("semilla", () => {
   it("la primera corrida crea todo lo de la semilla", () => {
+    // Si otro archivo sembró antes, esta corrida no crea nada; lo que hay en la
+    // base lo verifican los tests de abajo.
+    if (yaSembrada) {
+      expect(primera.avisos).toEqual([]);
+      expect(Object.values(primera.creados).every((n) => n === 0)).toBe(true);
+      return;
+    }
     expect(primera).toEqual({
       creados: {
         areas: AREAS.length,

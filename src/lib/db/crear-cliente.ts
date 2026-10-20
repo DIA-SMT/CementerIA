@@ -30,6 +30,15 @@ export function crearCliente(url: string | undefined = process.env.DATABASE_URL)
     // `pg-pool` lee `max`; el `connection_limit` en la URL era del motor viejo
     // de Prisma y con los driver adapters no lo lee nadie.
     max: Number(process.env.DB_POOL_MAX ?? 5),
+    // Las sesiones de Prisma van en UTC. @prisma/adapter-pg manda un Date como
+    // "AAAA-MM-DD HH:MM:SS" con la hora UTC y SIN zona, y al leer un
+    // timestamptz le cambia el offset por +00:00: da por hecho que la sesión
+    // está en UTC. La base tiene timezone = America/Argentina/Tucuman (para
+    // psql y los scripts), y con eso cada timestamptz escrito o leído por
+    // Prisma se corría 3 horas (tests/integracion/fechas.test.ts). Los
+    // triggers no dependen de la zona de la sesión: usan AT TIME ZONE
+    // explícito.
+    options: "-c TimeZone=UTC",
   });
   return new PrismaClient({ adapter });
 }

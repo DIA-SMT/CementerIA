@@ -135,3 +135,29 @@ describe("timestamptz y precisión de día (2.8)", () => {
     });
   });
 });
+
+describe("timestamptz con Prisma (src/lib/db/crear-cliente.ts)", () => {
+  // @prisma/adapter-pg manda un Date como hora UTC sin zona y, al leer, cambia
+  // el offset por +00:00: solo funciona con la sesión en UTC. crearCliente()
+  // la fija; sin eso, con la base en hora de Tucumán, cada instante se corría
+  // 3 horas al escribir y otras 3 al leer (y la ida y vuelta lo disimulaba).
+  it("la sesión de Prisma está en UTC", async () => {
+    const [r] = await prisma.$queryRaw<Array<{ zona: string }>>`SELECT current_setting('TimeZone') AS zona`;
+    expect(r.zona).toBe("UTC");
+  });
+
+  it("un Date que escribe Prisma es, para la base, el mismo instante", async () => {
+    const instante = new Date("2026-10-15T23:30:00-03:00");
+    const [r] = await prisma.$queryRaw<Array<{ t: Date; utc: string; tucuman: string }>>`
+      SELECT ${instante}::timestamptz AS t,
+             to_char(${instante}::timestamptz AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') AS utc,
+             to_char(${instante}::timestamptz AT TIME ZONE 'America/Argentina/Tucuman', 'YYYY-MM-DD HH24:MI') AS tucuman`;
+    expect(r).toEqual({ t: instante, utc: "2026-10-16 02:30", tucuman: "2026-10-15 23:30" });
+  });
+
+  it("y now() leído por Prisma es la hora real", async () => {
+    const antes = Date.now();
+    const [r] = await prisma.$queryRaw<Array<{ ahora: Date }>>`SELECT clock_timestamp() AS ahora`;
+    expect(Math.abs(r.ahora.getTime() - antes)).toBeLessThan(60_000);
+  });
+});

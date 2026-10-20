@@ -276,12 +276,15 @@ export async function crearEscenario(c: pg.Client): Promise<Escenario> {
 
 export async function crearExpediente(c: pg.Client, e: Escenario, columnas: Columnas = {}): Promise<FilaExpediente> {
   // (anio, secuencia) y numero_interno son únicos; al azar para no chocar con
-  // lo que otro test haya confirmado.
+  // lo que otro test haya confirmado. El año es uno que no numera nadie: los
+  // tests del dominio dan altas de verdad (año en curso, max + 1) en la misma
+  // base, y un expediente confirmado con una secuencia al azar en el año en
+  // curso les correría la numeración.
   const secuencia = randomInt(100_000, 2_000_000_000);
   return insertar<FilaExpediente>(c, "public.expedientes", {
-    anio: 2026,
+    anio: 1999,
     secuencia,
-    numero_interno: `CEM-2026-${secuencia}`,
+    numero_interno: `CEM-1999-${secuencia}`,
     fecha_inicio: HOY_TUCUMAN,
     tipo_tramite_id: e.tipoTramite,
     plantilla_id: e.plantilla,

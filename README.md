@@ -7,10 +7,15 @@ herramienta registra por dónde anda, quién lo tiene, qué falta para avanzar y
 cuánto tiempo lleva en cada área.
 
 La especificación es [docs/propuesta-mvp.md](docs/propuesta-mvp.md). Este
-repositorio está en la **semana 1** del plan (sección 6): base de datos con sus
-reglas, semilla, ingreso con Cidituc y login simulado. El alta, la ficha, los
-pases y las bandejas son de las semanas 2 y 3; sus pantallas hoy dicen "En
-construcción".
+repositorio tiene la **semana 1** del plan (sección 6): base de datos con sus
+reglas, semilla, ingreso con Cidituc y login simulado; y de la **semana 2**, el
+dominio (alta con personas versionadas y ubicación dinámica, ficha, búsqueda,
+edición, carátula e historial, en `src/lib/dominio/`, con su referencia en
+[docs/api-dominio.md](docs/api-dominio.md)) y sus pantallas: buscador
+(`/expedientes`, también desde la búsqueda del encabezado), alta
+(`/expedientes/nuevo`), ficha de solo lectura, edición e imprimibles (carátula
+con QR e historial, A4). Los pases y las bandejas (semana 3) y el panel faltan;
+hoy dicen "En construcción".
 
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
@@ -123,7 +128,13 @@ src/
   lib/db/                  cliente de Prisma (solo lectura) y conActor() (escrituras)
   lib/auth/                Cidituc, sesión, cookies, ingreso y salida
   lib/dominio/             permisos, navegación, CUIL y plantillas (esquema zod y
-                           validación de "Publicar")
+                           validación de "Publicar"); búsqueda (busqueda.ts) y
+                           expedientes/ (alta, edición, ficha, carátula, esquemas
+                           zod armados en tiempo de ejecución). Ver docs/api-dominio.md
+  lib/presentacion/        lógica de las pantallas, sin Next: modelo del formulario, parámetros
+                           del buscador, URL del QR, enlace wa.me, textos y la lógica de las
+                           Server Actions (acciones.ts)
+  lib/fechas.ts            fechas YYYY-MM-DD, hoy en Tucumán, datetime-local y formato es-AR
   lib/entorno.ts           variables de entorno validadas con zod
   generated/               cliente de Prisma generado (no se versiona)
 tests/
@@ -143,6 +154,11 @@ tests/
   movimientos, expedientes, personas y la configuración auditada, la base
   rechaza una escritura sin actor. `prisma` (`src/lib/db/cliente.ts`) es para
   leer; ESLint marca una escritura con él fuera de `src/lib/db`.
+- Las conexiones de Prisma van con `TimeZone=UTC` (`crearCliente()`):
+  `@prisma/adapter-pg` lo da por hecho y, con la sesión en hora de Tucumán,
+  corría 3 horas cada `timestamptz`. psql y los scripts siguen viendo la hora
+  de Tucumán (`ALTER DATABASE … SET timezone`), y los triggers usan
+  `AT TIME ZONE` explícito.
 - Para cambiar el esquema: editar `prisma/schema.prisma`,
   `npx prisma migrate dev --create-only`, revisar el SQL generado (que no borre
   nada escrito a mano), agregarle los GRANTs de cada tabla nueva y aplicar con
@@ -166,13 +182,19 @@ nomenclatura provisoria, tipos de monumento y de trámite, feriados 2026 y 2027
 `ADMIN_INICIAL_CUIL` y un usuario ficticio por área. Los datos están en
 `prisma/semilla/`, con las marcas [I] y [C] de la propuesta.
 
+Después carga los **30 expedientes ficticios** de la sección 6
+(`prisma/semilla/expedientes.ts`): los da de alta el usuario ficticio de Mesa
+de Entradas con la función de alta del dominio, repartidos entre las 4
+plantillas y los 3 cementerios, algunos con solicitante distinto del titular y
+3 históricos. Quedan en el primer paso. Cada uno tiene un `comando_id` fijo, así
+que una segunda corrida no los duplica.
+
 - Cada plantilla pasa la validación de "Publicar" antes de grabarse; si una
   falla, no se graba nada.
 - Una plantilla publicada no se modifica (está congelada): si la semilla cambió
   una, `npm run db:reset`.
-- En producción corre con `npm run db:seed -- --sin-ficticios` y exige
-  `ADMIN_INICIAL_CUIL`.
-- Los 30 expedientes ficticios de la sección 6 llegan con el alta (semana 2).
+- En producción corre con `npm run db:seed -- --sin-ficticios` (sin usuarios
+  ni expedientes ficticios) y exige `ADMIN_INICIAL_CUIL`.
 
 ## Ingreso
 
@@ -237,7 +259,7 @@ Documentadas una por una en [.env.example](.env.example).
 | `DB_POOL_MAX` | Opcional: conexiones del pool (5 por defecto) |
 | `SESSION_SECRET` | Firma de la cookie de sesión; 32 caracteres o más |
 | `AUTH_DEV_LOGIN` | `1` habilita `/dev/login`. Solo en `.env.development.local` |
-| `AUTH_DEV_LOGIN_STAGING`, `APP_URL` | Staging: lista blanca de CUILs para `/dev/login` y su URL https |
+| `AUTH_DEV_LOGIN_STAGING`, `APP_URL` | Staging: lista blanca de CUILs para `/dev/login` y su URL https. `APP_URL` es además la base del QR de la carátula (sin ella, el host del request) |
 | `ADMIN_INICIAL_CUIL` | CUIL del primer administrador que crea la semilla |
 | `CIDITUC_HABILITADO` | `1` muestra el botón de Cidituc; `0` mientras el derivador no tenga la clave |
 | `CIDITUC_DERIVADOR_URL`, `CIDITUC_CLAVE` | Origen del derivador y clave de esta instancia (`cementeria` o `cementeria-staging`) |
@@ -248,6 +270,8 @@ Documentadas una por una en [.env.example](.env.example).
 
 - [docs/propuesta-mvp.md](docs/propuesta-mvp.md): el diseño confirmado (modelo
   de datos, reglas del flujo, plantillas, pantallas, stack y plan).
+- [docs/api-dominio.md](docs/api-dominio.md): la API del dominio de expedientes
+  (alta, edición, ficha, búsqueda, carátula) para quien hace las pantallas.
 - [docs/pedidos-dia-1.md](docs/pedidos-dia-1.md): pedidos a Sistemas, al equipo
   del derivador y a Asesoría Legal, listos para completar y enviar.
 - [docs/borrador-tecnico-art22.md](docs/borrador-tecnico-art22.md): insumo
