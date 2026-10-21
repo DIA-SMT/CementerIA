@@ -1,0 +1,15 @@
+# Dispara cementeria-adjuntos-tmp.service una vez por día, fuera del horario
+# de oficina y después del backup de las 02:00. Va en /etc/systemd/system/;
+# se activa con: systemctl enable --now cementeria-adjuntos-tmp.timer
+
+[Unit]
+Description=CementerIA: barrido diario de temporales de adjuntos
+
+[Timer]
+OnCalendar=*-*-* 04:30:00 America/Argentina/Tucuman
+# Si el servidor estaba apagado a esa hora, corre al arrancar.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

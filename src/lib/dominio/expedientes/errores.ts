@@ -34,7 +34,15 @@ export type CodigoErrorDominio =
   /** El archivo no es PDF, JPG ni PNG (por su contenido, no por el nombre), o está vacío. */
   | "adjunto_invalido"
   /** El archivo supera los 10 MB. */
-  | "adjunto_muy_grande";
+  | "adjunto_muy_grande"
+  /** Semana 5 (administración): ya hay una fila con ese código, CUIL o fecha. */
+  | "ya_existe"
+  /**
+   * Semana 5 (administración): lo que se quiere borrar, renombrar o desactivar
+   * está en uso (una clave de ubicación con expedientes, un área con usuarios o
+   * en una plantilla publicada, el último administrador activo).
+   */
+  | "en_uso";
 
 export interface ErrorCampo {
   /** Dónde: `personas[1].dni`, `ubicacion.lote`. Vacía si es del formulario entero. */

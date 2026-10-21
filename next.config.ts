@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Despliegue sin npm en el servidor (sección 6, "Hosting"): `next build`
+  // deja en .next/standalone un server.js con solo los node_modules que usa.
+  // `npm run empaquetar` (scripts/empaquetar.mjs) le suma .next/static,
+  // public, las migraciones y la CLI de Prisma.
+  output: "standalone",
   // La app es 100 % autenticada y dinámica: cada página lee la cookie de sesión
   // y no hay nada que prerenderizar (sección 6, "Stack"). Con Cache Components
   // cada lectura de cookies() fuera de un <Suspense> rompe el build.

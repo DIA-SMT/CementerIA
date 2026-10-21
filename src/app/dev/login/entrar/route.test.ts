@@ -50,7 +50,7 @@ describe("POST /dev/login/entrar", () => {
   it("entra como el usuario elegido, con una sesión real, y va a su inicio", async () => {
     const respuesta = await POST(entrar({ usuarioId: "5" }));
     expect(respuesta.status).toBe(303);
-    expect(respuesta.headers.get("location")).toBe("http://localhost:3000/panel");
+    expect(respuesta.headers.get("location")).toBe("/panel");
     expect(simulado.ingresos).toEqual([5]);
     const cookie = respuesta.cookies.get(COOKIE_SESION);
     // http://localhost en desarrollo: sin Secure, o el navegador no la guarda.
@@ -63,10 +63,10 @@ describe("POST /dev/login/entrar", () => {
 
   it("respeta el destino, saneado", async () => {
     expect((await POST(entrar({ usuarioId: "5", volver: "/admin" }))).headers.get("location")).toBe(
-      "http://localhost:3000/admin",
+      "/admin",
     );
     expect((await POST(entrar({ usuarioId: "5", volver: "//otro.sitio" }))).headers.get("location")).toBe(
-      "http://localhost:3000/panel",
+      "/panel",
     );
   });
 

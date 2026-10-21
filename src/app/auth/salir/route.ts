@@ -6,6 +6,7 @@ import { dependenciasIngreso, usuarioDesdeToken } from "@/lib/auth/sesion";
 import { COOKIE_SESION, COOKIE_SIN_ACCESO } from "@/lib/auth/sesion-token";
 import { entorno } from "@/lib/entorno";
 import { log, resumenError } from "@/lib/log";
+import { redirigirA } from "@/lib/auth/redireccion";
 
 /**
  * POST /auth/salir (sección 6, "Autenticación", punto 6): borra la cookie,
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const respuesta = NextResponse.redirect(new URL("/login?salida=1", request.url), 303);
+  const respuesta = redirigirA("/login?salida=1");
   respuesta.cookies.set(cookieSesion, "", opcionesBorrado(segura));
   respuesta.cookies.set(COOKIE_SIN_ACCESO, "", opcionesBorrado(segura, "/sin-acceso"));
   respuesta.headers.set("Cache-Control", "no-store");

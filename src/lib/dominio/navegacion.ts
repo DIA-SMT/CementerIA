@@ -39,6 +39,17 @@ export function navegacionPara(usuario: UsuarioPermisos): ItemNavegacion[] {
   return [ITEMS.bandeja, ITEMS.expedientes, ITEMS.panel];
 }
 
+/**
+ * Las secciones de Administración (sección 5: Plantillas, Usuarios,
+ * Catálogos, Auditoría). Todas son de la pantalla `admin`: solo el admin (3.2).
+ */
+export const SECCIONES_ADMIN: ReadonlyArray<{ href: string; etiqueta: string; descripcion: string }> = [
+  { href: "/admin/plantillas", etiqueta: "Plantillas", descripcion: "Trámites: versiones, borradores, publicar y retirar" },
+  { href: "/admin/usuarios", etiqueta: "Usuarios", descripcion: "Alta por CUIL, área y rol, desactivar y reactivar" },
+  { href: "/admin/catalogos", etiqueta: "Catálogos", descripcion: "Áreas, cementerios y su nomenclatura, monumentos, trámites y feriados" },
+  { href: "/admin/auditoria", etiqueta: "Auditoría", descripcion: "Accesos, datos completos vistos y cambios de configuración" },
+];
+
 /** A dónde va `/`: operadores a su bandeja; Dirección y admin al panel. */
 export function inicioPara(usuario: { rol: string }): "/bandeja" | "/panel" {
   return usuario.rol === "operador" ? "/bandeja" : "/panel";

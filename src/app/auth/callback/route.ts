@@ -18,6 +18,7 @@ import {
 import { inicioPara } from "@/lib/dominio/navegacion";
 import { entorno } from "@/lib/entorno";
 import { log, resumenError } from "@/lib/log";
+import { redirigirA } from "@/lib/auth/redireccion";
 
 /**
  * GET /auth/callback?auth=<token>&state=<state>: la vuelta desde el derivador
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   /** Redirige y, pase lo que pase, borra la cookie del state: es de un solo uso. */
   const redirigir = (ruta: string): NextResponse => {
-    const respuesta = NextResponse.redirect(new URL(ruta, request.url), 303);
+    const respuesta = redirigirA(ruta);
     respuesta.cookies.set(cookieState, "", opcionesBorrado(segura, PATH_COOKIE_STATE));
     respuesta.headers.set("Cache-Control", "no-store");
     respuesta.headers.set("Referrer-Policy", "no-referrer");

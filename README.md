@@ -55,7 +55,26 @@ manejable con teclado, tildes con fecha, estado final, foto de la ficha y
 "Terminar carga histórica"); las pestañas Plazos y Carga histórica de la
 bandeja; `/panel` con cada número enlazado a la búsqueda e imprimible; y
 "Exportar CSV" en el buscador (`GET /expedientes/exportar`, Dirección y
-admin). Falta la pantalla de feriados (semana 5).
+admin).
+
+Semana 5, la administración (solo el admin; dominio en `src/lib/dominio/admin/`,
+[docs/api-dominio.md](docs/api-dominio.md), secciones 17 y 18):
+`/admin/plantillas` (catálogo por código con la versión publicada, el
+borrador y los expedientes en curso por versión; Nueva, Editar y Retirar);
+`/admin/plantillas/[codigo]/v/[version]`, el editor del borrador (o visor de
+una versión congelada) con pestañas General, Personas, Pasos, Documentación,
+Conceptos, Campos extra y Vista previa por cementerio, todo armado desde el
+esquema `DefinicionPlantilla`: Guardar borrador, Validar (cada error de
+`validar.ts` en su pestaña y su campo) y Publicar con notas de cambio, que
+retira la versión anterior en la misma transacción (los expedientes en curso
+siguen con la suya); `/admin/usuarios` (alta por CUIL, área o rol,
+desactivar, que corta la sesión en el request siguiente, y reactivar; nunca
+sin un administrador activo); `/admin/catalogos` (áreas, cementerios con su
+nomenclatura, donde una clave con valores no se borra ni se renombra, tipos
+de monumento y de trámite, y feriados con "Cerrar año"); y `/admin/auditoria`
+(accesos, con "Ver datos completos" y su motivo, y cambios de configuración
+con el antes y el después, filtrados, paginados y con CSV registrado como
+`exportar`). Sin cambios de esquema.
 
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
@@ -132,17 +151,20 @@ Solo datos ficticios en desarrollo y staging.
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | `next dev` (Turbopack) en el puerto 3000 |
-| `npm run build` / `npm start` | Build de producción y servidor de producción |
+| `npm run build` / `npm start` | Build de producción y servidor de producción, para probar en local. Con `output: 'standalone'`, `next start` avisa que no es lo que corre en el servidor: allá va `node server.js` del paquete (`npm run empaquetar`) |
 | `npm run lint` | ESLint (incluye la regla que prohíbe escribir fuera de `conActor()`) |
 | `npm run typecheck` | `next typegen` y `tsc --noEmit` (sin typegen no existen los tipos globales de rutas, como `LayoutProps`) |
 | `npm test` | Tests unitarios (Vitest): `src/**/*.test.ts` y `prisma/**/*.test.ts` |
 | `npm run test:integracion` | Tests contra un PostgreSQL 15 efímero (ver abajo) |
+| `npm run test:e2e` | Pruebas de punta a punta con Playwright contra la app (`next build` + `next start`) y un PostgreSQL efímero (ver abajo) |
 | `npm run db:local` | Crea (la primera vez) y arranca el PostgreSQL local, y corre `scripts/db-init.sql`. Idempotente |
 | `npm run db:local:estado` | Si corre, versión y bases |
 | `npm run db:local:detener` | Lo detiene |
 | `npm run db:reset` | Base vacía, migraciones (`prisma migrate deploy`) y semilla |
 | `npm run db:seed` | Solo la semilla. Idempotente: crea lo que falta y no toca lo que existe |
 | `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`<ADJUNTOS_DIR>/tmp/`) de más de 24 h (`-- --horas N` para otra antigüedad) |
+| `npm run empaquetar` | Arma el paquete de despliegue (build standalone, migraciones y CLI de Prisma) desde el último commit, en `build/paquetes/`. Ver [docs/despliegue.md](docs/despliegue.md) |
+| `npm run db:verificar-restauracion` | Controla una base restaurada (conteos, dueños, triggers, sha256 de adjuntos). Lo usa `scripts/restaurar-prueba.sh` |
 | `npm run db:migrate` | `prisma migrate dev`, para crear una migración nueva |
 | `npm run db:deploy` | `prisma migrate deploy`, como en un despliegue |
 | `node scripts/db-local.mjs reiniciar-datos` | **Borra** el clúster local entero y lo crea de nuevo (por ejemplo, para cambiar la clave del superusuario) |
@@ -162,13 +184,18 @@ scripts/
   db-local.mjs, lib/       PostgreSQL local con embedded-postgres
   db-init.sql              roles, bases y extensiones de DESARROLLO (owner con CREATEDB)
   roles.sql                roles de PRODUCCIÓN, staging y restauración (sin CREATEDB)
+  empaquetar.mjs           paquete de despliegue (npm run empaquetar)
+  backup.sh, restaurar-prueba.sh, verificar-restauracion.mjs
+                           backup nocturno, prueba de restauración y su verificación
+deploy/                    systemd, nginx, modelos de entorno y desplegar.sh (docs/despliegue.md)
 src/
   proxy.ts                 renovación deslizante de la sesión (no autoriza)
   instrumentation.ts       valida el entorno al arrancar (lib/arranque.ts)
   app/                     rutas: /login, /auth/*, /dev/login, /sin-acceso y,
                            en (app)/, las pantallas con sesión; los adjuntos en
                            /adjuntos/[movimientoId], POST /api/expedientes/[numero]/adjuntos y,
-                           semana 4, GET /expedientes/exportar (CSV)
+                           semana 4, GET /expedientes/exportar (CSV); semana 5, /admin/* y
+                           GET /admin/auditoria/exportar (CSV)
   lib/db/                  cliente de Prisma (solo lectura) y conActor() (escrituras)
   lib/auth/                Cidituc, sesión, cookies, ingreso y salida
   lib/dominio/             permisos, navegación, CUIL y plantillas (esquema zod y
@@ -176,7 +203,9 @@ src/
                            expedientes/ (alta, edición, ficha, carátula, esquemas
                            zod armados en tiempo de ejecución); semana 3: recepción,
                            subtareas, documentos, adjuntos, pase, devolución,
-                           bandejas y flujo.ts (puro). Ver docs/api-dominio.md
+                           bandejas y flujo.ts (puro); semana 5: admin/ (plantillas,
+                           usuarios, catálogos y auditoría) y plantillas/borrador.ts.
+                           Ver docs/api-dominio.md
   lib/adjuntos/            tipos por magic bytes y el almacén en disco (AlmacenAdjuntos)
   lib/presentacion/        lógica de las pantallas, sin Next: modelo del formulario, parámetros
                            del buscador, URL del QR, enlace wa.me, textos, la lógica de las
@@ -185,13 +214,19 @@ src/
                            Route Handlers de adjuntos (adjuntos-http.ts); semana 4: semáforo,
                            botones de estado y menú Corregir (estados.ts), grilla de
                            transcripción (transcripcion.ts), panel (panel.ts), CSV
-                           (exportar-http.ts) y sus Server Actions (acciones-estados.ts)
+                           (exportar-http.ts) y sus Server Actions (acciones-estados.ts);
+                           semana 5: el editor de plantillas (editor-plantilla.ts), la
+                           auditoría en la URL (auditoria.ts) y las Server Actions y el CSV
+                           de /admin (acciones-admin.ts)
   lib/fechas.ts            fechas YYYY-MM-DD, hoy en Tucumán, datetime-local y formato es-AR
   lib/entorno.ts           variables de entorno validadas con zod
   generated/               cliente de Prisma generado (no se versiona)
 tests/
-  integracion/             batería contra PostgreSQL real (ver su README)
+  integracion/             batería contra PostgreSQL real (ver su README); base-efimera.ts
+                           levanta el PostgreSQL efímero (también para e2e)
+  e2e/                     pruebas de punta a punta con Playwright (ver su README)
   stubs/                   reemplazo de server-only para Vitest
+playwright.config.ts       configuración de Playwright (el arnés está en tests/e2e/global-setup.ts)
 ```
 
 ## Base de datos
@@ -288,6 +323,7 @@ que una segunda corrida no los duplica.
 ```bash
 npm test                  # unitarios, sin base
 npm run test:integracion  # contra PostgreSQL 15 real
+npm run test:e2e          # de punta a punta, con Playwright y Chromium
 npm run typecheck
 npm run lint
 ```
@@ -302,6 +338,41 @@ corta con Ctrl+C, puede quedar un `postgres.exe` huérfano y su carpeta en
 
 Los dos tipos de test corren con `TZ=UTC`: el código no puede depender de la
 zona horaria de la máquina.
+
+### De punta a punta (Playwright)
+
+```bash
+npx playwright install chromium   # la primera vez: el navegador
+npm run test:e2e
+```
+
+Tampoco usa la base local ni el puerto 3000: el `globalSetup` levanta un
+PostgreSQL efímero (el mismo módulo que la integración) con la semilla y los 30
+expedientes ficticios, hace `next build` y arranca `next start` en un puerto
+libre con `NODE_ENV=test` (así Next no lee `.env.local`, y el login simulado se
+habilita sin tocar la regla de producción) y lo apaga y borra todo al
+terminar. Cada prueba entra por `/dev/login` con el usuario de su área y crea
+lo que necesita, así que corren en paralelo y en cualquier orden. Tarda menos
+de un minuto. Cubren:
+
+- el alta de una renovación de contado en el Oeste desde Mesa de Entradas, con
+  un error de campo antes y la carátula con número y QR;
+- el circuito de la propuesta, alta → pase → recepción → devolución →
+  conclusión, por los 7 pasos y con cada área en su sesión: "Faltan N", Por
+  confirmar, tildes, un adjunto PNG, la devolución en rojo con su motivo y el
+  reenvío directo, Concluir y Archivar con caja;
+- el conflicto de versión entre dos sesiones del mismo área;
+- la búsqueda por DNI con puntos, por N° interno corto y por apellido sin acento;
+- el contacto enmascarado y "Ver datos completos" con motivo;
+- el panel de Dirección, cuyos números llevan a la búsqueda filtrada;
+- un borrador de plantilla con un error de validación en su pestaña, que se
+  descarta (no se publica);
+- los diálogos, que se cierran con Escape y devuelven el foco.
+
+`E2E_SIN_BUILD=1` reusa el build de `.next` para iterar sobre una prueba.
+Trazas y capturas de las que fallan en `test-results/` y el reporte en
+`playwright-report/` (`npx playwright show-report`). Cómo funciona el arnés,
+las ayudas y cómo escribir una prueba: [tests/e2e/README.md](tests/e2e/README.md).
 
 ## Variables de entorno
 
@@ -329,12 +400,18 @@ Documentadas una por una en [.env.example](.env.example).
 - [docs/propuesta-mvp.md](docs/propuesta-mvp.md): el diseño confirmado (modelo
   de datos, reglas del flujo, plantillas, pantallas, stack y plan).
 - [docs/api-dominio.md](docs/api-dominio.md): la API del dominio de expedientes
-  (alta, edición, ficha, búsqueda, carátula) para quien hace las pantallas.
+  (alta, edición, ficha, búsqueda, carátula, flujo, estados) y de la
+  administración (semana 5) para quien hace las pantallas.
 - [docs/pedidos-dia-1.md](docs/pedidos-dia-1.md): pedidos a Sistemas, al equipo
   del derivador y a Asesoría Legal, listos para completar y enviar.
 - [docs/borrador-tecnico-art22.md](docs/borrador-tecnico-art22.md): insumo
   técnico para el acto de creación del archivo (art. 22, Ley 25.326).
+- [docs/despliegue.md](docs/despliegue.md): runbook de staging y producción
+  (servidor, base y roles, entorno, nginx, systemd, paquete, actualizaciones,
+  rollback, backups, prueba de restauración y checklist), para Sistemas y el
+  equipo.
 - [docs/taller-plantillas.md](docs/taller-plantillas.md): guía del taller de
   validación de plantillas con la Dirección de Cementerios.
 - [tests/integracion/README.md](tests/integracion/README.md): la batería de
   integración.
+- [tests/e2e/README.md](tests/e2e/README.md): las pruebas de punta a punta.

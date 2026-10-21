@@ -12,7 +12,9 @@ crea la suya y no toca `.local/pgdata`.
 
 ## Qué hace el arnés
 
-`global-setup.ts`, una vez por corrida:
+`global-setup.ts`, una vez por corrida (los pasos 1 a 3 los hace
+`base-efimera.ts`, `levantarBaseEfimera(prefijo, raiz)`, que también usan las
+pruebas de punta a punta, `tests/e2e/`):
 
 1. Crea un clúster con los binarios de `embedded-postgres` en un directorio
    temporal propio (`%TEMP%/cementeria-it-XXXX`) y lo arranca en un puerto
@@ -142,6 +144,23 @@ globales.
 | `plantillaDePrueba(prisma, definicion, nombre)` | Semana 4: publica una plantilla con código único (la caducidad de prueba) |
 | `hastaElUltimoPaso(exp, prisma, numero)` | Semana 4: `avanzar` hasta el último paso |
 
+### Tests de la administración: `admin.ts` (semana 5)
+
+La administración cambia lo que comparten todos los tests (la plantilla
+publicada de RENOV_CONTADO, los administradores activos, áreas, años de
+feriados): si quedara confirmado, otros archivos verían "v2" o un año cerrado
+según el orden de la corrida.
+
+| Ayuda | Para qué |
+|---|---|
+| `conServiciosQueSeDeshacen(prisma, async ({ admin, expedientes, tx, comoActor }) => …)` | Los servicios de administración y de expedientes sobre UNA transacción que se revierte al final: sus lecturas ven lo que escribieron y nada queda. Cada escritura del dominio va en un SAVEPOINT, así un rechazo de un trigger no aborta la transacción. `comoActor(id, motivo?)` fija el actor para escribir directo con `tx` |
+| `servicioAdmin(prisma)` | El servicio confirmado, para lo que no molesta a nadie (plantillas con código único) |
+| `comoUsuario(tx, id)`, `cuilFicticio()`, `codigoUnico(prefijo)` | El usuario como lo da la sesión, un CUIL ficticio válido (20-9…) y un código `[A-Z_]` único |
+
+Lo que va en la transacción que se deshace no puede mezclarse con lecturas
+de otra conexión que esperen ver lo escrito; los ayudantes de `dominio.ts`
+que usan `prisma` (como `datosAlta`) sirven para armar datos, no para mirar.
+
 `escenario.ts` crea sus expedientes con el año 1999: los del dominio numeran el
 año en curso con `max + 1`, y un expediente confirmado con una secuencia al
 azar en ese año les correría la numeración.
@@ -265,6 +284,9 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 | `pantallas.test.ts` | La lógica de las Server Actions de las pantallas (`src/lib/presentacion/acciones.ts`) con FormData como el del formulario: alta (destino carátula o ficha, doble clic, errores por campo, formulario roto, sin permiso), aviso de duplicados, edición (conflicto de versión, sin cambios, permiso), "Ver datos completos"; hoja del historial (sin contacto, registra `imprimir`) y opciones del buscador | 5, 3.2, decisión 13 |
 | `pantallas-semana4.test.ts` | Las Server Actions de la semana 4 (`src/lib/presentacion/acciones-estados.ts`) con la entrada de los diálogos y la grilla: concluir con "Faltan N", archivar sin caja y con caja, desarchivar con motivo, entrada sin forma; reiniciar (destino `?desde=`, precarga y alta enlazada) y "archivar y abrir vinculado" (falla sin caja sin archivar nada); revertir un pase, nota y corregir su fecha; purgar sin confirmación; la grilla de transcripción (error de una fila en su celda, lote, reintento, terminar la carga); el Route Handler del CSV (`exportar-http.ts`) con Request reales: BOM, acentos, sin contacto, `exportar` en auditoría, 401, 403 y 422 | 5, 3.1, 2.13(a) a (c), 15.7 de api-dominio |
 | `pantallas-flujo.test.ts` | Las Server Actions del flujo (`procesarRecepcion`, `procesarRecepciones`, `procesarSubtarea`, `procesarDocumento`, `procesarPase`, `procesarDevolucion`) con la entrada de los diálogos: versión nueva en cada respuesta, errores por campo, Faltan N, conflicto de versión, lote parcial, entrada sin forma; los Route Handlers de adjuntos (`src/lib/presentacion/adjuntos-http.ts`) con Request reales: subida de PNG y PDF en streaming, headers de la sección 6, descarga, HEIC, más de 10 MB sin Content-Length, sin permiso, versión vieja, sin sesión; lectura con y sin motivo para quien no trabaja el expediente | 5, 6 "Adjuntos", 3.2 a 3.4, decisión 13 |
+| `admin-plantillas.test.ts` | Semana 5: el ciclo de una plantilla (crear, doble clic, guardar con huella y conflicto, validar, publicar con notas, editar v2, publicar con retiro de la v1, expediente en curso con la v1 y "hay v2", auditoría, retirar con motivo, alta rechazada, editar un retirado, descartar); Publicar rechazado por integridad sin cambiar nada (y los errores por ruta en la Server Action); solo el admin; **una v2 de RENOV_CONTADO** en una transacción que se deshace: el expediente en curso sigue con la v1 y el alta nueva toma la v2 | 2.5, 2.13(a), 3.2 |
+| `admin-usuarios-catalogos.test.ts` | Semana 5, en transacciones que se deshacen: alta por CUIL (dígito verificador, área externa, repetido, ya existe, auditada); desactivar (`sesion_version` + 1 y la sesión vieja deja de valer), reactivar, cambiar área o rol, uno mismo, SISTEMA; el último admin activo; áreas (código fijo, en uso, tipo, mensaje legible de un trigger); cementerios (clave de ubicación usada no se borra, renombra ni cambia de tipo; se desactiva; área interna o ya usada); tipos de monumento y de trámite; feriados con cierre y reapertura de 2026, auditados | 2.1 a 2.4, 2.9, 2.13(d), 3.2 |
+| `admin-auditoria.test.ts` | Semana 5, en transacciones que se deshacen: accesos por expediente (también la forma corta), acción (`ver_datos_completos` con su motivo e IP), usuario y fechas; paginado de a 50; cambios con el antes y el después legibles (área por nombre, cierre de año); el Route Handler del CSV (BOM, `;`, campos con `;` entre comillas, `exportar` con `origen: auditoria`, 401, 403, 422) | 2.10, 5 |
 
 Si una regla de la base no cumple la propuesta, el test se escribe igual, como
 especificación, con `it.fails` y un comentario `DEFECTO:` que diga qué falta. La

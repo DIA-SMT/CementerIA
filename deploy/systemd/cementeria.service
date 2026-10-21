@@ -1,0 +1,94 @@
+# CementerIA, producción (docs/despliegue.md; propuesta, sección 6, "Hosting").
+# Va en /etc/systemd/system/cementeria.service.
+#
+# Node sirve el paquete standalone en 127.0.0.1:3010; nginx termina TLS
+# adelante (deploy/nginx/cementeria.conf). El código está en
+# /opt/cementeria/actual, un enlace a la versión en uso
+# (/opt/cementeria/releases/<versión>), que cambia deploy/desplegar.sh.
+
+[Unit]
+Description=CementerIA (seguimiento de expedientes de la Dirección de Cementerios)
+Documentation=https://github.com/DIA-SMT/CementerIA/blob/main/docs/despliegue.md
+After=network-online.target
+Wants=network-online.target
+# Con Restart=always, un error de configuración (la app termina con código 1
+# si el entorno no sirve, src/lib/arranque.ts) reiniciaría para siempre.
+# Después de 5 intentos en 10 minutos la unidad queda en falla y se ve en
+# `systemctl --failed`.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=cementeria
+Group=cementeria
+WorkingDirectory=/opt/cementeria/actual
+ExecStart=/usr/bin/node server.js
+
+# Secretos y configuración de la instancia (0600 root:root; ver
+# deploy/env/cementeria.env.ejemplo). systemd lo lee como root antes de bajar
+# a User=: el usuario cementeria no puede leer el archivo.
+EnvironmentFile=/etc/cementeria/cementeria.env
+# Lo que no es secreto ni cambia entre instalaciones va acá, a la vista.
+Environment=NODE_ENV=production
+# La sección 6 pide la zona de Tucumán en el proceso, aunque el código no
+# depende de ella (las fechas se formatean con timeZone explícito).
+Environment=TZ=America/Argentina/Tucuman
+# server.js escucha en HOSTNAME:PORT. Solo en loopback: lo único que llega es nginx.
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3010
+Environment=NEXT_TELEMETRY_DISABLED=1
+
+Restart=always
+RestartSec=5
+# Next termina los requests en curso al recibir SIGTERM (guía de self-hosting).
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Logs: una línea JSON por evento a la salida estándar (src/lib/log.ts), que
+# journald guarda: journalctl -u cementeria -o cat | jq
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cementeria
+
+# --- Endurecimiento ---------------------------------------------------------
+# El sistema de archivos es de solo lectura para el servicio, salvo los
+# adjuntos y la caché de Next (CacheDirectory= crea /var/cache/cementeria con
+# dueño cementeria; deploy/desplegar.sh enlaza ahí .next/cache).
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cementeria/adjuntos
+CacheDirectory=cementeria
+CacheDirectoryMode=0700
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+# Sin ProcSubset=pid: Node lee /proc/cpuinfo y /proc/stat (os.cpus()).
+ProtectProc=invisible
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+# IPv4/IPv6 para la base y Cidituc; Unix para journald y un posible socket de PostgreSQL.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# Una llamada fuera de la lista falla con EPERM en vez de matar el proceso:
+# libuv prueba io_uring y, si no puede, sigue sin él.
+SystemCallErrorNumber=EPERM
+# MemoryDenyWriteExecute= NO: rompe el compilador JIT de V8.
+# Los adjuntos se crean 0440 y sus carpetas 0750 (src/lib/adjuntos/almacen.ts);
+# el grupo cementeria es el del backup, que solo lee.
+UMask=0027
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-# API del dominio de expedientes (semanas 2 a 4)
+# API del dominio de expedientes (semanas 2 a 5)
 
 Referencia para quien hace las pantallas. Semana 2: alta (`/expedientes/nuevo`),
 ficha (`/expedientes/[numero]`), edición (`/expedientes/[numero]/editar`),
@@ -11,8 +11,9 @@ Semana 4 (sección 14, actualizado el 20/10/2026 según docs/fuentes): personas
 jurídicas, conceptos, documentos y subtareas según el cementerio, nomenclatura
 por cementerio y DIM omitible; y (sección 15) estados, reiniciar con otra
 plantilla, caducidad vinculada, correcciones, plazo DIM y feriados,
-transcripción histórica, panel y CSV, con sus pantallas en la sección 16
-(menos la de feriados, de la semana 5).
+transcripción histórica, panel y CSV, con sus pantallas en la sección 16.
+Semana 5 (sección 17): la administración (plantillas con su editor, usuarios,
+catálogos con feriados y auditoría), con sus pantallas en la sección 18.
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -25,6 +26,8 @@ en el código: esto es el mapa.
 | `@/lib/fechas` | Fechas `YYYY-MM-DD`, hoy en Tucumán, `datetime-local`, formato es-AR |
 | `@/lib/dominio/busqueda` | La columna `busqueda` y la caja única (el servicio la expone como `expedientes.buscar`) |
 | `@/lib/adjuntos/tipos` | Semana 3. `MAXIMO_BYTES_ADJUNTO`, `detectarTipo()` (magic bytes), `esHeic()`. Puro: el navegador lo puede usar para avisar antes de subir |
+| `@/lib/dominio/admin/servidor` | Semana 5. `admin` (el servicio de la administración, ya conectado) y sus tipos. `server-only`. Sección 17 |
+| `@/lib/dominio/plantillas/borrador` | Semana 5. `definicionEditable()` y `definicionInicial()`: la definición de un borrador con la forma del esquema. Puro |
 | `@/lib/adjuntos/almacen` | Semana 3. `AlmacenAdjuntos` (interfaz), `crearAlmacenEnDisco()`, `raizAdjuntos()`, `barrerTemporales()`. Servidor |
 
 ## 1. Cómo se usa
@@ -1232,7 +1235,7 @@ attachment` y `Cache-Control: private, no-store`.
 - La plantilla real de caducidad (y su tipo de trámite): la Dirección no pasó
   el circuito. "Archivar y abrir vinculado" ya funciona con cualquier
   plantilla publicada.
-- La pantalla de feriados (semana 5). Las demás están hechas: sección 16.
+- La pantalla de feriados: hecha en la semana 5 (`/admin/catalogos?pestana=feriados`, sección 18). Las demás están hechas: sección 16.
 
 ## 16. Las pantallas (semana 4)
 
@@ -1292,3 +1295,143 @@ attachment` y `Cache-Control: private, no-store`.
   `dialogoDeVuelta` (volver al pase o a concluir después de resolver un
   faltante) están en `flujo/estado.ts`. `BotonImprimir` está en
   `src/components/`.
+
+## 17. Semana 5: la administración (`@/lib/dominio/admin`)
+
+Plantillas, usuarios, catálogos y auditoría: todo exige el permiso
+`administrar` (solo el admin, 3.2) y tira `PermisoDenegado` si no. Como el de
+expedientes, el servicio recibe sus dependencias: la app usa `admin` de
+`@/lib/dominio/admin/servidor` (cliente global y `conActor()`); los tests,
+`crearServicioAdmin({ leer, escribir, ahora? })`. `leer` es un `LectorAdmin`
+(el `Lector` de expedientes más `auditoriaCambio` y `auditoriaAcceso`), y las
+lecturas van en serie (`enSerie`), nunca con `Promise.all`: el lector puede ser
+un `tx`. Toda escritura queda en `auditoria.cambios` por el trigger
+`auditar_cambio`, con el motivo (o las notas de cambio) como `motivo`.
+
+**Idempotencia.** Las acciones de la administración describen el estado al que
+se quiere llegar (publicada, activo o no, tal área y rol, tal nombre), así que
+repetirlas no hace nada nuevo y devuelven `repetido: true`. Por eso no llevan
+`comandoId` ni hace falta una columna para guardarlo: las altas tienen clave
+natural (código, CUIL, fecha) y un segundo pedido igual se reconoce.
+
+**Errores nuevos** (`CodigoErrorDominio`): `ya_existe` (código, CUIL o versión
+repetidos) y `en_uso` (lo que se quiere borrar, renombrar o desactivar está en
+uso: una clave de ubicación con valores, un área con usuarios o en una
+plantilla publicada, el último administrador activo). Los rechazos de los
+triggers de coherencia (`usuarios_area_interna`, `cementerios_area_externa`,
+`areas_tipo_coherente`) y de los índices únicos se controlan antes, con un
+mensaje propio; si igual llegan (dos administradores a la vez),
+`traducirErrorBase()` los devuelve como `validacion` o `ya_existe` con el
+mensaje legible (sin ids internos).
+
+### 17.1 Plantillas (2.5, 2.13(a))
+
+| Función | Qué hace |
+|---|---|
+| `catalogoPlantillas(usuario)` | Una fila por código: `nombre`, `tipoTramite`, `publicada` y `borrador` (`{ version, enCurso, total, … }`) y `versiones[]` con los expedientes en curso (en trámite o en espera de pago) y totales de cada una |
+| `catalogosEditor(usuario)` | Áreas (con tipo, activa y recibe pases), cementerios (con su área y monumentos), tipos de monumento y de trámite, para las listas del editor |
+| `obtenerVersion(usuario, codigo, version)` | La versión con `estado`, notas, quién y cuándo, `definicion` **con la forma completa** (`definicionEditable`, aunque sea un borrador a medio hacer), `huella` y las demás versiones. `no_encontrado` si no existe |
+| `crearPlantilla(usuario, { codigo, tipoTramiteId, nombre })` | "Nueva": borrador v1 con `definicionInicial()` (un titular vivo, sin pasos). `ya_existe` si el código existe |
+| `editarPlantilla(usuario, codigo)` | "Editar": borrador `max + 1` copiando la publicada (o, si se retiró, la última). Si ya hay borrador, lo devuelve (`repetido`) |
+| `guardarBorrador(usuario, codigo, version, { nombre, definicion }, huella)` | Guarda aunque no valide; `{ huella, repetido, pendientes }` (`pendientes`: cuántos errores de Publicar quedan). `conflicto_version` si otro guardó en el medio (la huella no coincide), `estado_no_admite` si no es borrador |
+| `validarBorrador(usuario, { nombre, definicion })` | Los errores de "Publicar" (`validarPublicacion`, contra los catálogos actuales) para lo que está en pantalla; no escribe. `{ ok, errores: [{ ruta, mensaje }] }` |
+| `publicarBorrador(usuario, codigo, version, contenido, huella, notas)` | En una transacción: guarda el contenido, valida esquema e integridad, retira la publicada y publica el borrador con `notas_cambio` (10 caracteres o más, `motivo_requerido`). Si no valida: `validacion` con `errores` por ruta y nada cambia. `{ retirada: n \| null }` |
+| `descartarBorrador(usuario, codigo, version)` | Borra el borrador (solo borradores) |
+| `retirarPlantilla(usuario, codigo, version, motivo)` | La publicada pasa a retirada (con motivo): el trámite deja de ofrecerse en el alta; los expedientes en curso siguen |
+
+- **Borradores** (`@/lib/dominio/plantillas/borrador`, puro):
+  `definicionEditable(valor)` lleva cualquier valor a la forma de
+  `DefinicionPlantilla` (completa lo que falta, descarta claves desconocidas;
+  una definición publicada no cambia) y `definicionInicial()`. Un filtro "Solo
+  en…" sin cementerios se conserva como `[]` para que Validar lo marque.
+- **Huella**: `huellaBorrador(nombre, definicion)` (sha256 del JSON con las
+  claves ordenadas, porque jsonb no conserva el orden). Guardar o publicar lo
+  mismo que ya está no compara la huella (un doble clic no da conflicto).
+- **Rutas de los errores**: las de `validar.ts` y del esquema
+  (`pasos[2].custodia`, `documentos[0].solo_cementerios[1]`, `personas`,
+  `nombre`). El editor las lleva a su pestaña y a su campo.
+- **Expedientes en curso**: conservan su `plantilla_id` y siguen con su
+  versión (la ficha dice "· v1 (hay v2)"); el alta ofrece solo la publicada y
+  una versión retirada da `plantilla_no_publicada`. Probado con una v2 de
+  RENOV_CONTADO en `tests/integracion/admin-plantillas.test.ts`.
+
+### 17.2 Usuarios (2.4)
+
+| Función | Qué hace |
+|---|---|
+| `listarUsuarios(usuario)` | `{ usuarios, areas, adminsActivos }`: todos menos SISTEMA (activos primero), con área, rol, activo y último ingreso; `areas` son las internas activas (las asignables) |
+| `altaUsuario(usuario, { cuil, nombre, apellido, email?, areaId, rol }, motivo?)` | CUIL con o sin guiones, con dígito verificador (`cuilValido`); área interna y activa, obligatoria salvo para el admin. `ya_existe` si el CUIL tiene usuario (dice si está inactivo) |
+| `cambiarAccesoUsuario(usuario, id, { areaId, rol }, motivo?)` | Rige en el request siguiente (la sesión relee área y rol). No el propio rol |
+| `desactivarUsuario(usuario, id, motivo?)` | `activo = false` y `sesion_version + 1`: la cookie que tenía deja de valer en el request siguiente (`usuarioDeSesion`). No a uno mismo |
+| `reactivarUsuario(usuario, id, motivo?)` | Vuelve a activo (las sesiones viejas siguen sin valer). Si su área ya no es asignable, `validacion` |
+
+**El último administrador**: desactivar a un admin o quitarle el rol bloquea
+las filas de los administradores activos (`FOR UPDATE`) y exige que quede otro
+(`en_uso`). Así, dos administradores que se desactivan uno al otro a la vez se
+serializan y el segundo recibe el error.
+
+### 17.3 Catálogos (2.1 a 2.3, 2.13(d))
+
+| Función | Qué hace |
+|---|---|
+| `listarCatalogos(usuario)` | Áreas (con usuarios activos, su cementerio y las plantillas publicadas que la usan), cementerios (campos de ubicación, monumentos, `clavesUsadas` con cuántos expedientes tienen cada clave), tipos de monumento (en qué cementerios) y tipos de trámite (sus plantillas) |
+| `guardarArea(usuario, { id?, codigo, nombre, tipo, recibePases, activa, orden }, motivo?)` | Sin `id`, alta. El código no cambia. Externa ⇒ recibe pases. No se desactiva con usuarios activos, si es la de un cementerio activo o si la usa una plantilla publicada; no pasa a externa con usuarios ni a interna si es de un cementerio (`en_uso`, con el detalle en `errores`) |
+| `guardarCementerio(usuario, { id?, codigo, nombre, areaId, activo, camposUbicacion, tiposMonumento }, motivo?)` | Área externa y libre; monumentos que existen; campos de ubicación válidos (`controlarCamposUbicacion`): claves únicas, patrones que compilan, y **una clave con valores no se borra, no se renombra ni cambia de tipo** (`en_uso`): se desactiva |
+| `guardarTipoMonumento` / `guardarTipoTramite(usuario, { id?, codigo, nombre, activo }, motivo?)` | Alta o modificación; el código no cambia |
+
+Los **feriados** siguen en el servicio de expedientes (15.4): la pestaña los usa
+tal cual (`listarFeriados`, `aniosDeFeriados`, `guardarFeriado`,
+`quitarFeriado`, `cerrarAnioFeriados`, `reabrirAnioFeriados`).
+
+### 17.4 Auditoría (2.10)
+
+| Función | Qué hace |
+|---|---|
+| `opcionesAuditoria(usuario)` | Usuarios (también SISTEMA), acciones y tablas para los filtros |
+| `listarAccesos(usuario, { usuarioId?, numero?, accion?, desde?, hasta?, pagina? })` | `auditoria.accesos`, del más nuevo al más viejo, de a 50 (`POR_PAGINA`): `{ filas, total, pagina, paginas }`. Cada fila trae usuario, acción, expediente (número), `motivo` (el de "Ver datos completos") y `detalle`. `numero` acepta la forma corta; uno que no existe da la lista vacía. Fechas `YYYY-MM-DD` de Tucumán, inclusive |
+| `listarCambios(usuario, { tabla?, usuarioId?, desde?, hasta?, pagina? })` | `auditoria.cambios` con `registro` ("RENOV_CONTADO v2", "CUIL …", "Año 2026"), `operacionEtiqueta` y `diferencias: [{ campo, etiqueta, antes, despues }]` legibles (`diferenciasCambio`: áreas y usuarios por nombre, fechas en hora de Tucumán, la definición resumida en cantidades) |
+| `exportarAuditoria(usuario, { vista, filtros }, { ip? })` | CSV de lo filtrado (hasta 5000 filas, como el del buscador: `;`, CRLF, BOM) y registra `exportar` con `detalle: { formato, origen: "auditoria", vista, filtros, filas, truncado }` |
+
+Mirar la auditoría no se registra; exportarla sí.
+
+## 18. Las pantallas (semana 5)
+
+| Ruta | Qué llama |
+|---|---|
+| `/admin` | `catalogoPlantillas` y `aniosDeFeriados`: las cuatro secciones y lo pendiente (borradores, años sin cerrar). El layout de `/admin/*` agrega el menú Plantillas · Usuarios · Catálogos · Auditoría (`SECCIONES_ADMIN` de `@/lib/dominio/navegacion`) |
+| `/admin/plantillas` | `catalogoPlantillas`, `catalogosEditor`. Nueva (diálogo), Editar (`accionEditarPlantilla`, navega al borrador) y Retirar (diálogo con motivo) |
+| `/admin/plantillas/[codigo]/v/[version]` | `obtenerVersion`, `catalogosEditor`. El editor (`editor.tsx`, con pestañas General, Personas, Pasos, Documentación, Conceptos, Campos extra y Vista previa) o el visor (los mismos controles deshabilitados). Guardar borrador (Ctrl+S), Validar, Publicar (con notas) y Descartar |
+| `/admin/usuarios` | `listarUsuarios`. Alta por CUIL, Área o rol, Desactivar y Reactivar en diálogos |
+| `/admin/catalogos?pestana=areas\|cementerios\|monumentos\|tramites\|feriados&anio=` | `listarCatalogos`; en Feriados, `aniosDeFeriados` y `listarFeriados`. Alta y modificación en diálogos; Cerrar año y Reabrir año (con motivo) |
+| `/admin/auditoria?vista=accesos\|cambios&usuario=&expediente=&accion=&tabla=&desde=&hasta=&pagina=` | `opcionesAuditoria` y `listarAccesos` o `listarCambios`. Los filtros viven en la URL (`@/lib/presentacion/auditoria`) |
+| `GET /admin/auditoria/exportar?<los mismos parámetros>` | `exportarAuditoria`: 200 `text/csv` attachment (`auditoria-<vista>-AAAA-MM-DD.csv`), 401 sin sesión, 403 sin permiso, 422 con filtros inválidos |
+
+- **Server Actions** en `src/app/(app)/admin/acciones.ts`; la lógica en
+  `src/lib/presentacion/acciones-admin.ts` (probada en los tests de
+  integración `admin-*.test.ts`): `procesarNuevaPlantilla`,
+  `procesarEditarPlantilla`, `procesarGuardarBorrador`,
+  `procesarValidarBorrador`, `procesarPublicar`, `procesarDescartar`,
+  `procesarRetirar`, `procesarUsuario` (`accion`: `alta`, `acceso`,
+  `desactivar`, `reactivar`), `procesarCatalogo` (`catalogo`: `area`,
+  `cementerio`, `tipo_monumento`, `tipo_tramite`) y `procesarFeriado`
+  (`accion`: `guardar`, `quitar`, `cerrar`, `reabrir`; `sin_cambios` cuenta
+  como repetido). Las que cambian lo que se ve llaman a `refresh()`; Nueva,
+  Editar, Publicar y Descartar navegan con `redirect()`.
+- **El editor** (`src/lib/presentacion/editor-plantilla.ts`, puro, con
+  tests): las operaciones sobre la definición (agregar, quitar y mover pasos,
+  subtareas, roles, documentos, conceptos y campos; `cambiarPaso` vacía la
+  custodia al elegir un área interna; `cambiarCampoExtra` pone o quita las
+  opciones), `renombrarClave` (rechaza una clave que ya usa otro elemento y
+  renombra las referencias: `exigir_al_salir_de`, `conceptos[].paso`, el
+  plazo, `$CAMPO:x`, `solo_si_juridica`), los filtros por cementerio,
+  `pestanaDeRuta` / `erroresPorPestana` / `rutasAncestras` /
+  `ubicacionDeRuta` (cada error a su pestaña, a su campo y en palabras en el
+  resumen) y `vistaPrevia` (la plantilla resuelta con `resolverPorCementerio`
+  para cada cementerio, con lo que el filtro saca). El `id` de cada control es
+  `idDeCampo(ruta)`: el resumen de errores enfoca el campo (o el elemento más
+  cercano) y abre su paso. Las claves se aplican al salir del campo. Mover o
+  quitar limpia los errores (sus rutas cambian) y pide volver a validar.
+- **Teclado**: las pestañas con ← → Inicio Fin; cada paso es un `<details>`
+  (Enter o Espacio); ↑ ↓ y Quitar con el nombre del elemento para el lector de
+  pantalla, y el foco sigue al elemento movido; los diálogos son `<dialog>`
+  nativos (Escape cierra).

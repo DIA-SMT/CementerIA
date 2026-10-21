@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db/cliente";
 import { inicioPara } from "@/lib/dominio/navegacion";
 import { devLoginPara, entorno } from "@/lib/entorno";
 import { log } from "@/lib/log";
+import { redirigirA } from "@/lib/auth/redireccion";
 
 /**
  * POST /dev/login/entrar: el "Entrar como…" de /dev/login.
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   log.info("ingreso.simulado", { usuarioId });
   const segura = cookieSegura(request.nextUrl, e.nodeEnv);
-  const respuesta = NextResponse.redirect(new URL(volver ?? inicioPara(resultado.usuario), request.url), 303);
+  const respuesta = redirigirA(volver ?? inicioPara(resultado.usuario));
   respuesta.cookies.set(nombreCookie(COOKIE_SESION, e.nodeEnv), sesion.token, opcionesCookie(segura, sesion.maxAge));
   respuesta.cookies.set(COOKIE_SIN_ACCESO, "", opcionesBorrado(segura, "/sin-acceso"));
   respuesta.headers.set("Cache-Control", "no-store");

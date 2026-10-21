@@ -9,6 +9,7 @@ import {
 import { cookieSegura, nombreCookie, opcionesCookie } from "@/lib/auth/cookies";
 import { destinoSeguro, rutaDeLogin } from "@/lib/auth/destino";
 import { entorno } from "@/lib/entorno";
+import { redirigirA } from "@/lib/auth/redireccion";
 
 /**
  * GET /auth/ingresar: el botón "Ingresar con Cidituc" de /login apunta acá.
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const volver = destinoSeguro(request.nextUrl.searchParams.get("volver"));
 
   if (!e.cidituc.habilitado) {
-    return NextResponse.redirect(new URL(rutaDeLogin(volver, "sin_configurar"), request.url), 303);
+    return redirigirA(rutaDeLogin(volver, "sin_configurar"));
   }
 
   const state = crypto.randomUUID();

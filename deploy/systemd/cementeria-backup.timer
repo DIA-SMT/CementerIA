@@ -1,0 +1,16 @@
+# Dispara cementeria-backup.service todas las noches a las 02:00 de Tucumán
+# (propuesta, sección 6, "Backups"). Va en /etc/systemd/system/; se activa con:
+#   systemctl enable --now cementeria-backup.timer
+# Próxima corrida: systemctl list-timers cementeria-backup.timer
+
+[Unit]
+Description=CementerIA: backup nocturno a las 02:00
+
+[Timer]
+# Con la zona explícita, la hora no depende de la zona del servidor.
+OnCalendar=*-*-* 02:00:00 America/Argentina/Tucuman
+# Si el servidor estaba apagado a las 02:00, corre al arrancar.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:integracion": "vitest run --config vitest.integracion.config.mts",
+    "test:e2e": "playwright test",
     "db:local": "node scripts/db-local.mjs iniciar",
     "db:local:detener": "node scripts/db-local.mjs detener",
     "db:local:estado": "node scripts/db-local.mjs estado",
@@ -18,6 +19,8 @@
     "db:reset": "node scripts/db-local.mjs recrear-base && prisma migrate deploy && npm run db:seed",
     "db:seed": "tsx prisma/seed.ts",
     "adjuntos:barrer": "tsx scripts/barrer-adjuntos-tmp.ts",
+    "empaquetar": "node scripts/empaquetar.mjs",
+    "db:verificar-restauracion": "node scripts/verificar-restauracion.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -38,6 +41,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",

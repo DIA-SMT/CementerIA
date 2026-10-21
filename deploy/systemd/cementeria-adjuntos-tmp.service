@@ -1,0 +1,52 @@
+# Barrido diario de temporales de adjuntos (propuesta, sección 6, "Adjuntos"):
+# borra lo que quedó en /var/lib/cementeria/adjuntos/tmp/ con más de 24 h (una
+# subida cortada entre la escritura y el commit). Lo dispara
+# cementeria-adjuntos-tmp.timer. Va en /etc/systemd/system/.
+#
+# Corre el barrido compilado a JavaScript (scripts/barrer-adjuntos-tmp.mjs,
+# lo arma `npm run empaquetar`): en el servidor no hay tsx.
+#
+# A mano: systemctl start cementeria-adjuntos-tmp && journalctl -u cementeria-adjuntos-tmp -n 5
+
+[Unit]
+Description=CementerIA: barrido de temporales de adjuntos
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=cementeria
+Group=cementeria
+WorkingDirectory=/opt/cementeria/actual
+ExecStart=/usr/bin/node scripts/barrer-adjuntos-tmp.mjs
+# Solo lo que necesita: no lee /etc/cementeria/cementeria.env, que tiene
+# los secretos de la app.
+Environment=NODE_ENV=production
+Environment=TZ=America/Argentina/Tucuman
+Environment=ADJUNTOS_DIR=/var/lib/cementeria/adjuntos
+SyslogIdentifier=cementeria-adjuntos-tmp
+
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cementeria/adjuntos
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+PrivateNetwork=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0027

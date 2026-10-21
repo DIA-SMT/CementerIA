@@ -50,7 +50,7 @@ describe("POST /auth/salir", () => {
   it("cierra todas las sesiones del usuario (sesion_version), borra las cookies y va a /login", async () => {
     const respuesta = await POST(salir({ origin: ORIGEN, cookie: `${COOKIE_SESION}=token-ficticio` }));
     expect(respuesta.status).toBe(303);
-    expect(respuesta.headers.get("location")).toBe(`${ORIGEN}/login?salida=1`);
+    expect(respuesta.headers.get("location")).toBe("/login?salida=1");
     expect(simulado.cierres).toEqual([{ usuarioId: 42, sesionVersion: 3, ip: "10.0.0.7" }]);
     expect(respuesta.cookies.get(COOKIE_SESION)).toMatchObject({ value: "", maxAge: 0, path: "/" });
     expect(respuesta.cookies.get(COOKIE_SIN_ACCESO)).toMatchObject({ value: "", maxAge: 0, path: "/sin-acceso" });

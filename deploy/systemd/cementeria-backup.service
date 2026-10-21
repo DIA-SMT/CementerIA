@@ -1,0 +1,63 @@
+# Backup nocturno de CementerIA: pg_dump -Fc y, después, los adjuntos, con
+# restic cifrado al servidor de backup (scripts/backup.sh; propuesta, sección
+# 6, "Backups"; pedido A7). Lo dispara cementeria-backup.timer a las 02:00.
+# Va en /etc/systemd/system/.
+#
+# Corre como cementeria-backup y no como cementeria: la clave de restic y la
+# credencial del dump no quedan al alcance del proceso de la app. Lee los
+# adjuntos por el grupo cementeria (archivos 0440 y carpetas 0750).
+#
+# A mano: systemctl start cementeria-backup && journalctl -u cementeria-backup -n 30
+# Si falla, la unidad queda en `systemctl --failed`.
+
+[Unit]
+Description=CementerIA: backup nocturno (pg_dump y adjuntos con restic)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cementeria-backup
+Group=cementeria-backup
+SupplementaryGroups=cementeria
+# 0600 root:root, con PG* y RESTIC_* (deploy/env/backup.env.ejemplo).
+EnvironmentFile=/etc/cementeria/backup.env
+Environment=TZ=America/Argentina/Tucuman
+Environment=RESTIC_CACHE_DIR=/var/cache/cementeria-backup
+ExecStart=/bin/bash /opt/cementeria/actual/scripts/backup.sh
+SyslogIdentifier=cementeria-backup
+# Un dump y una subida grandes pueden llevar horas; más que eso es un cuelgue.
+TimeoutStartSec=6h
+# Que no le saque CPU ni disco a la app si alguien la usa a esa hora.
+Nice=10
+IOSchedulingClass=idle
+
+ProtectSystem=strict
+# Donde queda el dump mientras se sube (lo crea Sistemas, 0700 cementeria-backup).
+ReadWritePaths=/var/backups/cementeria
+CacheDirectory=cementeria-backup
+CacheDirectoryMode=0700
+# El home (/var/lib/cementeria-backup) tiene la clave SSH y el known_hosts del
+# servidor de backup si el repositorio es sftp:. Va de solo lectura: known_hosts
+# se arma en la instalación (docs/despliegue.md), no en la primera conexión.
+ProtectHome=true
+# El - evita que la unidad falle si el home no existe (repositorio rest:).
+ReadOnlyPaths=-/var/lib/cementeria-backup
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+UMask=0077

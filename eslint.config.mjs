@@ -96,6 +96,10 @@ const eslintConfig = defineConfig([
     // Base de datos y archivos locales.
     ".local/**",
     ".data/**",
+    // Artefactos de Playwright (el reporte HTML trae el visor de trazas en JS).
+    "test-results/**",
+    "playwright-report/**",
+    "blob-report/**",
   ]),
 ]);
 

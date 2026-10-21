@@ -118,7 +118,7 @@ afterEach(() => {
 });
 
 function destino(respuesta: Response): URL {
-  return new URL(respuesta.headers.get("location") ?? "");
+  return new URL(respuesta.headers.get("location") ?? "", ORIGEN);
 }
 
 function expectStateBorrado(respuesta: { cookies: { get(n: string): { value: string; maxAge?: number; path?: string } | undefined } }) {
@@ -180,7 +180,7 @@ describe("GET /auth/callback: el ingreso", () => {
     const respuesta = await GET(callback({ auth: TOKEN, state: STATE }, codificarFlujo(STATE, null)));
 
     expect(respuesta.status).toBe(303);
-    expect(respuesta.headers.get("location")).toBe(`${ORIGEN}/bandeja`);
+    expect(respuesta.headers.get("location")).toBe("/bandeja");
     expect(respuesta.headers.get("location")).not.toContain("auth=");
     expect(respuesta.headers.get("cache-control")).toBe("no-store");
     expect(respuesta.headers.get("referrer-policy")).toBe("no-referrer");
@@ -201,20 +201,20 @@ describe("GET /auth/callback: el ingreso", () => {
     const respuesta = await GET(
       callback({ auth: TOKEN, state: STATE }, codificarFlujo(STATE, "/expedientes/2026-00012")),
     );
-    expect(respuesta.headers.get("location")).toBe(`${ORIGEN}/expedientes/2026-00012`);
+    expect(respuesta.headers.get("location")).toBe("/expedientes/2026-00012");
   });
 
   it("Dirección y el admin empiezan en el panel", async () => {
     simulado.usuario = { ...simulado.usuario, rol: "lectura" };
     const respuesta = await GET(callback({ auth: TOKEN, state: STATE }, codificarFlujo(STATE, null)));
-    expect(respuesta.headers.get("location")).toBe(`${ORIGEN}/panel`);
+    expect(respuesta.headers.get("location")).toBe("/panel");
   });
 
   it("sin alta: /sin-acceso con nombre y CUIL firmados en una cookie, y registra ingreso_rechazado", async () => {
     simulado.usuario = null;
     const respuesta = await GET(callback({ auth: TOKEN, state: STATE }, codificarFlujo(STATE, null)));
 
-    expect(respuesta.headers.get("location")).toBe(`${ORIGEN}/sin-acceso`);
+    expect(respuesta.headers.get("location")).toBe("/sin-acceso");
     expect(respuesta.cookies.get(COOKIE_SESION)?.value ?? "").toBe("");
     const aviso = respuesta.cookies.get(COOKIE_SIN_ACCESO);
     expect(aviso).toMatchObject({ httpOnly: true, path: "/sin-acceso", maxAge: 600 });

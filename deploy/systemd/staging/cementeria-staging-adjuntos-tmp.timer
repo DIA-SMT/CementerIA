@@ -1,0 +1,15 @@
+# Dispara cementeria-staging-adjuntos-tmp.service una vez por día. Va en
+# /etc/systemd/system/; se activa con:
+#   systemctl enable --now cementeria-staging-adjuntos-tmp.timer
+
+[Unit]
+Description=CementerIA STAGING: barrido diario de temporales de adjuntos
+
+[Timer]
+OnCalendar=*-*-* 04:45:00 America/Argentina/Tucuman
+# Si el servidor estaba apagado a esa hora, corre al arrancar.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target
