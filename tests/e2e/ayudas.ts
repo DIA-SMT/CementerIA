@@ -313,10 +313,11 @@ export async function abrirPestana(page: Page, pestana: "Por confirmar" | "En mi
 
 /**
  * El nombre accesible de un botón "Acción: objeto" de la ficha ("Tildar: …",
- * "Marcar: …"), que lleva el objeto en texto solo para lectores de pantalla.
- * Chromium lo calcula con un espacio antes de los dos puntos.
+ * "Marcar: …"): el botón muestra solo la acción y lleva el nombre completo en
+ * aria-label. Exacto: el panel "Qué falta para avanzar" tiene botones con el
+ * mismo comienzo ("Tildar: X: falta tildarla").
  */
 export function accion(verbo: string, objeto: string): RegExp {
   const escapar = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^${escapar(verbo)}\\s*:\\s*${escapar(objeto)}$`);
+  return new RegExp(`^${escapar(verbo)}: ${escapar(objeto)}$`);
 }

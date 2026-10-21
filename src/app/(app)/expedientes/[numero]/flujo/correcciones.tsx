@@ -66,11 +66,12 @@ export function MenuCorregir({ movimiento }: { movimiento: MovimientoCorregible 
         type="button"
         aria-expanded={abierto}
         aria-controls={`${id}-menu`}
+        aria-label={`Corregir: ${movimiento.descripcion}`}
         onClick={() => setAbierto((a) => !a)}
         className={CLASE_CHICO}
       >
         <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
-        Corregir<span className="sr-only">: {movimiento.descripcion}</span>
+        Corregir
         <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
       {abierto ? (

@@ -84,7 +84,8 @@ export function Dialogo({
           className="rounded p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800 disabled:opacity-50"
         >
           <X className="h-5 w-5" aria-hidden="true" />
-          <span className="sr-only">Cerrar</span>
+          {/* Nombre propio: varios diálogos tienen además un botón "Cerrar" en el pie, y dos botones con el mismo nombre confunden al lector de pantalla. */}
+          <span className="sr-only">Cerrar ventana</span>
         </button>
       </div>
       <div className="max-h-[75vh] overflow-y-auto px-4 py-3">{children}</div>

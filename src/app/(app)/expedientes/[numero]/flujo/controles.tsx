@@ -103,20 +103,20 @@ export function BotonesSubtarea({ clave, nombre, hecha, conDato }: { clave: stri
   if (!datos.permisos.tildarSubtarea) return null;
   if (!hecha) {
     return (
-      <button type="button" aria-haspopup="dialog" onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_CHICO}>
-        Tildar<span className="sr-only">: {nombre}</span>
+      <button type="button" aria-haspopup="dialog" aria-label={`Tildar: ${nombre}`} onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_CHICO}>
+        Tildar
       </button>
     );
   }
   return (
     <span className="inline-flex gap-1">
       {conDato ? (
-        <button type="button" aria-haspopup="dialog" onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_CHICO}>
-          Cambiar dato<span className="sr-only">: {nombre}</span>
+        <button type="button" aria-haspopup="dialog" aria-label={`Cambiar dato: ${nombre}`} onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_CHICO}>
+          Cambiar dato
         </button>
       ) : null}
-      <button type="button" aria-haspopup="dialog" onClick={() => abrir({ tipo: "destildar", clave })} className={CLASE_CHICO}>
-        Destildar<span className="sr-only">: {nombre}</span>
+      <button type="button" aria-haspopup="dialog" aria-label={`Destildar: ${nombre}`} onClick={() => abrir({ tipo: "destildar", clave })} className={CLASE_CHICO}>
+        Destildar
       </button>
     </span>
   );
@@ -131,13 +131,13 @@ export function BotonesDocumento({ clave, nombre, adjunto }: { clave: string; no
   return (
     <span className="inline-flex gap-1">
       {marcar ? (
-        <button type="button" aria-haspopup="dialog" onClick={() => abrir({ tipo: "documento", clave })} className={CLASE_CHICO}>
-          Marcar<span className="sr-only">: {nombre}</span>
+        <button type="button" aria-haspopup="dialog" aria-label={`Marcar: ${nombre}`} onClick={() => abrir({ tipo: "documento", clave })} className={CLASE_CHICO}>
+          Marcar
         </button>
       ) : null}
       {adjuntar ? (
-        <button type="button" aria-haspopup="dialog" onClick={() => abrir({ tipo: "adjuntar", documento: clave })} className={CLASE_CHICO}>
-          Adjuntar<span className="sr-only"> a {nombre}</span>
+        <button type="button" aria-haspopup="dialog" aria-label={`Adjuntar a ${nombre}`} onClick={() => abrir({ tipo: "adjuntar", documento: clave })} className={CLASE_CHICO}>
+          Adjuntar
         </button>
       ) : null}
     </span>
@@ -191,15 +191,21 @@ export function ListaAdjuntos() {
                 <button
                   type="button"
                   aria-haspopup="dialog"
+                  aria-label={`Ver ${a.nombre}`}
                   onClick={() => abrir({ tipo: "visor", adjunto: { movimientoId: a.movimientoId, nombre: a.nombre, mime: a.mime }, motivo })}
                   className={CLASE_CHICO}
                 >
                   <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                  Ver<span className="sr-only"> {a.nombre}</span>
+                  Ver
                 </button>
-                <a href={rutaAdjunto(a.movimientoId, { descargar: true, motivo })} download className={CLASE_CHICO}>
+                <a
+                  href={rutaAdjunto(a.movimientoId, { descargar: true, motivo })}
+                  download
+                  aria-label={`Descargar ${a.nombre}`}
+                  className={CLASE_CHICO}
+                >
                   <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                  Descargar<span className="sr-only"> {a.nombre}</span>
+                  Descargar
                 </a>
               </span>
             </li>

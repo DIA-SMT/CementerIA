@@ -33,8 +33,8 @@ test("una renovación recorre los 7 pasos con una devolución, se concluye y se 
   const faltan = dialogo(page, "Faltan 4 cosas para avanzar");
   await expect(faltan).toBeVisible();
   await expect(faltan.getByRole("listitem")).toHaveCount(4);
-  // Dos "Cerrar": la X del encabezado y el del pie, que recibe el foco al abrir.
-  const cerrar = faltan.getByRole("button", { name: "Cerrar", exact: true }).last();
+  // El "Cerrar" del pie recibe el foco al abrir (la X del encabezado es "Cerrar ventana").
+  const cerrar = faltan.getByRole("button", { name: "Cerrar", exact: true });
   await expect(cerrar).toBeFocused();
   await cerrar.click();
   await expect(faltan).toBeHidden();

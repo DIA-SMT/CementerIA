@@ -155,9 +155,14 @@ export function ListaFaltan({ items, onAcceso }: { items: readonly ItemFaltante[
                 <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             ) : (
-              <button type="button" onClick={() => onAcceso(item)} aria-haspopup="dialog" className={`${CLASE_BOTON_SECUNDARIO} py-1`}>
+              <button
+                type="button"
+                onClick={() => onAcceso(item)}
+                aria-haspopup="dialog"
+                aria-label={`${item.accion.etiqueta}: ${item.texto}`}
+                className={`${CLASE_BOTON_SECUNDARIO} py-1`}
+              >
                 {item.accion.etiqueta}
-                <span className="sr-only">: {item.texto}</span>
               </button>
             )
           ) : (
