@@ -61,7 +61,7 @@ describe("ficha", () => {
       tipoTramite: { codigo: "RENOVACION" },
       plantilla: { codigo: "RENOV_CONTADO", version: 1, versionPublicada: 1, hayVersionNueva: false, texto: "Renovación, pago de contado · v1" },
       cementerio: { codigo: "OESTE" },
-      tipoMonumento: { codigo: "SEPULTURA", nombre: "Sepultura" },
+      tipoMonumento: { codigo: "SEPULTURA", nombre: "Sepultura o bóveda" },
       paso: { clave: "MESA", nombre: "Mesa de Entradas", orden: 1, total: 7, esFinal: false },
       areaActual: { codigo: "MESA_ENTRADAS" },
       areaResponsable: { codigo: "MESA_ENTRADAS" },
@@ -86,6 +86,8 @@ describe("ficha", () => {
       ["CONST_COMPUTOS", "pendiente"],
       ["ESTADO_CUENTA", "presentado"],
       ["CONST_PERIODOS", "pendiente"],
+      // docs/fuentes: en el Oeste se pide la Conservación de los últimos 5 años.
+      ["CONSERVACION", "pendiente"],
       ["INFORME_TECNICO", "pendiente"],
     ]);
     expect(f.documentacion.concesionario.map((d) => [d.clave, d.estado])).toEqual([
@@ -102,7 +104,7 @@ describe("ficha", () => {
     expect(f.conceptos.map((c) => c.clave)).toEqual(["DERECHO_OFICINA", "INSPECCION_TECNICA", "ARRENDAMIENTO"]);
     expect(f.conceptos[0].paso).toEqual({ clave: "LIQUIDACION", nombre: "Liquidación y boleta" });
     expect(f.datosExtra.find((d) => d.clave === "concesion_hasta")).toMatchObject({ valor: "2031-10-20", exigirAlSalirDe: { clave: "COMPUTO_FINAL" } });
-    expect(f.ubicacion.map((u) => u.clave)).toEqual(["seccion", "cuadro", "lote", "numero"]);
+    expect(f.ubicacion.map((u) => u.clave)).toEqual(["seccion", "lote", "numero"]);
     expect(f.historial).toHaveLength(1);
     expect(f.historial[0]).toMatchObject({
       tipo: "alta",
@@ -238,7 +240,7 @@ describe("carátula", () => {
       rutaFicha: `/expedientes/${alta.numero}`,
       tramite: { tipo: "Renovación de concesión", plantilla: "Renovación, pago de contado", version: 1 },
       cementerio: "Cementerio del Oeste",
-      tipoMonumento: "Sepultura",
+      tipoMonumento: "Sepultura o bóveda",
       solicitantes: [{ apellido: solicitanteApellido, dni: "96123456", vinculo: "hija", fallecido: false }],
     });
     expect(c.titulares).toHaveLength(1);
@@ -257,7 +259,7 @@ describe("carátula", () => {
   });
 
   it("el paso del cementerio se imprime con el cementerio del expediente", async () => {
-    const a = await exp.alta(mesa, await datosAlta(prisma, { plantilla: "NUEVA_CONC_CONTADO", cementerio: "JARDIN_NORTE", tipoMonumento: "NICHO" }), comando());
+    const a = await exp.alta(mesa, await datosAlta(prisma, { plantilla: "NUEVA_CONC_CONTADO", cementerio: "JARDIN_NORTE", tipoMonumento: "SEPULTURA" }), comando());
     const c = await exp.datosCaratula(mesa, a.numero);
     expect(c.recorrido.find((p) => p.clave === "CEMENTERIO")).toMatchObject({ area: "Cementerio Jardín Norte", custodia: "Mesa de Entradas" });
   });

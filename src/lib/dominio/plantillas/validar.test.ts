@@ -17,7 +17,15 @@ const CATALOGOS: CatalogosPlantilla = {
     { codigo: "NICHO", activo: true },
     { codigo: "BOVEDA", activo: false },
   ],
+  cementerios: [
+    { codigo: "OESTE", activo: true },
+    { codigo: "JARDIN_NORTE", activo: true },
+    { codigo: "VIEJO", activo: false },
+  ],
 };
+
+/** Sin filtro por cementerio (semana 4). */
+const SIN_FILTRO = { solo_cementerios: null, excepto_cementerios: null };
 
 function paso(clave: string, area: string, extra: Partial<PasoPlantilla> = {}): PasoPlantilla {
   return {
@@ -46,41 +54,41 @@ function valida(): DefinicionPlantilla {
     ubicacion_obligatoria: true,
     requiere_contacto: true,
     personas: [
-      { rol: "titular", etiqueta: "Titular", min: 1, max: 1, fallecido: "opcional", pide_vinculo: false },
-      { rol: "difunto", etiqueta: "Difunto", min: 0, max: 3, fallecido: "si", pide_vinculo: true },
+      { rol: "titular", etiqueta: "Titular", min: 1, max: 1, fallecido: "opcional", pide_vinculo: false, admite_juridica: false },
+      { rol: "difunto", etiqueta: "Difunto", min: 0, max: 3, fallecido: "si", pide_vinculo: true, admite_juridica: false },
     ],
     campos_extra: [
       { clave: "cementerio_destino", etiqueta: "Cementerio de destino", tipo: "cementerio", obligatorio: true, exigir_al_salir_de: "MESA", buscable: false, opciones: null },
       { clave: "operacion", etiqueta: "Operación", tipo: "opcion", obligatorio: true, exigir_al_salir_de: null, buscable: true, opciones: ["Inhumación", "Exhumación"] },
     ],
     documentos: [
-      { clave: "DNI", nombre: "DNI", origen: "concesionario", obligatorio: true, exigir_al_salir_de: "MESA", adjunto: "no" },
-      { clave: "ACTA", nombre: "Acta", origen: "concesionario", obligatorio: true, exigir_al_salir_de: null, adjunto: "obligatorio" },
+      { clave: "DNI", nombre: "DNI", origen: "concesionario", obligatorio: true, exigir_al_salir_de: "MESA", adjunto: "no", ...SIN_FILTRO, solo_si_juridica: null },
+      { clave: "ACTA", nombre: "Acta", origen: "concesionario", obligatorio: true, exigir_al_salir_de: null, adjunto: "obligatorio", ...SIN_FILTRO, solo_si_juridica: null },
     ],
     conceptos: [
-      { clave: "DERECHO_OFICINA", nombre: "Derecho de oficina", via: "boleta", paso: "MESA" },
-      { clave: "ARRENDAMIENTO", nombre: "Arrendamiento", via: "plan_dim", paso: "NOTIF" },
+      { clave: "DERECHO_OFICINA", nombre: "Derecho de oficina", via: "boleta", paso: "MESA", ...SIN_FILTRO },
+      { clave: "ARRENDAMIENTO", nombre: "Arrendamiento", via: "plan_dim", paso: "NOTIF", ...SIN_FILTRO },
     ],
     pasos: [
       paso("MESA", "MESA_ENTRADAS", {
-        subtareas: [{ clave: "MESA_CARATULA", nombre: "Carátula", obligatoria: true, dato: null, dato_obligatorio: false }],
+        subtareas: [{ clave: "MESA_CARATULA", nombre: "Carátula", obligatoria: true, dato: null, dato_obligatorio: false, ...SIN_FILTRO }],
       }),
       paso("NOTIF", "TRIBUTARIO", {
-        subtareas: [{ clave: "NOTIF_FECHA", nombre: "Notificado", obligatoria: true, dato: "fecha", dato_obligatorio: true }],
+        subtareas: [{ clave: "NOTIF_FECHA", nombre: "Notificado", obligatoria: true, dato: "fecha", dato_obligatorio: true, ...SIN_FILTRO }],
       }),
       paso("DIM", "DIM", {
         custodia: "TRIBUTARIO",
         estado: "espera_pago_dim",
         plazo: { dias_habiles: 30, desde_subtarea: "NOTIF_FECHA", hasta_subtarea: "DIM_INICIADO" },
         subtareas: [
-          { clave: "DIM_INICIADO", nombre: "Plan iniciado", obligatoria: false, dato: "fecha", dato_obligatorio: true },
-          { clave: "DIM_CANCELADA", nombre: "Deuda cancelada", obligatoria: true, dato: "fecha", dato_obligatorio: true },
+          { clave: "DIM_INICIADO", nombre: "Plan iniciado", obligatoria: false, dato: "fecha", dato_obligatorio: true, ...SIN_FILTRO },
+          { clave: "DIM_CANCELADA", nombre: "Deuda cancelada", obligatoria: true, dato: "fecha", dato_obligatorio: true, ...SIN_FILTRO },
         ],
       }),
       paso("CEMENTERIO", "$CEMENTERIO", { custodia: "MESA_ENTRADAS" }),
       paso("DESTINO", "$CAMPO:cementerio_destino", { custodia: "MESA_ENTRADAS", omitible: true }),
       paso("FIN", "MESA_ENTRADAS", {
-        subtareas: [{ clave: "FIN_ENTREGA", nombre: "Entregado", obligatoria: true, dato: "texto", dato_obligatorio: false }],
+        subtareas: [{ clave: "FIN_ENTREGA", nombre: "Entregado", obligatoria: true, dato: "texto", dato_obligatorio: false, ...SIN_FILTRO }],
       }),
     ],
   };
@@ -452,6 +460,67 @@ describe("validarIntegridad", () => {
       pasoDe(d, "MESA").subtareas[0] = { ...pasoDe(d, "MESA").subtareas[0], dato: "texto", dato_obligatorio: true };
       pasoDe(d, "FIN").subtareas[0] = { ...pasoDe(d, "FIN").subtareas[0], dato: "fecha", dato_obligatorio: true };
       expect(errores(d)).toEqual([]);
+    });
+  });
+
+  describe("cementerios (filtros de la semana 4)", () => {
+    it("un concepto, un documento y una subtarea pueden filtrarse por cementerio", () => {
+      const d = valida();
+      d.conceptos[0] = { ...d.conceptos[0], excepto_cementerios: ["JARDIN_NORTE"] };
+      d.documentos[0] = { ...d.documentos[0], solo_cementerios: ["OESTE", "JARDIN_NORTE"] };
+      pasoDe(d, "MESA").subtareas[0] = { ...pasoDe(d, "MESA").subtareas[0], solo_cementerios: ["OESTE"] };
+      expect(errores(d)).toEqual([]);
+    });
+
+    it("los cementerios tienen que existir", () => {
+      const d = valida();
+      d.conceptos[1] = { ...d.conceptos[1], solo_cementerios: ["SUR"] };
+      fallaSolo(d, "cementerios", "conceptos[1].solo_cementerios[0]", /"ARRENDAMIENTO": no existe el cementerio SUR/);
+    });
+
+    it("y estar activos, sin repetirse", () => {
+      const d = valida();
+      d.documentos[1] = { ...d.documentos[1], excepto_cementerios: ["VIEJO"] };
+      fallaSolo(d, "cementerios", "documentos[1].excepto_cementerios[0]", /el cementerio VIEJO está inactivo/);
+      const e = valida();
+      e.documentos[0] = { ...e.documentos[0], solo_cementerios: ["OESTE", "OESTE"] };
+      fallaSolo(e, "cementerios", "documentos[0].solo_cementerios[1]", /OESTE está repetido/);
+    });
+
+    it("solo_cementerios y excepto_cementerios no van juntos", () => {
+      const d = valida();
+      pasoDe(d, "FIN").subtareas[0] = { ...pasoDe(d, "FIN").subtareas[0], solo_cementerios: ["OESTE"], excepto_cementerios: ["JARDIN_NORTE"] };
+      fallaSolo(d, "cementerios", "pasos[5].subtareas[0]", /no los dos/);
+    });
+
+    it("las subtareas de un plazo no se filtran", () => {
+      const d = valida();
+      pasoDe(d, "DIM").subtareas[0] = { ...pasoDe(d, "DIM").subtareas[0], excepto_cementerios: ["JARDIN_NORTE"] };
+      fallaSolo(d, "cementerios", "pasos[2].plazo.hasta_subtarea", /"DIM_INICIADO", que no está en todos los cementerios/);
+    });
+  });
+
+  describe("juridica", () => {
+    it("un documento puede depender de que un rol que la admite sea persona jurídica", () => {
+      const d = valida();
+      d.personas[0].admite_juridica = true;
+      d.documentos[0].solo_si_juridica = "titular";
+      expect(errores(d)).toEqual([]);
+    });
+
+    it("el rol tiene que existir y admitir persona jurídica", () => {
+      const d = valida();
+      d.documentos[0].solo_si_juridica = "titular";
+      fallaSolo(d, "juridica", "documentos[0].solo_si_juridica", /"titular" sea persona jurídica, pero ese rol no la admite/);
+      const e = valida();
+      e.documentos[1].solo_si_juridica = "cesionario";
+      fallaSolo(e, "juridica", "documentos[1].solo_si_juridica", /rol "cesionario", que la plantilla no tiene/);
+    });
+
+    it("un rol siempre fallecido no admite persona jurídica", () => {
+      const d = valida();
+      d.personas[1].admite_juridica = true;
+      fallaSolo(d, "personas", "personas[1].admite_juridica", /"difunto" es siempre fallecido/);
     });
   });
 

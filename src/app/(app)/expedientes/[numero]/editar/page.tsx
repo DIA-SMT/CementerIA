@@ -85,7 +85,7 @@ export default async function PaginaEditar(props: PageProps<"/expedientes/[numer
         numero={form.numero}
         version={form.version}
         comandoId={randomUUID()}
-        definicion={contexto.plantilla.definicion}
+        definicion={contexto.definicion}
         esquema={form.esquema}
         camposUbicacion={contexto.camposUbicacion}
         tiposMonumento={tiposMonumento}

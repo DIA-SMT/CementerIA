@@ -56,7 +56,8 @@ export async function permisosDelExpediente(
   };
 }
 
-export type AccionAcceso = "ver_expediente" | "ver_datos_completos" | "imprimir" | "ver_adjunto" | "descargar_adjunto";
+/** Semana 4: `exportar` (CSV del buscador), sin expediente. */
+export type AccionAcceso = "ver_expediente" | "ver_datos_completos" | "imprimir" | "ver_adjunto" | "descargar_adjunto" | "exportar";
 
 export interface OpcionesAcceso {
   /** IP del cliente (`ipDeSolicitud()` de src/lib/auth/red.ts), para auditoria.accesos. */
@@ -69,7 +70,7 @@ export interface OpcionesAcceso {
  */
 export async function registrarAcceso(
   tx: Transaccion,
-  datos: { usuarioId: number; accion: AccionAcceso; expedienteId: bigint; detalle?: Prisma.InputJsonObject; ip?: string | null },
+  datos: { usuarioId: number; accion: AccionAcceso; expedienteId: bigint | null; detalle?: Prisma.InputJsonObject; ip?: string | null },
 ): Promise<void> {
   // Una IP mal formada haría fallar el INSERT en la columna inet y se perdería el registro.
   const ip = datos.ip && isIP(datos.ip) !== 0 ? datos.ip : null;

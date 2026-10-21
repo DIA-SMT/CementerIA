@@ -3,21 +3,28 @@
 // Igual que (a) hasta Legal. El arrendamiento se paga en un plan ante la DIM:
 // Tributario notifica la resolución y remite el expediente, y el título se hace
 // cuando la DIM informa la deuda cancelada.
+//
+// [F] Vuelta de la DIM (lo que informó la Dirección el 20/10/2026): si el
+// concesionario no abonó, el expediente vuelve a Tributario para que lo
+// notifique; si se presenta y paga, sigue al título sin volver a la DIM. Por
+// eso el paso DIM es omitible: Tributario da el pase a ADM_TITULO salteándolo,
+// con motivo. Si no paga, Legal tramita la caducidad (archivar sin concluir y
+// abrir un expediente de caducidad vinculado): es de la próxima etapa.
 
 import type { DefinicionPlantilla } from "../../../src/lib/dominio/plantillas/esquema";
 import {
   CAMPOS_CONCESION,
   CONCEPTO,
+  DOC_JURIDICA,
   INSTRUCCIONES_BOLETA,
   INSTRUCCIONES_RESOLUCION,
   INSTRUCCIONES_TITULO,
   SOLICITANTE_OPCIONAL,
   SUB,
   TITULAR_VIVO,
+  boletas,
   conFecha,
-  conTextoOpcional,
   concepto,
-  documento,
   obligatoria,
   paso,
   pasoComputoAlta,
@@ -27,21 +34,22 @@ import {
   pasoLiquidacion,
   pasoMesa,
 } from "./comun";
-import { FORM_INICIO_RENOV, documentosRenovacion } from "./renov-contado";
+import { FORM_INICIO_RENOV, MONUMENTOS_RENOVACION, documentosRenovacion } from "./renov-contado";
 
-// [t?: N° de boleta, I]. Sin arrendamiento: va por el plan de la DIM.
-const BOLETA_SIN_ARRENDAMIENTO = conTextoOpcional("LIQ_BOLETA", "Boleta emitida: oficina e inspección técnica");
+// [t?: N° de boleta, I]. Sin arrendamiento: va por el plan de la DIM. [F] En
+// Jardín, tampoco inspección técnica: solo el derecho de oficina.
+const BOLETAS_SIN_ARRENDAMIENTO = boletas("Boleta emitida: oficina e inspección técnica", "Boleta emitida: derecho de oficina");
 
 // La misma documentación que (a); el comprobante es el de la boleta inicial.
-const documentos = documentosRenovacion(FORM_INICIO_RENOV).map((d) =>
+const documentos = documentosRenovacion(FORM_INICIO_RENOV, DOC_JURIDICA).map((d) =>
   d.clave === "COMPROBANTE_PAGO"
-    ? documento(d.clave, "Copia del comprobante de pago de la boleta inicial", d.origen, d.exigir_al_salir_de, d.adjunto)
+    ? { ...d, nombre: "Copia del comprobante de pago de la boleta inicial" }
     : d,
 );
 
 export const RENOV_PLAN: DefinicionPlantilla = {
   forma_pago: "plan_pagos",
-  tipos_monumento: ["SOTANITO", "CAPILLA", "MAUSOLEO", "SEPULTURA"],
+  tipos_monumento: MONUMENTOS_RENOVACION,
   ubicacion_obligatoria: true,
   requiere_contacto: true,
   personas: [TITULAR_VIVO, SOLICITANTE_OPCIONAL],
@@ -56,7 +64,7 @@ export const RENOV_PLAN: DefinicionPlantilla = {
   pasos: [
     pasoMesa(),
     pasoComputoAlta(),
-    pasoLiquidacion(BOLETA_SIN_ARRENDAMIENTO, INSTRUCCIONES_BOLETA),
+    pasoLiquidacion(BOLETAS_SIN_ARRENDAMIENTO, INSTRUCCIONES_BOLETA),
     pasoLegal(),
     // Sin título: el título se hace después de la DIM (paso ADM_TITULO).
     paso({
@@ -81,9 +89,10 @@ export const RENOV_PLAN: DefinicionPlantilla = {
     }),
     // La DIM no usa la herramienta: el expediente queda "en espera de pago
     // DIM" y lo sigue Tributario [C] (pregunta B-6). El plazo de 30 días
-    // hábiles corre desde la notificación (sección 3.6).
+    // hábiles corre desde la notificación (sección 3.6). [F] Omitible: ver arriba.
     paso({
       clave: "DIM",
+      omitible: true,
       nombre: "DIM (afuera)",
       area: "DIM",
       custodia: "TRIBUTARIO",

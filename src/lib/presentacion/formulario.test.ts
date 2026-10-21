@@ -9,23 +9,28 @@ import {
   cambiaIdentificatorios,
   cambiosEdicionDesde,
   datosAltaDesde,
+  datosAltaVinculado,
+  documentosDelAlta,
   marcarContacto,
   puedeAgregar,
   puedeQuitar,
   valoresDesdeEdicion,
+  valoresDesdePrecarga,
   valoresInicialesAlta,
+  type DatosPrecarga,
   type ValoresFormulario,
 } from "./formulario";
 
 const HOY = "2026-10-20";
-const CAMPOS = CEMENTERIOS[0].camposUbicacion;
+// El Norte: conserva la nomenclatura provisoria (sección, cuadro, lote y número).
+const CAMPOS = CEMENTERIOS.find((c) => c.codigo === "NORTE")?.camposUbicacion ?? [];
 const CLAVES = CAMPOS.map((c) => c.clave);
 const TODOS = { identificatorios: true, contacto: true, extras: true };
 
 function contexto(definicion: DefinicionPlantilla): ContextoEsquema {
   return {
     plantilla: { id: 7, definicion },
-    cementerio: { id: 3, camposUbicacion: CAMPOS },
+    cementerio: { id: 3, codigo: "NORTE", camposUbicacion: CAMPOS },
     tiposMonumento: ["SOTANITO", "SEPULTURA", "NICHO"],
     cementerios: ["OESTE", "NORTE"],
     hoy: HOY,
@@ -81,6 +86,52 @@ describe("personas", () => {
     personas = marcarContacto(personas, "s", true);
     expect(personas.map((p) => p.esContacto)).toEqual([false, true]);
     expect(marcarContacto(personas, "s", false).map((p) => p.esContacto)).toEqual([false, false]);
+  });
+});
+
+describe("persona jurídica (docs/fuentes)", () => {
+  it("viaja con razón social y CUIT, sin lo que quedó cargado como persona física", () => {
+    const v = altaCargada();
+    v.personas[0] = { ...v.personas[0], tipo: "juridica", razonSocial: "Asociación Ficticia", cuit: "30-99999013-0", email: "a@ejemplo.test" };
+    const datos = datosAltaDesde(v, conversion(RENOV_CONTADO));
+    expect(datos.personas[0]).toMatchObject({ tipo: "juridica", razonSocial: "Asociación Ficticia", cuit: "30-99999013-0", fallecido: false });
+    expect(datos.personas[0]).not.toHaveProperty("apellido");
+    expect(datos.personas[0]).not.toHaveProperty("dni");
+    expect(erroresDe(construirEsquemaAlta(contexto(RENOV_CONTADO)), datos)).toEqual([]);
+  });
+
+  it("en un rol que no la admite va como física", () => {
+    const v = altaCargada();
+    v.personas.push({ ...v.personas[0], clave: "s", rol: "solicitante", tipo: "juridica", razonSocial: "X", esContacto: false, vinculo: "hijo" });
+    expect(datosAltaDesde(v, conversion(RENOV_CONTADO)).personas[1]).toMatchObject({ tipo: "fisica", apellido: "FICTICIO" });
+  });
+
+  it("la personería y la designación de asamblea aparecen al elegir persona jurídica, y si se vuelve a física no viajan", () => {
+    const v = altaCargada();
+    const claves = () => documentosDelAlta(RENOV_CONTADO, v.personas).map((d) => d.clave);
+    expect(claves()).not.toContain("PERSONERIA");
+    v.personas[0] = { ...v.personas[0], tipo: "juridica" };
+    expect(claves()).toEqual(expect.arrayContaining(["PERSONERIA", "DESIGNACION_ASAMBLEA"]));
+    v.documentosRecibidos = ["DNI", "PERSONERIA"];
+    v.personas[0] = { ...v.personas[0], tipo: "fisica" };
+    expect(datosAltaDesde(v, conversion(RENOV_CONTADO)).documentosRecibidos).toEqual(["DNI"]);
+  });
+
+  it("pasar de física a jurídica en la edición es un cambio identificatorio", () => {
+    const original = valoresDesdeEdicion({
+      tipoMonumento: "PANTEON",
+      ubicacion: { seccion: "3", cuadro: "B", lote: "12" },
+      padron: null,
+      numeroMunicipal: null,
+      fechaInicio: "2026-10-15",
+      observaciones: null,
+      datosExtra: {},
+      personas: [{ id: "10", rol: "titular", apellido: "FICTICIO", nombres: "Uno", email: "a@ejemplo.test", esContacto: true }],
+    });
+    const actual = structuredClone(original);
+    actual.personas[0] = { ...actual.personas[0], tipo: "juridica", razonSocial: "Asociación Ficticia", cuit: "30999990130" };
+    expect(cambiaIdentificatorios(original, actual, RENOV_CONTADO, CLAVES)).toBe(true);
+    expect(cambiosEdicionDesde(original, actual, RENOV_CONTADO, CLAVES, TODOS).personas?.[0]).toMatchObject({ id: "10", tipo: "juridica" });
   });
 });
 
@@ -191,5 +242,63 @@ describe("edición: solo viaja lo que cambió", () => {
     expect(cambiosEdicionDesde(original, actual, RENOV_CONTADO, CLAVES, { identificatorios: false, contacto: true, extras: false })).toEqual({
       observaciones: "Otra cosa",
     });
+  });
+});
+
+describe("semana 4: alta precargada desde otro expediente (?desde=, archivar y abrir vinculado)", () => {
+  const PRECARGA: DatosPrecarga = {
+    cementerioId: 3,
+    tipoMonumento: "SOTANITO",
+    ubicacion: { seccion: "3", cuadro: "B", lote: "12", numero: null, viejo: "x" },
+    padron: "P-1",
+    numeroMunicipal: "12.345/2026",
+    formaPago: "contado",
+    personas: [
+      { rol: "titular", tipo: "fisica", apellido: "FICTICIO", nombres: "Uno", dni: "90000001", fallecido: false, telefono: "0381 000-0001", esContacto: true },
+      { rol: "solicitante", tipo: "fisica", apellido: "OTRA", nombres: "Dos", dni: "90000002", fallecido: false, vinculo: "hija", esContacto: false },
+      { rol: "difunto", tipo: "fisica", apellido: "DIFUNTO", nombres: "Tres", dni: null, fallecido: true, fechaDefuncion: "2020-01-01" },
+    ],
+    datosExtra: { concesion_hasta: "2036-10-20", no_existe: "x" },
+    observaciones: "Del expediente anterior",
+  };
+  const opciones = { hoy: HOY, tiposMonumento: ["SEPULTURA", "NICHO"], clavesUbicacion: CLAVES, etiquetasRoles: { difunto: "Difunto a inhumar" } };
+
+  it("acomoda las personas a la plantilla nueva: los roles que no tiene no pasan", () => {
+    const r = valoresDesdePrecarga(PRECARGA, RENOV_CONTADO, opciones);
+    expect(r.valores.personas.map((p) => [p.rol, p.apellido, p.esContacto])).toEqual([
+      ["titular", "FICTICIO", true],
+      ["solicitante", "OTRA", false],
+    ]);
+    expect(r.rolesQueNoPasan).toEqual(["Difunto a inhumar"]);
+    expect(r.personasDeMas).toBe(0);
+    expect(r.valores.personas.every((p) => p.id === null)).toBe(true);
+  });
+
+  it("deja afuera lo que la plantilla o el cementerio no piden; hoy como fecha, sin documentos recibidos", () => {
+    const { valores } = valoresDesdePrecarga(PRECARGA, RENOV_CONTADO, opciones);
+    expect(valores.tipoMonumento).toBe("");
+    expect(valores.ubicacion).toEqual({ seccion: "3", cuadro: "B", lote: "12" });
+    expect(valores.datosExtra).toEqual({ concesion_hasta: "2036-10-20" });
+    expect(valores.formaPago).toBe("");
+    expect(valores).toMatchObject({ padron: "P-1", numeroMunicipal: "12.345/2026", observaciones: "Del expediente anterior", fechaInicio: HOY, documentosRecibidos: [], cargaHistorica: false });
+  });
+
+  it("cada rol completa su mínimo y respeta su máximo", () => {
+    const dosTitulares: DatosPrecarga = { ...PRECARGA, personas: [PRECARGA.personas[1]] };
+    const r = valoresDesdePrecarga(dosTitulares, RENOV_CONTADO, opciones);
+    expect(r.valores.personas.map((p) => [p.rol, p.apellido])).toEqual([
+      ["titular", ""],
+      ["solicitante", "OTRA"],
+    ]);
+    const deMas: DatosPrecarga = { ...PRECARGA, personas: [PRECARGA.personas[0], { ...PRECARGA.personas[0], dni: "90000009", esContacto: false }] };
+    expect(valoresDesdePrecarga(deMas, RENOV_CONTADO, opciones).personasDeMas).toBe(RENOV_CONTADO.personas[0].max === 1 ? 1 : 0);
+  });
+
+  it("el alta del vinculado pasa la validación del alta (con un tipo de monumento que la plantilla nueva tiene)", () => {
+    const datos = datosAltaVinculado({ ...PRECARGA, tipoMonumento: "SEPULTURA" }, { plantillaId: 7, definicion: RENOV_CONTADO, ...opciones });
+    expect(datos).toMatchObject({ plantillaId: 7, cementerioId: 3, tipoMonumento: "SEPULTURA", fechaInicio: HOY });
+    expect(datos).not.toHaveProperty("expedienteAnteriorId");
+    expect(datos.personas.map((p) => p.rol)).toEqual(["titular", "solicitante"]);
+    expect(erroresDe(construirEsquemaAlta(contexto(RENOV_CONTADO)), datos)).toEqual([]);
   });
 });

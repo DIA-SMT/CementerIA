@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CircleAlert, Plus, Search } from "lucide-react";
+import { CircleAlert, FileSpreadsheet, Plus, Search } from "lucide-react";
 import { EtiquetaEstado } from "@/components/etiquetas";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, CLASE_ENLACE } from "@/components/formulario";
 import { exigirPantalla } from "@/lib/auth/sesion";
@@ -11,6 +11,7 @@ import { ESTADOS_EXPEDIENTE, puede } from "@/lib/dominio/permisos";
 import { formatearFecha } from "@/lib/fechas";
 import { cantidadDeFiltros, leerParametrosBusqueda } from "@/lib/presentacion/busqueda";
 import { rutaFicha } from "@/lib/presentacion/enlaces";
+import { rutaExportarDesde } from "@/lib/presentacion/exportar-http";
 import { ETIQUETA_ESTADO } from "@/lib/presentacion/textos";
 import { FiltroCementerio } from "./filtro-cementerio";
 
@@ -24,10 +25,16 @@ export const metadata: Metadata = { title: "Buscar expedientes" };
  *
  * Buscar no registra accesos; abrir la ficha sí (por eso los enlaces de los
  * resultados van sin prefetch).
+ *
+ * Semana 4: "Exportar CSV" (Dirección y admin) descarga lo mismo que se ve,
+ * con los filtros de la URL, desde el Route Handler `/expedientes/exportar`
+ * (queda registrado; sin teléfono, correo ni domicilio).
  */
 export default async function PaginaExpedientes(props: PageProps<"/expedientes">) {
   const usuario = await exigirPantalla("expedientes");
-  const { valores, entrada, conCriterio } = leerParametrosBusqueda(await props.searchParams);
+  const parametros = await props.searchParams;
+  const { valores, entrada, conCriterio } = leerParametrosBusqueda(parametros);
+  const exportar = puede("exportar_csv", null, usuario);
   const opciones = await expedientes.opcionesBusqueda();
 
   let resultado: ResultadoBusqueda | null = null;
@@ -49,18 +56,28 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
         <h1 id="titulo-pantalla" className="text-xl font-semibold text-slate-900">
           Buscar expedientes
         </h1>
-        {puede("alta", null, usuario) ? (
-          <Link href="/expedientes/nuevo" className={CLASE_BOTON_PRIMARIO}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Nuevo
-          </Link>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {exportar ? (
+            // Un <a> y no un Link: es una descarga (no se navega ni se precarga, y cada clic queda registrado).
+            <a href={rutaExportarDesde(parametros)} download className={CLASE_BOTON_SECUNDARIO}>
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              Exportar CSV
+              <span className="sr-only"> con los filtros de esta búsqueda (queda registrado)</span>
+            </a>
+          ) : null}
+          {puede("alta", null, usuario) ? (
+            <Link href="/expedientes/nuevo" className={CLASE_BOTON_PRIMARIO}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Nuevo
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <Form action="/expedientes" role="search" aria-label="Buscar expedientes" className="space-y-3 rounded border border-slate-300 bg-white p-4">
         <div>
           <label htmlFor="busqueda-q" className="mb-1 block text-sm font-medium text-slate-800">
-            N° interno o municipal, padrón, DNI o apellido
+            N° interno o municipal, padrón, DNI, CUIT, apellido o razón social
           </label>
           <div className="flex gap-2">
             <input

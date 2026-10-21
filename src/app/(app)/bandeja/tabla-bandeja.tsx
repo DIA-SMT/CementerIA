@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CircleCheck, PackageCheck } from "lucide-react";
+import { ArrowRightLeft, CircleCheck, FileClock, PackageCheck } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_ENLACE } from "@/components/formulario";
 import type { FilaBandeja, PestanaBandeja } from "@/lib/dominio/expedientes/bandejas";
 import { formatearFecha, formatearSegunPrecision } from "@/lib/fechas";
+import { mostrarPlazo } from "@/lib/presentacion/estados";
 import type { EstadoError } from "@/lib/presentacion/errores";
 import { nuevoComandoId, resumenLote, rutaBandeja, textoDevuelto, textoDias } from "@/lib/presentacion/flujo";
 import { rutaFicha } from "@/lib/presentacion/enlaces";
@@ -35,6 +36,7 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
   const [comandoLote, setComandoLote] = useState(nuevoComandoId);
 
   const confirmables = filas.filter((f) => f.puedeConfirmar);
+  const conVencimiento = pestana === "plazos";
   const lote = pestana === "por_confirmar" && confirmables.length > 0;
   // La selección se limpia sola de lo que ya no está (lo confirmó otro, se recargó la bandeja).
   const elegidos = seleccion.filter((n) => confirmables.some((f) => f.numero === n));
@@ -110,7 +112,7 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
       ) : (
         <div className="overflow-x-auto rounded border border-slate-300 bg-white">
           <table className="w-full min-w-[900px] text-left text-sm">
-            <caption className="sr-only">Expedientes de la pestaña, del que llegó antes al más nuevo</caption>
+            <caption className="sr-only">{conVencimiento ? "Expedientes con plazo, del que vence antes al último" : "Expedientes de la pestaña, del que llegó antes al más nuevo"}</caption>
             <thead className="border-b border-slate-300 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
               <tr>
                 {lote ? (
@@ -124,6 +126,11 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                 <th scope="col" className="px-3 py-2">Trámite</th>
                 <th scope="col" className="px-3 py-2">Paso</th>
                 <th scope="col" className="px-3 py-2">En el área</th>
+                {conVencimiento ? (
+                  <th scope="col" className="px-3 py-2">
+                    Vencimiento
+                  </th>
+                ) : null}
                 <th scope="col" className="px-3 py-2">Etiquetas</th>
                 <th scope="col" className="px-3 py-2">
                   <span className="sr-only">Acciones</span>
@@ -133,8 +140,10 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
             <tbody className="divide-y divide-slate-200">
               {filas.map((f) => {
                 const devuelto = f.etiquetas.find((e) => e.tipo === "devuelto");
+                const etiquetaPlazo = f.etiquetas.find((e) => e.tipo === "plazo");
+                const plazo = etiquetaPlazo && etiquetaPlazo.tipo === "plazo" ? mostrarPlazo(etiquetaPlazo) : null;
                 return (
-                  <tr key={f.numero} className={devuelto ? "bg-red-50" : undefined}>
+                  <tr key={f.numero} className={devuelto ? "bg-red-50" : conVencimiento && plazo?.semaforo === "vencido" ? "bg-red-50/60" : undefined}>
                     {lote ? (
                       <td className="px-3 py-2 align-top">
                         {f.puedeConfirmar ? (
@@ -173,6 +182,20 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                       </span>
                       <span className="block text-xs text-slate-600">desde {formatearSegunPrecision(f.enAreaDesde, f.enAreaDesdePrecision)}</span>
                     </td>
+                    {conVencimiento ? (
+                      <td className="px-3 py-2 align-top">
+                        {plazo && etiquetaPlazo?.tipo === "plazo" ? (
+                          <>
+                            <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
+                            <span className="block text-sm text-slate-900">{etiquetaPlazo.vence ? formatearFecha(etiquetaPlazo.vence) : "—"}</span>
+                            <span className="block text-xs text-slate-700">{plazo.texto}</span>
+                            {plazo.aviso ? <span className="block text-xs text-slate-600">{plazo.aviso}</span> : null}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    ) : null}
                     <td className="px-3 py-2 align-top">
                       <ul className="flex flex-col gap-1">
                         {f.etiquetas.map((e, i) => (
@@ -184,10 +207,9 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                             ) : e.tipo === "sin_confirmar" ? (
                               <span className="inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-950 ring-1 ring-inset ring-amber-300">Sin confirmar</span>
                             ) : (
-                              <span className="inline-block rounded bg-slate-50 px-2 py-0.5 text-xs text-slate-800 ring-1 ring-inset ring-slate-300">
-                                Plazo {e.diasHabiles} días hábiles
-                                {e.desde ? ` desde ${formatearFecha(e.desde)}` : ""}
-                                {e.cumplidoEn ? " (cumplido)" : ""}
+                              <span className={`inline-block rounded px-2 py-0.5 text-xs ring-1 ring-inset ${mostrarPlazo(e).clase}`}>
+                                Plazo: {mostrarPlazo(e).etiqueta.toLowerCase()}
+                                {conVencimiento ? "" : ` · ${e.texto}`}
                               </span>
                             )}
                           </li>
@@ -207,6 +229,12 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                             <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
                             Dar pase rápido<span className="sr-only"> de {f.numero}</span>
                           </button>
+                        ) : null}
+                        {pestana === "carga_historica" ? (
+                          <Link href={`${rutaFicha(f.numero)}/transcribir`} prefetch={false} className={CLASE_CHICO}>
+                            <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
+                            Transcribir<span className="sr-only"> {f.numero}</span>
+                          </Link>
                         ) : null}
                         <Link href={rutaFicha(f.numero)} prefetch={false} className={CLASE_CHICO}>
                           Abrir<span className="sr-only"> {f.numero}</span>

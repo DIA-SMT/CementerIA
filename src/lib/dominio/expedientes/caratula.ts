@@ -1,9 +1,10 @@
 import { fechaDesdeDb, hoyEnTucuman, type FechaISO } from "@/lib/fechas";
 import { exigirPermiso, type UsuarioPermisos } from "../permisos";
 import { exigirNumero, registrarAcceso, type OpcionesAcceso } from "./acceso";
-import { leerDefinicion } from "./contexto";
+import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, noEncontrado } from "./errores";
+import type { TipoPersona } from "./esquemas";
 import { numeroCorto } from "./numero";
 import { areasDelPaso } from "./proyeccion";
 import { leerCamposUbicacion } from "./ubicacion";
@@ -12,17 +13,21 @@ import { leerCamposUbicacion } from "./ubicacion";
  * La carátula (docs/propuesta-mvp.md, sección 5, "Imprimibles"): se abrocha al
  * papel y reemplaza la ficha. Lleva el número grande, el QR a la ficha, N°
  * municipal, trámite, cementerio, ubicación, padrón, titular y solicitante
- * (SIN teléfono, correo ni domicilio: el papel circula por muchas manos) y el
- * recorrido previsto con casilleros.
+ * (SIN teléfono, correo ni domicilio: el papel circula por muchas manos;
+ * de una persona jurídica, razón social y CUIT) y el recorrido previsto con
+ * casilleros: las subtareas que corresponden al cementerio del expediente.
  *
  * El QR lo arma la pantalla con `rutaFicha` y la URL de la app (qrcode, SVG en
  * el servidor). Pedir la carátula registra `imprimir` en `auditoria.accesos`.
  */
 
 export interface PersonaCaratula {
+  tipo: TipoPersona;
   apellido: string | null;
   nombres: string | null;
   dni: string | null;
+  razonSocial: string | null;
+  cuit: string | null;
   fallecido: boolean;
   vinculo: string | null;
 }
@@ -87,12 +92,12 @@ export async function datosCaratula(
         personas: {
           where: { vigente: true, rol: { in: ["titular", "solicitante"] } },
           orderBy: [{ rol: "asc" }, { orden: "asc" }],
-          select: { rol: true, apellido: true, nombres: true, dni: true, fallecido: true, vinculo: true },
+          select: { rol: true, tipoPersona: true, apellido: true, nombres: true, dni: true, razonSocial: true, cuit: true, fallecido: true, vinculo: true },
         },
       },
     });
     if (!e) throw noEncontrado(numeroInterno);
-    const def = leerDefinicion(e.plantilla.definicion, e.plantilla.codigo, e.plantilla.version);
+    const def = await definicionDelExpediente(tx, e, e.plantilla);
     const areas = await tx.area.findMany({ select: { id: true, codigo: true, nombre: true, tipo: true } });
     const cementerios = await tx.cementerio.findMany({ select: { codigo: true, nombre: true, areaId: true } });
     const areaPorId = new Map(areas.map((a) => [a.id, a]));
@@ -130,9 +135,12 @@ export async function datosCaratula(
       .map((c) => ({ etiqueta: c.etiqueta, valor: valores[c.clave] }));
 
     const persona = (p: (typeof e.personas)[number]): PersonaCaratula => ({
+      tipo: p.tipoPersona === "juridica" ? "juridica" : "fisica",
       apellido: p.apellido,
       nombres: p.nombres,
       dni: p.dni,
+      razonSocial: p.razonSocial,
+      cuit: p.cuit,
       fallecido: p.fallecido,
       vinculo: p.vinculo,
     });

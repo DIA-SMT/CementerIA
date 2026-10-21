@@ -21,6 +21,12 @@ export const CampoUbicacion = z.object({
   /** Expresión regular que tiene que cumplir el valor YA normalizado, entero (se ancla con ^…$). */
   patron: z.string().nullable(),
   activo: z.boolean(),
+  /**
+   * Opcional: cómo se escribe, para quien carga ("una letra de la A a la H").
+   * El formulario lo muestra debajo del campo y el error lo repite: un patrón
+   * no le dice nada al mostrador.
+   */
+  ayuda: z.string().min(1).nullish(),
 });
 export type CampoUbicacion = z.infer<typeof CampoUbicacion>;
 
@@ -70,7 +76,9 @@ export function normalizarValorUbicacion(campo: Pick<CampoUbicacion, "tipo">, va
 export function errorDeValorUbicacion(campo: CampoUbicacion, normalizado: string): string | null {
   if (campo.tipo === "entero" && !/^\d+$/.test(normalizado)) return `${campo.etiqueta}: tiene que ser un número entero`;
   const re = expresionDe(campo);
-  if (re && !re.test(normalizado)) return `${campo.etiqueta}: el formato no es válido`;
+  if (re && !re.test(normalizado)) {
+    return campo.ayuda ? `${campo.etiqueta}: el formato no es válido (${campo.ayuda})` : `${campo.etiqueta}: el formato no es válido`;
+  }
   return null;
 }
 

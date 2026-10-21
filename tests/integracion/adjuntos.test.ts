@@ -126,7 +126,7 @@ describe("subir un adjunto", () => {
     expect(await temporales()).toEqual([]);
 
     const items = leerItems((await proyeccion(prisma, numero)).items);
-    expect(items.adjuntos[r.movimientoId]).toEqual({ documento: "INFORME_TECNICO", vigente: true });
+    expect(items.adjuntos[r.movimientoId]).toEqual({ documento: "INFORME_TECNICO", vigente: true, purgado: false });
     // Adjuntar no marca el documento como presentado.
     expect(items.documentos.INFORME_TECNICO).toEqual({ estado: "pendiente", obs: null, mov: null, adjuntos: [Number(r.movimientoId)] });
 

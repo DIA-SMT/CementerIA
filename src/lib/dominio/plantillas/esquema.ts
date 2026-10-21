@@ -11,8 +11,15 @@ import { z } from "zod";
  *
  * Todas las claves de cada objeto son obligatorias y no se admiten claves de
  * más: la definición se congela al publicarse y no puede llevar datos que nadie
- * lea. Las dos excepciones son las que la propuesta da con valor por defecto:
- * `requiere_contacto` (true) e `instrucciones` (null).
+ * lea. Las excepciones tienen valor por defecto: `requiere_contacto` (true) e
+ * `instrucciones` (null), de la propuesta, y las que agregó la semana 4 según
+ * docs/fuentes (`admite_juridica`, `solo_cementerios`, `excepto_cementerios`,
+ * `solo_si_juridica`): con el valor por defecto, una definición escrita antes
+ * se lee igual que antes.
+ *
+ * Lo que depende del expediente (el cementerio, si el titular es persona
+ * jurídica) no se resuelve acá: `resolverDefinicion()` (./resolver.ts) arma la
+ * definición que vale para un expediente concreto.
  */
 
 // ---------------------------------------------------------------------------
@@ -45,6 +52,9 @@ const RE_CODIGO_AREA = /^[A-Z][A-Z0-9_]*$/;
 // Igual que el CHECK de tipos_monumento.codigo.
 const RE_CODIGO_MONUMENTO = /^[A-Z_]+$/;
 const RE_AREA_PASO = /^(?:[A-Z][A-Z0-9_]*|\$CEMENTERIO|\$CAMPO:[a-z][a-z0-9_]*)$/;
+// Los códigos de cementerios de la semilla (OESTE, JARDIN_NORTE). La tabla no
+// tiene CHECK; validar.ts controla que existan.
+const RE_CODIGO_CEMENTERIO = /^[A-Z][A-Z0-9_]*$/;
 
 const texto = () => z.string().trim().min(1, "No puede quedar vacío");
 
@@ -59,6 +69,26 @@ const codigoArea = () =>
 
 const enteroPositivo = () => z.int("Tiene que ser un número entero").min(1, "Tiene que ser 1 o más");
 
+/**
+ * Filtro opcional por cementerio de conceptos, documentos y subtareas (semana
+ * 4, docs/fuentes: Jardín no cobra inspección técnica). `null` = en todos.
+ * Uno u otro, no los dos (lo controla validar.ts, junto con que los códigos
+ * existan).
+ */
+const listaCementerios = () =>
+  z
+    .array(z.string().regex(RE_CODIGO_CEMENTERIO, "Código de cementerio inválido: mayúsculas, números y _ (ej. JARDIN_NORTE)"))
+    .min(1, "Si se filtra por cementerio, tiene que haber al menos uno")
+    .nullable()
+    .default(null);
+
+const FILTRO_CEMENTERIOS = {
+  /** Solo en estos cementerios (códigos de `cementerios`). */
+  solo_cementerios: listaCementerios(),
+  /** En todos menos estos. */
+  excepto_cementerios: listaCementerios(),
+};
+
 // ---------------------------------------------------------------------------
 // Partes de la definición
 // ---------------------------------------------------------------------------
@@ -70,6 +100,11 @@ export const PersonaPlantilla = z.strictObject({
   max: enteroPositivo(),
   fallecido: z.enum(FALLECIDO),
   pide_vinculo: z.boolean(),
+  /**
+   * El rol puede ser una persona jurídica (razón social y CUIT): las
+   * asociaciones con panteón (docs/fuentes). Por defecto, solo personas físicas.
+   */
+  admite_juridica: z.boolean().default(false),
 });
 
 export const CampoExtraPlantilla = z.strictObject({
@@ -93,6 +128,13 @@ export const DocumentoPlantilla = z.strictObject({
   /** Clave de un paso, o null: se exige al concluir. */
   exigir_al_salir_de: clave().nullable(),
   adjunto: z.enum(ADJUNTO_DOCUMENTO),
+  ...FILTRO_CEMENTERIOS,
+  /**
+   * Rol de persona: el documento corresponde solo si alguna persona vigente de
+   * ese rol es jurídica (personería y designación de asamblea). `null` =
+   * siempre. El rol tiene que tener `admite_juridica` (validar.ts).
+   */
+  solo_si_juridica: z.string().regex(RE_ROL, "Rol inválido: minúsculas y _ (ej. titular)").nullable().default(null),
 });
 
 export const ConceptoPlantilla = z.strictObject({
@@ -101,6 +143,7 @@ export const ConceptoPlantilla = z.strictObject({
   via: z.enum(VIAS_CONCEPTO),
   /** Clave del paso en que se liquida. */
   paso: clave(),
+  ...FILTRO_CEMENTERIOS,
 });
 
 export const SubtareaPlantilla = z.strictObject({
@@ -109,6 +152,8 @@ export const SubtareaPlantilla = z.strictObject({
   obligatoria: z.boolean(),
   dato: z.enum(DATOS_SUBTAREA).nullable(),
   dato_obligatorio: z.boolean(),
+  // Por ejemplo, la boleta cuyo texto nombra la inspección técnica, que Jardín no cobra.
+  ...FILTRO_CEMENTERIOS,
 });
 
 /** Plazo en días hábiles mientras el expediente está en el paso (sección 3.6). */
@@ -164,6 +209,8 @@ export type PasoPlantilla = z.infer<typeof PasoPlantilla>;
 export type DefinicionPlantilla = z.infer<typeof DefinicionPlantilla>;
 /** Lo que acepta el esquema: igual, pero sin las claves que tienen valor por defecto. */
 export type DefinicionPlantillaEntrada = z.input<typeof DefinicionPlantilla>;
+/** El filtro por cementerio de conceptos, documentos y subtareas. */
+export type FiltroCementerios = Pick<ConceptoPlantilla, "solo_cementerios" | "excepto_cementerios">;
 
 // ---------------------------------------------------------------------------
 // Ayudas

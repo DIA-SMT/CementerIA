@@ -17,13 +17,15 @@ import { idDeCampo } from "./errores";
 // Bandeja
 // ---------------------------------------------------------------------------
 
-/** Las pestañas de la semana 3, en el orden en que se muestran (Plazos y Carga histórica son de la semana 4). */
-export const PESTANAS: readonly PestanaBandeja[] = ["por_confirmar", "en_mi_area", "afuera"];
+/** Todas las pestañas, en el orden en que se muestran (semana 4: Plazos y Carga histórica). */
+export const PESTANAS: readonly PestanaBandeja[] = ["por_confirmar", "en_mi_area", "afuera", "plazos", "carga_historica"];
 
 export const ETIQUETA_PESTANA: Record<PestanaBandeja, string> = {
   por_confirmar: "Por confirmar",
   en_mi_area: "En mi área",
   afuera: "Afuera",
+  plazos: "Plazos",
+  carga_historica: "Carga histórica",
 };
 
 /** `?pestana=` de la URL, si es una pestaña válida. */
@@ -33,16 +35,33 @@ export function leerPestana(valor: string | string[] | undefined): PestanaBandej
 }
 
 /**
+ * Las pestañas que ve el área (sección 5): las tres de siempre; **Plazos** si
+ * hay algo en un paso con plazo que el área custodia (Tributario, con la DIM)
+ * o, para Mesa de Entradas, en cualquiera; y **Carga histórica** solo Mesa de
+ * Entradas. La pestaña abierta se muestra siempre (un enlace guardado no la
+ * hace desaparecer).
+ */
+export function pestanasVisibles(contadores: ContadoresBandeja, o: { esMesa: boolean; abierta: PestanaBandeja }): PestanaBandeja[] {
+  return PESTANAS.filter((p) => {
+    if (p === o.abierta) return true;
+    if (p === "plazos") return contadores.plazos > 0;
+    if (p === "carga_historica") return o.esMesa;
+    return true;
+  });
+}
+
+/**
  * La pestaña que se abre: la pedida en la URL o, si no, la primera que tiene
  * trabajo (lo que hay que confirmar, después lo que está en el área, después
- * lo que se custodia afuera). Lo que Mesa de Entradas solo consulta afuera no
- * es trabajo. Sin nada, "En mi área".
+ * lo que se custodia afuera, después un plazo en ámbar o rojo). Lo que Mesa
+ * de Entradas solo consulta afuera no es trabajo. Sin nada, "En mi área".
  */
 export function pestanaPorDefecto(contadores: ContadoresBandeja, pedida: PestanaBandeja | null): PestanaBandeja {
   if (pedida) return pedida;
   if (contadores.por_confirmar > 0) return "por_confirmar";
   if (contadores.en_mi_area > 0) return "en_mi_area";
   if (contadores.afueraCustodia > 0) return "afuera";
+  if (contadores.plazosAlerta > 0) return "plazos";
   return "en_mi_area";
 }
 

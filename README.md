@@ -21,8 +21,41 @@ bandejas; [docs/api-dominio.md](docs/api-dominio.md), sección 12) y sus pantall
 (confirmar de a uno o en lote, "Dar pase rápido"), el contador "Por confirmar"
 del encabezado, los diálogos de la ficha (confirmar recepción, "Qué falta para
 avanzar" y "Dar pase · Faltan N", devolver, tildar, documentos, adjuntar con
-visor) y los Route Handlers de adjuntos. El panel sigue "En construcción"
-(semana 4).
+visor) y los Route Handlers de adjuntos.
+
+Semana 4, primera parte: los cambios que pidieron las fuentes de la Dirección
+([docs/fuentes/README.md](docs/fuentes/README.md), "Cambios que esto implica",
+1 a 6): panteón y monumentos por cementerio; conceptos, documentos y subtareas
+según el cementerio (Jardín no cobra inspección técnica; Conservación pagada en
+el Oeste y Jardín); titulares que son personas jurídicas (razón social y CUIT,
+migración `*_personas_juridicas`); nomenclatura del Oeste (sección A a H) y de
+Jardín (romanos); y el paso DIM omitible. Ver
+[docs/api-dominio.md](docs/api-dominio.md), sección 14.
+
+Semana 4, el dominio ([docs/api-dominio.md](docs/api-dominio.md), sección
+15): concluir, archivar (también sin concluir, con el regreso del papel desde
+un paso externo), desarchivar, anular y reabrir; reiniciar con otra
+plantilla (precarga del alta y enlace anterior/siguiente) y "archivar y abrir
+vinculado" para la caducidad; correcciones (revertir, fecha, observación,
+subtarea, retirar y purgar adjuntos, suprimir persona), con la proyección
+reconstruida desde el historial; vencimiento y semáforo del plazo DIM y la API
+de feriados con "Cerrar año"; transcripción histórica y "Terminar carga
+histórica"; pestañas Plazos y Carga histórica; panel; CSV del buscador; notas.
+Sin cambios de esquema.
+
+Semana 4, las pantallas (sección 16 de la referencia): en la ficha, los
+diálogos de concluir ("Faltan N"), archivar (también sin concluir, con el
+regreso del papel), desarchivar, anular, reabrir, ubicación de archivo,
+reiniciar con otra plantilla, archivar y abrir vinculado y nota; el plazo DIM
+con semáforo; el menú "Corregir" de cada movimiento del historial (revertir,
+fecha, observación, subtarea, retirar y purgar adjuntos) con lo corregido
+tachado y enlazado, y "Suprimir datos" (admin); el alta precargada
+(`/expedientes/nuevo?desde=`); `/expedientes/[numero]/transcribir` (grilla
+manejable con teclado, tildes con fecha, estado final, foto de la ficha y
+"Terminar carga histórica"); las pestañas Plazos y Carga histórica de la
+bandeja; `/panel` con cada número enlazado a la búsqueda e imprimible; y
+"Exportar CSV" en el buscador (`GET /expedientes/exportar`, Dirección y
+admin). Falta la pantalla de feriados (semana 5).
 
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
@@ -120,8 +153,9 @@ Solo datos ficticios en desarrollo y staging.
 docs/                      especificación y documentos de la semana 1
 prisma/
   schema.prisma            tablas, claves e índices (también parciales y GIN)
-  migrations/              *_inicial (generada y retocada) y *_reglas_base (a mano:
-                           CHECKs, funciones, triggers, GRANTs, usuario SISTEMA)
+  migrations/              *_inicial (generada y retocada), *_reglas_base (a mano:
+                           CHECKs, funciones, triggers, GRANTs, usuario SISTEMA) y
+                           *_personas_juridicas (semana 4, a mano)
   seed.ts, semilla/        semilla: áreas, catálogos, cementerios, feriados,
                            usuarios ficticios y las 4 plantillas de la sección 4
 scripts/
@@ -133,7 +167,8 @@ src/
   instrumentation.ts       valida el entorno al arrancar (lib/arranque.ts)
   app/                     rutas: /login, /auth/*, /dev/login, /sin-acceso y,
                            en (app)/, las pantallas con sesión; los adjuntos en
-                           /adjuntos/[movimientoId] y POST /api/expedientes/[numero]/adjuntos
+                           /adjuntos/[movimientoId], POST /api/expedientes/[numero]/adjuntos y,
+                           semana 4, GET /expedientes/exportar (CSV)
   lib/db/                  cliente de Prisma (solo lectura) y conActor() (escrituras)
   lib/auth/                Cidituc, sesión, cookies, ingreso y salida
   lib/dominio/             permisos, navegación, CUIL y plantillas (esquema zod y
@@ -147,7 +182,10 @@ src/
                            del buscador, URL del QR, enlace wa.me, textos, la lógica de las
                            Server Actions (acciones.ts) y, semana 3, "Faltan N", pestañas y
                            fecha efectiva (flujo.ts), reducción de imágenes (imagen.ts) y los
-                           Route Handlers de adjuntos (adjuntos-http.ts)
+                           Route Handlers de adjuntos (adjuntos-http.ts); semana 4: semáforo,
+                           botones de estado y menú Corregir (estados.ts), grilla de
+                           transcripción (transcripcion.ts), panel (panel.ts), CSV
+                           (exportar-http.ts) y sus Server Actions (acciones-estados.ts)
   lib/fechas.ts            fechas YYYY-MM-DD, hoy en Tucumán, datetime-local y formato es-AR
   lib/entorno.ts           variables de entorno validadas con zod
   generated/               cliente de Prisma generado (no se versiona)
@@ -190,8 +228,9 @@ tests/
 ## Semilla
 
 `npm run db:seed` (y el final de `npm run db:reset`) carga, con el rol de la app
-y firmado por el usuario técnico SISTEMA: 11 áreas, 3 cementerios con
-nomenclatura provisoria, tipos de monumento y de trámite, feriados 2026 y 2027
+y firmado por el usuario técnico SISTEMA: 11 áreas, 3 cementerios con su
+nomenclatura (Oeste: sección A a H; Jardín: romanos; Norte: provisoria) y sus
+tipos de monumento, tipos de monumento y de trámite, feriados 2026 y 2027
 (años sin cerrar), las 4 plantillas publicadas como v1, el admin de
 `ADMIN_INICIAL_CUIL` y un usuario ficticio por área. Los datos están en
 `prisma/semilla/`, con las marcas [I] y [C] de la propuesta.
@@ -199,14 +238,18 @@ nomenclatura provisoria, tipos de monumento y de trámite, feriados 2026 y 2027
 Después carga los **30 expedientes ficticios** de la sección 6
 (`prisma/semilla/expedientes.ts`): los da de alta el usuario ficticio de Mesa
 de Entradas con la función de alta del dominio, repartidos entre las 4
-plantillas y los 3 cementerios, algunos con solicitante distinto del titular y
-3 históricos. Quedan en el primer paso. Cada uno tiene un `comando_id` fijo, así
+plantillas y los 3 cementerios, algunos con solicitante distinto del titular,
+2 con una asociación ficticia como titular (persona jurídica, panteón en el
+Oeste) y 3 históricos. Quedan en el primer paso. Cada uno tiene un `comando_id` fijo, así
 que una segunda corrida no los duplica.
 
 - Cada plantilla pasa la validación de "Publicar" antes de grabarse; si una
   falla, no se graba nada.
 - Una plantilla publicada no se modifica (está congelada): si la semilla cambió
-  una, `npm run db:reset`.
+  una, `npm run db:reset`. Lo mismo con un cementerio ya sembrado: la semilla
+  no lo toca y avisa si no coincide.
+- Las plantillas de la semilla se actualizaron el 20/10/2026 según docs/fuentes
+  editando la v1 (todavía no hay producción); sus notas de cambio lo dicen.
 - En producción corre con `npm run db:seed -- --sin-ficticios` (sin usuarios
   ni expedientes ficticios) y exige `ADMIN_INICIAL_CUIL`.
 

@@ -6,7 +6,9 @@
  * Entradas, Dirección y admin). El resto ve esto, que alcanza para reconocer
  * que el dato existe y para comparar con lo que dice el papel, pero no para
  * llamar ni escribir. El nombre y el DNI no se enmascaran: identifican el
- * trámite y están en la carátula.
+ * trámite y están en la carátula. Lo mismo la razón social y el CUIT de una
+ * persona jurídica (semana 4); su contacto se enmascara igual que el de una
+ * persona física.
  */
 
 export const MASCARA = "•";

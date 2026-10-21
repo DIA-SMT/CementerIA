@@ -3,6 +3,8 @@
 > **Semana 1 del plan de CementerIA.** Guía para imprimir y completar a mano.
 > Fuente: `docs/propuesta-mvp.md`, confirmada el 19/10/2026: sección 4 (las 4 plantillas y la "Lista para el taller de validación"), secciones 2.2 y 2.13(d) (ubicación por cementerio), 3.5 y 3.6 (pasos fuera de la Dirección y plazo de la DIM), sección 7 (otros trámites) y preguntas 5 y 8, que la propuesta deja para este taller.
 > Todos los ejemplos son inventados.
+>
+> **Actualizado el 20/10/2026 según docs/fuentes** (los procedimientos escaneados de la Dirección y lo que informó por WhatsApp; resumen en `docs/fuentes/README.md`). Se sacaron las preguntas que esas fuentes ya responden: en su lugar queda la respuesta, marcada **Respondida por las fuentes**, para confirmarla de un vistazo. Las que siguen abiertas quedan como estaban, y las nuevas están en la Parte 9. Las plantillas ya tienen aplicadas esas respuestas.
 
 **Fecha:** ____ / ____ / 2026  **Lugar:** ________________________________________
 
@@ -30,7 +32,7 @@
 - qué documentos tienen que estar en cada momento;
 - qué se le cobra al concesionario.
 
-La herramienta usa la plantilla para saber a dónde va el expediente y qué le falta. Hoy hay 4 plantillas armadas **sin el documento de procedimientos**: buena parte de lo que dicen lo supusimos nosotros. Este taller sirve para corregirlas antes de que reemplacen a la ficha de papel.
+La herramienta usa la plantilla para saber a dónde va el expediente y qué le falta. Las 4 plantillas se armaron **sin el documento de procedimientos** y después se ajustaron con él (20/10/2026): todavía hay cosas que supusimos nosotros. Este taller sirve para corregirlas antes de que reemplacen a la ficha de papel.
 
 **Marcas que van a ver:**
 - **[I]** lo supusimos nosotros: el pedido no lo decía.
@@ -58,10 +60,8 @@ Si algo de lo acordado hoy cambia más adelante, se publica una versión nueva d
 
 ## Parte 1. Preguntas que valen para todas las plantillas
 
-**G-1 [C] ¿Dónde se juntan los documentos?** ¿En qué paso se recibe o se emite cada documento?
-- ☐ Todo se junta en Mesa de Entradas al iniciar.
-- ☐ Cada área recibe o emite los suyos.
-- ☐ Depende del documento. Se detalla en cada plantilla.
+**G-1 ¿Dónde se juntan los documentos?** **Respondida por las fuentes (20/10/2026):** los procedimientos ponen toda la documentación en el paso 1, Mesa de Entradas: la que provee la Dirección (formulario, constancia de Cómputos, estado de cuenta, constancia de períodos e informe técnico, que el concesionario pide en el cementerio) y la que trae el concesionario (DNI y boleta de servicio). Queda por confirmar solo esto:
+- Hoy la herramienta exige la constancia de Cómputos al salir de Cómputo y el estado de cuenta, la constancia de períodos y el informe técnico al salir de Liquidación [I]. ¿Se exigen todos al salir de Mesa de Entradas? ☐ Sí ☐ No, como están ☐ Otro: ______________________
 
 **G-2 [I] Números que se anotan.** Hoy esos números son optativos: se pueden anotar, pero no frenan el pase.
 
@@ -83,12 +83,12 @@ Si algo de lo acordado hoy cambia más adelante, se publica una versión nueva d
 
 **En pocas palabras.** El concesionario renueva por 5 años la concesión de su monumento y paga de contado. Son 7 pasos, y el trámite termina cuando se le entrega el título.
 
-- **Monumentos:** sotanito, capilla, mausoleo y sepultura.
-- **Personas:** el titular de la concesión (uno, vivo) y, si lo hay, un solicitante, con su vínculo con el titular. Una de las dos personas queda como contacto.
+- **Monumentos:** sepultura o bóveda, sotanito, capilla, mausoleo y panteón; en Jardín Norte, solo sepultura (procedimientos).
+- **Personas:** el titular de la concesión (uno, vivo; puede ser una **asociación o sociedad con panteón**, con razón social y CUIT) y, si lo hay, un solicitante, con su vínculo con el titular. Una de las dos personas queda como contacto.
 - **Datos extra:** el período de la concesión, "desde" y "hasta" (pregunta A-9).
-- **Qué se cobra:** derecho de oficina, inspección técnica y arrendamiento, en una boleta que emite Liquidación.
+- **Qué se cobra:** derecho de oficina, inspección técnica y arrendamiento, en una boleta que emite Liquidación. **En Jardín no se cobra inspección técnica** (procedimientos).
 
-**A-1 ¿El recorrido es correcto, con estos pasos y en este orden?** ☐ Sí ☐ No (corregir en cada paso)
+**A-1 ¿El recorrido es correcto?** **Respondida por las fuentes (20/10/2026):** sí, coincide con el procedimiento "Trámite de renovación, pago de contado".
 
 ---
 
@@ -101,18 +101,13 @@ Documentos que tienen que estar antes de pasar:
 - Formulario de inicio de trámite de renovación
 - Fotocopia del DNI
 - Fotocopia de una boleta de servicio, para verificar el domicilio
+- Si el titular es una asociación o sociedad: personería y acta de asamblea con la designación de autoridades (procedimientos; en qué paso [I], ver N-2)
 
 **A-2 [I]** ¿Mesa de Entradas imprime una carátula y la agrega al expediente al iniciar?
 - ☐ Sí ☐ No ☐ A veces
 - Cómo la llaman: ____________________________________________
 
-**A-3 [I]** El pedido no dice en qué paso se exige cada documento. ¿Se exigen en Mesa de Entradas?
-
-| Documento | ¿Se exige en Mesa? | Si no, ¿en qué paso? |
-|---|---|---|
-| Formulario de inicio de renovación | ☐ Sí ☐ No | |
-| Fotocopia del DNI | ☐ Sí ☐ No | |
-| Fotocopia de boleta de servicio | ☐ Sí ☐ No | |
+**A-3** **Respondida por las fuentes (20/10/2026):** el formulario, el DNI y la boleta de servicio se reciben en Mesa de Entradas (ver G-1).
 
 Cómo llaman ustedes a este paso y al formulario: ____________________________________________
 
@@ -128,8 +123,7 @@ Tarea a tildar:
 Documento que tiene que estar antes de pasar:
 - Constancia de Cómputos, con datos personales y catastrales [I]
 
-**A-4 [I]** ¿La constancia de Cómputos se emite en este paso?
-- ☐ Sí ☐ No, en el paso: ______________________
+**A-4** **Respondida por las fuentes (20/10/2026):** la constancia de Cómputos la provee la Dirección y se entrega en Mesa de Entradas (ver G-1).
 
 Correcciones a este paso: ____________________________________________
 
@@ -139,31 +133,27 @@ Correcciones a este paso: ____________________________________________
 
 Tareas a tildar:
 - (obligatoria) Liquidación practicada y débitos generados
-- (obligatoria) Boleta emitida por oficina, inspección técnica y arrendamiento. Se puede anotar el N° de boleta, que es optativo [I].
+- (obligatoria) Boleta emitida por oficina, inspección técnica y arrendamiento. **En Jardín:** boleta emitida por oficina y arrendamiento, sin inspección técnica. Se puede anotar el N° de boleta, que es optativo [I].
 - (obligatoria) Pago verificado (Rapipago, Pago Fácil o Banco Macro), con la fecha de pago
 
 Documentos que tienen que estar antes de pasar:
 - Estado de cuenta [I]
 - Constancia de los períodos que adeuda y cómo los abona [I]
-- Copia del comprobante de pago [I: figura en los pasos, no en la lista de documentos]. Se sugiere escanearla.
-- Informe técnico, que el concesionario pide en el cementerio [C]. Se sugiere escanearlo.
+- **Conservación abonada de los últimos 5 años**, que surge del estado de cuenta: requisito de los procedimientos del Oeste y de Jardín (ver A-10 y N-1)
+- Copia del comprobante de pago. Se sugiere escanearla.
+- Informe técnico, que el concesionario pide en el cementerio. Se sugiere escanearlo.
 
-**A-5 [I]** ¿El estado de cuenta y la constancia de períodos se emiten en Liquidación, en este paso?
-- ☐ Sí ☐ No, en el paso: ______________________
+**A-5** **Respondida por las fuentes (20/10/2026):** el estado de cuenta y la constancia de períodos los provee la Dirección y se entregan en Mesa de Entradas (ver G-1).
 
-**A-6 [I]** Comprobante de pago:
-- ¿Se agrega siempre una copia al expediente? ☐ Sí ☐ No
+**A-6** Comprobante de pago. **Respondida por las fuentes (20/10/2026):** el concesionario trae una copia del pago "para ser adjuntado al expediente". Queda:
 - ¿Conviene guardar una copia escaneada en la herramienta? ☐ Sí ☐ No
 
-**A-7 [C]** Informe técnico:
-- ¿Se exige antes de que el expediente vaya a Legal? ☐ Sí ☐ No
-- ¿Quién lo incorpora al expediente?
-  - ☐ El concesionario lo trae a Mesa de Entradas
-  - ☐ El concesionario lo trae a Liquidación
-  - ☐ Lo manda el cementerio
-  - ☐ Otro: ______________________
-- ¿En qué paso tiene que estar sí o sí? ______________________
+**A-7** Informe técnico. **Respondida por las fuentes (20/10/2026):** lo pide el concesionario en el cementerio donde tiene el monumento y lo trae a Mesa de Entradas (ver G-1). Queda:
 - ¿Conviene guardar una copia escaneada? ☐ Sí ☐ No
+
+**A-10** Conservación pagada. **Respondida por las fuentes (20/10/2026):** los procedimientos del Oeste y de Jardín piden "tener abonado Conservación los últimos 5 años". La herramienta lo pide como documento de la Dirección (lo acredita el estado de cuenta), al salir de Liquidación [I].
+- ¿Quién lo verifica y en qué paso? ☐ Mesa de Entradas ☐ Liquidación ☐ Otro: ______________________
+- Si no está pagada, ¿se puede iniciar igual la renovación? ☐ No ☐ Sí, se paga junto con la renovación ☐ Otro: ______________________
 
 Correcciones a este paso: ____________________________________________
 
@@ -231,13 +221,13 @@ Correcciones a este paso: ____________________________________________
   - derecho de oficina e inspección técnica, en la boleta de Liquidación;
   - arrendamiento, por plan de pagos ante la DIM, que genera Tributario [C] (pregunta B-4).
 
-**B-1 ¿El recorrido es correcto, con estos pasos y en este orden?** ☐ Sí ☐ No (corregir en cada paso)
+**B-1 ¿El recorrido es correcto?** **Respondida por las fuentes (20/10/2026):** sí, coincide con el procedimiento "Trámite de renovación, solicitud de forma de pago", con un camino más cuando el concesionario no paga en la DIM (ver B-9).
 
 **B-2** El comprobante de pago que se exige en Liquidación, ¿es el de la boleta inicial? ☐ Sí ☐ No: ______________________
 
 ---
 
-**Pasos 1 a 4. Mesa de Entradas, Cómputo (alta), Liquidación y Legal.** Son iguales que en la plantilla A, con una diferencia: en Liquidación la tarea es "(obligatoria) Boleta emitida por oficina e inspección técnica", **sin arrendamiento**.
+**Pasos 1 a 4. Mesa de Entradas, Cómputo (alta), Liquidación y Legal.** Son iguales que en la plantilla A, con una diferencia: en Liquidación la tarea es "(obligatoria) Boleta emitida por oficina e inspección técnica", **sin arrendamiento** (en Jardín, solo derecho de oficina).
 
 Diferencias con la plantilla A: ____________________________________________
 
@@ -259,20 +249,19 @@ Tareas a tildar [I]:
 - (obligatoria) Débitos de arrendamiento generados
 - (obligatoria) Expediente remitido a la DIM, con la fecha de remisión
 
-**B-3 [I]** ¿Son estas las tareas de Tributario, en este orden?
-- ☐ Sí ☐ No: ____________________________________________
+**B-3** **Respondida por las fuentes (20/10/2026):** sí: notifica la resolución (Sección Notificación), genera los débitos y remite el expediente a la DIM.
 
-**B-4 [C]** ¿Quién liquida el arrendamiento del plan de pagos?
-- ☐ Tributario ☐ Liquidación ☐ Otro: ______________________
+**B-4** **Respondida por las fuentes (20/10/2026):** Tributario genera los débitos del arrendamiento del plan.
 
-**B-5** (pregunta 8) ¿La notificación la hace Tributario?
-- ☐ Sí ☐ No, la hace: ______________________
+**B-5** **Respondida por las fuentes (20/10/2026):** sí, la hace la Sección Notificación de Tributario.
 
 ---
 
 **Paso 7. DIM: el expediente está afuera** (alerta propuesta: 60 días hábiles)
 
 La DIM no usa la herramienta. Mientras el expediente está ahí, lo sigue un área de la Dirección, que propusimos que sea **Tributario** [C]. Esa área anota lo que informa la DIM y registra cuándo vuelve el papel. El expediente figura "en espera de pago DIM".
+
+Este paso se puede **saltear con un motivo** (respuesta B-9): si el concesionario paga después de que Tributario lo notifica, el expediente va directo al título sin volver a la DIM.
 
 Tareas a tildar:
 - Concesionario inició la forma de pago, con fecha [I]. No es obligatoria: si se anota, apaga el aviso del plazo.
@@ -282,7 +271,7 @@ Tareas a tildar:
 
 **B-6 [C]** (pregunta 8) Mientras está en la DIM:
 - ¿Qué área sigue el expediente? ☐ Tributario ☐ Otra: ______________________
-- ¿Quién recibe el papel cuando vuelve? ______________________
+- Cuando vuelve: **Respondida por las fuentes (20/10/2026):** si la deuda está cancelada, va a Administrativo para el título; si no abonó, a Tributario.
 
 **B-7 [I]** ¿La Dirección se entera de cuándo el concesionario inició la forma de pago?
 - ☐ Sí, la DIM lo informa ☐ A veces ☐ No
@@ -292,12 +281,8 @@ Tareas a tildar:
 - ¿Corre desde el día hábil siguiente a la notificación? ☐ Sí ☐ No, desde: ______________________
 - ¿Lo suspenden las ferias? ☐ Sí ☐ No ☐ No sabemos
 
-**B-9** (pregunta 8) Si vence el plazo sin que el concesionario inicie el plan, o si la DIM devuelve el expediente sin pago, ¿qué se hace?
-- ☐ Se archiva sin concluir
-- ☐ Vuelve a Tributario
-- ☐ Se inicia una caducidad
-- ☐ Otro: ______________________
-- ¿Quién lo decide? ______________________
+**B-9** (pregunta 8) **Respondida por las fuentes (20/10/2026):** si no abonó, el expediente vuelve a Tributario para que lo notifique. Si se presenta y paga, sigue al título (la herramienta lo registra como un pase que saltea la DIM, con motivo). Si no, pasa a Asesoría Legal para el trámite de caducidad (en la herramienta: archivar sin concluir y abrir un expediente de caducidad vinculado, en la próxima etapa). Queda:
+- Si vence el plazo de 30 días hábiles sin que inicie el plan, ¿se hace lo mismo? ☐ Sí ☐ No: ______________________
 
 ---
 
@@ -327,7 +312,7 @@ Correcciones a los pasos 5 a 10: ____________________________________________
 
 ### Plantilla C. Renovación "sin perjuicio de tercero" (SPT), pago de contado
 
-**En pocas palabras.** La renovación la pide una persona distinta del titular. Supusimos que el titular falleció [I] y que quien la pide tiene que acreditar su vínculo con él. Tiene los mismos 7 pasos, monumentos, datos extra, conceptos y días de alerta que la plantilla A.
+**En pocas palabras.** La renovación la pide una persona distinta del titular, porque el titular falleció (procedimientos), y quien la pide tiene que acreditar su vínculo con él. Tiene los mismos 7 pasos, monumentos, datos extra, conceptos y días de alerta que la plantilla A.
 
 **Diferencias con la plantilla A:**
 - **Personas:**
@@ -341,20 +326,20 @@ Correcciones a los pasos 5 a 10: ____________________________________________
 
 **C-1 ¿Los pasos son los mismos 7 de la plantilla A?** ☐ Sí ☐ No: ____________________________________________
 
-**C-2 [I]** El titular:
-- ¿En una renovación SPT el titular está siempre fallecido? ☐ Sí ☐ No: ______________________
+**C-2** El titular. **Respondida por las fuentes (20/10/2026):** en la renovación SPT el titular está fallecido. Queda:
 - ¿Se registra la fecha de defunción? ☐ Sí, obligatoria ☐ Sí, optativa ☐ No
 
 **C-3 [I]** ¿El vínculo con el titular lo acredita Legal?
 - ☐ Sí ☐ No, lo acredita: ______________________
 
-**C-4 [I]** Acta de defunción:
+**C-4 [I]** Acta de defunción. Según las fuentes, si no se consigue se la puede reemplazar por un informe del cementerio de inhumación (en la herramienta: "no corresponde" con esa observación).
 - ¿Se exige en Mesa de Entradas? ☐ Sí ☐ No, en el paso: ______________________
 - ¿Se escanea? ☐ No (propuesto) ☐ Sí
 
-**C-5 [I]** Actas de vínculo:
+**C-5 [I]** Actas de vínculo. Según las fuentes, el hijo de crianza no puede justificar el vínculo con un acta (en la herramienta: "no corresponde" con observación, y Legal acredita el vínculo).
 - ¿Se exigen en Mesa de Entradas? ☐ Sí ☐ No, en el paso: ______________________
 - ¿Se escanean? ☐ No (propuesto) ☐ Sí
+- Para el hijo de crianza, ¿qué se presenta en lugar del acta? ______________________
 
 **C-6 [C]** ¿A nombre de quién sale el título?
 - ☐ Del solicitante ☐ De los herederos ☐ Otro: ______________________
@@ -373,7 +358,7 @@ Correcciones a los pasos 5 a 10: ____________________________________________
 
 **En pocas palabras.** Se concede a un nuevo concesionario un monumento cuya concesión anterior caducó. El nuevo concesionario paga de contado y el cementerio toma conocimiento. Son 8 pasos.
 
-- **Monumentos:** todos los que estén habilitados en el cementerio [C].
+- **Monumentos:** todos los que estén habilitados en el cementerio: en Jardín, solo sepultura; en el Oeste y el Norte, sepultura o bóveda, sotanito, capilla, mausoleo y panteón (procedimientos).
 - **Personas:**
   - el titular, que es el nuevo concesionario y queda como contacto;
   - un solicitante, si lo hay;
@@ -384,11 +369,11 @@ Correcciones a los pasos 5 a 10: ____________________________________________
   - período de la concesión, como en la plantilla A.
 
   Los dos números de caducidad servirían también para buscar el expediente.
-- **Qué se cobra**, en la boleta de Liquidación: derecho de oficina, arrendamiento, apertura, inhumación y conducción.
+- **Qué se cobra**, en la boleta de Liquidación: derecho de oficina, arrendamiento, apertura, inhumación y conducción. Sin inspección técnica (procedimientos).
 
-**D-1 ¿El recorrido es correcto, con estos pasos y en este orden?** ☐ Sí ☐ No (corregir en cada paso)
+**D-1 ¿El recorrido es correcto?** **Respondida por las fuentes (20/10/2026):** sí, coincide con el procedimiento "Nueva concesión, pago de contado": hay grabación en Cómputo antes de liquidar, y el título sigue el circuito de la renovación y lo entrega y archiva Administrativo. Queda abierto el paso del cementerio (D-10).
 
-**D-2 [C]** ¿Vale para todos los tipos de monumento del cementerio?
+**D-2 [C]** ¿Vale para todos los tipos de monumento del cementerio (los de U-2)?
 - ☐ Sí ☐ Solo para: ______________________
 
 **D-3 [I]** Difuntos:
@@ -426,8 +411,7 @@ Tarea a tildar:
 Documento que tiene que estar antes de pasar:
 - Constancia de Cómputos
 
-**D-6 [I]** ¿Hay un paso de Cómputo antes de la liquidación?
-- ☐ Sí ☐ No, se pasa directo de Mesa a Liquidación
+**D-6** **Respondida por las fuentes (20/10/2026):** sí, Cómputo graba el trámite antes de la liquidación.
 
 ---
 
@@ -449,8 +433,7 @@ Documentos que tienen que estar antes de pasar:
 **D-8 [I]** ¿En qué paso se exige la constancia para inhumar?
 - ☐ Liquidación ☐ Mesa de Entradas ☐ Otro: ______________________
 
-**D-9 [C]** ¿Se cobra inspección técnica en este trámite?
-- ☐ No (hoy no figura) ☐ Sí
+**D-9** **Respondida por las fuentes (20/10/2026):** no, la nueva concesión no cobra inspección técnica.
 
 ---
 
@@ -463,7 +446,9 @@ Tareas a tildar:
 - (obligatoria) Trámite registrado en el cementerio
 - Inhumación informada, con fecha. Hoy está como no obligatoria [C].
 
-**D-10 [C]** (pregunta 8) Mientras está en el cementerio:
+**D-10 [C]** (pregunta 8) El procedimiento dice "Cementerio Jardín" en este paso. ¿Vale igual para el Oeste y el Norte? ☐ Sí ☐ No: ______________________
+
+Mientras está en el cementerio:
 - ¿Qué área lo sigue? ☐ Mesa de Entradas ☐ Otra: ______________________
 - ¿Quién recibe el papel cuando vuelve? ______________________
 
@@ -486,8 +471,7 @@ Tarea a tildar:
 
 Tareas a tildar: las mismas que en el paso 5 de la plantilla A (resolución, firma, protocolización, título y firma del título).
 
-**D-13 [I]** ¿El título sigue el mismo circuito que en la renovación de contado?
-- ☐ Sí ☐ No: ____________________________________________
+**D-13** **Respondida por las fuentes (20/10/2026):** sí, el título sigue el circuito de la renovación.
 
 ---
 
@@ -503,8 +487,7 @@ Tarea a tildar:
 Tarea a tildar:
 - (obligatoria) Título entregado al concesionario, con la fecha de entrega
 
-**D-14 [I]** ¿Quién entrega el título? El pedido dice solo "entrega".
-- ☐ Administrativo ☐ Otro: ______________________
+**D-14** **Respondida por las fuentes (20/10/2026):** Administrativo entrega el título y archiva el expediente.
 
 Correcciones a los pasos 5 a 8: ____________________________________________
 
@@ -531,38 +514,38 @@ El período de la concesión se pregunta en A-9.
 
 ## Parte 4. Cementerios: cómo se escribe la ubicación y qué monumentos hay
 
-Cada cementerio puede tener su propia forma de ubicar un monumento. Mientras tanto, la herramienta usa una provisoria: **Sección · Cuadro · Lote · Número**, por ejemplo "Secc. 3 · Cuadro B · Lote 12 · N° 45". Un cementerio puede usar otros datos, por ejemplo Sector, Parcela y Fila.
+Cada cementerio puede tener su propia forma de ubicar un monumento. Según las fuentes, en el **Oeste** la sección es una letra de la A a la H (plano base) y en **Jardín Norte** la sección va en números romanos (los importes van por sector: secciones I a IV, V a X, XI en adelante). La herramienta ya usa eso; lote y número son provisorios. El **Norte** sigue con la provisoria: **Sección · Cuadro · Lote · Número**, por ejemplo "Secc. 3 · Cuadro B · Lote 12 · N° 45". Un cementerio puede usar otros datos, por ejemplo Sector, Parcela y Fila.
 
 **U-1** (pregunta 5) Si una ubicación se escribe "012" y otra "12", ¿son la misma?
 - ☐ Sí, son la misma (la herramienta quita los ceros a la izquierda en los datos que son solo números)
 - ☐ No, son distintas
 
-**U-2 [I]** Tipos de monumento. Tilden los que existen en cada cementerio. Nicho y cinerario común los agregamos nosotros [I].
+**U-2** Tipos de monumento. **Respondida por las fuentes (20/10/2026):** (procedimientos, página 1)
 
-| Tipo de monumento | Oeste | Norte | Jardín Norte | Cómo lo llaman |
-|---|---|---|---|---|
-| Sotanito | ☐ | ☐ | ☐ | |
-| Capilla | ☐ | ☐ | ☐ | |
-| Mausoleo | ☐ | ☐ | ☐ | |
-| Sepultura | ☐ | ☐ | ☐ | |
-| Nicho [I] | ☐ | ☐ | ☐ | |
-| Cinerario común [I] | ☐ | ☐ | ☐ | |
-| Otro: ____________ | ☐ | ☐ | ☐ | |
-| Otro: ____________ | ☐ | ☐ | ☐ | |
+| Tipo de monumento | Oeste | Norte | Jardín Norte |
+|---|---|---|---|
+| Sepultura o bóveda ("Sepultura/bóveda") | sí | sí | sí (sepultura) |
+| Sotanito | sí | sí | no |
+| Capilla | sí | sí | no |
+| Mausoleo | sí | sí | no |
+| Panteón | sí | sí | no |
+
+Nicho y cinerario común, que habíamos agregado nosotros, no figuran: quedan sin habilitar. Queda:
+- ¿Hay nichos fuera de los panteones (por ejemplo, en una galería municipal)? ☐ No ☐ Sí, en: ______________________
 
 ### Cementerio Oeste
 
-**U-3** Datos de la ubicación, en el orden en que los escriben:
+**U-3** **Respondida por las fuentes (20/10/2026):** la sección es una letra de la A a la H. Falta el resto: cómo se numera dentro de cada sección. Datos de la ubicación, en el orden en que los escriben:
 
 | # | Nombre del dato (como lo escriben) | Ejemplo inventado | ¿Solo números? | ¿Siempre se completa? |
 |---|---|---|---|---|
-| 1 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
+| 1 | Sección (A a H) | B | No | Sí |
 | 2 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 | 3 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 | 4 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 | 5 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 
-¿Usan la provisoria (Sección · Cuadro · Lote · Número)? ☐ Sí ☐ No ☐ En parte
+La herramienta usa hoy Sección (A a H) · Lote · N°, sin cuadro. ¿Sirve? ☐ Sí ☐ No ☐ En parte
 
 ### Cementerio Norte
 
@@ -580,17 +563,18 @@ Cada cementerio puede tener su propia forma de ubicar un monumento. Mientras tan
 
 ### Cementerio Jardín Norte
 
-**U-5** (pregunta 5, "en especial Jardín Norte") Datos de la ubicación, en el orden en que los escriben:
+**U-5** (pregunta 5, "en especial Jardín Norte") **Respondida por las fuentes (20/10/2026):** la sección va en números romanos. Falta el resto. Datos de la ubicación, en el orden en que los escriben:
 
 | # | Nombre del dato (como lo escriben) | Ejemplo inventado | ¿Solo números? | ¿Siempre se completa? |
 |---|---|---|---|---|
-| 1 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
+| 1 | Sección (romanos) | IV | No | Sí |
 | 2 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 | 3 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 | 4 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 | 5 | | | ☐ Sí ☐ No | ☐ Sí ☐ No |
 
-¿Usan la provisoria (Sección · Cuadro · Lote · Número)? ☐ Sí ☐ No ☐ En parte
+La herramienta usa hoy Sección (romanos, de I a XL) · Lote · N°. ¿Sirve? ☐ Sí ☐ No ☐ En parte
+- ¿Hasta qué sección llega Jardín? ________ (la herramienta acepta hasta la XL)
 
 ---
 
@@ -683,7 +667,7 @@ Todos los valores propuestos son suposiciones [I]. Anoten cuántos días hábile
 
 ## Parte 8. Otros trámites: relevamiento de pasos
 
-El pedido original se cortó en "traslado de restos,". Estos son los trámites que prevemos. Hay que relevar cada uno para cargar su plantilla antes de que deje la ficha de papel: **un trámite sin plantilla sigue con ficha de papel**.
+El pedido original se cortó en "traslado de restos,". Los procedimientos listan 11 tipos de trámite (docs/fuentes): concesión, nueva concesión, renovación, renovación SPT, transferencia, transferencia y renovación, caducidad, cinerario común, inhumación y exhumación, traslado de restos (dentro o fuera del ejido municipal), y reducción de restos, desagote o cambio de zinc. Faltan los circuitos de 7 de ellos. Hay que relevar cada uno para cargar su plantilla antes de que deje la ficha de papel: **un trámite sin plantilla sigue con ficha de papel**.
 
 **T-0** ¿Qué trámites hay que tener cargados antes del corte, y en qué orden de prioridad?
 
@@ -696,6 +680,8 @@ El pedido original se cortó en "traslado de restos,". Estos son los trámites q
 | Inhumación | ☐ Sí ☐ No | |
 | Exhumación | ☐ Sí ☐ No | |
 | Traslado de restos | ☐ Sí ☐ No | |
+| Concesión (los procedimientos la listan aparte de la nueva concesión) | ☐ Sí ☐ No | |
+| Reducción de restos, desagote o cambio de zinc (procedimientos) | ☐ Sí ☐ No | |
 | Otro: ____________________ | ☐ Sí ☐ No | |
 | Otro: ____________________ | ☐ Sí ☐ No | |
 | Otro: ____________________ | ☐ Sí ☐ No | |
@@ -819,6 +805,28 @@ Nombre del trámite: ____________________________________________
 
 ---
 
+## Parte 9. Preguntas nuevas (20/10/2026, después de leer las fuentes)
+
+**N-1 [C] Conservación en el Norte.** Los procedimientos piden la Conservación de los últimos 5 años en las renovaciones del Oeste y de Jardín; del Norte no hay procedimiento. ¿Se pide también en el Norte? ☐ Sí ☐ No
+
+**N-2 [I] Asociaciones con panteón.** Las asociaciones presentan la designación de asamblea y la personería.
+- ¿En qué paso se exigen? ☐ Mesa de Entradas (propuesto) ☐ Legal ☐ Otro: ______________________
+- ¿Se escanean? ☐ Sí ☐ No
+- Quien hace el trámite en nombre de la asociación, ¿se registra como solicitante con su cargo (presidente, apoderado)? ☐ Sí ☐ No
+- ¿Una asociación puede pedir una nueva concesión (plantilla D)? ☐ Sí ☐ No
+- ¿Hay asociaciones en el Cementerio del Norte? ☐ Sí ☐ No
+
+**N-3 [C] Exención de las sociedades sin fines de lucro.** Pueden pedir la exención del arrendamiento y de la Conservación. ¿Cómo se tramita?
+- ☐ En el mismo expediente de renovación (¿con qué resolución o documento?): ______________________
+- ☐ Es un trámite aparte
+- ¿Qué cambia en la boleta? ______________________
+
+**N-4 [C] Numeración dentro de cada sección** (Oeste y Jardín; el Norte en U-4). ¿Hay lote, número, fila? Completar U-3 y U-5.
+
+**N-5 Inspección técnica.** Jardín no la cobra en la renovación. ¿Y en los demás trámites de Jardín (transferencia, por ejemplo)? ☐ Tampoco ☐ Depende: ______________________
+
+---
+
 ## Cierre del taller
 
 **Puntos que quedaron sin respuesta y quién los responde:**
@@ -845,56 +853,62 @@ Referencias a `docs/propuesta-mvp.md`. Las claves son las de la definición de c
 
 | Pregunta | Dónde está en la propuesta | Qué se ajusta según la respuesta |
 |---|---|---|
-| G-1 | 4, taller 1 | `documentos[].exigir_al_salir_de` en las 4 plantillas |
+| G-1 | 4, taller 1 (respondida en parte: todo en Mesa) | `documentos[].exigir_al_salir_de` en las 4 plantillas |
 | G-2 | 4, taller 3; subtareas con [t?] | `dato` y `dato_obligatorio` de COMP_GRABADO, LIQ_BOLETA, LEG_DICTAMEN, ADM_PROTOCOLO y ADM_TIT_CONF |
 | G-3 | 4, taller 6 | `nombre` de pasos, subtareas y documentos |
-| A-1 | 4(a) | `pasos` de RENOV_CONTADO |
+| A-1 | 4(a) (respondida) | `pasos` de RENOV_CONTADO |
 | A-2 | 4(a) paso 1 [I] | Subtarea MESA_CARATULA (las 4 plantillas) |
-| A-3 | 4(a) paso 1 [I] | `exigir_al_salir_de` de FORM_INICIO_RENOV, DNI y BOLETA_SERVICIO |
-| A-4 | 4(a) paso 2 [I] | `exigir_al_salir_de` de CONST_COMPUTOS |
-| A-5 | 4(a) paso 3 [I] | `exigir_al_salir_de` de ESTADO_CUENTA y CONST_PERIODOS |
-| A-6 | 4(a) documentación [I] | Documento COMPROBANTE_PAGO: existencia y `adjunto` |
-| A-7 | 4(a) paso 3 [C]; taller 2 | INFORME_TECNICO: `exigir_al_salir_de`, `origen` y `adjunto` |
+| A-3 | 4(a) paso 1 (respondida) | `exigir_al_salir_de` de FORM_INICIO_RENOV, DNI y BOLETA_SERVICIO |
+| A-4 | 4(a) paso 2 (respondida; ver G-1) | `exigir_al_salir_de` de CONST_COMPUTOS |
+| A-5 | 4(a) paso 3 (respondida; ver G-1) | `exigir_al_salir_de` de ESTADO_CUENTA y CONST_PERIODOS |
+| A-6 | 4(a) documentación (respondida en parte) | Documento COMPROBANTE_PAGO: `adjunto` |
+| A-7 | 4(a) paso 3; taller 2 (respondida en parte) | INFORME_TECNICO: `exigir_al_salir_de` y `adjunto` |
+| A-10 | 4(a) documentación (CONSERVACION) | Documento CONSERVACION: `exigir_al_salir_de`, `solo_cementerios` |
 | A-8 | 4(a) paso 6 [I] | Nombre y `dato` de COMP_FINAL |
 | A-9 | 4(a) campos extra [I]; pregunta 5 | `campos_extra` concesion_desde y concesion_hasta: existencia, `obligatorio`, `exigir_al_salir_de` |
-| B-1 | 4(b) | `pasos` de RENOV_PLAN |
+| B-1 | 4(b) (respondida) | `pasos` de RENOV_PLAN |
 | B-2 | 4(b) | Nombre de COMPROBANTE_PAGO en RENOV_PLAN |
-| B-3 | 4(b) paso 6 [I] | Subtareas TRIB_NOTIFICADA, TRIB_DEBITOS y TRIB_REMITIDO |
-| B-4 | 4(b) conceptos [C] | `conceptos[].paso` de ARRENDAMIENTO (`plan_dim`) |
-| B-5 | Pregunta 8 | `area` del paso TRIBUTARIO |
+| B-3 | 4(b) paso 6 (respondida) | Subtareas TRIB_NOTIFICADA, TRIB_DEBITOS y TRIB_REMITIDO |
+| B-4 | 4(b) conceptos (respondida: Tributario) | `conceptos[].paso` de ARRENDAMIENTO (`plan_dim`) |
+| B-5 | Pregunta 8 (respondida) | `area` del paso TRIBUTARIO |
 | B-6 | 4(b) paso 7 [C]; 2.13(e); pregunta 8 | `custodia` del paso DIM |
 | B-7 | 4(b) paso 7 [I] | Subtarea DIM_PLAN_INICIADO; `plazo.hasta_subtarea` |
 | B-8 | 3.6; pregunta 8 | `f_sumar_dias_habiles` (desde el día siguiente) y ámbito `feria` en `feriados`. Atención: el modelo descuenta todas las filas de `feriados` igual para las alertas y para el plazo. Si las ferias no suspenden el plazo pero sí cuentan para las alertas, hace falta programación |
-| B-9 | 3.5; 3.6; pregunta 8 | Procedimiento al vencer; puede requerir una plantilla de caducidad |
+| B-9 | 3.5; 3.6; pregunta 8 (respondida: DIM omitible, aplicado) | Procedimiento al vencer; plantilla de caducidad y "archivar sin concluir" (próxima etapa) |
 | C-1 | 4(c) | `pasos` de RENOV_SPT_CONTADO |
-| C-2 | 4(c) personas [I] | `personas` titular: `fallecido` y fecha de defunción |
+| C-2 | 4(c) personas (respondida en parte) | `personas` titular: fecha de defunción |
 | C-3 | 4(c) [I] | Subtarea LEG_VINCULO |
 | C-4 | 4(c) [I] | ACTA_DEFUNCION: `exigir_al_salir_de` y `adjunto` |
 | C-5 | 4(c) [I] | ACTAS_VINCULO: `exigir_al_salir_de` y `adjunto` |
 | C-6, C-7, C-8 | 4, taller 5 | Personas y pasos de RENOV_SPT_CONTADO; posible plantilla SPT con plan |
-| D-1 | 4(d) | `pasos` de NUEVA_CONC_CONTADO |
+| D-1 | 4(d) (respondida) | `pasos` de NUEVA_CONC_CONTADO |
 | D-2 | 4(d) [C] | `tipos_monumento` de NUEVA_CONC_CONTADO |
 | D-3 | 4(d) personas [I] | `personas` difunto: `min`, `max` y fecha de defunción |
 | D-4 | 4(d) campos extra [I] | `campos_extra` resolucion_caducidad y expediente_caducidad |
 | D-5 | 4(d) paso 1 [I] | `exigir_al_salir_de` de FORM_INICIO_NUEVA, COPIA_RES_CADUCIDAD, CONST_ANTECEDENTES, DNI y BOLETA_SERVICIO |
-| D-6 | 4(d) paso 2 [I]; taller 4 | Existencia del paso COMPUTO_ALTA |
+| D-6 | 4(d) paso 2; taller 4 (respondida) | Existencia del paso COMPUTO_ALTA |
 | D-7 | 4(d) [I] | Documento COMPROBANTE_PAGO |
 | D-8 | 4(d) paso 3 [I] | `exigir_al_salir_de` de CONST_INHUMAR |
-| D-9 | 4, taller 4 | Concepto INSPECCION_TECNICA |
+| D-9 | 4, taller 4 (respondida) | Concepto INSPECCION_TECNICA |
 | D-10 | 4(d) paso 4 [C]; 2.13(e); pregunta 8 | `custodia` del paso CEMENTERIO |
 | D-11 | Pregunta 8 | Instrucciones del paso CEMENTERIO |
 | D-12 | 4(d) paso 4 [C]; taller 4 | `obligatoria` de CEM_INHUMACION |
-| D-13 | 4(d) paso 6 [I]; taller 4 | Subtareas de ADM_RESOLUCION |
-| D-14 | 4(d) paso 8 [I]; taller 4 | `area` de ADM_ENTREGA |
+| D-13 | 4(d) paso 6; taller 4 (respondida) | Subtareas de ADM_RESOLUCION |
+| D-14 | 4(d) paso 8; taller 4 (respondida) | `area` de ADM_ENTREGA |
 | E-1, E-2, E-3 | Pregunta 5; 2.6 | Normalización de `numero_municipal` y `padron`; aviso de duplicados |
 | E-4 | Pregunta 5; 2.13(f) | Formato de `numero_interno` |
 | U-1 | Pregunta 5; 2.13(d) | Normalización de los campos `entero` de `campos_ubicacion` |
-| U-2 | 2.3 [I]; pregunta 5 | Semilla de `tipos_monumento` y `cementerios.tipos_monumento` |
-| U-3, U-4, U-5 | 2.2; 2.13(d); pregunta 5 | `cementerios.campos_ubicacion` de OESTE, NORTE y JARDIN_NORTE |
+| U-2 | 2.3; pregunta 5 (respondida) | Semilla de `tipos_monumento` y `cementerios.tipos_monumento` |
+| U-3, U-4, U-5 | 2.2; 2.13(d); pregunta 5 (U-3 y U-5, la sección) | `cementerios.campos_ubicacion` de OESTE, NORTE y JARDIN_NORTE |
 | F-1, F-2 | 2.9; 3.6 | Semilla de `feriados` 2026–2027 (ámbitos `provincial`, `municipal`, `asueto` y `feria`); cierre en `feriados_anios` |
 | Parte 6, DA-1 | 4, leyenda (`dias_alerta` [I]); taller 6 | `pasos[].dias_alerta` de las 4 plantillas |
 | O-1 | 6, Autenticación, punto 4 [C] | Vida de la cookie `cem_sesion` |
 | O-2 | 6, Hosting [C] | Pedido A5 a Sistemas |
 | O-3 | 6, Ley 25.326 [C] | Retención de `auditoria.accesos` (también se consulta a Asesoría Legal) |
 | O-4 | 6, Backups [C] | Retención de restic (también se consulta a Asesoría Legal) |
+| N-1 | 4(a), CONSERVACION | `solo_cementerios` de CONSERVACION |
+| N-2 | 4(a), PERSONERIA y DESIGNACION_ASAMBLEA; 2.7 | `exigir_al_salir_de` y `adjunto` de los dos; `admite_juridica` del titular de NUEVA_CONC_CONTADO |
+| N-3 | 8 | Conceptos exentos: hoy no hay forma de marcarlos; puede requerir un campo extra o una plantilla aparte |
+| N-4 | 2.2; 2.13(d) | `cementerios.campos_ubicacion` |
+| N-5 | 7 | `excepto_cementerios` de INSPECCION_TECNICA en las plantillas nuevas |
 | T-0 a T-7 | 7; 4, taller 7; pregunta 1 | Plantillas nuevas, que carga el admin desde la semana 2 |

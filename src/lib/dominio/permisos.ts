@@ -14,7 +14,12 @@
  * acciones del área responsable van solo en estados activos; no hay pases ni
  * devoluciones con la carga histórica abierta; el último paso no da pase (se
  * concluye) y el primero no devuelve. Las validaciones del pase (3.3) y del
- * alta no van acá: son de la acción, no del permiso.
+ * alta no van acá: son de la acción, no del permiso. Semana 4 (3.1): cada
+ * cambio de estado desde el estado que lo admite (concluir desde el último
+ * paso; archivar sin concluir, anular y reiniciar en estados activos;
+ * desarchivar un archivado; reabrir un anulado), la ubicación de archivo, la
+ * transcripción de la carga histórica y las correcciones en archivado y
+ * anulado (solo el admin, salvo retirar un adjunto).
  */
 
 export const ROLES = ["operador", "lectura", "admin"] as const;
@@ -71,6 +76,9 @@ export const ACCIONES = [
   "administrar", // plantillas, usuarios, catálogos, auditoría
   "imprimir", // carátula e historial (queda en auditoria.accesos)
   "ver_bandeja", // /bandeja: Por confirmar, En mi área y Afuera (operadores)
+  // Semana 4
+  "cambiar_ubicacion_archivo", // caja o estante de un archivado (3.1)
+  "transcribir", // la transcripción de la ficha y "Terminar carga histórica" (2.13(c))
 ] as const;
 export type Accion = (typeof ACCIONES)[number];
 
@@ -113,6 +121,8 @@ export interface MovimientoPermisos {
 export interface ContextoPermiso {
   movimiento?: MovimientoPermisos;
   ahora?: Date;
+  /** La corrección es retirar un adjunto: el autor la puede hacer también en archivado y anulado (3.1). */
+  retirarAdjunto?: boolean;
 }
 
 /** El autor corrige sus movimientos durante 7 días (2.13(b)). */
@@ -132,7 +142,11 @@ export type MotivoDenegacion =
   | "requiere_movimiento"
   | "carga_historica_abierta"
   | "paso_final"
-  | "primer_paso";
+  | "primer_paso"
+  /** Semana 4: se concluye solo desde el último paso (3.1). */
+  | "no_es_paso_final"
+  /** Semana 4: la transcripción es solo de un expediente con la carga histórica abierta (2.13(c)). */
+  | "sin_carga_historica";
 
 export type Decision = { permitido: true; requiereMotivo: boolean } | { permitido: false; motivo: MotivoDenegacion };
 
@@ -212,12 +226,26 @@ export function evaluarPermiso(
 
     case "alta":
     case "carga_historica":
+      if (admin || mesa) return SI;
+      return no(lectura ? "solo_lectura" : "area_no_habilitada");
+
     case "reiniciar_con_otra_plantilla":
     case "archivar_sin_concluir":
     case "desarchivar":
-    case "anular":
-      if (admin || mesa) return SI;
-      return no(lectura ? "solo_lectura" : "area_no_habilitada");
+    case "anular": {
+      if (!admin && !mesa) return no(lectura ? "solo_lectura" : "area_no_habilitada");
+      // Semana 4 (3.1): cada una desde su estado. Sin expediente decide el rol.
+      if (!expediente) return SI;
+      if (accion === "desarchivar") return expediente.estado === "archivado" ? SI : no("estado_no_admite");
+      return ESTADOS_ACTIVOS.has(expediente.estado) ? SI : no("estado_no_admite");
+    }
+
+    case "transcribir": {
+      if (!admin && !mesa) return no(lectura ? "solo_lectura" : "area_no_habilitada");
+      if (!expediente) return SI;
+      if (!expediente.cargaHistorica) return no("sin_carga_historica");
+      return expediente.estado === "anulado" ? no("estado_no_admite") : SI;
+    }
 
     case "confirmar_recepcion":
     case "tildar_subtarea":
@@ -230,8 +258,12 @@ export function evaluarPermiso(
       // No hay pases en concluido, archivado ni anulado (3.1): el expediente se
       // mueve y se trabaja solo en trámite o en espera de pago en la DIM.
       if (!ESTADOS_ACTIVOS.has(expediente.estado)) return no("estado_no_admite");
-      if ((accion === "dar_pase" || accion === "devolver") && expediente.cargaHistorica) return no("carga_historica_abierta");
+      if ((accion === "dar_pase" || accion === "devolver" || accion === "concluir") && expediente.cargaHistorica) {
+        return no("carga_historica_abierta");
+      }
       if (accion === "dar_pase" && expediente.pasoFinal) return no("paso_final");
+      // Se concluye desde el último paso (3.1); sin `pasoFinal` informado no se controla acá.
+      if (accion === "concluir" && expediente.pasoFinal === false) return no("no_es_paso_final");
       if (accion === "devolver" && expediente.primerPaso) return no("primer_paso");
       return decision;
     }
@@ -256,10 +288,18 @@ export function evaluarPermiso(
 
     case "completar_campos_extra":
     case "editar_contacto":
-    case "archivar_concluido": {
+    case "archivar_concluido":
+    case "cambiar_ubicacion_archivo": {
       if (lectura) return no("solo_lectura");
       if (accion === "archivar_concluido" && expediente && expediente.estado !== "concluido") {
         return no("estado_no_admite");
+      }
+      // La caja o el estante de un archivado (3.1): los mismos que archivan un concluido.
+      if (accion === "cambiar_ubicacion_archivo") {
+        if (expediente && expediente.estado !== "archivado") return no("estado_no_admite");
+        if (admin || mesa) return SI;
+        if (!expediente) return no("requiere_expediente");
+        return esResponsable(usuario, expediente) ? SI : no("no_es_responsable");
       }
       if (accion !== "archivar_concluido" && expediente && ESTADOS_SIN_EDICION.has(expediente.estado)) {
         return no("estado_no_admite");
@@ -285,6 +325,9 @@ export function evaluarPermiso(
     case "corregir_movimiento": {
       if (admin) return SI;
       if (lectura) return no("solo_lectura");
+      // En archivado y anulado solo corrige el admin (3.1), salvo retirar un
+      // adjunto, que la propuesta admite en esos estados.
+      if (expediente && ESTADOS_SIN_EDICION.has(expediente.estado) && !contexto.retirarAdjunto) return no("estado_no_admite");
       const movimiento = contexto.movimiento;
       if (!movimiento) return no("requiere_movimiento");
       if (movimiento.usuarioId !== usuario.id) return no("no_es_autor");
@@ -294,6 +337,9 @@ export function evaluarPermiso(
     }
 
     case "reabrir":
+      if (!admin) return no(lectura ? "solo_lectura" : "solo_admin");
+      return !expediente || expediente.estado === "anulado" ? SI : no("estado_no_admite");
+
     case "suprimir_persona":
     case "purgar_adjunto":
     case "administrar":

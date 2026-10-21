@@ -129,13 +129,18 @@ globales.
 | `usuario(prisma, "MESA_ENTRADAS" | … | "ADMIN")` | El usuario ficticio de la semilla, como lo da `getUsuarioActual()` |
 | `datosAlta(prisma, cambios?)` | Un alta válida de `RENOV_CONTADO` en el Oeste, con ubicación, padrón y titular únicos |
 | `titular()`, `unicoLetras()`, `dniUnico()`, `comando()` | Piezas sueltas |
+| `loteUnico()`, `ubicacionDe(cementerio)`, `cuitUnico()` | Semana 4: un lote único, una ubicación válida en la nomenclatura de cada cementerio (`datosAlta` la usa) y un CUIT ficticio de persona jurídica (30-98…) con dígito verificador válido |
 | `simularPase(prisma, numero, usuario, paso, fecha?)` | Inserta un `pase` a mano y mueve la proyección (lo usan los tests de la semana 2; los de la semana 3 dan pases de verdad) |
 | `servicio(prisma, ahora?, almacen?)` | Con `almacen` (`crearAlmacenEnDisco(carpetaTemporal)`) se pueden subir y leer adjuntos |
 | `responsable(prisma, numero)` | El usuario de la semilla del área responsable (en un paso externo, la custodia) |
 | `completarPaso(exp, prisma, numero, { fecha? })` | Hace, como el responsable, lo que falta para salir del paso: tilda (con fecha o texto) y marca documentos |
 | `avanzar(exp, prisma, numero, { fecha?, fechaPase? })` | `completarPaso` y el pase al siguiente |
-| `proyeccion(prisma, numero)`, `movimientos(prisma, numero)`, `definicionDe(prisma, numero)` | Para mirar el resultado |
-| `forzarEstado(prisma, numero, estado)` | Archivado, anulado o concluido, a mano (semana 4) |
+| `proyeccion(prisma, numero)`, `movimientos(prisma, numero)`, `definicionDe(prisma, numero)` | Para mirar el resultado. `definicionDe` devuelve la definición resuelta para el cementerio y las personas del expediente, como la ve el dominio |
+| `forzarEstado(prisma, numero, estado)` | Archivado, anulado o concluido, a mano (los tests de las semanas 2 y 3; la semana 4 tiene las acciones) |
+| `conciliacion(prisma, numero)` | Semana 4: `{ actual, reconstruida }`, la proyección del flujo en la base y la reconstruida desde el historial (`reconstruccion.ts`); `expect(c.actual).toEqual(c.reconstruida)` |
+| `flujo(prisma, numero)` | Semana 4: las columnas del flujo, para comparar antes y después de revertir |
+| `plantillaDePrueba(prisma, definicion, nombre)` | Semana 4: publica una plantilla con código único (la caducidad de prueba) |
+| `hastaElUltimoPaso(exp, prisma, numero)` | Semana 4: `avanzar` hasta el último paso |
 
 `escenario.ts` crea sus expedientes con el año 1999: los del dominio numeran el
 año en curso con `max + 1`, y un expediente confirmado con una secuencia al
@@ -184,7 +189,8 @@ Detalle completo en `prisma/migrations/*_reglas_base/migration.sql`.
 - **Identity**: `expedientes`, `expediente_personas`, `movimientos` y las
   dos de `auditoria` son `GENERATED ALWAYS` (un INSERT con `id` explícito
   falla); catálogos, usuarios y plantillas, `BY DEFAULT`.
-- **Funciones**: `f_unaccent`, `f_normalizar`, `f_actor`,
+- **Funciones**: `f_unaccent`, `f_normalizar`, `f_actor`, `f_cuit_valido`
+  (semana 4: 11 dígitos y dígito verificador),
   `f_sumar_dias_habiles`, `f_dias_habiles_entre` (intervalo `(desde, hasta]`,
   negativo si `hasta < desde`; las dos dan NULL con un argumento NULL).
 - **Privilegios de `cementeria_app`**: SELECT+INSERT en `movimientos` y
@@ -210,8 +216,8 @@ Detalle completo en `prisma/migrations/*_reglas_base/migration.sql`.
   - `expediente_personas_vigente_key` (único parcial `WHERE vigente`),
     `expediente_personas_contacto_key` (único parcial
     `WHERE es_contacto AND vigente`), `expediente_personas_expediente_id_idx`,
-    `expediente_personas_dni_idx`, `expediente_personas_nombre_norm_idx` (GIN
-    trigram);
+    `expediente_personas_dni_idx`, `expediente_personas_cuit_idx` (semana 4),
+    `expediente_personas_nombre_norm_idx` (GIN trigram);
   - `movimientos_expediente_id_secuencia_key`,
     `movimientos_expediente_id_comando_id_tipo_key`,
     `movimientos_usuario_id_registrado_en_idx`,
@@ -229,7 +235,7 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 |---|---|---|
 | `humo.test.ts` | Migraciones aplicadas, 13 tablas, todas del owner | 2, "Roles de base" |
 | `movimientos.test.ts` | UPDATE, DELETE y TRUNCATE fallan con la app, con el owner y en replica (rol de prueba y superusuario); `movimientos_sellar` (secuencia, `registrado_en`, actor, `area_usuario_id`, lock); CHECKs de motivo, corrección, fecha efectiva, fuente; idempotencia de `comando_id` | 2.8, 2.11, 2.13(b) |
-| `personas.test.ts` | `expediente_personas_proteger`: nace vigente y con actor, baja y reemplazo (sin ciclos), supresión con motivo, todo otro UPDATE rechazado, sin DELETE; CHECKs e índices únicos | 2.7, 2.13(b) |
+| `personas.test.ts` | `expediente_personas_proteger`: nace vigente y con actor, baja y reemplazo (sin ciclos), supresión con motivo, todo otro UPDATE rechazado, sin DELETE; CHECKs e índices únicos. Semana 4: personas jurídicas (razón social y CUIT, `f_cuit_valido`, datos por tipo, el tipo no cambia por UPDATE, supresión que también borra razón social y CUIT) | 2.7, 2.13(b) |
 | `plantillas.test.ts` | `plantillas_congelar`: nace borrador, transiciones, solo se borran borradores, índices únicos parciales | 2.5, 2.13(a) |
 | `usuarios.test.ts` | `usuarios_area_interna`, `cementerios_area_externa` y `areas_tipo_coherente`; CHECKs de rol, área y CUIL, SISTEMA | 2.2, 2.4, 2.13(e) |
 | `auditoria.test.ts` | `auditar_cambio` en catálogos, plantillas, feriados y usuarios (antes, después, actor, motivo), y no en el login | 2.10, 2.11, 2.13(b) |
@@ -245,12 +251,19 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 | `edicion.test.ts` | Movimiento `edicion` con antes y después; personas versionadas (baja, reemplazo, alta, contacto); bloqueo optimista; idempotencia; motivo después del primer pase; permisos de 3.2; archivado y anulado; fecha de inicio | 2.7, 2.8, 2.13(b), 3.2 |
 | `busqueda.test.ts` | Normalización TS = base; caja única (texto con acentos, DNI con puntos, CUIL, N° municipal con barra, forma corta, prefijo CEM); filtros de ubicación, anulados, estado y plantilla; máximo 50 | 2.13(g) |
 | `ficha.test.ts` | Ficha completa; enmascarado según 3.2 y decisión 13; `ver_expediente`, `ver_datos_completos` e `imprimir` en `auditoria.accesos`; "hay vN"; historial con versiones de persona; carátula sin contacto | 5, 2.10, 2.13(a), 3.2 |
-| `pases.test.ts` | Recorridos completos de (a), (b) entrando y saliendo de la DIM con custodia de Tributario y plazo, y (d) con `$CEMENTERIO`; "Faltan N" exacto; destino inválido; pases concurrentes (uno gana, el otro recibe el mensaje de versión); idempotencia (también simultánea); recepción implícita; fechas retroactivas válidas e inválidas; omitibles con motivo; carga histórica abierta | 3.3, 3.5, 3.6, 2.13(c) y (e) |
+| `pases.test.ts` | Recorridos completos de (a), (b) entrando y saliendo de la DIM con custodia de Tributario y plazo (y, semana 4, el circuito que contó la Dirección: DIM → devolución a Tributario "no abonó" → pase a ADM_TITULO salteando la DIM con motivo), y (d) con `$CEMENTERIO`; "Faltan N" exacto; destino inválido; pases concurrentes (uno gana, el otro recibe el mensaje de versión); idempotencia (también simultánea); recepción implícita; fechas retroactivas válidas e inválidas; omitibles con motivo; carga histórica abierta | 3.3, 3.5, 3.6, 2.13(c) y (e) |
 | `devoluciones.test.ts` | Legal a Liquidación con reenvío directo; reenvío salteando intermedios; devoluciones encadenadas; motivo, destino y subtareas inválidas; idempotencia; devolver desde la DIM | 3.4, 3.3 punto 8 |
 | `recepcion.test.ts` | Confirmar de a uno y en lote, contador, fecha anterior; tildar y destildar (dato, motivo, paso actual, permisos, estado); documentos (no corresponde con observación, Mesa, estados) | decisión 8, 3.2, 3.3, 3.5 |
 | `bandejas.test.ts` | Por confirmar, En mi área (columnas, días hábiles, demorado, orden), sin bandeja para Dirección y admin; la ficha de la semana 3 (acciones, Faltan N, destinos, reiniciables); por fila, `puedeConfirmar` y `paseRapido` (solo sin faltantes y con un único destino; no con reenvío directo), devuelto con el motivo; `contadoresBandeja` igual a lo que muestra cada pestaña | 5, 3.2, 3.4 |
 | `adjuntos.test.ts` | Subida con sha256, movimiento, items y archivo; magic bytes (también HEIC), vacío, 10 MB; temporal limpio si falla la transacción; controles antes de leer el cuerpo; idempotencia; lectura con `ver_adjunto`/`descargar_adjunto` y motivo | 6 "Adjuntos", 3.2, decisión 13 |
+| `estados.test.ts` | Semana 4: concluir (Faltan N con lo de "al concluir", último paso, idempotencia) y archivar el recorrido completo de (a), cambiar la caja y desarchivar; archivar sin concluir desde la DIM (regreso del papel a Tributario) y desarchivar a la DIM con su plazo; anular y reabrir (solo admin); reiniciar con otra plantilla (precarga, `expedienteAnteriorId`, enlaces anterior/siguiente, un solo siguiente); archivar y abrir vinculado con una plantilla de caducidad de prueba (una transacción, reintento, sin anular). Cada uno concilia la proyección con el historial | 3.1, 2.13(a), docs/fuentes punto 6 |
+| `correcciones.test.ts` | Semana 4: revertir un pase (con su recepción implícita y la recepción y la nota posteriores), una devolución, concluir, archivar y una subtarea, comparando con la proyección de antes; autor, 7 días, admin en archivado; corregir fecha (vecinos; la ficha toma la precisión de la fecha corregida) y observación; corregir una subtarea de un paso cerrado (el plazo la sigue); retirar y purgar adjuntos (el archivo se conserva o se borra); suprimir persona (búsqueda) | 2.13(b), 3.2 |
+| `plazos.test.ts` | Semana 4: vencimiento con `f_sumar_dias_habiles`, "faltan N", provisorio con el año sin cerrar y definitivo al cerrarlo (auditado), un asueto que corre el vencimiento, semáforo ámbar y rojo con el reloj adelantado, pestaña Plazos, plazo cumplido; ABM de feriados (deshace lo que cambia) | 3.6, 2.9 |
+| `transcripcion.test.ts` | Semana 4: un expediente de 2019 con 5 filas hasta Legal (salteando pasos y con una devolución), validaciones por fila y lote atómico, reintento, tilde con fecha, "Terminar carga histórica"; fuera de las bandejas de trabajo y de los demorados mientras está abierta; otro llevado a concluido y archivado con DESCONOCIDA | 2.13(c) |
+| `panel.test.ts` | Semana 4: demorados, sin confirmar, diferidos, correcciones, cargas históricas, conteos y matriz contra la base (y sus enlaces al buscador), avisos de feriados, filtro por tipo; CSV de Dirección y admin sin contacto, registrado en `auditoria.accesos` | 5, 3.2, decisión 13 |
+| `fuentes.test.ts` | Semana 4 (docs/fuentes): titular persona jurídica en el Oeste (alta, Faltan con personería y designación de asamblea, ficha, carátula, búsqueda por CUIT, edición de física a jurídica, rol que no la admite); Jardín sin inspección técnica en conceptos, boleta y carátula, con Conservación; Norte sin Conservación; la nueva concesión sin inspección en ningún cementerio; pase rápido de la bandeja con lo del cementerio | docs/fuentes, 2.5, 2.7 |
 | `pantallas.test.ts` | La lógica de las Server Actions de las pantallas (`src/lib/presentacion/acciones.ts`) con FormData como el del formulario: alta (destino carátula o ficha, doble clic, errores por campo, formulario roto, sin permiso), aviso de duplicados, edición (conflicto de versión, sin cambios, permiso), "Ver datos completos"; hoja del historial (sin contacto, registra `imprimir`) y opciones del buscador | 5, 3.2, decisión 13 |
+| `pantallas-semana4.test.ts` | Las Server Actions de la semana 4 (`src/lib/presentacion/acciones-estados.ts`) con la entrada de los diálogos y la grilla: concluir con "Faltan N", archivar sin caja y con caja, desarchivar con motivo, entrada sin forma; reiniciar (destino `?desde=`, precarga y alta enlazada) y "archivar y abrir vinculado" (falla sin caja sin archivar nada); revertir un pase, nota y corregir su fecha; purgar sin confirmación; la grilla de transcripción (error de una fila en su celda, lote, reintento, terminar la carga); el Route Handler del CSV (`exportar-http.ts`) con Request reales: BOM, acentos, sin contacto, `exportar` en auditoría, 401, 403 y 422 | 5, 3.1, 2.13(a) a (c), 15.7 de api-dominio |
 | `pantallas-flujo.test.ts` | Las Server Actions del flujo (`procesarRecepcion`, `procesarRecepciones`, `procesarSubtarea`, `procesarDocumento`, `procesarPase`, `procesarDevolucion`) con la entrada de los diálogos: versión nueva en cada respuesta, errores por campo, Faltan N, conflicto de versión, lote parcial, entrada sin forma; los Route Handlers de adjuntos (`src/lib/presentacion/adjuntos-http.ts`) con Request reales: subida de PNG y PDF en streaming, headers de la sección 6, descarga, HEIC, más de 10 MB sin Content-Length, sin permiso, versión vieja, sin sesión; lectura con y sin motivo para quien no trabaja el expediente | 5, 6 "Adjuntos", 3.2 a 3.4, decisión 13 |
 
 Si una regla de la base no cumple la propuesta, el test se escribe igual, como

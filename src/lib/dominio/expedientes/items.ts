@@ -32,7 +32,10 @@ export const ItemDocumento = z.object({
 
 export const ItemAdjunto = z.object({
   documento: z.string().nullable(),
+  /** false: retirado por una corrección (el archivo se conserva y deja de verse). */
   vigente: z.boolean(),
+  /** Semana 4: la purga del admin (Ley 25.326) borró el archivo del disco. */
+  purgado: z.boolean().default(false),
 });
 
 export const ItemsExpediente = z.object({

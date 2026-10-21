@@ -105,6 +105,11 @@ export interface AlcanceFaltantes {
    * el reenvío directo pide que lo reiniciado se haya rehecho (3.4).
    */
   exigirReiniciadas?: boolean;
+  /**
+   * Semana 4: Concluir (3.1) exige además los documentos y campos extra con
+   * `exigir_al_salir_de: null`, que son "los de al concluir".
+   */
+  alConcluir?: boolean;
 }
 
 /**
@@ -159,9 +164,13 @@ export function faltantesParaSalir(
     }
   }
 
+  // "Al concluir" se muestra como el último paso: es desde donde se concluye.
+  const ordenDeExigencia = (clave: string | null): number | null =>
+    clave === null ? (alcance.alConcluir ? def.pasos.length : null) : ordenDePaso(def, clave);
+
   for (const d of def.documentos) {
-    if (!d.obligatorio || d.exigir_al_salir_de === null) continue;
-    const orden = ordenDePaso(def, d.exigir_al_salir_de);
+    if (!d.obligatorio) continue;
+    const orden = ordenDeExigencia(d.exigir_al_salir_de);
     if (orden === null || orden > alcance.hastaOrden) continue;
     const item = items.documentos[d.clave];
     const estado = item?.estado ?? "pendiente";
@@ -190,8 +199,8 @@ export function faltantesParaSalir(
   }
 
   for (const c of def.campos_extra) {
-    if (!c.obligatorio || c.exigir_al_salir_de === null) continue;
-    const orden = ordenDePaso(def, c.exigir_al_salir_de);
+    if (!c.obligatorio) continue;
+    const orden = ordenDeExigencia(c.exigir_al_salir_de);
     if (orden === null || orden > alcance.hastaOrden) continue;
     if (vacio(datosExtra[c.clave])) {
       faltan.push({
@@ -214,6 +223,20 @@ export function faltantesDelPaso(
   ordenActual: number,
 ): Faltante[] {
   return faltantesParaSalir(def, items, datosExtra, { pasosConSubtareas: [ordenActual], hastaOrden: ordenActual });
+}
+
+/**
+ * Lo que falta para concluir (3.1): las validaciones del pase desde el último
+ * paso (sus subtareas, todos los documentos y campos exigibles hasta él) más
+ * los documentos y campos con `exigir_al_salir_de: null`.
+ */
+export function faltantesParaConcluir(
+  def: DefinicionPlantilla,
+  items: ItemsExpediente,
+  datosExtra: Readonly<Record<string, unknown>>,
+): Faltante[] {
+  const total = def.pasos.length;
+  return faltantesParaSalir(def, items, datosExtra, { pasosConSubtareas: [total], hastaOrden: total, alConcluir: true });
 }
 
 /** Un destino posible del pase (3.3, punto 8). */
@@ -465,6 +488,53 @@ export function plazoAlEntrar(paso: PasoPlantilla, items: ItemsExpediente): Camp
     plazoDesde: fechaDeSubtarea(items, paso.plazo.desde_subtarea),
     plazoCumplidoEn: fechaDeSubtarea(items, paso.plazo.hasta_subtarea),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Semáforo del plazo (3.6, semana 4)
+// ---------------------------------------------------------------------------
+
+/** Días hábiles restantes desde los cuales el plazo se pinta ámbar ("por vencer", 3.6). */
+export const DIAS_PLAZO_POR_VENCER = 5;
+
+/**
+ * - `sin_iniciar`: el paso tiene plazo pero su subtarea de inicio (la
+ *   notificación) no tiene fecha todavía.
+ * - `en_termino`: faltan más de 5 días hábiles.
+ * - `por_vencer`: faltan 5 o menos (ámbar), incluido el día del vencimiento.
+ * - `vencido`: pasó el vencimiento (rojo).
+ * - `cumplido`: se tildó la subtarea de cierre (DIM_PLAN_INICIADO): la alerta se apaga.
+ */
+export type SemaforoPlazo = "sin_iniciar" | "en_termino" | "por_vencer" | "vencido" | "cumplido";
+
+/** El semáforo de un plazo. `faltan` es `f_dias_habiles_entre(hoy, vence)`: negativo si venció. */
+export function semaforoPlazo(p: { desde: FechaISO | null; cumplidoEn: FechaISO | null; faltan: number | null }): SemaforoPlazo {
+  if (p.cumplidoEn !== null) return "cumplido";
+  if (p.desde === null || p.faltan === null) return "sin_iniciar";
+  if (p.faltan < 0) return "vencido";
+  return p.faltan <= DIAS_PLAZO_POR_VENCER ? "por_vencer" : "en_termino";
+}
+
+/**
+ * Los años que tienen que estar cerrados en `feriados_anios` para que el
+ * vencimiento sea definitivo: del año del inicio al del vencimiento. Un
+ * feriado sin cargar en cualquiera de ellos movería la cuenta (3.6, "Feriados").
+ */
+export function aniosDelPlazo(desde: FechaISO, vence: FechaISO): number[] {
+  const anios: number[] = [];
+  for (let a = Number(desde.slice(0, 4)); a <= Number(vence.slice(0, 4)); a++) anios.push(a);
+  return anios;
+}
+
+/** "vence 30/11 · faltan 3 días hábiles", "venció el 30/11 (hace 2 días hábiles)", con "(provisorio)" si corresponde. */
+export function textoPlazo(p: { vence: FechaISO | null; faltan: number | null; cumplidoEn: FechaISO | null; provisorio: boolean }): string {
+  if (p.cumplidoEn !== null) return `plazo cumplido el ${formatearFecha(p.cumplidoEn)}`;
+  if (p.vence === null || p.faltan === null) return "el plazo empieza con la notificación";
+  const dia = formatearFecha(p.vence).slice(0, 5);
+  const sufijo = p.provisorio ? " (provisorio)" : "";
+  if (p.faltan < 0) return `venció el ${dia} (hace ${-p.faltan} ${-p.faltan === 1 ? "día hábil" : "días hábiles"})${sufijo}`;
+  if (p.faltan === 0) return `vence hoy ${dia}${sufijo}`;
+  return `vence ${dia} · faltan ${p.faltan} ${p.faltan === 1 ? "día hábil" : "días hábiles"}${sufijo}`;
 }
 
 /** Los errores de una lista de faltantes, para `ErrorDominio("faltan_requisitos")`. */

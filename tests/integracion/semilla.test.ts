@@ -82,7 +82,8 @@ describe("semilla", () => {
       "SELECT codigo FROM public.tipos_monumento WHERE codigo = ANY($1) AND activo",
       [TIPOS_MONUMENTO.map((t) => t.codigo)],
     );
-    expect(monumentos).toHaveLength(6);
+    // Los 5 de los procedimientos (con el panteón, docs/fuentes) y NICHO y CINERARIO_COMUN de la propuesta.
+    expect(monumentos).toHaveLength(7);
     const tramites = await consultar<{ codigo: string }>(
       "SELECT codigo FROM public.tipos_tramite WHERE codigo = ANY($1) AND activo ORDER BY id",
       [TIPOS_TRAMITE.map((t) => t.codigo)],
@@ -107,12 +108,19 @@ describe("semilla", () => {
       ["NORTE", "CEM_NORTE", "externa"],
       ["JARDIN_NORTE", "CEM_JARDIN_NORTE", "externa"],
     ]);
-    for (const f of filas) {
-      // Sección 6: al menos un campo de ubicación y un tipo de monumento por cementerio.
-      expect(f.campos).toEqual(["seccion", "cuadro", "lote", "numero"]);
-      expect(f.tipos.length).toBeGreaterThan(0);
-      expect(f.tipos_inexistentes).toBe(0);
-    }
+    // docs/fuentes: el Oeste y Jardín sin cuadro (sección A a H y en romanos);
+    // el Norte, la provisoria. Jardín habilita solo la sepultura.
+    expect(filas.map((f) => [f.codigo, f.campos])).toEqual([
+      ["OESTE", ["seccion", "lote", "numero"]],
+      ["NORTE", ["seccion", "cuadro", "lote", "numero"]],
+      ["JARDIN_NORTE", ["seccion", "lote", "numero"]],
+    ]);
+    expect(filas.map((f) => [f.codigo, f.tipos])).toEqual([
+      ["OESTE", ["SEPULTURA", "SOTANITO", "CAPILLA", "MAUSOLEO", "PANTEON"]],
+      ["NORTE", ["SEPULTURA", "SOTANITO", "CAPILLA", "MAUSOLEO", "PANTEON"]],
+      ["JARDIN_NORTE", ["SEPULTURA"]],
+    ]);
+    for (const f of filas) expect(f.tipos_inexistentes).toBe(0);
   });
 
   it("feriados 2026 y 2027, con los años sin cerrar", async () => {
@@ -208,7 +216,11 @@ describe("semilla", () => {
       })),
     );
 
-    const catalogos = { areas: await prisma.area.findMany(), tiposMonumento: await prisma.tipoMonumento.findMany() };
+    const catalogos = {
+      areas: await prisma.area.findMany(),
+      tiposMonumento: await prisma.tipoMonumento.findMany(),
+      cementerios: await prisma.cementerio.findMany(),
+    };
     for (const p of filas) {
       const r = validarPublicacion(p.definicion, catalogos);
       expect(r.ok ? [] : r.errores).toEqual([]);

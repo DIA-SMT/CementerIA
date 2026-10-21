@@ -32,3 +32,21 @@ export function cuilValido(cuil: string): boolean {
   if (!/^[0-9]{11}$/.test(cuil) || !PREFIJOS.has(cuil.slice(0, 2))) return false;
   return digitoVerificadorCuil(cuil.slice(0, 10)) === Number(cuil[10]);
 }
+
+/** Prefijos de persona jurídica. */
+const PREFIJOS_JURIDICA = new Set(["30", "33", "34"]);
+
+/**
+ * El CUIT de una persona jurídica (asociación con panteón): válido y con
+ * prefijo de jurídica. La base exige solo el dígito verificador
+ * (`f_cuit_valido`); el prefijo se pide acá para que no se cargue por error el
+ * CUIL de una persona (el de quien firma por la asociación, por ejemplo).
+ */
+export function cuitJuridicaValido(cuit: string): boolean {
+  return cuilValido(cuit) && PREFIJOS_JURIDICA.has(cuit.slice(0, 2));
+}
+
+/** "30999990015" → "30-99999001-5". Si no son 11 dígitos, tal cual. */
+export function formatearCuit(cuit: string): string {
+  return /^[0-9]{11}$/.test(cuit) ? `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}` : cuit;
+}

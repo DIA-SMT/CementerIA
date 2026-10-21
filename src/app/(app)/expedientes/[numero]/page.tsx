@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, Circle, CircleCheck, CircleDot, MessageCircle, Pencil, Printer } from "lucide-react";
+import { Check, Circle, CircleCheck, CircleDot, FileClock, MessageCircle, Pencil, Printer, ShieldX } from "lucide-react";
 import { EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
 import { CLASE_BOTON_SECUNDARIO, CLASE_ENLACE } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
@@ -11,11 +11,14 @@ import { ErrorDominio, expedientes, type DocumentoFicha, type Ficha, type Person
 import { formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
 import { AVISO_EDITADO } from "@/lib/presentacion/acciones";
 import { enlaceWhatsapp, mensajeWhatsapp, rutaEditar, rutaFicha, rutaImprimir } from "@/lib/presentacion/enlaces";
+import { mostrarPlazo, movimientoCorregible, textoUbicacion, type PlazoMostrado, type SubtareaConocida } from "@/lib/presentacion/estados";
 import { contextoResumen } from "@/lib/presentacion/historial";
-import { ETIQUETA_DOCUMENTO, ETIQUETA_FORMA_PAGO, formatearDni, nombreCompleto } from "@/lib/presentacion/textos";
+import { documentoDePersona, ETIQUETA_DOCUMENTO, ETIQUETA_FORMA_PAGO, etiquetaEstado, nombreCompleto } from "@/lib/presentacion/textos";
 import { LineaDeTiempo } from "../linea-de-tiempo";
-import { ProveedorFlujo } from "./flujo/contexto";
+import { BarraEstado } from "./flujo/cambios-estado";
+import { BotonFlujo, ProveedorFlujo } from "./flujo/contexto";
 import { BarraAcciones, BotonesDocumento, BotonesSubtarea, ListaAdjuntos, PanelFaltan } from "./flujo/controles";
+import { MenuCorregir } from "./flujo/correcciones";
 import type { DatosFlujo } from "./flujo/tipos";
 import { VerDatosCompletos } from "./ver-datos-completos";
 
@@ -61,9 +64,18 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
       ? enlaceWhatsapp(contacto.contacto.telefono, mensajeWhatsapp(ficha.numero, areaUsuario))
       : null;
   const etiquetas = Object.fromEntries([...ficha.personas, ...ficha.personasHistoricas].map((p) => [p.rol, p.etiquetaRol]));
-  const resumen = contextoResumen([...ficha.personas, ...ficha.personasHistoricas], ficha.datosExtra);
+  const todasLasSubtareas = ficha.recorrido.flatMap((p) => p.subtareas);
+  const documentos = [...ficha.documentacion.direccion, ...ficha.documentacion.concesionario];
+  const resumen = contextoResumen([...ficha.personas, ...ficha.personasHistoricas], ficha.datosExtra, { subtareas: todasLasSubtareas, documentos });
   const activo = ficha.estado === "en_tramite" || ficha.estado === "espera_pago_dim";
   const pasoActual = ficha.recorrido.find((p) => p.situacion === "actual");
+  // Semana 4: las plantillas para reiniciar o abrir el vinculado (solo si lo puede hacer).
+  const usaPlantillas = a.reiniciar.permitido || a.archivarSinConcluir.permitido;
+  const plantillas = usaPlantillas
+    ? (await expedientes.opcionesAlta()).plantillas.map((p) => ({ id: p.id, nombre: p.nombre, version: p.version, tipoTramite: p.tipoTramite.nombre }))
+    : [];
+  const subtareasConocidas = new Map<string, SubtareaConocida>(todasLasSubtareas.map((s) => [s.clave, { nombre: s.nombre, dato: s.dato, valor: s.valor, hecha: s.hecha }]));
+  const plazo = ficha.plazo ? mostrarPlazo(ficha.plazo) : null;
   const flujo: DatosFlujo = {
     numero: ficha.numero,
     version: ficha.version,
@@ -73,7 +85,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
     areaActual: ficha.areaActual.nombre,
     sinConfirmar: ficha.situaciones.includes("sin_confirmar"),
     subtareas: pasoActual?.subtareas ?? [],
-    documentos: [...ficha.documentacion.direccion, ...ficha.documentacion.concesionario],
+    documentos,
     pase: ficha.pase,
     devolucion: ficha.devolucion,
     nombresPasos: Object.fromEntries(ficha.recorrido.map((p) => [p.clave, p.nombre])),
@@ -85,9 +97,24 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
       darPase: a.darPase.permitido,
       devolver: a.devolver.permitido,
       completarCamposExtra: a.completarCamposExtra.permitido,
+      concluir: a.concluir.permitido,
+      archivar: a.archivar.permitido,
+      archivarSinConcluir: a.archivarSinConcluir.permitido,
+      desarchivar: a.desarchivar.permitido,
+      anular: a.anular.permitido,
+      reabrir: a.reabrir.permitido,
+      reiniciar: a.reiniciar.permitido,
+      cambiarUbicacionArchivo: a.cambiarUbicacionArchivo.permitido,
+      nota: a.nota.permitido,
+      suprimirPersona: a.suprimirPersona.permitido,
     },
     adjuntos: ficha.adjuntos,
     cantidadAdjuntos: ficha.cantidadAdjuntos,
+    estado: ficha.estado,
+    ubicacionArchivo: ficha.ubicacionArchivo,
+    areaResponsable: ficha.areaResponsable.nombre,
+    concluir: ficha.concluir,
+    plantillas,
   };
 
   return (
@@ -137,29 +164,43 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
                 {ficha.recibidoEn ? `Recibido el ${formatearSegunPrecision(ficha.recibidoEn, ficha.recibidoEnPrecision)}` : "Sin confirmar la recepción"}
               </span>
             </Dato>
-            {ficha.expedienteAnterior || ficha.expedientesSiguientes.length > 0 ? (
+            {ficha.enlaces.anterior || ficha.enlaces.siguientes.length > 0 ? (
               <Dato titulo="Relacionados">
-                {ficha.expedienteAnterior ? (
+                {ficha.enlaces.anterior ? (
                   <span className="block">
-                    Viene de{" "}
-                    <Link href={rutaFicha(ficha.expedienteAnterior)} prefetch={false} className={CLASE_ENLACE}>
-                      {ficha.expedienteAnterior}
+                    {ficha.enlaces.anterior.vinculo === "vinculado" ? "Vinculado a " : "Reinicio de "}
+                    <Link href={rutaFicha(ficha.enlaces.anterior.numero)} prefetch={false} className={CLASE_ENLACE}>
+                      {ficha.enlaces.anterior.numero}
                     </Link>
+                    <span className="text-slate-700">
+                      {" "}
+                      ({ficha.enlaces.anterior.plantilla}, {etiquetaEstado(ficha.enlaces.anterior.estado).toLowerCase()})
+                    </span>
                   </span>
                 ) : null}
-                {ficha.expedientesSiguientes.map((n) => (
-                  <span key={n} className="block">
-                    Siguió en{" "}
-                    <Link href={rutaFicha(n)} prefetch={false} className={CLASE_ENLACE}>
-                      {n}
+                {ficha.enlaces.siguientes.map((n) => (
+                  <span key={n.numero} className="block">
+                    {n.vinculo === "vinculado" ? "Sigue (vinculado) en " : "Reiniciado en "}
+                    <Link href={rutaFicha(n.numero)} prefetch={false} className={CLASE_ENLACE}>
+                      {n.numero}
                     </Link>
+                    <span className="text-slate-700">
+                      {" "}
+                      ({n.plantilla}, {etiquetaEstado(n.estado).toLowerCase()})
+                    </span>
                   </span>
                 ))}
+              </Dato>
+            ) : null}
+            {plazo ? (
+              <Dato titulo="Plazo DIM">
+                <EtiquetaPlazo plazo={plazo} />
               </Dato>
             ) : null}
           </dl>
 
           <BarraAcciones />
+          <BarraEstado />
 
           <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
             {puedeEditar ? (
@@ -180,6 +221,12 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
                 </Link>
               </>
             ) : null}
+            {a.transcribir.permitido ? (
+              <Link href={`${rutaFicha(ficha.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_SECUNDARIO}>
+                <FileClock className="h-4 w-4" aria-hidden="true" />
+                Transcribir la ficha de papel
+              </Link>
+            ) : null}
             {whatsapp ? (
               <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={CLASE_BOTON_SECUNDARIO}>
                 <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -190,7 +237,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           </div>
         </header>
 
-        {activo ? <PanelFaltan /> : null}
+        {activo && !ficha.cargaHistorica ? <PanelFaltan /> : null}
 
         <Bloque titulo="Datos del expediente">
           <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -213,7 +260,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
             <Dato titulo="Alta">
               {formatearFechaHora(ficha.creadoEn)} por {ficha.creadoPor.corto}
             </Dato>
-            {ficha.ubicacionArchivo ? <Dato titulo="Ubicación en el archivo">{ficha.ubicacionArchivo}</Dato> : null}
+            {ficha.ubicacionArchivo ? <Dato titulo="Ubicación en el archivo">{textoUbicacion(ficha.ubicacionArchivo)}</Dato> : null}
           </dl>
           {ficha.observaciones ? (
             <div className="mt-3 text-sm">
@@ -276,17 +323,15 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
               </li>
             ))}
           </ol>
-          {ficha.plazo ? (
-            <p className="mt-3 text-sm text-slate-800">
-              Plazo: {ficha.plazo.diasHabiles} días hábiles
-              {ficha.plazo.vence ? `, vence el ${formatearFecha(ficha.plazo.vence)}` : ", todavía no empezó"}
-              {ficha.plazo.cumplidoEn ? ` (cumplido el ${formatearFecha(ficha.plazo.cumplidoEn)})` : ""}
-              {ficha.plazo.faltan !== null && !ficha.plazo.cumplidoEn
-                ? ficha.plazo.faltan >= 0
-                  ? ` · faltan ${ficha.plazo.faltan} días hábiles`
-                  : ` · vencido hace ${-ficha.plazo.faltan} días hábiles`
-                : ""}
-            </p>
+          {ficha.plazo && plazo ? (
+            <div className="mt-3 space-y-1 text-sm text-slate-800">
+              <p>
+                Plazo de {ficha.plazo.diasHabiles} días hábiles
+                {ficha.plazo.desde ? ` desde el ${formatearFecha(ficha.plazo.desde)} (notificación)` : ""}
+                {ficha.plazo.vence ? `; vence el ${formatearFecha(ficha.plazo.vence)}` : ""}.
+              </p>
+              <EtiquetaPlazo plazo={plazo} />
+            </div>
           ) : null}
         </Bloque>
 
@@ -308,7 +353,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ficha.personas.map((p) => (
               <li key={p.id}>
-                <TarjetaPersona persona={p} />
+                <TarjetaPersona persona={p} suprimir={a.suprimirPersona.permitido} />
               </li>
             ))}
           </ul>
@@ -322,10 +367,13 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
               <summary className="cursor-pointer text-slate-800">Versiones anteriores y bajas ({ficha.personasHistoricas.length})</summary>
               <ul className="mt-2 space-y-1 text-slate-700">
                 {ficha.personasHistoricas.map((p) => (
-                  <li key={p.id}>
-                    {p.etiquetaRol}: {p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}
-                    {p.dni ? ` · DNI ${formatearDni(p.dni)}` : ""}
-                    {p.reemplazadaPorId ? " · reemplazada por una versión nueva" : " · dada de baja"}
+                  <li key={p.id} className="flex flex-wrap items-center gap-2">
+                    <span>
+                      {p.etiquetaRol}: {p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}
+                      {documentoDePersona(p) ? ` · ${documentoDePersona(p)}` : ""}
+                      {p.reemplazadaPorId ? " · reemplazada por una versión nueva" : " · dada de baja"}
+                    </span>
+                    {a.suprimirPersona.permitido && !p.suprimida ? <BotonSuprimir persona={p} /> : null}
                   </li>
                 ))}
               </ul>
@@ -373,7 +421,11 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
         </div>
 
         <Bloque titulo="Historial">
-          <LineaDeTiempo historial={ficha.historial} contexto={resumen} />
+          <LineaDeTiempo
+            historial={ficha.historial}
+            contexto={resumen}
+            acciones={(m) => (m.correcciones.length > 0 ? <MenuCorregir movimiento={movimientoCorregible(m, subtareasConocidas)} /> : null)}
+          />
         </Bloque>
       </article>
     </ProveedorFlujo>
@@ -438,7 +490,32 @@ function ListaDocumentos({ titulo, documentos }: { titulo: string; documentos: D
   );
 }
 
-function TarjetaPersona({ persona: p }: { persona: PersonaFicha }) {
+/** El semáforo del plazo DIM (3.6): la etiqueta de color con su texto, el vencimiento y si es provisorio. */
+function EtiquetaPlazo({ plazo }: { plazo: PlazoMostrado }) {
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
+      <span>{plazo.texto}</span>
+      {plazo.aviso ? <span className="block w-full text-xs text-slate-600">{plazo.aviso}</span> : null}
+    </span>
+  );
+}
+
+/** Suprimir los datos de una persona (Ley 25.326): solo el admin; el diálogo pide motivo y confirmación. */
+function BotonSuprimir({ persona: p }: { persona: PersonaFicha }) {
+  return (
+    <BotonFlujo
+      dialogo={{ tipo: "suprimir", persona: { id: p.id, texto: `${p.etiquetaRol}: ${nombreCompleto(p)}` } }}
+      className="inline-flex items-center gap-1 rounded border border-red-300 bg-white px-2 py-0.5 text-xs text-red-900 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800 print:hidden"
+      etiqueta={`Suprimir los datos de ${p.etiquetaRol} (Ley 25.326)`}
+    >
+      <ShieldX className="h-3.5 w-3.5" aria-hidden="true" />
+      Suprimir datos
+    </BotonFlujo>
+  );
+}
+
+function TarjetaPersona({ persona: p, suprimir }: { persona: PersonaFicha; suprimir: boolean }) {
   const c = p.contacto;
   return (
     <div className="h-full rounded border border-slate-200 bg-slate-50 p-3 text-sm">
@@ -448,7 +525,8 @@ function TarjetaPersona({ persona: p }: { persona: PersonaFicha }) {
       </p>
       <p className="font-medium text-slate-900">{p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}</p>
       <p className="text-slate-800">
-        {p.dni ? `DNI ${formatearDni(p.dni)}` : "Sin DNI"}
+        {p.tipo === "juridica" ? "Persona jurídica · " : ""}
+        {documentoDePersona(p) || (p.tipo === "juridica" ? "Sin CUIT" : "Sin DNI")}
         {p.fallecido ? ` · Fallecido${p.fechaDefuncion ? ` el ${formatearFecha(p.fechaDefuncion)}` : ""}` : ""}
         {p.vinculo ? ` · Vínculo: ${p.vinculo}` : ""}
       </p>
@@ -478,6 +556,11 @@ function TarjetaPersona({ persona: p }: { persona: PersonaFicha }) {
         </dl>
       ) : null}
       {c.enmascarado && (c.telefono || c.email || c.domicilio) ? <p className="mt-1 text-xs text-slate-600">Enmascarado</p> : null}
+      {suprimir && !p.suprimida ? (
+        <div className="mt-2">
+          <BotonSuprimir persona={p} />
+        </div>
+      ) : null}
     </div>
   );
 }

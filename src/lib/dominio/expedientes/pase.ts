@@ -3,7 +3,7 @@ import { fechaParaDb } from "@/lib/fechas";
 import { evaluarPermiso, exigirPermiso, type Decision, type UsuarioPermisos } from "../permisos";
 import type { DefinicionPlantilla, PasoPlantilla } from "../plantillas/esquema";
 import { exigirNumero, permisosDelExpediente } from "./acceso";
-import { leerDefinicion } from "./contexto";
+import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, estadoNoAdmite, exigirMotivo, limpiarMotivo, noEncontrado } from "./errores";
 import {
@@ -132,7 +132,7 @@ export async function validarPase(deps: DependenciasExpedientes, usuario: Usuari
     include: { plantilla: { select: { codigo: true, version: true, definicion: true } } },
   });
   if (!exp) throw noEncontrado(numeroInterno);
-  const def = leerDefinicion(exp.plantilla.definicion, exp.plantilla.codigo, exp.plantilla.version);
+  const def = await definicionDelExpediente(deps.leer, exp, exp.plantilla);
   const items = leerItems(exp.items);
   const datosExtra = exp.datosExtra as Record<string, unknown>;
   const permisos = await permisosDelExpediente(deps.leer, exp, def.pasos.length);
@@ -156,7 +156,7 @@ async function resultadoRepetido(ctx: Pick<ContextoAccion, "tx">, expedienteId: 
       areaResponsable: { select: { id: true, codigo: true, nombre: true } },
     },
   });
-  const def = leerDefinicion(e.plantilla.definicion, e.plantilla.codigo, e.plantilla.version);
+  const def = await definicionDelExpediente(tx, e, e.plantilla);
   const pase = await tx.movimiento.findUniqueOrThrow({ where: { id: movimientoId }, select: { comandoId: true } });
   // La recepción implícita, si la hubo, va con el mismo comando que el pase.
   const recepcion = await tx.movimiento.findFirst({

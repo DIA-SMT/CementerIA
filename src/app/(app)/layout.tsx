@@ -48,7 +48,7 @@ export default async function LayoutConSesion({ children }: { children: React.Re
               name="q"
               type="search"
               autoComplete="off"
-              placeholder="N°, DNI, padrón o apellido"
+              placeholder="N°, DNI, CUIT, padrón o nombre"
               className="w-56 rounded-l border border-slate-400 bg-white px-2 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800"
             />
             <button

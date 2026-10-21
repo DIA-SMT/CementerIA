@@ -263,15 +263,24 @@ model Expediente {
 /// Copia versionada de las personas declaradas en un expediente. Editar crea
 /// una fila nueva; la anterior pasa a vigente = false. El trigger
 /// expediente_personas_proteger solo admite esa baja y la supresión.
+///
+/// Física (apellido, nombres, DNI) o jurídica (razón social y CUIT): las
+/// asociaciones con panteón (migración *_personas_juridicas, CHECKs ahí).
 model ExpedientePersona {
   id               BigInt    @id @default(autoincrement())
   expedienteId     BigInt    @map("expediente_id")
   rol              String
   orden            Int       @default(1) @db.SmallInt
+  /// fisica o juridica.
+  tipoPersona      String    @default("fisica") @map("tipo_persona")
   apellido         String?
   nombres          String?
   /// Solo dígitos.
   dni              String?
+  /// Solo personas jurídicas.
+  razonSocial      String?   @map("razon_social")
+  /// Solo personas jurídicas: 11 dígitos con dígito verificador válido.
+  cuit             String?
   fallecido        Boolean   @default(false)
   fechaDefuncion   DateTime? @map("fecha_defuncion") @db.Date
   vinculo          String?
@@ -286,7 +295,7 @@ model ExpedientePersona {
   creadaMovId      BigInt    @map("creada_mov_id")
   /// Supresión por Ley 25.326.
   suprimidaEn      DateTime? @map("suprimida_en") @db.Timestamptz
-  /// Trigger: f_normalizar(apellido || ' ' || nombres).
+  /// Trigger: f_normalizar(apellido || ' ' || nombres), o de la razón social.
   nombreNorm       String    @default("") @map("nombre_norm")
 
   expediente     Expediente          @relation(fields: [expedienteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -299,6 +308,8 @@ model ExpedientePersona {
   @@unique([expedienteId], map: "expediente_personas_contacto_key", where: raw("es_contacto AND vigente"))
   @@index([expedienteId])
   @@index([dni])
+  /// La caja única busca por igualdad un número de 11 dígitos (2.13(g)).
+  @@index([cuit])
   @@index([nombreNorm(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("expediente_personas")
   @@schema("public")

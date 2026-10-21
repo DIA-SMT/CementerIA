@@ -15,8 +15,8 @@ import { ESTADOS_EXPEDIENTE, exigirPermiso, type EstadoExpediente, type UsuarioP
  *    app arma en la misma transacción de cada cambio (alta, edición). Es
  *    `f_normalizar()` de: número interno y su forma corta, N° municipal y
  *    padrón (como se escribieron y normalizados), cementerio, ubicación,
- *    nombres y DNI de las personas vigentes no suprimidas, y los campos extra
- *    `buscable`.
+ *    nombres y DNI de las personas vigentes no suprimidas (de una persona
+ *    jurídica, la razón social y el CUIT), y los campos extra `buscable`.
  * 2. `buscarExpedientes()`: la caja única de `/expedientes?q=`, que NO adivina
  *    el tipo de número:
  *    - **Prefijo explícito**: "CEM-2026-42" (o `^CEM\D*(\d{4})\D+(\d{1,6})$`)
@@ -24,7 +24,8 @@ import { ESTADOS_EXPEDIENTE, exigirPermiso, type EstadoExpediente, type UsuarioP
  *    - **Solo dígitos y separadores** (`.`, `-`, `/`, espacios): se quitan los
  *      separadores y se busca por igualdad, en paralelo, en el N° interno en su
  *      forma corta (si vino como N/AAAA), el N° municipal, el padrón y el DNI
- *      de las personas (con 11 dígitos, también el DNI que contiene el CUIL).
+ *      de las personas (con 11 dígitos, también el DNI que contiene el CUIL y
+ *      el CUIT de una persona jurídica).
  *      Cada resultado dice por dónde coincidió; si hay uno solo, se abre.
  *    - **Texto**: cada palabra normalizada tiene que aparecer en `busqueda`
  *      (LIKE, con el índice trigram) y se ordena por `similarity`.
@@ -46,6 +47,9 @@ export interface PersonaBusqueda {
   apellido: string | null;
   nombres: string | null;
   dni: string | null;
+  /** Solo personas jurídicas. */
+  razonSocial: string | null;
+  cuit: string | null;
 }
 
 export interface DatosBusqueda {
@@ -75,7 +79,7 @@ export function armarBusqueda(d: DatosBusqueda): string {
     d.ubicacionTexto,
   ];
   for (const p of d.personas) {
-    partes.push(p.apellido ?? "", p.nombres ?? "", p.dni ?? "");
+    partes.push(p.apellido ?? "", p.nombres ?? "", p.dni ?? "", p.razonSocial ?? "", p.cuit ?? "");
   }
   for (const v of d.extrasBuscables) {
     if (v !== null && v !== undefined) partes.push(String(v));
@@ -113,6 +117,8 @@ export type ConsultaAnalizada =
       formaCorta: { anio: number; secuencia: number } | null;
       /** DNI a buscar: los dígitos y, si son 11, el DNI del CUIL. */
       dnis: string[];
+      /** Con 11 dígitos, el CUIT de una persona jurídica. */
+      cuits: string[];
     }
   | { tipo: "texto"; normalizada: string; palabras: string[] };
 
@@ -130,13 +136,15 @@ export function analizarConsulta(q: string | null | undefined): ConsultaAnalizad
   if (RE_SOLO_NUMEROS.test(texto) && /\d/.test(texto)) {
     const digitos = texto.replace(/\D/g, "");
     const dnis = new Set<string>();
+    const cuits: string[] = [];
     const dni = normalizarDni(digitos);
     if (dni) dnis.add(dni);
     if (digitos.length === 11) {
       const delCuil = dniDeCuil(digitos);
       if (delCuil) dnis.add(delCuil);
+      cuits.push(digitos);
     }
-    return { tipo: "numerica", digitos, formaCorta: interpretarFormaCorta(texto), dnis: [...dnis] };
+    return { tipo: "numerica", digitos, formaCorta: interpretarFormaCorta(texto), dnis: [...dnis], cuits };
   }
 
   const palabras = tokens(texto);
@@ -161,6 +169,22 @@ export interface FiltrosBusqueda {
   fechaInicioHasta?: FechaISO;
   /** Por defecto los anulados no aparecen. */
   incluirAnulados?: boolean;
+  /**
+   * Semana 4: `true`, solo los que tienen la carga histórica abierta; `false`,
+   * solo los que no (lo usan los enlaces del panel, que no cuentan las cargas
+   * abiertas). Sin valor, todos.
+   */
+  cargaHistorica?: boolean;
+}
+
+export interface OpcionesBusquedaInterna {
+  /** Filas como máximo (por defecto 50). La exportación CSV pide más. */
+  limite?: number;
+  /**
+   * El prefijo "CEM-…" lista ese expediente (si cumple los filtros) en vez de
+   * pedir abrirlo: la exportación no abre fichas.
+   */
+  listarNumeroInterno?: boolean;
 }
 
 export interface EntradaBusqueda {
@@ -169,7 +193,7 @@ export interface EntradaBusqueda {
   filtros?: FiltrosBusqueda;
 }
 
-export type CampoCoincidencia = "numero_interno" | "numero_municipal" | "padron" | "dni";
+export type CampoCoincidencia = "numero_interno" | "numero_municipal" | "padron" | "dni" | "cuit";
 
 export interface Coincidencia {
   campo: CampoCoincidencia;
@@ -192,7 +216,7 @@ export interface ResultadoBusquedaFila {
   ubicacionTexto: string;
   paso: { clave: string; nombre: string };
   areaActual: { codigo: string; nombre: string };
-  /** "APELLIDO, Nombres" del primer titular vigente, o null. */
+  /** "APELLIDO, Nombres" (o la razón social) del primer titular vigente, o null. */
   titular: string | null;
   /** Por dónde coincidió (solo en la búsqueda numérica). */
   coincidencias: Coincidencia[];
@@ -239,15 +263,16 @@ interface FilaSql {
   similitud: number | null;
 }
 
-const ETIQUETAS: Record<Exclude<CampoCoincidencia, "dni">, string> = {
+const ETIQUETAS: Record<Exclude<CampoCoincidencia, "dni" | "cuit">, string> = {
   numero_interno: "N° interno",
   numero_municipal: "N° municipal",
   padron: "Padrón",
 };
 
 function etiquetaCoincidencia(campo: CampoCoincidencia, rol: string | null): string {
-  if (campo !== "dni") return ETIQUETAS[campo];
-  return rol ? `DNI del ${rol.replaceAll("_", " ")}` : "DNI";
+  if (campo !== "dni" && campo !== "cuit") return ETIQUETAS[campo];
+  const que = campo === "dni" ? "DNI" : "CUIT";
+  return rol ? `${que} del ${rol.replaceAll("_", " ")}` : que;
 }
 
 function esEstado(valor: string): valor is EstadoExpediente {
@@ -265,6 +290,7 @@ async function condicionesDeFiltros(lector: Lector, f: FiltrosBusqueda): Promise
   if (f.tipoTramiteId !== undefined) c.push(Prisma.sql`e.tipo_tramite_id = ${f.tipoTramiteId}`);
   if (f.plantillaCodigo !== undefined) c.push(Prisma.sql`pl.codigo = ${f.plantillaCodigo}`);
   if (f.areaActualId !== undefined) c.push(Prisma.sql`e.area_actual_id = ${f.areaActualId}`);
+  if (f.cargaHistorica !== undefined) c.push(Prisma.sql`e.carga_historica = ${f.cargaHistorica}`);
   for (const [clave, valor] of [
     ["fechaInicioDesde", f.fechaInicioDesde],
     ["fechaInicioHasta", f.fechaInicioHasta],
@@ -308,18 +334,21 @@ export async function buscarExpedientes(
   lector: Lector,
   usuario: UsuarioPermisos,
   entrada: EntradaBusqueda,
+  opciones: OpcionesBusquedaInterna = {},
 ): Promise<ResultadoBusqueda> {
   exigirPermiso("ver_expediente", null, usuario);
   const consulta = analizarConsulta(entrada.q);
+  const limite = opciones.limite ?? MAXIMO_RESULTADOS;
 
   // El prefijo CEM abre el expediente aunque esté anulado o no cumpla los
   // filtros: es un número exacto.
-  if (consulta.tipo === "numero_interno") {
+  if (consulta.tipo === "numero_interno" && !opciones.listarNumeroInterno) {
     const e = await lector.expediente.findUnique({ where: { numeroInterno: consulta.numero }, select: { numeroInterno: true } });
     return { consulta, abrir: e?.numeroInterno ?? null, resultados: [], hayMas: false };
   }
 
   const condiciones = await condicionesDeFiltros(lector, entrada.filtros ?? {});
+  if (consulta.tipo === "numero_interno") condiciones.push(Prisma.sql`e.numero_interno = ${consulta.numero}`);
   let conCoincidencias = Prisma.empty;
   let similitud = Prisma.sql`NULL::real`;
   let orden = Prisma.sql`e.anio DESC, e.secuencia DESC`;
@@ -339,6 +368,12 @@ export async function buscarExpedientes(
       partes.push(
         Prisma.sql`SELECT p.expediente_id, 'dni'::text, p.rol FROM public.expediente_personas p
                     WHERE p.dni = ANY(${consulta.dnis}::text[]) AND p.vigente AND p.suprimida_en IS NULL`,
+      );
+    }
+    if (consulta.cuits.length > 0) {
+      partes.push(
+        Prisma.sql`SELECT p.expediente_id, 'cuit'::text, p.rol FROM public.expediente_personas p
+                    WHERE p.cuit = ANY(${consulta.cuits}::text[]) AND p.vigente AND p.suprimida_en IS NULL`,
       );
     }
     conCoincidencias = Prisma.sql`WITH coincidencias AS (${Prisma.join(partes, " UNION ")})`;
@@ -369,7 +404,7 @@ export async function buscarExpedientes(
            pl.codigo AS plantilla_codigo, pl.nombre AS plantilla_nombre, pl.version::int AS plantilla_version,
            c.codigo AS cementerio_codigo, c.nombre AS cementerio_nombre,
            a.codigo AS area_codigo, a.nombre AS area_nombre,
-           (SELECT nullif(concat_ws(', ', p.apellido, p.nombres), '') FROM public.expediente_personas p
+           (SELECT nullif(coalesce(p.razon_social, concat_ws(', ', p.apellido, p.nombres)), '') FROM public.expediente_personas p
              WHERE p.expediente_id = e.id AND p.vigente AND p.rol = 'titular' ORDER BY p.orden LIMIT 1) AS titular,
            ${coincidenciasSql} AS coincidencias,
            ${similitud} AS similitud
@@ -380,9 +415,9 @@ export async function buscarExpedientes(
       JOIN public.areas a ON a.id = e.area_actual_id
       ${donde}
      ORDER BY ${orden}
-     LIMIT ${MAXIMO_RESULTADOS + 1}`;
+     LIMIT ${limite + 1}`;
 
-  const resultados = filas.slice(0, MAXIMO_RESULTADOS).map(
+  const resultados = filas.slice(0, limite).map(
     (f): ResultadoBusquedaFila => ({
       id: f.id.toString(),
       numero: f.numero_interno,
@@ -410,6 +445,6 @@ export async function buscarExpedientes(
     consulta,
     abrir: consulta.tipo === "numerica" && resultados.length === 1 ? resultados[0].numero : null,
     resultados,
-    hayMas: filas.length > MAXIMO_RESULTADOS,
+    hayMas: filas.length > limite,
   };
 }

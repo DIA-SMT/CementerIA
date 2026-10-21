@@ -1,3 +1,4 @@
+import { formatearCuit } from "@/lib/dominio/cuil";
 import type { EstadoExpediente, MotivoDenegacion } from "@/lib/dominio/permisos";
 
 /**
@@ -76,6 +77,9 @@ export const ETIQUETA_CAMPO_EDICION: Record<string, string> = {
   fecha_inicio: "fecha de inicio",
   observaciones: "observaciones",
   personas: "personas",
+  // Semana 4
+  ubicacion_archivo: "ubicación de archivo",
+  carga_historica: "carga histórica (terminada)",
 };
 
 /** Por qué no se puede hacer algo, dicho para quien está en el mostrador. */
@@ -94,10 +98,13 @@ export const TEXTO_DENEGACION: Record<MotivoDenegacion, string> = {
   carga_historica_abierta: "El expediente tiene la carga histórica abierta: los pases se registran en la transcripción.",
   paso_final: "Es el último paso: el expediente se concluye.",
   primer_paso: "Está en el primer paso: no hay a dónde devolverlo.",
+  no_es_paso_final: "Se concluye desde el último paso del trámite.",
+  sin_carga_historica: "El expediente no tiene la carga histórica abierta.",
 };
 
-/** "APELLIDO, Nombres" o lo que haya. */
-export function nombreCompleto(p: { apellido: string | null; nombres: string | null }): string {
+/** "APELLIDO, Nombres", la razón social de una persona jurídica, o lo que haya. */
+export function nombreCompleto(p: { apellido: string | null; nombres: string | null; razonSocial?: string | null }): string {
+  if (p.razonSocial && p.razonSocial.trim() !== "") return p.razonSocial;
   return [p.apellido, p.nombres].filter((x) => x && x.trim() !== "").join(", ") || "(sin nombre)";
 }
 
@@ -106,3 +113,14 @@ export function formatearDni(dni: string | null): string {
   if (!dni) return "";
   return /^\d+$/.test(dni) ? dni.replace(/\B(?=(\d{3})+(?!\d))/g, ".") : dni;
 }
+
+/** "DNI 30.111.222", "CUIT 30-99999001-5" o "" si no tiene ninguno. */
+export function documentoDePersona(p: { dni: string | null; cuit?: string | null }): string {
+  if (p.cuit) return `CUIT ${formatearCuit(p.cuit)}`;
+  return p.dni ? `DNI ${formatearDni(p.dni)}` : "";
+}
+
+export const ETIQUETA_TIPO_PERSONA: Record<string, string> = {
+  fisica: "Persona física",
+  juridica: "Persona jurídica",
+};

@@ -3,15 +3,17 @@ import Link from "next/link";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { AREA_MESA_ENTRADAS } from "@/lib/dominio/permisos";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
-import { ETIQUETA_PESTANA, leerPestana, PESTANAS, pestanaPorDefecto, rutaBandeja } from "@/lib/presentacion/flujo";
+import { ETIQUETA_PESTANA, leerPestana, PESTANAS, pestanaPorDefecto, pestanasVisibles, rutaBandeja } from "@/lib/presentacion/flujo";
 import { TablaBandeja } from "./tabla-bandeja";
 
 export const metadata: Metadata = { title: "Bandeja" };
 
 /**
  * Bandeja (sección 5, `/bandeja`): el trabajo diario del área. Pestañas Por
- * confirmar, En mi área y Afuera (Plazos y Carga histórica son de la semana
- * 4). Sin `?pestana=` se abre la que tiene trabajo. Leer la bandeja no
+ * confirmar, En mi área y Afuera; semana 4: Plazos (lo que está en la DIM con
+ * su vencimiento y semáforo; la ve el área que lo custodia, Tributario, y Mesa
+ * de Entradas) y Carga histórica (Mesa de Entradas, con el enlace a
+ * transcribir). Sin `?pestana=` se abre la que tiene trabajo. Leer la bandeja no
  * registra accesos: abrir la ficha sí (por eso los enlaces van sin prefetch).
  */
 export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
@@ -22,6 +24,7 @@ export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
   const bandeja = await expedientes.bandeja(usuario, pestana);
   const cantidad = (p: (typeof PESTANAS)[number]) => contadores[p];
   const esMesa = usuario.area?.codigo === AREA_MESA_ENTRADAS;
+  const visibles = pestanasVisibles(contadores, { esMesa, abierta: pestana });
 
   return (
     <section aria-labelledby="titulo-bandeja" className="space-y-4">
@@ -34,7 +37,7 @@ export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
 
       <nav aria-label="Pestañas de la bandeja">
         <ul className="flex flex-wrap gap-1 border-b border-slate-300">
-          {PESTANAS.map((p) => {
+          {visibles.map((p) => {
             const actual = p === pestana;
             return (
               <li key={p}>
@@ -50,6 +53,12 @@ export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
                     {cantidad(p)}
                     <span className="sr-only"> expedientes</span>
                   </span>
+                  {p === "plazos" && contadores.plazosAlerta > 0 ? (
+                    <span className="rounded-full bg-amber-600 px-1.5 text-xs font-semibold text-white">
+                      {contadores.plazosAlerta}
+                      <span className="sr-only"> por vencer o vencidos</span>
+                    </span>
+                  ) : null}
                 </Link>
               </li>
             );
@@ -62,7 +71,11 @@ export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
           ? "Expedientes que llegaron a tu área y nadie confirmó todavía. Confirmá cuando tengas el papel."
           : pestana === "en_mi_area"
             ? "Expedientes que tu área tiene que trabajar, del que llegó antes al más nuevo."
-            : esMesa
+            : pestana === "plazos"
+              ? "Expedientes en un paso con plazo (la DIM: 30 días hábiles desde la notificación), del que vence antes al último. Ámbar: faltan 5 días hábiles o menos; rojo: vencido."
+              : pestana === "carga_historica"
+                ? "Expedientes iniciados antes del sistema con la carga histórica abierta: transcribí la ficha de papel y terminá la carga para que sigan el circuito normal."
+                : esMesa
               ? "Expedientes en un área externa (la DIM, un cementerio). Los que no custodia Mesa de Entradas se ven como consulta."
               : "Expedientes en un área externa (la DIM, un cementerio) que custodia tu área."}
       </p>

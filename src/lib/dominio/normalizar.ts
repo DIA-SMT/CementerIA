@@ -74,6 +74,17 @@ export function normalizarDni(texto: string | null | undefined): string | null {
   return digitos === "" ? null : digitos;
 }
 
+/**
+ * Un CUIT como se guarda (`expediente_personas.cuit`): solo dígitos, con los
+ * ceros (el prefijo no empieza con 0, y un CUIT no se compara como número).
+ * `null` si no hay dígitos.
+ */
+export function normalizarCuit(texto: string | null | undefined): string | null {
+  if (texto === null || texto === undefined) return null;
+  const digitos = texto.replace(/\D/g, "");
+  return digitos === "" ? null : digitos;
+}
+
 /** El DNI que contiene un CUIL/CUIT de 11 dígitos (los 8 del medio), normalizado. */
 export function dniDeCuil(cuil: string): string | null {
   const digitos = cuil.replace(/\D/g, "");

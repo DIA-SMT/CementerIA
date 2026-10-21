@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cantidadDeFiltros, leerParametrosBusqueda } from "./busqueda";
+import { cantidadDeFiltros, leerParametrosBusqueda, rutaBusqueda } from "./busqueda";
 
 describe("parámetros de /expedientes", () => {
   it("sin nada: lista sin criterio", () => {
@@ -59,5 +59,30 @@ describe("parámetros de /expedientes", () => {
     const r = leerParametrosBusqueda({ q: ["CEM-2026-42", "otra"], cementerio: ["2", "3"] });
     expect(r.entrada).toEqual({ q: "CEM-2026-42", filtros: { cementerioId: 2 } });
     expect(leerParametrosBusqueda({ q: "a".repeat(500) }).valores.q).toHaveLength(200);
+  });
+});
+
+describe("rutaBusqueda (semana 4: los enlaces del panel)", () => {
+  it("es la inversa de leerParametrosBusqueda", () => {
+    const filtros = {
+      estados: ["en_tramite" as const, "espera_pago_dim" as const],
+      tipoTramiteId: 2,
+      cementerioId: 1,
+      ubicacion: { seccion: "B" },
+      areaActualId: 4,
+      fechaInicioDesde: "2026-01-01",
+      incluirAnulados: true,
+      cargaHistorica: false,
+    };
+    const ruta = rutaBusqueda(filtros);
+    expect(ruta.startsWith("/expedientes?")).toBe(true);
+    const parametros: Record<string, string | string[]> = {};
+    for (const [k, v] of new URLSearchParams(ruta.split("?")[1])) {
+      const previo = parametros[k];
+      parametros[k] = previo === undefined ? v : [...(Array.isArray(previo) ? previo : [previo]), v];
+    }
+    expect(leerParametrosBusqueda(parametros).entrada.filtros).toEqual(filtros);
+    expect(rutaBusqueda({})).toBe("/expedientes");
+    expect(leerParametrosBusqueda({ historica: "1" }).entrada.filtros).toEqual({ cargaHistorica: true });
   });
 });

@@ -74,6 +74,32 @@ describe("DefinicionPlantilla: forma", () => {
     expect(r.pasos[0].instrucciones).toBeNull();
   });
 
+  it("completa los campos de la semana 4 si faltan: una definición vieja se lee igual", () => {
+    const r = DefinicionPlantilla.parse(ejemplo25());
+    expect(r.personas[0].admite_juridica).toBe(false);
+    expect(r.documentos[0]).toMatchObject({ solo_cementerios: null, excepto_cementerios: null, solo_si_juridica: null });
+    expect(r.conceptos[0]).toMatchObject({ solo_cementerios: null, excepto_cementerios: null });
+    expect(r.pasos[0].subtareas[0]).toMatchObject({ solo_cementerios: null, excepto_cementerios: null });
+  });
+
+  it("filtros por cementerio: códigos en mayúsculas y al menos uno", () => {
+    const d = ejemplo25();
+    (d.conceptos as Objeto[])[0].excepto_cementerios = ["JARDIN_NORTE"];
+    expect(errores(d)).toEqual([]);
+    (d.conceptos as Objeto[])[0].excepto_cementerios = [];
+    expect(errores(d)).toEqual(["conceptos[0].excepto_cementerios: Si se filtra por cementerio, tiene que haber al menos uno"]);
+    (d.conceptos as Objeto[])[0].excepto_cementerios = ["jardin"];
+    expect(errores(d)).toEqual([expect.stringMatching(/^conceptos\[0\]\.excepto_cementerios\[0\]: Código de cementerio inválido/)]);
+  });
+
+  it("solo_si_juridica: un rol o null", () => {
+    const d = ejemplo25();
+    (d.documentos as Objeto[])[0].solo_si_juridica = "titular";
+    expect(errores(d)).toEqual([]);
+    (d.documentos as Objeto[])[0].solo_si_juridica = "Titular";
+    expect(errores(d)).toEqual([expect.stringMatching(/^documentos\[0\]\.solo_si_juridica: Rol inválido/)]);
+  });
+
   it("exige las demás claves", () => {
     const d = ejemplo25();
     delete primerPaso(d).dias_alerta;

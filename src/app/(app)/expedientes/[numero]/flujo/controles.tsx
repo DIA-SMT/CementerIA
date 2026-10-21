@@ -3,7 +3,7 @@
 import { ArrowRightLeft, Check, Download, Eye, FileUp, ListChecks, PackageCheck, Undo2 } from "lucide-react";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
 import { formatearFechaHora } from "@/lib/fechas";
-import { formatearBytes, textoBotonPase, tituloFaltan } from "@/lib/presentacion/flujo";
+import { formatearBytes, itemsFaltan, textoBotonPase, tituloFaltan } from "@/lib/presentacion/flujo";
 import { faltantesDe, rutaAdjunto } from "./dialogos";
 import { useFlujo } from "./estado";
 import { ListaFaltan } from "./piezas";
@@ -53,37 +53,35 @@ export function BarraAcciones() {
       </button>,
     );
   }
-  if (botones.length === 0 && !(p.tildarSubtarea && datos.paso.esFinal)) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {botones}
-      {p.tildarSubtarea && datos.paso.esFinal ? (
-        <span className="text-sm text-slate-700">Es el último paso: el expediente se concluye (llega en la semana 4).</span>
-      ) : null}
-    </div>
-  );
+  if (botones.length === 0) return null;
+  return <div className="flex flex-wrap items-center gap-2">{botones}</div>;
 }
 
-/** "Qué falta para avanzar" (sección 5): lo mismo que abre "Faltan N", siempre a la vista. */
+/**
+ * "Qué falta para avanzar" (sección 5): lo mismo que abre "Faltan N", siempre
+ * a la vista. En el último paso (semana 4), lo que falta para concluir.
+ */
 export function PanelFaltan() {
   const { datos, abrir } = useFlujo();
-  if (datos.paso.esFinal) return null;
-  const items = faltantesDe(datos);
+  const final = datos.paso.esFinal;
+  const items = final ? itemsFaltan(datos.concluir.faltan, datos.permisos, datos.rutaEditar) : faltantesDe(datos);
   const abrirItem = (d: DialogoFlujo) => abrir(d);
   return (
     <section aria-labelledby="titulo-faltan" className={`rounded border p-4 ${items.length > 0 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50"}`}>
       <h2 id="titulo-faltan" className="mb-2 flex items-center gap-2 text-base font-semibold text-slate-900">
         <ListChecks className="h-5 w-5" aria-hidden="true" />
-        Qué falta para avanzar
+        {final ? "Qué falta para concluir" : "Qué falta para avanzar"}
       </h2>
       {items.length === 0 ? (
         <p className="flex items-center gap-1.5 text-sm text-emerald-900">
           <Check className="h-4 w-4" aria-hidden="true" />
-          No falta nada para dar el pase desde {datos.paso.nombre}.
+          {final ? `Es el último paso y no falta nada: el expediente se puede concluir.` : `No falta nada para dar el pase desde ${datos.paso.nombre}.`}
         </p>
       ) : (
         <>
-          <p className="mb-1 text-sm text-amber-950">{tituloFaltan(items.length)} desde {datos.paso.nombre}:</p>
+          <p className="mb-1 text-sm text-amber-950">
+            {final ? tituloFaltan(items.length).replace("para avanzar", "para concluir") : `${tituloFaltan(items.length)} desde ${datos.paso.nombre}`}:
+          </p>
           <ListaFaltan
             items={items}
             onAcceso={(item) => {

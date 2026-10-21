@@ -17,6 +17,7 @@ import { ESTADOS_EXPEDIENTE, type EstadoExpediente } from "@/lib/dominio/permiso
  * | `area` | `areaActualId` |
  * | `desde`, `hasta` | `fechaInicioDesde`, `fechaInicioHasta` |
  * | `anulados=1` | `incluirAnulados` |
+ * | `historica=1` / `historica=0` | `cargaHistorica` (semana 4: los enlaces del panel) |
  *
  * Lo que no tiene forma válida se ignora (un enlace viejo o tipeado no rompe
  * la pantalla); las fechas pasan tal cual y las valida el dominio.
@@ -75,6 +76,7 @@ export function leerParametrosBusqueda(parametros: ParametrosUrl): BusquedaLeida
   const desde = primero(parametros.desde).slice(0, 10);
   const hasta = primero(parametros.hasta).slice(0, 10);
   const anulados = primero(parametros.anulados) === "1";
+  const historica = primero(parametros.historica);
 
   const ubicacion: Record<string, string> = {};
   for (const [nombre, valor] of Object.entries(parametros)) {
@@ -94,6 +96,7 @@ export function leerParametrosBusqueda(parametros: ParametrosUrl): BusquedaLeida
   if (desde) filtros.fechaInicioDesde = desde;
   if (hasta) filtros.fechaInicioHasta = hasta;
   if (anulados) filtros.incluirAnulados = true;
+  if (historica === "1" || historica === "0") filtros.cargaHistorica = historica === "1";
 
   return {
     valores: { q, estados, tramite, plantilla, cementerio, ubicacion, area, desde, hasta, anulados },
@@ -115,4 +118,26 @@ export function cantidadDeFiltros(v: ValoresBusqueda): number {
     v.hasta !== "",
     v.anulados,
   ].filter(Boolean).length;
+}
+
+/**
+ * Semana 4: la URL de `/expedientes` para unos filtros (la inversa de
+ * `leerParametrosBusqueda`). La usa el panel: cada conteo lleva a la
+ * búsqueda filtrada.
+ */
+export function rutaBusqueda(filtros: FiltrosBusqueda, q?: string | null): string {
+  const p = new URLSearchParams();
+  if (q) p.set("q", q);
+  for (const e of filtros.estados ?? []) p.append("estado", e);
+  if (filtros.tipoTramiteId !== undefined) p.set("tramite", String(filtros.tipoTramiteId));
+  if (filtros.plantillaCodigo !== undefined) p.set("plantilla", filtros.plantillaCodigo);
+  if (filtros.cementerioId !== undefined) p.set("cementerio", String(filtros.cementerioId));
+  for (const [clave, valor] of Object.entries(filtros.ubicacion ?? {})) if (valor) p.set(`${PREFIJO_UBICACION}${clave}`, valor);
+  if (filtros.areaActualId !== undefined) p.set("area", String(filtros.areaActualId));
+  if (filtros.fechaInicioDesde !== undefined) p.set("desde", filtros.fechaInicioDesde);
+  if (filtros.fechaInicioHasta !== undefined) p.set("hasta", filtros.fechaInicioHasta);
+  if (filtros.incluirAnulados) p.set("anulados", "1");
+  if (filtros.cargaHistorica !== undefined) p.set("historica", filtros.cargaHistorica ? "1" : "0");
+  const texto = p.toString();
+  return texto === "" ? "/expedientes" : `/expedientes?${texto}`;
 }

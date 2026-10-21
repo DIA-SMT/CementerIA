@@ -3,7 +3,8 @@
 import { useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { atributosCampo, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, MensajeError } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, MensajeError } from "@/components/formulario";
+import { LARGO_MINIMO_MOTIVO } from "@/lib/dominio/expedientes/errores";
 import { limitesFecha, valorFechaEfectiva, type ItemFaltante, type ModoFecha } from "@/lib/presentacion/flujo";
 import type { EstadoError } from "@/lib/presentacion/errores";
 
@@ -167,3 +168,74 @@ export function ListaFaltan({ items, onAcceso }: { items: readonly ItemFaltante[
     </ul>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Pie, motivo y observación (comunes a todos los diálogos)
+// ---------------------------------------------------------------------------
+
+/** Botones de pie: la acción y Cancelar. */
+export function Pie({ pendiente, texto, textoPendiente, onCancelar, deshabilitado = false }: {
+  pendiente: boolean;
+  texto: string;
+  textoPendiente: string;
+  onCancelar: () => void;
+  deshabilitado?: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+      <button type="button" onClick={onCancelar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
+        Cancelar
+      </button>
+      <button type="submit" disabled={pendiente || deshabilitado} className={CLASE_BOTON_PRIMARIO}>
+        {pendiente ? textoPendiente : texto}
+      </button>
+    </div>
+  );
+}
+
+export function Observacion({ valor, poner, error, etiqueta = "Observación (opcional)", obligatoria = false }: {
+  valor: string;
+  poner: (v: string) => void;
+  error: ReturnType<typeof useEnvio>["error"];
+  etiqueta?: string;
+  obligatoria?: boolean;
+}) {
+  const errores = erroresDe(error, "observacion");
+  return (
+    <Campo ruta="observacion" etiqueta={etiqueta} obligatorio={obligatoria} errores={errores}>
+      <textarea {...atributosCampo("observacion", errores)} rows={2} maxLength={2000} value={valor} onChange={(e) => poner(e.target.value)} className={CLASE_CONTROL} />
+    </Campo>
+  );
+}
+
+export function Motivo({ valor, poner, error, ayuda, autoFocus = false }: {
+  valor: string;
+  poner: (v: string) => void;
+  error: ReturnType<typeof useEnvio>["error"];
+  ayuda?: string;
+  autoFocus?: boolean;
+}) {
+  const errores = erroresDe(error, "motivo");
+  return (
+    <Campo ruta="motivo" etiqueta="Motivo" obligatorio errores={errores} ayuda={ayuda ?? `${LARGO_MINIMO_MOTIVO} caracteres o más`}>
+      <textarea
+        {...atributosCampo("motivo", errores, "campo-motivo-ayuda")}
+        rows={3}
+        maxLength={2000}
+        value={valor}
+        onChange={(e) => poner(e.target.value)}
+        data-autofocus={autoFocus ? true : undefined}
+        className={CLASE_CONTROL}
+      />
+    </Campo>
+  );
+}
+
+/** Si el motivo es corto, el error se muestra sin ir al servidor (el servidor lo controla igual). */
+export function motivoCorto(motivo: string): { ok: false; codigo: string; mensaje: string; errores: Array<{ ruta: string; mensaje: string }> } | null {
+  if (motivo.trim().length >= LARGO_MINIMO_MOTIVO) return null;
+  return { ok: false, codigo: "motivo_requerido", mensaje: "Falta el motivo", errores: [{ ruta: "motivo", mensaje: `Escribí el motivo (${LARGO_MINIMO_MOTIVO} caracteres o más)` }] };
+}
+
+export const RUTAS_EN_CAMPO = ["motivo", "observacion", "fechaEfectiva", "dato"];
+

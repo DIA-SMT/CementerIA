@@ -24,15 +24,28 @@ import {
 
 export const NUEVA_CONC_CONTADO: DefinicionPlantilla = {
   forma_pago: "contado",
-  // [C] Todos los habilitados en el cementerio (pregunta D-2).
+  // [C] Todos los habilitados en el cementerio (pregunta D-2). [F] Jardín
+  // habilita solo la sepultura; el Oeste y el Norte, también sotanito, capilla,
+  // mausoleo y panteón.
   tipos_monumento: [],
   ubicacion_obligatoria: true,
   requiere_contacto: true,
   personas: [
-    { rol: "titular", etiqueta: "Titular (nuevo concesionario)", min: 1, max: 1, fallecido: "no", pide_vinculo: false },
+    // [C] Solo persona física: las fuentes piden personería a las asociaciones
+    // que renuevan; si una asociación puede comprar un monumento caducado, se
+    // habilita admite_juridica y la misma documentación que en (a).
+    {
+      rol: "titular",
+      etiqueta: "Titular (nuevo concesionario)",
+      min: 1,
+      max: 1,
+      fallecido: "no",
+      pide_vinculo: false,
+      admite_juridica: false,
+    },
     SOLICITANTE_OPCIONAL,
     // [I] Se deduce de la constancia para inhumar (pregunta D-3).
-    { rol: "difunto", etiqueta: "Difunto a inhumar", min: 0, max: 5, fallecido: "si", pide_vinculo: false },
+    { rol: "difunto", etiqueta: "Difunto a inhumar", min: 0, max: 5, fallecido: "si", pide_vinculo: false, admite_juridica: false },
   ],
   campos_extra: [
     // [I] El pedido solo pide la fotocopia como documento (pregunta D-4).
@@ -71,7 +84,8 @@ export const NUEVA_CONC_CONTADO: DefinicionPlantilla = {
     // [I] (pregunta D-7).
     DOC.COMPROBANTE_PAGO,
   ],
-  // [C] Sin inspección técnica: el pedido no la menciona (pregunta D-9).
+  // Sin inspección técnica: el pedido no la menciona (pregunta D-9) y [F] los
+  // procedimientos confirman que la nueva concesión no la cobra.
   conceptos: [
     CONCEPTO.DERECHO_OFICINA,
     CONCEPTO.ARRENDAMIENTO,
@@ -84,7 +98,7 @@ export const NUEVA_CONC_CONTADO: DefinicionPlantilla = {
     // [I] El pedido no menciona este paso (pregunta D-6).
     pasoComputoAlta(),
     // La propuesta no marca dato en esta boleta, a diferencia de (a).
-    pasoLiquidacion(obligatoria("LIQ_BOLETA", "Boleta emitida con los 5 conceptos")),
+    pasoLiquidacion([obligatoria("LIQ_BOLETA", "Boleta emitida con los 5 conceptos")]),
     // El cementerio del expediente. No usa la herramienta: lo sigue Mesa de
     // Entradas [C] (pregunta D-10).
     paso({

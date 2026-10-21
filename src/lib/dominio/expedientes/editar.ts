@@ -31,8 +31,8 @@ import { claveDeUbicacion, textoDeUbicacion, type Ubicacion } from "./ubicacion"
  * no se editan ni se dan de baja desde acá.
  *
  * Permisos (3.2), según QUÉ cambia:
- * - identificatorios (personas: nombre, DNI, fallecimiento, vínculo, altas y
- *   bajas; ubicación, tipo de monumento, padrón, N° municipal, fecha de
+ * - identificatorios (personas: nombre, DNI, física o jurídica, razón social,
+ *   CUIT, fallecimiento, vínculo, altas y bajas; ubicación, tipo de monumento, padrón, N° municipal, fecha de
  *   inicio): Mesa de Entradas, Cómputo si es la responsable, y admin. Después
  *   del primer pase exigen motivo.
  * - contacto (teléfono, WhatsApp, correo, domicilio, quién es el contacto) y
@@ -61,7 +61,7 @@ export interface ResultadoEdicion {
 }
 
 /** Campos de persona que son datos identificatorios (3.2). */
-const PERSONA_IDENTIFICATORIOS = ["apellido", "nombres", "dni", "fallecido", "fechaDefuncion", "vinculo"] as const;
+const PERSONA_IDENTIFICATORIOS = ["tipo", "apellido", "nombres", "dni", "razonSocial", "cuit", "fallecido", "fechaDefuncion", "vinculo"] as const;
 /** Campos de persona que son de contacto (decisión 13). */
 const PERSONA_CONTACTO = ["telefono", "telefonoWhatsapp", "email", "domicilio", "esContacto"] as const;
 
@@ -72,9 +72,12 @@ type FilaPersonaDb = Awaited<ReturnType<Transaccion["expedientePersona"]["findMa
 function personaDeDb(p: FilaPersonaDb): Omit<PersonaValidada, "orden" | "id"> {
   return {
     rol: p.rol,
-    apellido: p.apellido ?? "",
-    nombres: p.nombres ?? "",
+    tipo: p.tipoPersona === "juridica" ? "juridica" : "fisica",
+    apellido: p.apellido,
+    nombres: p.nombres,
     dni: p.dni,
+    razonSocial: p.razonSocial,
+    cuit: p.cuit,
     fallecido: p.fallecido,
     fechaDefuncion: fechaDesdeDb(p.fechaDefuncion),
     vinculo: p.vinculo,
@@ -323,7 +326,7 @@ export async function editar(
     const numeroMunicipal = v.numeroMunicipal !== undefined ? v.numeroMunicipal : exp.numeroMunicipal;
     const personasVigentes = await tx.expedientePersona.findMany({
       where: { expedienteId: id, vigente: true, suprimidaEn: null },
-      select: { apellido: true, nombres: true, dni: true },
+      select: { apellido: true, nombres: true, dni: true, razonSocial: true, cuit: true },
       orderBy: [{ rol: "asc" }, { orden: "asc" }],
     });
     const cementerios = await tx.cementerio.findMany({ select: { codigo: true, nombre: true } });

@@ -75,13 +75,40 @@ describe("expedientes ficticios de la semilla", () => {
 
   it("todas las personas son claramente ficticias", async () => {
     const personas = (await expedientesFicticios()).flatMap((e) => e.personas);
-    for (const p of personas) {
+    for (const p of personas.filter((x) => x.tipoPersona === "fisica")) {
       expect(p.dni ?? "").toMatch(/^99999\d{3}$/);
       expect(p.nombres).toMatch(/ Prueba$/);
       if (p.email) expect(p.email).toMatch(/@ejemplo\.test$/);
       if (p.telefono) expect(p.telefono).toMatch(/^0381 000-/);
       if (p.domicilio) expect(p.domicilio).toMatch(/^Calle Ficticia /);
     }
+    // Las asociaciones con panteón (semana 4): "Ficticia" en el nombre y CUIT
+    // 30-99999NNN-D, el mismo rango reservado que los DNI 99.999.NNN.
+    const juridicas = personas.filter((x) => x.tipoPersona === "juridica");
+    expect(juridicas.length).toBeGreaterThanOrEqual(1);
+    for (const p of juridicas) {
+      expect(p.razonSocial).toMatch(/Ficticia/);
+      expect(p.cuit ?? "").toMatch(/^3099999\d{4}$/);
+      expect([p.apellido, p.nombres, p.dni]).toEqual([null, null, null]);
+      if (p.email) expect(p.email).toMatch(/@ejemplo\.test$/);
+    }
+  });
+
+  it("la ubicación sigue la nomenclatura de cada cementerio, normalizada (docs/fuentes)", async () => {
+    const lista = await expedientesFicticios();
+    for (const e of lista) {
+      const seccion = (e.ubicacion as Record<string, string>).seccion;
+      if (e.cementerio.codigo === "OESTE") expect(seccion).toMatch(/^[A-H]$/);
+      else if (e.cementerio.codigo === "JARDIN_NORTE") expect(seccion).toMatch(/^[IVXL]+$/);
+      else expect(seccion).toMatch(/^\d+$/);
+      if (e.cementerio.codigo === "JARDIN_NORTE") expect(e.tipoMonumento).toBe("SEPULTURA");
+    }
+    // Las asociaciones, con panteón en el Oeste.
+    const conAsociacion = lista.filter((e) => e.personas.some((p) => p.tipoPersona === "juridica"));
+    expect(conAsociacion.map((e) => [e.cementerio.codigo, e.tipoMonumento])).toEqual([
+      ["OESTE", "PANTEON"],
+      ["OESTE", "PANTEON"],
+    ]);
   });
 
   it("es idempotente: la segunda corrida no crea nada y devuelve los mismos números", async () => {

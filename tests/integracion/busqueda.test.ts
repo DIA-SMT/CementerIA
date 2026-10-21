@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ResultadoAlta } from "@/lib/dominio/expedientes";
 import { normalizar, normalizarNumero } from "@/lib/dominio/normalizar";
 import type { UsuarioPermisos } from "@/lib/dominio/permisos";
-import { asegurarSemilla, comando, datosAlta, forzarEstado, idCementerio, servicio, titular, unicoLetras, usuario } from "./dominio";
+import { asegurarSemilla, comando, cuitUnico, datosAlta, forzarEstado, idCementerio, loteUnico, servicio, titular, unicoLetras, usuario } from "./dominio";
 import { clientePrisma, conPg } from "./helper";
 
 const prisma = clientePrisma();
@@ -21,6 +21,7 @@ const dniTitular = String(97_000_000 + (Date.now() % 999_999));
 const dniSolicitante = String(96_000_000 + (Date.now() % 999_999));
 const municipal = `${(Date.now() % 90_000) + 10_000}/2026`;
 const padron = `P.${marca}-77`;
+const lote = loteUnico();
 let principal: ResultadoAlta;
 
 beforeAll(async () => {
@@ -31,7 +32,8 @@ beforeAll(async () => {
     await datosAlta(prisma, {
       numeroMunicipal: municipal,
       padron,
-      ubicacion: { seccion: "5", cuadro: marca.slice(-3), lote: "12", numero: "45" },
+      // Oeste: sección A a H (docs/fuentes); el lote es único de esta corrida.
+      ubicacion: { seccion: "e", lote, numero: "45" },
       personas: [
         titular({ apellido, nombres: "María José", dni: dniTitular, esContacto: false }),
         { rol: "solicitante", apellido: "FICTICIO", nombres: "Solicitante", dni: dniSolicitante, vinculo: "hijo", email: "s@ejemplo.test", esContacto: true },
@@ -92,6 +94,25 @@ describe("caja única", () => {
     expect(r.resultados[0].coincidencias).toEqual([{ campo: "dni", etiqueta: "DNI del solicitante" }]);
   });
 
+  it("persona jurídica: el CUIT de 11 dígitos abre directo; la razón social, como texto", async () => {
+    const cuit = cuitUnico();
+    const razon = `Asociación Ficticia ${marca} de Socorros Mutuos`;
+    const asociacion = await exp.alta(
+      mesa,
+      await datosAlta(prisma, {
+        tipoMonumento: "PANTEON",
+        personas: [{ rol: "titular", tipo: "juridica", razonSocial: razon, cuit, email: "asociacion@ejemplo.test" }],
+      }),
+      comando(),
+    );
+    const conGuiones = `${cuit.slice(0, 2)}-${cuit.slice(2, 10)}-${cuit.slice(10)}`;
+    const r = await exp.buscar(mesa, { q: conGuiones });
+    expect(r.abrir).toBe(asociacion.numero);
+    expect(r.resultados[0]).toMatchObject({ titular: razon, coincidencias: [{ campo: "cuit", etiqueta: "CUIT del titular" }] });
+    const t = await exp.buscar(mesa, { q: `socorros ${marca.toLowerCase()}` });
+    expect(t.resultados.map((f) => f.numero)).toEqual([asociacion.numero]);
+  });
+
   it("N° municipal con barra (y con otros separadores)", async () => {
     for (const q of [municipal, municipal.replace("/", "-"), municipal.replace("/", " ")]) {
       const r = await exp.buscar(mesa, { q });
@@ -130,10 +151,12 @@ describe("caja única", () => {
 describe("filtros", () => {
   it("por cementerio y campos de ubicación (@>), normalizados como en el alta", async () => {
     const oeste = await idCementerio(prisma, "OESTE");
-    const r = await exp.buscar(mesa, { filtros: { cementerioId: oeste, ubicacion: { cuadro: marca.slice(-3).toLowerCase(), lote: "012" } } });
+    const r = await exp.buscar(mesa, { filtros: { cementerioId: oeste, ubicacion: { seccion: "E", lote: `00${lote}` } } });
     expect(r.resultados.map((f) => f.numero)).toEqual([principal.numero]);
+    // La sección en minúscula se normaliza igual que en el alta.
+    expect((await exp.buscar(mesa, { filtros: { cementerioId: oeste, ubicacion: { seccion: "e", lote } } })).resultados.map((f) => f.numero)).toEqual([principal.numero]);
     const norte = await idCementerio(prisma, "NORTE");
-    expect((await exp.buscar(mesa, { filtros: { cementerioId: norte, ubicacion: { cuadro: marca.slice(-3), lote: "12" } } })).resultados).toEqual([]);
+    expect((await exp.buscar(mesa, { filtros: { cementerioId: norte, ubicacion: { lote } } })).resultados).toEqual([]);
     await expect(exp.buscar(mesa, { filtros: { ubicacion: { lote: "12" } } })).rejects.toMatchObject({ codigo: "validacion" });
   });
 

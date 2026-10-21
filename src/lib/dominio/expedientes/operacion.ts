@@ -1,17 +1,18 @@
 import type { Expediente } from "@/generated/prisma/client";
 import type { Transaccion } from "@/lib/db/crear-cliente";
-import { fechaDesdeDb, hoyEnTucuman, type FechaISO } from "@/lib/fechas";
+import { fechaDesdeDb, fechaParaDb, hoyEnTucuman, type FechaISO } from "@/lib/fechas";
 import { armarBusqueda } from "../busqueda";
 import type { ExpedientePermisos, UsuarioPermisos } from "../permisos";
 import type { DefinicionPlantilla, PasoPlantilla } from "../plantillas/esquema";
 import { exigirNumero, permisosDelExpediente } from "./acceso";
 import { extrasBuscables, validarComando } from "./alta";
-import { leerDefinicion } from "./contexto";
+import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, MENSAJE_CONFLICTO_VERSION, noEncontrado } from "./errores";
 import type { FechaEfectiva, PrecisionFecha } from "./flujo";
 import { leerItems, type ItemsExpediente } from "./items";
 import { areasDelPaso, type AreasDelPaso, type EntornoAreas } from "./proyeccion";
+import { ultimaUbicacionVigente, type EntornoReconstruccion, type MovimientoReconstruible, type ProyeccionFlujo } from "./reconstruccion";
 
 /**
  * El esqueleto común de las acciones del flujo de la semana 3 (recepción,
@@ -54,7 +55,7 @@ export interface OpcionesEjecucion<R> {
   numero: string;
   comandoId: string;
   /** El tipo del movimiento principal de la acción: con él se busca el comando repetido. */
-  tipo: "recepcion" | "subtarea" | "documento" | "adjunto" | "pase" | "devolucion";
+  tipo: "recepcion" | "subtarea" | "documento" | "adjunto" | "pase" | "devolucion" | "estado" | "correccion" | "nota" | "edicion";
   /** Motivo de la transacción (`app.motivo`). */
   motivo: string | null;
   /** La `version` que vio el usuario; `null` = la acción no la controla. */
@@ -83,34 +84,45 @@ export async function ejecutarAccion<R>(
     const repetido = await movimientoDelComando(tx, fila.id, comando, opciones.tipo);
     if (repetido !== null) return opciones.repetido(tx, fila.id, repetido);
 
-    const exp = await tx.expediente.findUniqueOrThrow({ where: { id: fila.id } });
-    if (opciones.versionVista !== null && exp.version !== opciones.versionVista) {
+    const ctx = await contextoBloqueado(tx, fila.id, comando, ahora);
+    if (opciones.versionVista !== null && ctx.exp.version !== opciones.versionVista) {
       throw new ErrorDominio("conflicto_version", MENSAJE_CONFLICTO_VERSION);
     }
-    const plantilla = await tx.plantilla.findUniqueOrThrow({
-      where: { id: exp.plantillaId },
-      select: { codigo: true, version: true, definicion: true },
-    });
-    const def = leerDefinicion(plantilla.definicion, plantilla.codigo, plantilla.version);
-    const pasoActual = def.pasos[exp.pasoOrden - 1];
-    if (!pasoActual || pasoActual.clave !== exp.pasoClave) {
-      throw new ErrorDominio("configuracion_incompleta", `El paso ${exp.pasoClave} no está en la plantilla ${plantilla.codigo} v${plantilla.version}`);
-    }
-    const cementerio = await tx.cementerio.findUniqueOrThrow({ where: { id: exp.cementerioId }, select: { areaId: true } });
-    const permisos = await permisosDelExpediente(tx, exp, def.pasos.length);
-    return accion({
-      tx,
-      exp,
-      def,
-      items: leerItems(exp.items),
-      pasoActual,
-      permisos,
-      areaCementerioId: cementerio.areaId,
-      comando,
-      ahora,
-      hoy: hoyEnTucuman(ahora),
-    });
+    return accion(ctx);
   });
+}
+
+/**
+ * El contexto de una acción sobre un expediente ya bloqueado (FOR UPDATE):
+ * la fila, la definición resuelta, el paso actual y los permisos. Lo usan
+ * `ejecutarAccion` y las acciones con varios comandos (la transcripción).
+ */
+export async function contextoBloqueado(tx: Transaccion, expedienteId: bigint, comando: string, ahora: Date): Promise<ContextoAccion> {
+  const exp = await tx.expediente.findUniqueOrThrow({ where: { id: expedienteId } });
+  const plantilla = await tx.plantilla.findUniqueOrThrow({
+    where: { id: exp.plantillaId },
+    select: { codigo: true, version: true, definicion: true },
+  });
+  // Resuelta para el cementerio y las personas del expediente (plantillas/resolver.ts).
+  const def = await definicionDelExpediente(tx, exp, plantilla);
+  const pasoActual = def.pasos[exp.pasoOrden - 1];
+  if (!pasoActual || pasoActual.clave !== exp.pasoClave) {
+    throw new ErrorDominio("configuracion_incompleta", `El paso ${exp.pasoClave} no está en la plantilla ${plantilla.codigo} v${plantilla.version}`);
+  }
+  const cementerio = await tx.cementerio.findUniqueOrThrow({ where: { id: exp.cementerioId }, select: { areaId: true } });
+  const permisos = await permisosDelExpediente(tx, exp, def.pasos.length);
+  return {
+    tx,
+    exp,
+    def,
+    items: leerItems(exp.items),
+    pasoActual,
+    permisos,
+    areaCementerioId: cementerio.areaId,
+    comando,
+    ahora,
+    hoy: hoyEnTucuman(ahora),
+  };
 }
 
 async function movimientoDelComando(tx: Transaccion, expedienteId: bigint, comandoId: string, tipo: string): Promise<bigint | null> {
@@ -146,18 +158,66 @@ export async function areasDePaso(ctx: ContextoAccion, paso: PasoPlantilla): Pro
  * EXPLÍCITA, pase, devolución o estado (3.3, punto 7). La recepción implícita
  * no cuenta: su fecha es la de llegada, no un acto del área.
  */
-export async function ultimoMovimientoDeUbicacion(tx: Transaccion, expedienteId: bigint): Promise<FechaEfectiva | null> {
-  const movimientos = await tx.movimiento.findMany({
-    where: { expedienteId, tipo: { in: [...TIPOS_UBICACION] } },
-    select: { tipo: true, fechaEfectiva: true, precisionFecha: true, datos: true },
-    orderBy: [{ fechaEfectiva: "desc" }, { secuencia: "desc" }],
-  });
-  const ultimo = movimientos.find((m) => !(m.tipo === "recepcion" && esImplicita(m.datos)));
-  return ultimo ? { instante: ultimo.fechaEfectiva, precision: comoPrecision(ultimo.precisionFecha) } : null;
+export async function ultimoMovimientoDeUbicacion(tx: Pick<Transaccion, "movimiento">, expedienteId: bigint): Promise<FechaEfectiva | null> {
+  // Semana 4: sin los movimientos revertidos y con las fechas corregidas (2.13(b)).
+  return ultimaUbicacionVigente(await cargarMovimientos(tx, expedienteId));
 }
 
-function esImplicita(datos: unknown): boolean {
-  return typeof datos === "object" && datos !== null && !Array.isArray(datos) && (datos as Record<string, unknown>).implicita === true;
+/** Todos los movimientos de un expediente, con lo que necesita la reconstrucción, en orden de secuencia. */
+export async function cargarMovimientos(lector: Pick<Transaccion, "movimiento">, expedienteId: bigint): Promise<MovimientoReconstruible[]> {
+  return lector.movimiento.findMany({
+    where: { expedienteId },
+    select: {
+      id: true,
+      secuencia: true,
+      tipo: true,
+      fechaEfectiva: true,
+      precisionFecha: true,
+      usuarioId: true,
+      areaUsuarioId: true,
+      pasoOrigen: true,
+      pasoDestino: true,
+      areaOrigenId: true,
+      areaDestinoId: true,
+      estadoAnterior: true,
+      estadoNuevo: true,
+      observacion: true,
+      motivo: true,
+      datos: true,
+      corrigeMovimientoId: true,
+      cargaHistorica: true,
+      comandoId: true,
+      registradoEn: true,
+    },
+    orderBy: { secuencia: "asc" },
+  });
+}
+
+/** Las áreas para la reconstrucción de la proyección. */
+export async function entornoReconstruccion(lector: Pick<Transaccion, "area">): Promise<EntornoReconstruccion> {
+  const areas = await lector.area.findMany({ select: { id: true, codigo: true, tipo: true } });
+  return { areas: new Map(areas.map((a) => [a.id, a])) };
+}
+
+/** Las columnas del flujo para Prisma (las de tipo date, como Date a medianoche UTC). */
+export function proyeccionParaDb(p: ProyeccionFlujo) {
+  return {
+    estado: p.estado,
+    estadoPrevio: p.estadoPrevio,
+    ubicacionArchivo: p.ubicacionArchivo,
+    pasoClave: p.pasoClave,
+    pasoOrden: p.pasoOrden,
+    pasoRetornoClave: p.pasoRetornoClave,
+    areaActualId: p.areaActualId,
+    areaResponsableId: p.areaResponsableId,
+    enAreaDesde: p.enAreaDesde,
+    recibidoEn: p.recibidoEn,
+    plazoDesde: fechaParaDb(p.plazoDesde),
+    plazoDiasHabiles: p.plazoDiasHabiles,
+    plazoCumplidoEn: fechaParaDb(p.plazoCumplidoEn),
+    items: p.items,
+    cargaHistorica: p.cargaHistorica,
+  };
 }
 
 /**
@@ -222,7 +282,7 @@ export async function busquedaActual(ctx: Pick<ContextoAccion, "tx" | "exp" | "d
   const { tx, exp, def } = ctx;
   const personas = await tx.expedientePersona.findMany({
     where: { expedienteId: exp.id, vigente: true, suprimidaEn: null },
-    select: { apellido: true, nombres: true, dni: true },
+    select: { apellido: true, nombres: true, dni: true, razonSocial: true, cuit: true },
     orderBy: [{ rol: "asc" }, { orden: "asc" }],
   });
   const cementerios = await tx.cementerio.findMany({ select: { id: true, codigo: true, nombre: true } });

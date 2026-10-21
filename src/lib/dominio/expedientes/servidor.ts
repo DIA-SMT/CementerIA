@@ -33,6 +33,7 @@ const almacenPerezoso: AlmacenAdjuntos = {
   descartar: (archivo) => obtenerAlmacen().descartar(archivo),
   abrir: (ruta) => obtenerAlmacen().abrir(ruta),
   barrerTemporales: (antesDe) => obtenerAlmacen().barrerTemporales(antesDe),
+  borrar: (ruta) => obtenerAlmacen().borrar(ruta),
 };
 
 export const expedientes = crearServicioExpedientes({ leer: prisma, escribir: conActor, almacen: almacenPerezoso });

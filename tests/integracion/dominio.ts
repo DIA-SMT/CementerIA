@@ -1,4 +1,4 @@
-// Ayudas para los tests del dominio de expedientes (semanas 2 y 3).
+// Ayudas para los tests del dominio de expedientes (semanas 2 a 4).
 //
 // A diferencia de escenario.ts, estos tests usan la semilla real (áreas con sus
 // códigos, las 4 plantillas, los usuarios ficticios por área): las reglas de
@@ -15,9 +15,14 @@ import { USUARIOS_FICTICIOS } from "../../prisma/semilla/usuarios";
 import { conActorEn } from "@/lib/db/actor";
 import type { Cliente, Transaccion } from "@/lib/db/crear-cliente";
 import { crearServicioExpedientes, type DatosAlta, type PersonaEntrada, type ResultadoPase, type ServicioExpedientes } from "@/lib/dominio/expedientes";
+import { digitoVerificadorCuil } from "@/lib/dominio/cuil";
 import { esRol, type UsuarioPermisos } from "@/lib/dominio/permisos";
-import { analizarDefinicion, type DefinicionPlantilla } from "@/lib/dominio/plantillas/esquema";
-import { hoyEnTucuman } from "@/lib/fechas";
+import { definicionDelExpediente } from "@/lib/dominio/expedientes/contexto";
+import type { DefinicionPlantilla, DefinicionPlantillaEntrada } from "@/lib/dominio/plantillas/esquema";
+import { fechaDesdeDb, hoyEnTucuman } from "@/lib/fechas";
+import { leerItems } from "@/lib/dominio/expedientes/items";
+import { cargarMovimientos, entornoReconstruccion } from "@/lib/dominio/expedientes/operacion";
+import { proyeccionComparable, reconstruirProyeccion, type ProyeccionFlujo } from "@/lib/dominio/expedientes/reconstruccion";
 
 /** El mismo CUIL de admin que usa semilla.test.ts. */
 export const ADMIN_CUIL = "20000000001";
@@ -70,6 +75,27 @@ export function unicoLetras(prefijo = ""): string {
   return `${prefijo}${n.replace(/[0-9]/g, (d) => "QWERTYUIOP"[Number(d)]).toUpperCase()}`;
 }
 
+let lote = 0;
+/** Un lote ficticio único (entero), para que dos altas no caigan en el mismo espacio. */
+export function loteUnico(): string {
+  lote += 1;
+  return String(100_000 + ((Date.now() % 800_000) * 10 + lote) % 900_000);
+}
+
+let cuit = 0;
+/**
+ * Un CUIT ficticio de persona jurídica único, 30-98NNNNNN-D, con dígito
+ * verificador válido (lo exige la base). El rango 30-98… no está asignado.
+ */
+export function cuitUnico(): string {
+  for (;;) {
+    cuit += 1;
+    const base = `3098${String(((Date.now() % 100_000) * 10 + cuit) % 1_000_000).padStart(6, "0")}`;
+    const digito = digitoVerificadorCuil(base);
+    if (digito !== null) return `${base}${digito}`;
+  }
+}
+
 let dni = 0;
 /** DNI ficticio único en el rango 98.xxx.xxx. */
 export function dniUnico(): string {
@@ -91,6 +117,18 @@ export function titular(extra: Partial<PersonaEntrada> = {}): PersonaEntrada {
   };
 }
 
+/**
+ * Una ubicación válida en la nomenclatura de cada cementerio (docs/fuentes):
+ * Oeste, sección A a H; Jardín, en romanos; Norte, la provisoria con cuadro.
+ * El lote, único, evita avisos de duplicado entre tests.
+ */
+export function ubicacionDe(cementerio: string): Record<string, string> {
+  const lote = loteUnico();
+  if (cementerio === "OESTE") return { seccion: "ABCDEFGH"[Math.floor(Math.random() * 8)], lote };
+  if (cementerio === "JARDIN_NORTE") return { seccion: ["I", "IV", "IX", "XII", "XXX"][Math.floor(Math.random() * 5)], lote };
+  return { seccion: String(1 + Math.floor(Math.random() * 900)), cuadro: unicoLetras("").slice(-2), lote };
+}
+
 /** Un alta válida de RENOV_CONTADO en el Oeste, con hoy como fecha de inicio. */
 export async function datosAlta(prisma: Cliente, cambios: Partial<DatosAlta> & { plantilla?: string; cementerio?: string } = {}): Promise<DatosAlta> {
   const { plantilla = "RENOV_CONTADO", cementerio = "OESTE", ...resto } = cambios;
@@ -98,7 +136,7 @@ export async function datosAlta(prisma: Cliente, cambios: Partial<DatosAlta> & {
     plantillaId: await idPlantilla(prisma, plantilla),
     cementerioId: await idCementerio(prisma, cementerio),
     tipoMonumento: "SEPULTURA",
-    ubicacion: { seccion: String(1 + Math.floor(Math.random() * 900)), cuadro: unicoLetras("").slice(-2), lote: "7" },
+    ubicacion: ubicacionDe(cementerio),
     padron: unicoLetras("PAD-"),
     personas: [titular()],
     fechaInicio: hoyEnTucuman(),
@@ -149,7 +187,7 @@ export async function simularPase(
   });
 }
 
-/** Cambia el estado a mano (archivar y anular son de la semana 4). */
+/** Cambia el estado a mano (los tests de las semanas 2 y 3; la semana 4 tiene las acciones). */
 export async function forzarEstado(prisma: Cliente, numero: string, estado: "archivado" | "anulado" | "concluido"): Promise<void> {
   await conActorEn(prisma, 1, "Estado forzado en un test", (tx) =>
     tx.expediente.update({
@@ -176,11 +214,13 @@ export async function responsable(prisma: Cliente, numero: string): Promise<Usua
   return usuario(prisma, e.areaResponsable.codigo as CodigoUsuario);
 }
 
+/** La definición del expediente como la ve el dominio: resuelta para su cementerio y sus personas. */
 export async function definicionDe(prisma: Cliente, numero: string): Promise<DefinicionPlantilla> {
-  const e = await prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: numero }, select: { plantilla: { select: { definicion: true } } } });
-  const r = analizarDefinicion(e.plantilla.definicion);
-  if (!r.ok) throw new Error("definición inválida");
-  return r.definicion;
+  const e = await prisma.expediente.findUniqueOrThrow({
+    where: { numeroInterno: numero },
+    select: { id: true, cementerioId: true, plantilla: { select: { definicion: true, codigo: true, version: true } } },
+  });
+  return definicionDelExpediente(prisma, e, e.plantilla);
 }
 
 export interface OpcionesPaso {
@@ -239,4 +279,72 @@ export function proyeccion(prisma: Cliente, numero: string) {
 export async function movimientos(prisma: Cliente, numero: string) {
   const e = await prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: numero }, select: { id: true } });
   return prisma.movimiento.findMany({ where: { expedienteId: e.id }, orderBy: { secuencia: "asc" } });
+}
+
+// ---------------------------------------------------------------------------
+// Semana 4
+// ---------------------------------------------------------------------------
+
+/**
+ * La proyección del flujo tal como está en la base y tal como la reconstruye
+ * el historial (reconstruccion.ts), en la misma forma, para compararlas:
+ * `expect(c.actual).toEqual(c.reconstruida)`. Es la conciliación por replay
+ * de la fase 2, en chico: si una acción escribe la proyección distinto de lo
+ * que dice su movimiento, acá se ve.
+ */
+export async function conciliacion(prisma: Cliente, numero: string) {
+  const e = await prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: numero } });
+  const def = await definicionDe(prisma, numero);
+  const p = reconstruirProyeccion(def, await cargarMovimientos(prisma, e.id), await entornoReconstruccion(prisma));
+  const actual: ProyeccionFlujo = {
+    estado: e.estado,
+    estadoPrevio: e.estadoPrevio,
+    ubicacionArchivo: e.ubicacionArchivo,
+    pasoClave: e.pasoClave,
+    pasoOrden: e.pasoOrden,
+    pasoRetornoClave: e.pasoRetornoClave,
+    areaActualId: e.areaActualId,
+    areaResponsableId: e.areaResponsableId,
+    enAreaDesde: e.enAreaDesde,
+    recibidoEn: e.recibidoEn,
+    plazoDesde: fechaDesdeDb(e.plazoDesde),
+    plazoDiasHabiles: e.plazoDiasHabiles,
+    plazoCumplidoEn: fechaDesdeDb(e.plazoCumplidoEn),
+    items: leerItems(e.items),
+    cargaHistorica: e.cargaHistorica,
+  };
+  return { actual: proyeccionComparable(actual), reconstruida: proyeccionComparable({ ...p, items: leerItems(p.items) }) };
+}
+
+/** Las columnas del flujo de la proyección, para comparar "antes" y "después" de una corrección. */
+export async function flujo(prisma: Cliente, numero: string) {
+  return (await conciliacion(prisma, numero)).actual;
+}
+
+/** Publica una plantilla de prueba (código único) con esa definición. */
+export async function plantillaDePrueba(prisma: Cliente, definicion: DefinicionPlantillaEntrada, nombre: string, tipoTramite = "RENOVACION"): Promise<number> {
+  const codigo = `PRUEBA_${Date.now().toString(36).toUpperCase()}_${unicoLetras()}`.slice(0, 60);
+  const tipo = await prisma.tipoTramite.findUniqueOrThrow({ where: { codigo: tipoTramite }, select: { id: true } });
+  return conActorEn(prisma, 1, "Plantilla de prueba", async (tx) => {
+    const p = await tx.plantilla.create({
+      data: { codigo, version: 1, tipoTramiteId: tipo.id, nombre, definicion: definicion as object, creadoPor: 1 },
+      select: { id: true },
+    });
+    await tx.plantilla.update({
+      where: { id: p.id },
+      data: { estado: "publicada", publicadoEn: new Date(), publicadoPor: 1, notasCambio: "Prueba de integración" },
+    });
+    return p.id;
+  });
+}
+
+/** Lleva un expediente hasta su último paso, como los responsables. */
+export async function hastaElUltimoPaso(exp: ServicioExpedientes, prisma: Cliente, numero: string, opciones: OpcionesPaso = {}): Promise<number> {
+  const total = (await definicionDe(prisma, numero)).pasos.length;
+  let e = await proyeccion(prisma, numero);
+  while (e.pasoOrden < total) {
+    await avanzar(exp, prisma, numero, opciones);
+    e = await proyeccion(prisma, numero);
+  }
+  return e.version;
 }

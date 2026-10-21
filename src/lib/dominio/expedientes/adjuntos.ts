@@ -4,7 +4,7 @@ import { log, resumenError } from "@/lib/log";
 import { evaluarPermiso, exigirPermiso, PermisoDenegado, type UsuarioPermisos } from "../permisos";
 import { exigirNumero, permisosDelExpediente, registrarAcceso, type OpcionesAcceso } from "./acceso";
 import { validarComando } from "./alta";
-import { leerDefinicion } from "./contexto";
+import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, errorValidacion, estadoNoAdmite, exigirMotivo, limpiarMotivo, noEncontrado } from "./errores";
 import type { ItemsExpediente } from "./items";
@@ -214,7 +214,7 @@ async function controlesPrevios(
   if (previo) return repetidoDesde(deps.leer, exp.id, previo.id);
   if (exp.estado === "archivado" || exp.estado === "anulado") throw estadoNoAdmite(exp.estado, "adjuntar");
   exigirPermiso("adjuntar", await permisosDelExpediente(deps.leer, exp), usuario);
-  const def = leerDefinicion(exp.plantilla.definicion, exp.plantilla.codigo, exp.plantilla.version);
+  const def = await definicionDelExpediente(deps.leer, exp, exp.plantilla);
   validarDocumento(def.documentos, documento);
   return null;
 }
@@ -270,7 +270,7 @@ function registrarAdjunto(
       const id = idItem(m.id);
       const items: ItemsExpediente = {
         ...ctx.items,
-        adjuntos: { ...ctx.items.adjuntos, [String(id)]: { documento: r.documento, vigente: true } },
+        adjuntos: { ...ctx.items.adjuntos, [String(id)]: { documento: r.documento, vigente: true, purgado: false } },
       };
       if (r.documento !== null) {
         const doc = ctx.items.documentos[r.documento];

@@ -188,7 +188,16 @@ describe("bandeja: acciones de cada fila y contadores de las pestañas (pantalla
     await avanzar(exp, prisma, alta.numero);
     for (const u of [mesa, computo, liquidacion]) {
       const c = await exp.contadoresBandeja(u);
-      const [pc, ema, af] = await Promise.all([exp.bandeja(u, "por_confirmar"), exp.bandeja(u, "en_mi_area"), exp.bandeja(u, "afuera")]);
+      const [pc, ema, af, pz, ch] = await Promise.all([
+        exp.bandeja(u, "por_confirmar"),
+        exp.bandeja(u, "en_mi_area"),
+        exp.bandeja(u, "afuera"),
+        exp.bandeja(u, "plazos"),
+        exp.bandeja(u, "carga_historica"),
+      ]);
+      // Semana 4: Plazos y Carga histórica.
+      if (!pz.hayMas) expect(c.plazos).toBe(pz.filas.length);
+      if (!ch.hayMas) expect(c.carga_historica).toBe(ch.filas.length);
       if (!pc.hayMas) expect(c.por_confirmar).toBe(pc.filas.length);
       if (!ema.hayMas) expect(c.en_mi_area).toBe(ema.filas.length);
       if (!af.hayMas) {
@@ -197,7 +206,7 @@ describe("bandeja: acciones de cada fila y contadores de las pestañas (pantalla
       }
       expect(c.por_confirmar).toBe(await exp.contadorPorConfirmar(u));
     }
-    expect(await exp.contadoresBandeja(direccion)).toEqual({ por_confirmar: 0, en_mi_area: 0, afuera: 0, afueraCustodia: 0 });
-    expect(await exp.contadoresBandeja(admin)).toEqual({ por_confirmar: 0, en_mi_area: 0, afuera: 0, afueraCustodia: 0 });
+    expect(await exp.contadoresBandeja(direccion)).toEqual({ por_confirmar: 0, en_mi_area: 0, afuera: 0, afueraCustodia: 0, plazos: 0, plazosAlerta: 0, carga_historica: 0 });
+    expect(await exp.contadoresBandeja(admin)).toEqual({ por_confirmar: 0, en_mi_area: 0, afuera: 0, afueraCustodia: 0, plazos: 0, plazosAlerta: 0, carga_historica: 0 });
   });
 });

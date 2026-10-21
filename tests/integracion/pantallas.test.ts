@@ -148,7 +148,7 @@ describe("opciones del buscador", () => {
     const codigos = o.plantillas.map((p) => p.codigo);
     expect(codigos).toEqual(expect.arrayContaining(["RENOV_CONTADO", "RENOV_PLAN", "RENOV_SPT_CONTADO", "NUEVA_CONC_CONTADO"]));
     expect(new Set(codigos).size).toBe(codigos.length);
-    expect(o.cementerios.find((c) => c.codigo === "OESTE")?.camposUbicacion.map((c) => c.clave)).toEqual(["seccion", "cuadro", "lote", "numero"]);
+    expect(o.cementerios.find((c) => c.codigo === "OESTE")?.camposUbicacion.map((c) => c.clave)).toEqual(["seccion", "lote", "numero"]);
     expect(o.areas.map((a) => a.codigo)).toContain("MESA_ENTRADAS");
     expect(o.areas.map((a) => a.codigo)).not.toContain("DIRECCION");
   });

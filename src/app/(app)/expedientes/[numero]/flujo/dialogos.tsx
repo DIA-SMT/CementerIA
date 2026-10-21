@@ -5,7 +5,6 @@ import { Download } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
 import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL } from "@/components/formulario";
-import { LARGO_MINIMO_MOTIVO } from "@/lib/dominio/expedientes/errores";
 import {
   aplicarAtajo,
   ATAJOS_DEVOLUCION,
@@ -20,8 +19,10 @@ import {
 import { ETIQUETA_DOCUMENTO } from "@/lib/presentacion/textos";
 import { accionDevolucion, accionDocumento, accionPase, accionRecepcion, accionSubtarea, verDatosCompletos } from "../../acciones";
 import { DialogoAdjuntar } from "./adjuntar";
-import { useFlujo } from "./estado";
-import { CampoFecha, erroresDe, ListaFaltan, useEnvio, useFechaEfectiva } from "./piezas";
+import { dialogoDeVuelta, useAccesoFaltante, useFlujo } from "./estado";
+import { DialogoCorreccion, DialogoSuprimir } from "./correcciones";
+import { DialogoEstado } from "./cambios-estado";
+import { CampoFecha, erroresDe, ListaFaltan, Motivo, motivoCorto, Observacion, Pie, RUTAS_EN_CAMPO, useEnvio, useFechaEfectiva } from "./piezas";
 import type { DialogoFlujo, DatosFlujo } from "./tipos";
 
 /**
@@ -40,85 +41,25 @@ export function DialogoActivo({ dialogo }: { dialogo: DialogoFlujo }) {
     case "devolver":
       return <DialogoDevolver />;
     case "tildar":
-      return <DialogoTildar clave={dialogo.clave} volverAlPase={dialogo.volverAlPase ?? false} />;
+      return <DialogoTildar clave={dialogo.clave} volverA={dialogo.volverA ?? null} />;
     case "destildar":
       return <DialogoDestildar clave={dialogo.clave} />;
     case "documento":
-      return <DialogoDocumento clave={dialogo.clave} volverAlPase={dialogo.volverAlPase ?? false} />;
+      return <DialogoDocumento clave={dialogo.clave} volverA={dialogo.volverA ?? null} />;
     case "adjuntar":
-      return <DialogoAdjuntar documento={dialogo.documento} volverAlPase={dialogo.volverAlPase ?? false} />;
+      return <DialogoAdjuntar documento={dialogo.documento} volverA={dialogo.volverA ?? null} />;
     case "visor":
       return <DialogoVisor adjunto={dialogo.adjunto} motivo={dialogo.motivo} />;
     case "motivoAdjuntos":
       return <DialogoMotivoAdjuntos />;
+    case "estado":
+      return <DialogoEstado accion={dialogo.accion} />;
+    case "corregir":
+      return <DialogoCorreccion opcion={dialogo.opcion} movimiento={dialogo.movimiento} />;
+    case "suprimir":
+      return <DialogoSuprimir persona={dialogo.persona} />;
   }
 }
-
-/** Botones de pie: la acción y Cancelar. */
-function Pie({ pendiente, texto, textoPendiente, onCancelar, deshabilitado = false }: {
-  pendiente: boolean;
-  texto: string;
-  textoPendiente: string;
-  onCancelar: () => void;
-  deshabilitado?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
-      <button type="button" onClick={onCancelar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
-        Cancelar
-      </button>
-      <button type="submit" disabled={pendiente || deshabilitado} className={CLASE_BOTON_PRIMARIO}>
-        {pendiente ? textoPendiente : texto}
-      </button>
-    </div>
-  );
-}
-
-function Observacion({ valor, poner, error, etiqueta = "Observación (opcional)", obligatoria = false }: {
-  valor: string;
-  poner: (v: string) => void;
-  error: ReturnType<typeof useEnvio>["error"];
-  etiqueta?: string;
-  obligatoria?: boolean;
-}) {
-  const errores = erroresDe(error, "observacion");
-  return (
-    <Campo ruta="observacion" etiqueta={etiqueta} obligatorio={obligatoria} errores={errores}>
-      <textarea {...atributosCampo("observacion", errores)} rows={2} maxLength={2000} value={valor} onChange={(e) => poner(e.target.value)} className={CLASE_CONTROL} />
-    </Campo>
-  );
-}
-
-function Motivo({ valor, poner, error, ayuda, autoFocus = false }: {
-  valor: string;
-  poner: (v: string) => void;
-  error: ReturnType<typeof useEnvio>["error"];
-  ayuda?: string;
-  autoFocus?: boolean;
-}) {
-  const errores = erroresDe(error, "motivo");
-  return (
-    <Campo ruta="motivo" etiqueta="Motivo" obligatorio errores={errores} ayuda={ayuda ?? `${LARGO_MINIMO_MOTIVO} caracteres o más`}>
-      <textarea
-        {...atributosCampo("motivo", errores, "campo-motivo-ayuda")}
-        rows={3}
-        maxLength={2000}
-        value={valor}
-        onChange={(e) => poner(e.target.value)}
-        data-autofocus={autoFocus ? true : undefined}
-        className={CLASE_CONTROL}
-      />
-    </Campo>
-  );
-}
-
-/** Si el motivo es corto, el error se muestra sin ir al servidor (el servidor lo controla igual). */
-function motivoCorto(motivo: string): { ok: false; codigo: string; mensaje: string; errores: Array<{ ruta: string; mensaje: string }> } | null {
-  if (motivo.trim().length >= LARGO_MINIMO_MOTIVO) return null;
-  return { ok: false, codigo: "motivo_requerido", mensaje: "Falta el motivo", errores: [{ ruta: "motivo", mensaje: `Escribí el motivo (${LARGO_MINIMO_MOTIVO} caracteres o más)` }] };
-}
-
-const RUTAS_EN_CAMPO = ["motivo", "observacion", "fechaEfectiva", "dato"];
 
 // ---------------------------------------------------------------------------
 // Recepción
@@ -151,18 +92,6 @@ function DialogoRecepcion() {
 // ---------------------------------------------------------------------------
 // Pase ("Faltan N" y destinos)
 // ---------------------------------------------------------------------------
-
-/** El acceso directo de un faltante: cierra la lista y abre el diálogo que lo resuelve; al terminar, vuelve al pase. */
-function useAccesoFaltante(): (item: ItemFaltante) => void {
-  const { abrir } = useFlujo();
-  return (item) => {
-    const a = item.accion?.acceso;
-    if (!a) return;
-    if (a.tipo === "tildar") abrir({ tipo: "tildar", clave: a.clave, volverAlPase: true });
-    else if (a.tipo === "documento") abrir({ tipo: "documento", clave: a.clave, volverAlPase: true });
-    else if (a.tipo === "adjuntar") abrir({ tipo: "adjuntar", documento: a.documento, volverAlPase: true });
-  };
-}
 
 export function faltantesDe(datos: DatosFlujo): ItemFaltante[] {
   return itemsFaltan(datos.pase.faltan, datos.permisos, datos.rutaEditar);
@@ -354,7 +283,7 @@ function DialogoDevolver() {
 // Subtareas
 // ---------------------------------------------------------------------------
 
-function DialogoTildar({ clave, volverAlPase }: { clave: string; volverAlPase: boolean }) {
+function DialogoTildar({ clave, volverA }: { clave: string; volverA: "pase" | "concluir" | null }) {
   const { datos, version, cerrar, hecho } = useFlujo();
   const s = datos.subtareas.find((x) => x.clave === clave);
   const [comandoId] = useState(nuevoComandoId);
@@ -384,7 +313,7 @@ function DialogoTildar({ clave, volverAlPase }: { clave: string; volverAlPase: b
                 versionVista: version,
                 comandoId,
               }),
-            (r) => hecho(r, volverAlPase ? { tipo: "pase" } : null),
+            (r) => hecho(r, dialogoDeVuelta(volverA)),
           );
         }}
       >
@@ -443,7 +372,7 @@ function DialogoDestildar({ clave }: { clave: string }) {
 
 type EstadoMarca = "presentado" | "no_corresponde" | "pendiente";
 
-function DialogoDocumento({ clave, volverAlPase }: { clave: string; volverAlPase: boolean }) {
+function DialogoDocumento({ clave, volverA }: { clave: string; volverA: "pase" | "concluir" | null }) {
   const { datos, version, cerrar, hecho } = useFlujo();
   const d = datos.documentos.find((x) => x.clave === clave);
   const [comandoId] = useState(nuevoComandoId);
@@ -468,7 +397,7 @@ function DialogoDocumento({ clave, volverAlPase }: { clave: string; volverAlPase
           }
           enviar(
             () => accionDocumento({ numero: datos.numero, clave, estado, observacion: estado === "pendiente" ? null : observacion, versionVista: version, comandoId }),
-            (r) => hecho(r, volverAlPase ? { tipo: "pase" } : null),
+            (r) => hecho(r, dialogoDeVuelta(volverA)),
           );
         }}
       >

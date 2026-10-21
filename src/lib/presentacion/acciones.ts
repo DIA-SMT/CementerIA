@@ -273,3 +273,6 @@ export async function procesarDevolucion(servicio: ServicioExpedientes, usuario:
     return estadoDeError(e);
   }
 }
+
+// Para las acciones de la semana 4 (./acciones-estados.ts): la misma lectura de la entrada.
+export { Base as BaseAccion, entrada as leerEntrada, vacioANull, Texto as TextoAccion, Fecha as FechaAccion, FORMULARIO_INCOMPLETO };

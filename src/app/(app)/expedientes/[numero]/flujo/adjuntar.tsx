@@ -8,7 +8,7 @@ import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CL
 import type { EstadoError } from "@/lib/presentacion/errores";
 import { formatearBytes, nuevoComandoId } from "@/lib/presentacion/flujo";
 import { ACCEPT_ADJUNTO, mensajeRespuestaSubida, prepararArchivo } from "@/lib/presentacion/imagen";
-import { useFlujo } from "./estado";
+import { dialogoDeVuelta, useFlujo } from "./estado";
 
 /**
  * Adjuntar un archivo a un documento o suelto (sección 6, "Adjuntos"). En el
@@ -25,7 +25,7 @@ export function rutaSubida(numero: string, p: { nombre: string; documento: strin
   return `/api/expedientes/${encodeURIComponent(numero)}/adjuntos?${q.toString()}`;
 }
 
-export function DialogoAdjuntar({ documento, volverAlPase }: { documento: string | null; volverAlPase: boolean }) {
+export function DialogoAdjuntar({ documento, volverA }: { documento: string | null; volverA: "pase" | "concluir" | null }) {
   const { datos, version, cerrar, hecho } = useFlujo();
   const router = useRouter();
   const [comandoId] = useState(nuevoComandoId);
@@ -70,7 +70,7 @@ export function DialogoAdjuntar({ documento, volverAlPase }: { documento: string
     }
     // El Route Handler no puede pedir el refresco como una Server Action: se pide acá.
     iniciar(() => router.refresh());
-    hecho({ version: cuerpo.version, mensaje: `Se adjuntó ${cuerpo.nombre}.` }, volverAlPase ? { tipo: "pase" } : null);
+    hecho({ version: cuerpo.version, mensaje: `Se adjuntó ${cuerpo.nombre}.` }, dialogoDeVuelta(volverA));
   }
 
   return (

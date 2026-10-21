@@ -10,6 +10,7 @@ import {
   nuevoComandoId,
   opcionesDestino,
   pestanaPorDefecto,
+  pestanasVisibles,
   reiniciablesPara,
   resumenLote,
   rutaCampoExtra,
@@ -33,7 +34,7 @@ const FALTAN: Faltante[] = [
 const TODO = { tildarSubtarea: true, marcarDocumento: true, adjuntar: true, completarCamposExtra: true };
 
 describe("bandeja: pestaña por defecto", () => {
-  const cero = { por_confirmar: 0, en_mi_area: 0, afuera: 0, afueraCustodia: 0 };
+  const cero = { por_confirmar: 0, en_mi_area: 0, afuera: 0, afueraCustodia: 0, plazos: 0, plazosAlerta: 0, carga_historica: 0 };
 
   it("la pedida en la URL manda, aunque esté vacía", () => {
     expect(pestanaPorDefecto({ ...cero, por_confirmar: 3 }, "afuera")).toBe("afuera");
@@ -50,11 +51,26 @@ describe("bandeja: pestaña por defecto", () => {
     expect(pestanaPorDefecto(cero, null)).toBe("en_mi_area");
   });
 
-  it("?pestana= solo acepta las de la semana 3", () => {
+  it("?pestana= acepta las cinco (semana 4: plazos y carga histórica)", () => {
     expect(leerPestana("afuera")).toBe("afuera");
     expect(leerPestana(["por_confirmar", "x"])).toBe("por_confirmar");
-    expect(leerPestana("plazos")).toBeNull();
+    expect(leerPestana("plazos")).toBe("plazos");
+    expect(leerPestana("carga_historica")).toBe("carga_historica");
+    expect(leerPestana("otra")).toBeNull();
     expect(leerPestana(undefined)).toBeNull();
+  });
+
+  it("semana 4: un plazo en ámbar o rojo abre Plazos si no hay otro trabajo", () => {
+    expect(pestanaPorDefecto({ ...cero, plazos: 3, plazosAlerta: 1 }, null)).toBe("plazos");
+    expect(pestanaPorDefecto({ ...cero, plazos: 3, plazosAlerta: 0 }, null)).toBe("en_mi_area");
+    expect(pestanaPorDefecto({ ...cero, en_mi_area: 1, plazosAlerta: 2 }, null)).toBe("en_mi_area");
+  });
+
+  it("semana 4: Plazos si hay algo con plazo; Carga histórica solo Mesa de Entradas; la abierta siempre", () => {
+    expect(pestanasVisibles(cero, { esMesa: false, abierta: "en_mi_area" })).toEqual(["por_confirmar", "en_mi_area", "afuera"]);
+    expect(pestanasVisibles({ ...cero, plazos: 2 }, { esMesa: false, abierta: "en_mi_area" })).toEqual(["por_confirmar", "en_mi_area", "afuera", "plazos"]);
+    expect(pestanasVisibles(cero, { esMesa: true, abierta: "en_mi_area" })).toEqual(["por_confirmar", "en_mi_area", "afuera", "carga_historica"]);
+    expect(pestanasVisibles(cero, { esMesa: false, abierta: "plazos" })).toEqual(["por_confirmar", "en_mi_area", "afuera", "plazos"]);
   });
 
   it("textos de la fila y del lote", () => {

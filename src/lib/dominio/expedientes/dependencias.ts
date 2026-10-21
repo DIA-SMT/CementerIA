@@ -28,6 +28,9 @@ export interface Lector {
   expedientePersona: SoloLectura<Transaccion["expedientePersona"]>;
   movimiento: SoloLectura<Transaccion["movimiento"]>;
   usuario: SoloLectura<Transaccion["usuario"]>;
+  /** Semana 4: el plazo DIM (años cerrados) y el ABM de feriados. */
+  feriado: SoloLectura<Transaccion["feriado"]>;
+  feriadoAnio: SoloLectura<Transaccion["feriadoAnio"]>;
 }
 
 /** La firma de `conActor()` (src/lib/db/transaccion.ts). */

@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { esFechaValida, FECHA_MINIMA_INICIO, sumarDias, type FechaISO } from "@/lib/fechas";
-import { colapsarEspacios, normalizarDni } from "../normalizar";
+import { cuitJuridicaValido } from "../cuil";
+import { colapsarEspacios, normalizarCuit, normalizarDni } from "../normalizar";
 import {
   rutaComoTexto,
   type CampoExtraPlantilla,
   type DefinicionPlantilla,
   type PersonaPlantilla,
 } from "../plantillas/esquema";
+import { aplicaPorPersonas, resolverPorCementerio } from "../plantillas/resolver";
 import { errorValidacion, type ErrorCampo } from "./errores";
 import { validarUbicacion, type CampoUbicacion, type Ubicacion } from "./ubicacion";
 
@@ -24,7 +26,11 @@ import { validarUbicacion, type CampoUbicacion, type Ubicacion } from "./ubicaci
  * - Personas: roles de la plantilla; cantidad entre `min` y `max` por rol;
  *   `fallecido` según la plantilla (`no`, `si`, `opcional`); fecha de defunción
  *   solo si falleció; vínculo obligatorio si `pide_vinculo`; DNI de 6 a 9
- *   dígitos (sin puntos ni ceros a la izquierda).
+ *   dígitos (sin puntos ni ceros a la izquierda). Persona física (apellido y
+ *   nombres) o, si el rol tiene `admite_juridica`, jurídica: razón social y
+ *   CUIT válido de persona jurídica (30, 33 o 34), sin DNI ni fallecimiento.
+ * - Documentos recibidos en el alta: los de la plantilla que corresponden al
+ *   cementerio y, si dependen de una persona jurídica, a las personas cargadas.
  * - Contacto: si `requiere_contacto`, exactamente una persona; nunca un
  *   fallecido; tiene que tener teléfono o correo. Si no se marcó ninguna y hay
  *   una sola persona que puede serlo, se la marca sola.
@@ -47,16 +53,25 @@ export const DIAS_RETROACTIVOS_MAX = 30;
 // Tipos de entrada y de salida (para la pantalla)
 // ---------------------------------------------------------------------------
 
+export const TIPOS_PERSONA = ["fisica", "juridica"] as const;
+export type TipoPersona = (typeof TIPOS_PERSONA)[number];
+
 /** Una persona tal como la manda el formulario. */
 export interface PersonaEntrada {
   /** Solo en la edición: el id de la versión vigente que se edita. Sin id = persona nueva. */
   id?: string | null;
   /** Rol de `definicion.personas` (titular, solicitante, difunto…). */
   rol: string;
-  apellido: string;
-  nombres: string;
-  /** Con o sin puntos; se guarda solo con dígitos y sin ceros a la izquierda. */
+  /** Por defecto `fisica`. `juridica` solo en los roles con `admite_juridica`. */
+  tipo?: TipoPersona;
+  /** Obligatorios en una persona física; una jurídica no los lleva. */
+  apellido?: string | null;
+  nombres?: string | null;
+  /** Con o sin puntos; se guarda solo con dígitos y sin ceros a la izquierda. Solo física. */
   dni?: string | null;
+  /** Obligatorios en una persona jurídica. El CUIT, con o sin guiones. */
+  razonSocial?: string | null;
+  cuit?: string | null;
   /** Si la plantilla dice `fallecido: si` o `no`, se puede omitir. */
   fallecido?: boolean;
   /** YYYY-MM-DD; solo si falleció. */
@@ -76,9 +91,14 @@ export interface PersonaValidada {
   rol: string;
   /** 1, 2, 3… dentro del rol, en el orden en que vinieron. */
   orden: number;
-  apellido: string;
-  nombres: string;
+  tipo: TipoPersona;
+  /** Con valor en una física, null en una jurídica (y al revés razón social y CUIT). */
+  apellido: string | null;
+  nombres: string | null;
   dni: string | null;
+  razonSocial: string | null;
+  /** 11 dígitos, sin guiones. */
+  cuit: string | null;
   fallecido: boolean;
   fechaDefuncion: FechaISO | null;
   vinculo: string | null;
@@ -117,6 +137,11 @@ export interface DatosAlta {
   cargaHistorica?: boolean;
   /** Obligatoria con carga histórica: "Ficha papel", "Libro de pases de Legal". */
   fuente?: string | null;
+  /**
+   * Semana 4, "Reiniciar con otra plantilla" (2.13(a)): el id del expediente
+   * anulado por el reinicio (lo trae `precargaAlta().datos`).
+   */
+  expedienteAnteriorId?: string | null;
 }
 
 export interface AltaValidada {
@@ -134,6 +159,7 @@ export interface AltaValidada {
   fechaInicio: FechaISO;
   cargaHistorica: boolean;
   fuente: string | null;
+  expedienteAnteriorId: string | null;
 }
 
 /**
@@ -172,7 +198,8 @@ export interface EdicionValidada {
 /** Lo que los esquemas necesitan saber (lo arma `cargarContexto()`). */
 export interface ContextoEsquema {
   plantilla: { id: number; definicion: DefinicionPlantilla };
-  cementerio: { id: number; camposUbicacion: readonly CampoUbicacion[] };
+  /** El código decide qué documentos de la plantilla corresponden (`solo_cementerios`…). */
+  cementerio: { id: number; codigo: string; camposUbicacion: readonly CampoUbicacion[] };
   /** Códigos de tipo de monumento admitidos: los de la plantilla (o todos) habilitados en el cementerio y activos. */
   tiposMonumento: readonly string[];
   /** Códigos de cementerios activos, para los campos extra de tipo `cementerio`. */
@@ -203,14 +230,6 @@ function textoOpcional(etiqueta: string, max: number) {
     .refine((v) => v === null || v.length <= max, `${etiqueta}: ${max} caracteres como máximo`);
 }
 
-function textoObligatorio(etiqueta: string, max: number) {
-  return z
-    .string({ error: `${etiqueta}: es obligatorio` })
-    .transform((v) => colapsarEspacios(v))
-    .refine((v) => v !== "", `${etiqueta}: es obligatorio`)
-    .refine((v) => v.length <= max, `${etiqueta}: ${max} caracteres como máximo`);
-}
-
 function fechaOpcional(etiqueta: string) {
   return z
     .string({ error: `${etiqueta}: fecha inválida` })
@@ -239,13 +258,20 @@ function esquemaPersona(conId: boolean) {
           .optional()
           .transform(() => null),
     rol: z.string({ error: "Falta el rol de la persona" }),
-    apellido: textoObligatorio("Apellido", 100),
-    nombres: textoObligatorio("Nombres", 100),
+    tipo: z.enum(TIPOS_PERSONA, { error: "Elegí persona física o jurídica" }).default("fisica"),
+    // Obligatorios según el tipo: lo controla el superRefine de abajo.
+    apellido: textoOpcional("Apellido", 100),
+    nombres: textoOpcional("Nombres", 100),
     dni: z
       .string({ error: "DNI: tiene que ser texto" })
       .nullish()
       .transform((v) => normalizarDni(v))
       .refine((v) => v === null || /^\d{6,9}$/.test(v), "DNI: tiene que tener entre 6 y 9 dígitos"),
+    razonSocial: textoOpcional("Razón social", 200),
+    cuit: z
+      .string({ error: "CUIT: tiene que ser texto" })
+      .nullish()
+      .transform((v) => normalizarCuit(v)),
     fallecido: z.boolean().optional(),
     fechaDefuncion: fechaOpcional("Fecha de defunción"),
     vinculo: textoOpcional("Vínculo", 60),
@@ -259,7 +285,30 @@ function esquemaPersona(conId: boolean) {
       .refine((v) => v === null || z.email().safeParse(v).success, "Correo: no es una dirección válida"),
     domicilio: textoOpcional("Domicilio", 200),
     esContacto: z.boolean().default(false),
-  });
+  })
+    // Los datos de cada tipo. Va en el objeto y no en la lista para que el
+    // error salga junto con los demás de la persona (los de formato de cada
+    // campo no cortan la validación).
+    .superRefine((p, ctx) => {
+      if (p.tipo === "fisica") {
+        if (p.apellido === null) problema(ctx, ["apellido"], "Apellido: es obligatorio");
+        if (p.nombres === null) problema(ctx, ["nombres"], "Nombres: es obligatorio");
+        if (p.razonSocial !== null) problema(ctx, ["razonSocial"], "Razón social: solo para una persona jurídica");
+        if (p.cuit !== null) problema(ctx, ["cuit"], "CUIT: solo para una persona jurídica (de una persona física va el DNI)");
+        return;
+      }
+      if (p.razonSocial === null) problema(ctx, ["razonSocial"], "Razón social: es obligatoria");
+      if (p.cuit === null) problema(ctx, ["cuit"], "CUIT: es obligatorio");
+      else if (!cuitJuridicaValido(p.cuit)) {
+        problema(ctx, ["cuit"], "CUIT: no es válido (11 dígitos, empieza con 30, 33 o 34 y el último es el verificador)");
+      }
+      if (p.apellido !== null || p.nombres !== null) {
+        problema(ctx, ["apellido"], "Una persona jurídica no lleva apellido ni nombres: va la razón social");
+      }
+      if (p.dni !== null) problema(ctx, ["dni"], "Una persona jurídica no lleva DNI: va el CUIT");
+      if (p.fallecido === true) problema(ctx, ["fallecido"], "Una persona jurídica no puede figurar como fallecida");
+      if (p.fechaDefuncion !== null) problema(ctx, ["fechaDefuncion"], "Una persona jurídica no tiene fecha de defunción");
+    });
 }
 
 type PersonaParseada = z.output<ReturnType<typeof esquemaPersona>>;
@@ -281,16 +330,22 @@ function completarPersonas(def: DefinicionPlantilla, lista: PersonaParseada[]): 
     const rol = roles.get(p.rol);
     const orden = (contadores.get(p.rol) ?? 0) + 1;
     contadores.set(p.rol, orden);
-    const fallecido = p.fallecido ?? rol?.fallecido === "si";
+    const juridica = p.tipo === "juridica";
+    // Una jurídica no fallece; si llegó marcada, el esquema de la persona ya lo marcó como error.
+    const fallecido = juridica ? false : (p.fallecido ?? rol?.fallecido === "si");
     return {
       id: p.id,
       rol: p.rol,
       orden,
-      apellido: p.apellido,
-      nombres: p.nombres,
-      dni: p.dni,
+      tipo: p.tipo,
+      // Lo del otro tipo no se guarda (también lo exige el CHECK de la base).
+      apellido: juridica ? null : p.apellido,
+      nombres: juridica ? null : p.nombres,
+      dni: juridica ? null : p.dni,
+      razonSocial: juridica ? p.razonSocial : null,
+      cuit: juridica ? p.cuit : null,
       fallecido,
-      fechaDefuncion: p.fechaDefuncion,
+      fechaDefuncion: juridica ? null : p.fechaDefuncion,
       vinculo: rol?.pide_vinculo ? p.vinculo : null,
       telefono: p.telefono,
       telefonoWhatsapp: p.telefono !== null && p.telefonoWhatsapp,
@@ -320,8 +375,14 @@ function reglasPersonas(def: DefinicionPlantilla, personas: PersonaValidada[], h
       problema(ctx, [i, "rol"], `Este trámite no tiene personas con el rol "${p.rol}"`);
       return;
     }
+    if (p.tipo === "juridica" && !rol.admite_juridica) {
+      problema(ctx, [i, "tipo"], `${etiquetaRol(rol)}: tiene que ser una persona física`);
+    }
     if (rol.fallecido === "no" && p.fallecido) problema(ctx, [i, "fallecido"], `${etiquetaRol(rol)}: no puede figurar como fallecido`);
-    if (rol.fallecido === "si" && !p.fallecido) problema(ctx, [i, "fallecido"], `${etiquetaRol(rol)}: tiene que figurar como fallecido`);
+    // Una jurídica en un rol de fallecidos ya tiene el error de arriba (validar.ts no deja combinar los dos).
+    if (rol.fallecido === "si" && !p.fallecido && p.tipo === "fisica") {
+      problema(ctx, [i, "fallecido"], `${etiquetaRol(rol)}: tiene que figurar como fallecido`);
+    }
     if (p.fechaDefuncion !== null) {
       if (!p.fallecido) problema(ctx, [i, "fechaDefuncion"], "Fecha de defunción: solo si la persona falleció");
       else if (p.fechaDefuncion > hoy) problema(ctx, [i, "fechaDefuncion"], "Fecha de defunción: no puede ser posterior a hoy");
@@ -461,7 +522,11 @@ export function errorFechaInicio(fecha: FechaISO, hoy: FechaISO, cargaHistorica:
 /** El esquema del alta para esa plantilla y ese cementerio. Ver el comentario del módulo. */
 export function construirEsquemaAlta(ctx: ContextoEsquema): z.ZodType<AltaValidada> {
   const def = ctx.plantilla.definicion;
-  const claves = def.documentos.map((d) => d.clave);
+  // Los documentos que no corresponden al cementerio no se pueden recibir: el
+  // expediente no los va a mostrar ni a pedir.
+  const documentos = resolverPorCementerio(def, ctx.cementerio.codigo).documentos;
+  const claves = documentos.map((d) => d.clave);
+  const etiquetas = new Map(def.personas.map((r) => [r.rol, r.etiqueta]));
   return z
     .strictObject({
       plantillaId: z.literal(ctx.plantilla.id, { error: "La plantilla cambió: recargá el formulario" }),
@@ -485,12 +550,25 @@ export function construirEsquemaAlta(ctx: ContextoEsquema): z.ZodType<AltaValida
         .refine(esFechaValida, "Fecha de inicio: fecha inválida (AAAA-MM-DD)"),
       cargaHistorica: z.boolean().default(false),
       fuente: textoOpcional("Fuente", 200),
+      expedienteAnteriorId: z
+        .string({ error: "Expediente anterior inválido" })
+        .regex(/^\d{1,18}$/, "Expediente anterior inválido")
+        .nullable()
+        .default(null),
     })
     .superRefine((d, zctx) => {
       const error = errorFechaInicio(d.fechaInicio, ctx.hoy, d.cargaHistorica);
       if (error) problema(zctx, ["fechaInicio"], error);
       if (d.cargaHistorica && d.fuente === null) {
         problema(zctx, ["fuente"], 'Fuente: es obligatoria en un expediente iniciado antes del sistema (ej. "Ficha papel")');
+      }
+      // La personería y la designación de asamblea, solo con una persona jurídica en ese rol.
+      const rolesJuridicos = new Set(d.personas.filter((p) => p.tipo === "juridica").map((p) => p.rol));
+      for (const doc of documentos) {
+        if (d.documentosRecibidos.includes(doc.clave) && !aplicaPorPersonas(doc, rolesJuridicos)) {
+          const rol = doc.solo_si_juridica ?? "";
+          problema(zctx, ["documentosRecibidos"], `${doc.nombre}: corresponde solo si ${etiquetas.get(rol) ?? rol} es una persona jurídica`);
+        }
       }
     })
     .transform((d) => ({ ...d, fuente: d.cargaHistorica ? d.fuente : null }));

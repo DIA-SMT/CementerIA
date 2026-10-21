@@ -27,7 +27,29 @@ import {
   type ResultadoFlujo,
   type ResultadoLote,
 } from "@/lib/presentacion/acciones";
-import type { EstadoFormulario } from "@/lib/presentacion/errores";
+import {
+  procesarCorreccion,
+  procesarEstado,
+  procesarEstadoHistorico,
+  procesarNota,
+  procesarReinicio,
+  procesarSubtareaHistorica,
+  procesarSupresion,
+  procesarTerminarCarga,
+  procesarTranscripcion,
+  procesarVinculado,
+  type EntradaCorreccion,
+  type EntradaEstado,
+  type EntradaEstadoHistorico,
+  type EntradaNota,
+  type EntradaReinicio,
+  type EntradaSubtareaHistorica,
+  type EntradaSupresion,
+  type EntradaTranscripcion,
+  type EntradaVinculado,
+  type ResultadoTranscripcionPantalla,
+} from "@/lib/presentacion/acciones-estados";
+import type { EstadoError, EstadoFormulario } from "@/lib/presentacion/errores";
 
 /**
  * Server Actions de las pantallas de expedientes. Cada una vuelve a pedir el
@@ -113,4 +135,76 @@ export async function accionPase(datos: EntradaPase): Promise<ResultadoFlujo> {
 export async function accionDevolucion(datos: EntradaDevolucion): Promise<ResultadoFlujo> {
   const usuario = await exigirUsuario();
   return conRefresco(await procesarDevolucion(expedientes, usuario, datos));
+}
+
+// --- Semana 4: estados, reinicio, nota, correcciones y transcripción ---------
+//
+// Igual que las del flujo: objeto validado en src/lib/presentacion/acciones-estados.ts,
+// refresh() si salió bien. Reiniciar, "archivar y abrir vinculado" y "Terminar
+// carga histórica" llevan a otra pantalla con redirect() (fuera del try).
+
+/** Concluir, archivar (también sin concluir), desarchivar, anular, reabrir y la ubicación de archivo. */
+export async function accionEstado(datos: EntradaEstado): Promise<ResultadoFlujo> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarEstado(expedientes, usuario, datos));
+}
+
+/** Reiniciar con otra plantilla: anula y lleva al alta precargada. */
+export async function accionReiniciar(datos: EntradaReinicio): Promise<EstadoError> {
+  const usuario = await exigirUsuario();
+  const r = await procesarReinicio(expedientes, usuario, datos);
+  if (r.ok) redirect(r.destino);
+  return r;
+}
+
+/** Archivar sin concluir y abrir el expediente vinculado (caducidad): lleva a la ficha del nuevo. */
+export async function accionVinculado(datos: EntradaVinculado): Promise<EstadoError> {
+  const usuario = await exigirUsuario();
+  const r = await procesarVinculado(expedientes, usuario, datos, ipDeSolicitud(await headers()));
+  if (r.ok) redirect(r.destino);
+  return r;
+}
+
+/** Nota libre en el historial. */
+export async function accionNota(datos: EntradaNota): Promise<ResultadoFlujo> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarNota(expedientes, usuario, datos));
+}
+
+/** Una corrección del menú "Corregir" del historial. */
+export async function accionCorreccion(datos: EntradaCorreccion): Promise<ResultadoFlujo> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarCorreccion(expedientes, usuario, datos));
+}
+
+/** Suprimir los datos de una persona (Ley 25.326, admin). */
+export async function accionSupresion(datos: EntradaSupresion): Promise<ResultadoFlujo> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarSupresion(expedientes, usuario, datos));
+}
+
+/** "Registrar lote" de la transcripción. */
+export async function accionTranscribir(datos: EntradaTranscripcion): Promise<ResultadoTranscripcionPantalla> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarTranscripcion(expedientes, usuario, datos));
+}
+
+/** Tildar una subtarea en la transcripción, con su fecha. */
+export async function accionSubtareaHistorica(datos: EntradaSubtareaHistorica): Promise<ResultadoFlujo> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarSubtareaHistorica(expedientes, usuario, datos));
+}
+
+/** Llevar a concluido o archivado en la transcripción. */
+export async function accionEstadoHistorico(datos: EntradaEstadoHistorico): Promise<ResultadoFlujo> {
+  const usuario = await exigirUsuario();
+  return conRefresco(await procesarEstadoHistorico(expedientes, usuario, datos));
+}
+
+/** "Terminar carga histórica": vuelve a la ficha. */
+export async function accionTerminarCarga(datos: { numero: string; versionVista: number; comandoId: string }): Promise<EstadoError> {
+  const usuario = await exigirUsuario();
+  const r = await procesarTerminarCarga(expedientes, usuario, datos);
+  if (r.ok) redirect(r.destino);
+  return r;
 }

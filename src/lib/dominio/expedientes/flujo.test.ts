@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { RENOV_CONTADO } from "../../../../prisma/semilla/plantillas/renov-contado";
-import { RENOV_PLAN } from "../../../../prisma/semilla/plantillas/renov-plan";
+import { RENOV_CONTADO as RENOV_CONTADO_SEMILLA } from "../../../../prisma/semilla/plantillas/renov-contado";
+import { RENOV_PLAN as RENOV_PLAN_SEMILLA } from "../../../../prisma/semilla/plantillas/renov-plan";
 import { inicioDelDiaEnTucuman, interpretarDatetimeLocal } from "@/lib/fechas";
 import type { DefinicionPlantilla, PasoPlantilla } from "../plantillas/esquema";
+import { resolverDefinicion } from "../plantillas/resolver";
 import { ErrorDominio } from "./errores";
 import {
   destinosPosibles,
   esAnterior,
   faltantesDelPaso,
   faltantesParaSalir,
+  faltantesParaConcluir,
+  aniosDelPlazo,
+  semaforoPlazo,
+  textoPlazo,
   interpretarFechaEfectiva,
   plazoAlEntrar,
   subtareasReiniciables,
@@ -17,6 +22,13 @@ import {
 } from "./flujo";
 import type { ItemsExpediente, ItemSubtarea } from "./items";
 import { validarDato } from "./subtareas";
+
+// Las reglas del flujo reciben la definición ya resuelta para el expediente
+// (plantillas/resolver.ts): acá, un expediente del Norte con titular persona
+// física, que ve los mismos conceptos, documentos y subtareas que antes de la
+// semana 4.
+const RENOV_CONTADO = resolverDefinicion(RENOV_CONTADO_SEMILLA, { cementerio: "NORTE", rolesJuridicos: [] });
+const RENOV_PLAN = resolverDefinicion(RENOV_PLAN_SEMILLA, { cementerio: "NORTE", rolesJuridicos: [] });
 
 function items(cambios: Partial<ItemsExpediente> = {}): ItemsExpediente {
   return { subtareas: {}, documentos: {}, adjuntos: {}, ...cambios };
@@ -77,7 +89,7 @@ describe("faltantesParaSalir (3.3, puntos 4 a 6)", () => {
         DNI: { estado: "presentado", obs: null, mov: 1, adjuntos: [7] },
         BOLETA_SERVICIO: { estado: "historico", obs: null, mov: null, adjuntos: [] },
       },
-      adjuntos: { "7": { documento: "DNI", vigente: false } },
+      adjuntos: { "7": { documento: "DNI", vigente: false, purgado: false } },
     });
     expect(faltantesDelPaso(def, i, {}, 1).map((f) => [f.clave, f.tipo === "documento" ? f.motivo : ""])).toEqual([
       ["FORM_INICIO_RENOV", "sin_observacion"],
@@ -254,5 +266,53 @@ describe("dato de una subtarea", () => {
     expect(error(() => validarDato(boleta, "x".repeat(201), limites)).errores[0]?.mensaje).toMatch(/200/);
     expect(validarDato(debitos, null, limites)).toBeNull();
     expect(error(() => validarDato(debitos, "algo", limites)).errores[0]?.mensaje).toMatch(/no lleva dato/);
+  });
+});
+
+describe("semana 4: concluir y semáforo del plazo", () => {
+  const ultimo = RENOV_CONTADO.pasos.length;
+  const final = RENOV_CONTADO.pasos[ultimo - 1];
+
+  it("concluir exige las subtareas del último paso y lo acumulado", () => {
+    const faltan = faltantesParaConcluir(RENOV_CONTADO, items(), {});
+    expect(faltan.some((f) => f.tipo === "subtarea" && f.clave === final.subtareas[0]?.clave)).toBe(true);
+    // Lo exigido al salir de Mesa también (la regla es acumulativa).
+    expect(faltan.some((f) => f.tipo === "documento" && f.clave === "DNI")).toBe(true);
+  });
+
+  it("y los documentos y campos con exigir_al_salir_de: null, que el pase no pide", () => {
+    const def: DefinicionPlantilla = {
+      ...RENOV_CONTADO,
+      documentos: [
+        ...RENOV_CONTADO.documentos,
+        { ...RENOV_CONTADO.documentos[0], clave: "TITULO_FIRMADO", nombre: "Título firmado", obligatorio: true, exigir_al_salir_de: null },
+      ],
+      campos_extra: RENOV_CONTADO.campos_extra.map((c) => (c.clave === "concesion_hasta" ? { ...c, obligatorio: true, exigir_al_salir_de: null } : c)),
+    };
+    const claves = (f: ReturnType<typeof faltantesParaConcluir>) => f.map((x) => x.clave);
+    expect(claves(faltantesParaConcluir(def, items(), {}))).toEqual(expect.arrayContaining(["TITULO_FIRMADO", "concesion_hasta"]));
+    expect(claves(faltantesDelPaso(def, items(), {}, ultimo - 1))).not.toContain("TITULO_FIRMADO");
+    const f = faltantesParaConcluir(def, items(), {}).find((x) => x.clave === "TITULO_FIRMADO");
+    expect(f?.tipo === "documento" && f.exigirAlSalirDe.clave).toBe(final.clave);
+  });
+
+  it("semáforo: sin iniciar, en término, ámbar con 5 o menos, rojo vencido, cumplido", () => {
+    expect(semaforoPlazo({ desde: null, cumplidoEn: null, faltan: null })).toBe("sin_iniciar");
+    expect(semaforoPlazo({ desde: "2026-10-01", cumplidoEn: null, faltan: 6 })).toBe("en_termino");
+    expect(semaforoPlazo({ desde: "2026-10-01", cumplidoEn: null, faltan: 5 })).toBe("por_vencer");
+    expect(semaforoPlazo({ desde: "2026-10-01", cumplidoEn: null, faltan: 0 })).toBe("por_vencer");
+    expect(semaforoPlazo({ desde: "2026-10-01", cumplidoEn: null, faltan: -1 })).toBe("vencido");
+    expect(semaforoPlazo({ desde: "2026-10-01", cumplidoEn: "2026-10-10", faltan: -3 })).toBe("cumplido");
+  });
+
+  it("texto del plazo y años que tienen que estar cerrados", () => {
+    expect(textoPlazo({ vence: "2026-11-30", faltan: 3, cumplidoEn: null, provisorio: false })).toBe("vence 30/11 · faltan 3 días hábiles");
+    expect(textoPlazo({ vence: "2026-11-30", faltan: 1, cumplidoEn: null, provisorio: true })).toBe("vence 30/11 · faltan 1 día hábil (provisorio)");
+    expect(textoPlazo({ vence: "2026-11-30", faltan: 0, cumplidoEn: null, provisorio: false })).toBe("vence hoy 30/11");
+    expect(textoPlazo({ vence: "2026-11-30", faltan: -2, cumplidoEn: null, provisorio: false })).toBe("venció el 30/11 (hace 2 días hábiles)");
+    expect(textoPlazo({ vence: null, faltan: null, cumplidoEn: null, provisorio: false })).toMatch(/notificación/);
+    expect(textoPlazo({ vence: "2026-11-30", faltan: 2, cumplidoEn: "2026-11-02", provisorio: false })).toBe("plazo cumplido el 02/11/2026");
+    expect(aniosDelPlazo("2026-12-01", "2027-01-20")).toEqual([2026, 2027]);
+    expect(aniosDelPlazo("2026-10-01", "2026-11-20")).toEqual([2026]);
   });
 });

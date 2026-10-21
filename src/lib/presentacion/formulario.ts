@@ -1,5 +1,6 @@
-import type { CambiosEdicion, DatosAlta, PersonaEntrada, ValorCampoExtra } from "@/lib/dominio/expedientes/esquemas";
-import type { DefinicionPlantilla, PersonaPlantilla } from "@/lib/dominio/plantillas/esquema";
+import type { CambiosEdicion, DatosAlta, PersonaEntrada, TipoPersona, ValorCampoExtra } from "@/lib/dominio/expedientes/esquemas";
+import type { DefinicionPlantilla, DocumentoPlantilla, PersonaPlantilla } from "@/lib/dominio/plantillas/esquema";
+import { aplicaPorPersonas } from "@/lib/dominio/plantillas/resolver";
 
 /**
  * El modelo del formulario de alta y de edición (sección 5): lo que el
@@ -19,9 +20,13 @@ export interface PersonaFormulario {
   /** Edición: la versión vigente que se edita. `null` = persona nueva. */
   id: string | null;
   rol: string;
+  /** Física o jurídica: el selector aparece solo en los roles con `admite_juridica`. */
+  tipo: TipoPersona;
   apellido: string;
   nombres: string;
   dni: string;
+  razonSocial: string;
+  cuit: string;
   fallecido: boolean;
   fechaDefuncion: string;
   vinculo: string;
@@ -64,9 +69,12 @@ export function personaVacia(rol: PersonaPlantilla, clave: string): PersonaFormu
     clave,
     id: null,
     rol: rol.rol,
+    tipo: "fisica",
     apellido: "",
     nombres: "",
     dni: "",
+    razonSocial: "",
+    cuit: "",
     fallecido: rol.fallecido === "si",
     fechaDefuncion: "",
     vinculo: "",
@@ -121,9 +129,12 @@ export function valoresDesdeEdicion(v: {
       clave: p.id ? `persona-${p.id}` : `persona-${i}`,
       id: p.id ?? null,
       rol: p.rol,
-      apellido: p.apellido,
-      nombres: p.nombres,
+      tipo: p.tipo ?? "fisica",
+      apellido: p.apellido ?? "",
+      nombres: p.nombres ?? "",
       dni: p.dni ?? "",
+      razonSocial: p.razonSocial ?? "",
+      cuit: p.cuit ?? "",
       fallecido: p.fallecido ?? false,
       fechaDefuncion: p.fechaDefuncion ?? "",
       vinculo: p.vinculo ?? "",
@@ -188,16 +199,23 @@ function textoONull(v: string): string | null {
   return v.trim() === "" ? null : v;
 }
 
-/** Una persona del formulario como `PersonaEntrada`, sin lo que su rol no pide. */
+/**
+ * Una persona del formulario como `PersonaEntrada`, sin lo que su rol no pide
+ * ni lo del otro tipo: si se cargó el apellido y después se eligió "Persona
+ * jurídica", el apellido no viaja (quedó escondido en la pantalla).
+ */
 export function personaEntrada(p: PersonaFormulario, def: DefinicionPlantilla, conId: boolean): PersonaEntrada {
   const rol = def.personas.find((r) => r.rol === p.rol);
-  const fallecido = rol?.fallecido === "si" ? true : rol?.fallecido === "no" ? false : p.fallecido;
+  // Si el rol ya no admite jurídica, la persona va como física y el servidor pide lo que falte.
+  const juridica = p.tipo === "juridica" && rol?.admite_juridica === true;
+  const fallecido = juridica ? false : rol?.fallecido === "si" ? true : rol?.fallecido === "no" ? false : p.fallecido;
   const telefono = textoONull(p.telefono);
+  const identidad: Pick<PersonaEntrada, "tipo" | "apellido" | "nombres" | "dni" | "razonSocial" | "cuit"> = juridica
+    ? { tipo: "juridica", razonSocial: textoONull(p.razonSocial), cuit: textoONull(p.cuit) }
+    : { tipo: "fisica", apellido: p.apellido, nombres: p.nombres, dni: textoONull(p.dni) };
   const entrada: PersonaEntrada = {
     rol: p.rol,
-    apellido: p.apellido,
-    nombres: p.nombres,
-    dni: textoONull(p.dni),
+    ...identidad,
     fallecido,
     fechaDefuncion: fallecido ? textoONull(p.fechaDefuncion) : null,
     vinculo: rol?.pide_vinculo ? textoONull(p.vinculo) : null,
@@ -209,6 +227,19 @@ export function personaEntrada(p: PersonaFormulario, def: DefinicionPlantilla, c
   };
   if (conId) entrada.id = p.id;
   return entrada;
+}
+
+/**
+ * Los documentos que el alta ofrece marcar como recibidos: los de la
+ * definición (ya filtrada por cementerio) que corresponden a las personas que
+ * se están cargando. Elegir "Persona jurídica" en el titular hace aparecer la
+ * personería y la designación de asamblea.
+ */
+export function documentosDelAlta(def: DefinicionPlantilla, personas: readonly PersonaFormulario[]): DocumentoPlantilla[] {
+  const roles = new Set(
+    personas.filter((p) => p.tipo === "juridica" && def.personas.some((r) => r.rol === p.rol && r.admite_juridica)).map((p) => p.rol),
+  );
+  return def.documentos.filter((d) => aplicaPorPersonas(d, roles));
 }
 
 /** La ubicación con los campos que muestra el formulario: vacío = `null`. */
@@ -232,7 +263,8 @@ export function datosAltaDesde(v: ValoresFormulario, ctx: ContextoConversion): D
     const valor = textoONull(v.datosExtra[campo.clave] ?? "");
     if (valor !== null) datosExtra[campo.clave] = valor;
   }
-  const claves = new Set(def.documentos.map((d) => d.clave));
+  // Un documento marcado que dejó de corresponder (se volvió a persona física) no viaja.
+  const claves = new Set(documentosDelAlta(def, v.personas).map((d) => d.clave));
   return {
     plantillaId: ctx.plantillaId,
     cementerioId: ctx.cementerioId,
@@ -251,7 +283,7 @@ export function datosAltaDesde(v: ValoresFormulario, ctx: ContextoConversion): D
   };
 }
 
-const PERSONA_IDENTIFICATORIOS = ["apellido", "nombres", "dni", "fallecido", "fechaDefuncion", "vinculo"] as const;
+const PERSONA_IDENTIFICATORIOS = ["tipo", "apellido", "nombres", "dni", "razonSocial", "cuit", "fallecido", "fechaDefuncion", "vinculo"] as const;
 const PERSONA_CONTACTO = ["telefono", "telefonoWhatsapp", "email", "domicilio", "esContacto"] as const;
 
 function mismaLista(a: readonly PersonaFormulario[], b: readonly PersonaFormulario[]): boolean {
@@ -346,4 +378,135 @@ export function cambiosEdicionDesde(
   const puede = (!personas.identificatorios || permisos.identificatorios) && (!personas.contacto || permisos.contacto);
   if (cambian && puede) c.personas = actual.personas.map((p) => personaEntrada(p, def, true));
   return c;
+}
+
+// ---------------------------------------------------------------------------
+// Semana 4: el alta precargada desde otro expediente (2.13(a))
+// ---------------------------------------------------------------------------
+
+/** Lo que trae `precargaAlta().datos` (o `ResultadoReinicio.precarga.datos`). */
+export interface DatosPrecarga {
+  cementerioId: number;
+  tipoMonumento: string;
+  ubicacion?: Record<string, string | null>;
+  padron?: string | null;
+  numeroMunicipal?: string | null;
+  formaPago?: "contado" | "plan_pagos" | null;
+  personas: PersonaEntrada[];
+  datosExtra?: Record<string, ValorCampoExtra | null>;
+  observaciones?: string | null;
+}
+
+export interface Precargados {
+  valores: ValoresFormulario;
+  /** Etiquetas de los roles del expediente anterior que la plantilla nueva no tiene (sus personas no pasan). */
+  rolesQueNoPasan: string[];
+  /** Personas que no entraron porque el rol ya tenía su máximo. */
+  personasDeMas: number;
+}
+
+/**
+ * Los valores con que abre `/expedientes/nuevo?desde=<numero>` (y el alta de
+ * "archivar y abrir vinculado"): datos, personas vigentes, ubicación, padrón
+ * y N° municipal del expediente anterior, acomodados a la plantilla nueva.
+ * Las personas de roles que la plantilla no tiene no pasan (lo pide
+ * `precargaAlta`) y cada rol completa su mínimo con personas vacías. Lo que la
+ * plantilla o el cementerio no piden (un campo extra, un tipo de monumento) se
+ * deja afuera; el formulario y el dominio validan el resto. La fecha de inicio
+ * es hoy y no se marca ningún documento como recibido.
+ */
+export function valoresDesdePrecarga(
+  datos: DatosPrecarga,
+  def: DefinicionPlantilla,
+  opciones: { hoy: string; tiposMonumento: readonly string[]; clavesUbicacion: readonly string[]; etiquetasRoles?: Record<string, string> },
+): Precargados {
+  const rolesQueNoPasan = new Set<string>();
+  let personasDeMas = 0;
+  const personas: PersonaFormulario[] = [];
+  def.personas.forEach((rol, r) => {
+    const delRol = datos.personas.filter((p) => p.rol === rol.rol);
+    delRol.slice(0, rol.max).forEach((p, i) => {
+      const juridica = p.tipo === "juridica" && rol.admite_juridica;
+      personas.push({
+        clave: `precarga-${r}-${i}`,
+        id: null,
+        rol: rol.rol,
+        tipo: juridica ? "juridica" : "fisica",
+        apellido: p.apellido ?? "",
+        nombres: p.nombres ?? "",
+        dni: p.dni ?? "",
+        razonSocial: p.razonSocial ?? "",
+        cuit: p.cuit ?? "",
+        fallecido: rol.fallecido === "si" ? true : rol.fallecido === "no" ? false : (p.fallecido ?? false),
+        fechaDefuncion: p.fechaDefuncion ?? "",
+        vinculo: p.vinculo ?? "",
+        telefono: p.telefono ?? "",
+        telefonoWhatsapp: p.telefonoWhatsapp ?? false,
+        email: p.email ?? "",
+        domicilio: p.domicilio ?? "",
+        esContacto: p.esContacto ?? false,
+      });
+    });
+    personasDeMas += Math.max(0, delRol.length - rol.max);
+    for (let k = delRol.length; k < rol.min; k += 1) personas.push(personaVacia(rol, `precarga-${r}-vacia-${k}`));
+  });
+  for (const p of datos.personas) {
+    if (!def.personas.some((r) => r.rol === p.rol)) rolesQueNoPasan.add(opciones.etiquetasRoles?.[p.rol] ?? p.rol);
+  }
+  // Un solo contacto: si quedaron dos marcados (no debería), el primero.
+  let hayContacto = false;
+  for (const p of personas) {
+    if (p.esContacto && !hayContacto) hayContacto = true;
+    else p.esContacto = false;
+  }
+
+  const ubicacion: Record<string, string> = {};
+  for (const c of opciones.clavesUbicacion) {
+    const v = datos.ubicacion?.[c];
+    if (v !== undefined && v !== null && v !== "") ubicacion[c] = v;
+  }
+  const datosExtra: Record<string, string> = {};
+  for (const c of def.campos_extra) {
+    const v = datos.datosExtra?.[c.clave];
+    if (v !== undefined && v !== null && v !== "") datosExtra[c.clave] = String(v);
+  }
+  const tipoMonumento = opciones.tiposMonumento.includes(datos.tipoMonumento)
+    ? datos.tipoMonumento
+    : opciones.tiposMonumento.length === 1
+      ? opciones.tiposMonumento[0]
+      : "";
+
+  return {
+    valores: {
+      tipoMonumento,
+      ubicacion,
+      padron: datos.padron ?? "",
+      numeroMunicipal: datos.numeroMunicipal ?? "",
+      formaPago: def.forma_pago === "a_elegir" && datos.formaPago ? datos.formaPago : "",
+      personas,
+      datosExtra,
+      documentosRecibidos: [],
+      observaciones: datos.observaciones ?? "",
+      fechaInicio: opciones.hoy,
+      cargaHistorica: false,
+      fuente: "",
+    },
+    rolesQueNoPasan: [...rolesQueNoPasan],
+    personasDeMas,
+  };
+}
+
+/**
+ * El alta del expediente vinculado de "archivar y abrir vinculado" (la
+ * caducidad), sin pasar por el formulario: la precarga acomodada a la
+ * plantilla elegida. `expedienteAnteriorId` no va: lo pone el dominio.
+ */
+export function datosAltaVinculado(
+  datos: DatosPrecarga,
+  ctx: { plantillaId: number; definicion: DefinicionPlantilla; hoy: string; tiposMonumento: readonly string[]; clavesUbicacion: readonly string[] },
+): DatosAlta {
+  const { valores } = valoresDesdePrecarga(datos, ctx.definicion, ctx);
+  // Las personas vacías que completan un mínimo no viajan: el dominio dice qué falta.
+  const conDatos = { ...valores, personas: valores.personas.filter((p) => !p.clave.includes("-vacia-")) };
+  return datosAltaDesde(conDatos, { plantillaId: ctx.plantillaId, cementerioId: datos.cementerioId, definicion: ctx.definicion, clavesUbicacion: ctx.clavesUbicacion });
 }

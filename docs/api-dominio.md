@@ -1,4 +1,4 @@
-# API del dominio de expedientes (semanas 2 y 3)
+# API del dominio de expedientes (semanas 2 a 4)
 
 Referencia para quien hace las pantallas. Semana 2: alta (`/expedientes/nuevo`),
 ficha (`/expedientes/[numero]`), edición (`/expedientes/[numero]/editar`),
@@ -7,6 +7,12 @@ esas pantallas ya están hechas sobre esta API (sección 11). Semana 3 (sección
 12): recepción, subtareas, documentos, adjuntos, pase con "Faltan N",
 devolución y bandejas; sus pantallas (los diálogos de la ficha, `/bandeja`, el
 contador del encabezado y los Route Handlers de adjuntos) están en la sección 13.
+Semana 4 (sección 14, actualizado el 20/10/2026 según docs/fuentes): personas
+jurídicas, conceptos, documentos y subtareas según el cementerio, nomenclatura
+por cementerio y DIM omitible; y (sección 15) estados, reiniciar con otra
+plantilla, caducidad vinculada, correcciones, plazo DIM y feriados,
+transcripción histórica, panel y CSV, con sus pantallas en la sección 16
+(menos la de feriados, de la semana 5).
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -115,8 +121,9 @@ Todo lo que el formulario necesita para esa plantilla y ese cementerio:
 
 | Campo | Para qué |
 |---|---|
-| `plantilla.definicion` | `personas` (rol, etiqueta, min, max, fallecido, pide_vinculo), `campos_extra`, `documentos` (con `origen`, para las dos columnas de "documentos recibidos"), `forma_pago`, `requiere_contacto`, `ubicacion_obligatoria` |
-| `camposUbicacion` | Los campos **activos** del cementerio, en orden: `{ clave, etiqueta, tipo: "texto" \| "entero", obligatorio, patron }`. Son obligatorios solo si `definicion.ubicacion_obligatoria` |
+| `plantilla.definicion` | La definición tal como se publicó (todos los cementerios) |
+| `definicion` | **La que usa el formulario** (semana 4): la de la plantilla sin lo que no corresponde al cementerio (`resolverPorCementerio`). `personas` (rol, etiqueta, min, max, fallecido, pide_vinculo, `admite_juridica`), `campos_extra`, `documentos` (con `origen`, para las dos columnas de "documentos recibidos"; los de `solo_si_juridica` se muestran según las personas cargadas: `documentosDelAlta()` de `@/lib/presentacion/formulario`), `forma_pago`, `requiere_contacto`, `ubicacion_obligatoria` |
+| `camposUbicacion` | Los campos **activos** del cementerio, en orden: `{ clave, etiqueta, tipo: "texto" \| "entero", obligatorio, patron, ayuda? }`. Son obligatorios solo si `definicion.ubicacion_obligatoria`. `ayuda` (opcional, semana 4) dice cómo se escribe ("una letra de la A a la H"): va debajo del campo y en el error de formato |
 | `tiposMonumento` | `{ codigo, nombre }[]`: los de la plantilla habilitados en el cementerio |
 | `cementerios` | Para los campos extra de tipo `cementerio` |
 | `hoy` | Hoy en Tucumán, para el máximo del date picker |
@@ -163,8 +170,12 @@ interface DatosAlta {
 
 interface PersonaEntrada {
   rol: string;                       // de definicion.personas
-  apellido: string; nombres: string;
-  dni?: string | null;               // con o sin puntos; 6 a 9 dígitos
+  tipo?: "fisica" | "juridica";      // semana 4; por defecto "fisica". "juridica" solo si el rol tiene admite_juridica
+  apellido?: string | null; nombres?: string | null;  // obligatorios en una física; una jurídica no los lleva
+  dni?: string | null;               // con o sin puntos; 6 a 9 dígitos. Solo física
+  razonSocial?: string | null;       // semana 4: obligatoria en una jurídica
+  cuit?: string | null;              // semana 4: obligatorio en una jurídica; con o sin guiones, 11 dígitos,
+                                     // prefijo 30, 33 o 34 y dígito verificador válido
   fallecido?: boolean;               // se puede omitir si la plantilla dice "si" o "no"
   fechaDefuncion?: string | null;    // solo si falleció
   vinculo?: string | null;           // obligatorio si pide_vinculo
@@ -186,7 +197,14 @@ Reglas que conviene reflejar en el formulario (las valida igual el servidor):
 
 - **Personas**: cantidad por rol entre `min` y `max`. `fallecido: "si"` o `"no"`
   lo fija la plantilla (no mostrar la casilla); `"opcional"`, casilla.
-  `pide_vinculo`: campo vínculo obligatorio.
+  `pide_vinculo`: campo vínculo obligatorio. Semana 4: en los roles con
+  `admite_juridica`, selector "Persona física / Persona jurídica"; una jurídica
+  lleva razón social y CUIT, y no DNI, apellido ni fallecimiento (el error va en
+  `personas[i].tipo` si el rol no la admite).
+- **Documentos recibidos**: los de `contexto.definicion` (ya filtrados por el
+  cementerio). Los que tienen `solo_si_juridica` (personería, designación de
+  asamblea) solo si esa persona es jurídica; si no, error en
+  `documentosRecibidos`.
 - **Contacto**: si `requiere_contacto`, exactamente una persona viva con
   teléfono o correo. Si no se marca ninguna y hay una sola posible, el servidor
   la marca (por ejemplo, en RENOV_SPT_CONTADO el solicitante). Con dos posibles,
@@ -314,7 +332,7 @@ Registra `ver_expediente` en `auditoria.accesos`. Cualquiera la ve. Lo que trae
 | Cabecera | `numero`, `numeroCorto`, `numeroMunicipal`, `estado`, `version`, `fechaInicio`, `cargaHistorica`, `tipoTramite`, `plantilla` (`texto`: "Renovación, pago de contado · v1 (hay v2)", `hayVersionNueva`), `cementerio`, `tipoMonumento`, `ubicacion` (etiqueta y valor) y `ubicacionTexto`, `padron`, `formaPago`, `observaciones`, `datosExtra` (con etiqueta y `valorTexto`), `paso` (`orden`/`total`, `esFinal`), `areaActual`, `areaResponsable`, `enAreaDesde`, `recibidoEn`, `plazo`, `situaciones` (`sin_confirmar`, `devuelto`, `carga_historica`, `reiniciado`, `plazo_por_vencer`, `plazo_vencido`), `expedienteAnterior` / `expedientesSiguientes`, `creadoPor` |
 | Recorrido | `recorrido[]`: cada paso con `area` resuelta (también `$CEMENTERIO`), `custodia`, `diasAlerta`, `instrucciones`, `situacion` (`cumplido` / `actual` / `pendiente`) y sus `subtareas` (`hecha`, `valor`, `obligatoria`, `dato`) |
 | Documentación | `documentacion.direccion[]` y `documentacion.concesionario[]`: `estado` (`pendiente`, `presentado`, `no_corresponde`, `historico`), `exigirAlSalirDe`, `adjunto`, `adjuntos` (ids; `null` si están enmascarados) y `cantidadAdjuntos` |
-| Personas | `personas[]` vigentes (por rol en el orden de la plantilla) y `personasHistoricas[]` (versiones viejas y bajas): `etiquetaRol`, nombre, DNI, `fallecido`, `vinculo`, `esContacto`, `suprimida`, `contacto` |
+| Personas | `personas[]` vigentes (por rol en el orden de la plantilla) y `personasHistoricas[]` (versiones viejas y bajas): `etiquetaRol`, `tipo` (física o jurídica), nombre o `razonSocial`, DNI o `cuit`, `fallecido`, `vinculo`, `esContacto`, `suprimida`, `contacto`. La razón social y el CUIT, como el nombre y el DNI, no se enmascaran |
 | Conceptos | `conceptos[]` con el paso en que se liquidan |
 | Historial | `historial[]` del más viejo al más nuevo (fecha efectiva, secuencia): `fechaEfectiva` + `precisionFecha`, `registradoEn`, `diferido` (> 48 h), `usuario.corto` ("J. Pérez"), áreas y pasos, `motivo`, `observacion`, `fuente`, `cargaHistorica`, `datos`, `corregidoPor`, `personasCreadas` (con `reemplazaA` para mostrar la diferencia entre versiones) |
 | Permisos | `datosCompletos` y `acciones` (`verDatosCompletos`, `editarIdentificatorios`, `editarContacto`, `completarCamposExtra`, `imprimir`; semana 3: `confirmarRecepcion`, `tildarSubtarea`, `marcarDocumento`, `adjuntar`, `darPase`, `devolver`) |
@@ -356,9 +374,9 @@ Registra `imprimir` (`detalle.hoja = "caratula"`). Todos pueden imprimir.
   rutaFicha: "/expedientes/CEM-2026-00042",       // QR: new URL(rutaFicha, APP_URL), con qrcode (SVG)
   tramite: { tipo, plantilla, version }, cementerio, tipoMonumento,
   ubicacion: [{ etiqueta, valor }], ubicacionTexto, padron, fechaInicio, cargaHistorica,
-  titulares: [{ apellido, nombres, dni, fallecido, vinculo }],   // sin teléfono, correo ni domicilio
+  titulares: [{ tipo, apellido, nombres, dni, razonSocial, cuit, fallecido, vinculo }],   // sin teléfono, correo ni domicilio
   solicitantes: [ … ],
-  recorrido: [{ orden, clave, nombre, area, custodia, subtareas: [{ clave, nombre, obligatoria }] }], // casilleros
+  recorrido: [{ orden, clave, nombre, area, custodia, subtareas: [{ clave, nombre, obligatoria }] }], // casilleros (las del cementerio del expediente)
   emitidaEl: "2026-10-20" }
 ```
 
@@ -371,7 +389,7 @@ teléfono, correo ni domicilio:
 ```ts
 { numero, numeroCorto, numeroMunicipal, estado, tramite /* plantilla.texto */, tipoTramite, cementerio,
   ubicacionTexto, padron, fechaInicio, cargaHistorica, paso, areaActual,
-  personas: [{ id, etiquetaRol, apellido, nombres, dni, vigente, suprimida }],  // vigentes e históricas
+  personas: [{ id, etiquetaRol, apellido, nombres, dni, razonSocial, cuit, vigente, suprimida }],  // vigentes e históricas
   camposExtra: [{ clave, etiqueta }],      // para leer "datos_extra.<clave>" en las ediciones
   historial: MovimientoFicha[],            // el mismo de la ficha
   emitidaEl: "2026-10-20" }
@@ -388,7 +406,7 @@ La caja única **no adivina** el tipo de número (2.13(g)):
 | Lo que se escribe | Qué busca | `abrir` |
 |---|---|---|
 | `CEM-2026-42`, `cem 2026/42` | Ese expediente (aunque esté anulado) | su número, si existe |
-| Solo dígitos y `. - /` y espacios: `30.111.222`, `20-30111222-3`, `1234/2026` | Por igualdad: N° municipal, padrón, DNI de las personas vigentes (con 11 dígitos también el DNI del CUIL) y, si tiene forma `N/AAAA`, el N° interno | el número si hay **un** resultado |
+| Solo dígitos y `. - /` y espacios: `30.111.222`, `20-30111222-3`, `1234/2026` | Por igualdad: N° municipal, padrón, DNI de las personas vigentes (con 11 dígitos también el DNI del CUIL y el CUIT de una persona jurídica, semana 4) y, si tiene forma `N/AAAA`, el N° interno | el número si hay **un** resultado |
 | Texto: `gonzalez maria` | Cada palabra (sin acentos) en `busqueda`, ordenado por similitud | nunca |
 
 Si `abrir` no es `null`, ir directo a la ficha. Si no, listar `resultados`
@@ -820,7 +838,7 @@ tildar, documentos, adjuntos) y devolver.
 | `en_mi_area` | El área del usuario es la responsable y el papel está en ella (con y sin confirmar). Los que custodia afuera van en Afuera |
 | `afuera` | Pasos externos cuya custodia es el área del usuario. Mesa de Entradas ve todo lo que está afuera; lo que no custodia viene con `soloConsulta: true` |
 
-Plazos y Carga histórica son de la semana 4. Siempre estados activos, del que
+Plazos y Carga histórica: sección 15.6. Siempre estados activos, del que
 llegó antes al más nuevo, 200 filas como máximo (`hayMas`).
 
 ```ts
@@ -874,6 +892,8 @@ Después de cada acción, recargar la ficha (o usar la `version` del resultado
 para la siguiente).
 
 ### 12.10 Pendientes para la semana 4
+
+Hechos en la semana 4: ver la sección 15.
 
 Concluir (el último paso hoy no tiene salida), archivar, anular, reabrir,
 correcciones (incluido `retirar_adjunto`, que ya respeta
@@ -939,3 +959,336 @@ Plazos y Carga histórica, transcripción y "Terminar carga histórica" (que mar
   `verDatosCompletos` devuelve la lista y cada vista o descarga lleva
   `?motivo=` (queda en `auditoria.accesos` con `ver_adjunto`).
 
+
+## 14. Semana 4: lo que cambió con las fuentes de la Dirección
+
+> Actualizado el 20/10/2026 según docs/fuentes (README, "Cambios que esto
+> implica", puntos 1 a 6). El 7 (los trámites que faltan) depende de la
+> Dirección.
+
+### 14.1 La definición de un expediente (`@/lib/dominio/plantillas/resolver`)
+
+Una plantilla sirve para los tres cementerios; lo que no vale en todos se marca
+en la definición, sin código por caso:
+
+| Clave | Dónde | Qué hace |
+|---|---|---|
+| `solo_cementerios` / `excepto_cementerios` | conceptos, documentos y subtareas | Códigos de `cementerios`; `null` = en todos. Uno u otro |
+| `solo_si_juridica` | documentos | Rol de persona: el documento corresponde solo si alguna persona vigente de ese rol es jurídica |
+| `admite_juridica` | personas | El rol puede ser una persona jurídica (razón social y CUIT) |
+
+Las cuatro tienen valor por defecto (`null`, `false`): una definición sin
+ellas se lee igual que antes.
+
+- `resolverDefinicion(def, { cementerio, rolesJuridicos })`: la definición sin
+  lo que no corresponde. **Todo lo que mira la definición de un expediente la
+  toma así**: la ficha (`recorrido`, `documentacion`, `conceptos`), la
+  carátula, `validarPase`/"Faltan N", `darPase`, `devolver`, subtareas,
+  documentos, adjuntos y la bandeja (pase rápido). En el servidor:
+  `definicionDelExpediente(lector, exp, plantilla)` de `expedientes/contexto`.
+- `resolverPorCementerio(def, cementerio)`: solo por cementerio. Es
+  `contexto.definicion` del alta y la edición.
+- Validación de "Publicar" (`validarPublicacion`): `CatalogosPlantilla` suma
+  `cementerios`. Reglas nuevas: `cementerios` (los códigos existen y están
+  activos, sin repetir, no los dos filtros juntos, y las subtareas de un plazo
+  no se filtran) y `juridica` (`solo_si_juridica` nombra un rol con
+  `admite_juridica`); en `personas`, un rol siempre fallecido no admite
+  jurídica.
+
+Un documento, subtarea o concepto que no corresponde al expediente no aparece
+en la ficha y no se puede tildar, marcar ni adjuntar (`validacion`: "No
+existe esa subtarea en la plantilla" / "No existe ese documento en la
+plantilla").
+
+### 14.2 Personas jurídicas
+
+`expediente_personas` suma `tipo_persona` (`fisica` | `juridica`),
+`razon_social` y `cuit` (migración `20261020120000_personas_juridicas`). La
+base exige: una física con apellido y nombres, sin razón social ni CUIT; una
+jurídica con razón social y CUIT válido (`f_cuit_valido`: 11 dígitos y
+verificador), sin apellido, nombres, DNI ni fallecimiento; la supresión (Ley
+25.326) borra también razón social y CUIT y conserva el tipo. El tipo no cambia
+con un UPDATE: la edición inserta una versión nueva (es un cambio
+identificatorio).
+
+- Alta y edición: `PersonaEntrada.tipo`, `razonSocial`, `cuit` (ver 3).
+  `FormularioEdicion.valores.personas[]` trae `tipo`, `razonSocial` y `cuit`.
+- Ficha, carátula e historial: `tipo`, `razonSocial` y `cuit` en cada
+  persona. Para mostrar: `nombreCompleto(p)` (la razón social si la hay) y
+  `documentoDePersona(p)` ("DNI 30.111.222" o "CUIT 30-99999013-0") de
+  `@/lib/presentacion/textos`.
+- Búsqueda: la razón social y el CUIT entran en `busqueda`; un número de 11
+  dígitos busca también `expediente_personas.cuit` (coincidencia
+  `{ campo: "cuit", etiqueta: "CUIT del titular" }`). `titular` de la fila del
+  buscador y de la bandeja es la razón social si es jurídica.
+- Enmascarado: sin cambios. El contacto de una jurídica (teléfono, correo,
+  domicilio) se enmascara igual; la razón social y el CUIT no.
+
+### 14.3 Nomenclatura
+
+`camposUbicacion[].ayuda` (opcional). Los valores se siguen guardando en
+mayúsculas, así que una letra o un romano dan la misma `ubicacion_clave` como
+sea que se tipeen ("iv" = "IV").
+
+### 14.4 DIM omitible (plantilla b)
+
+Sin cambios de API: el paso `DIM` de `RENOV_PLAN` es `omitible`, así que desde
+`TRIBUTARIO` `validarPase().destinos` trae `ADM_TITULO` con
+`tipo: "omitiendo"` y `requiereMotivo: true`. El circuito que contó la
+Dirección (DIM → devolución a Tributario "no abonó" → pase a `ADM_TITULO`
+salteando la DIM) está en `tests/integracion/pases.test.ts`.
+
+## 15. Semana 4: estados, correcciones, plazo DIM, transcripción, panel y CSV
+
+El dominio de la semana 4 (propuesta, 3.1, 2.13(a) a (c), 3.6 y sección 5),
+con sus pantallas en la sección 16. Todo está en `expedientes`
+(`servidor.ts`); los módulos son `estados.ts`, `correcciones.ts`,
+`reconstruccion.ts` (puro), `transcripcion.ts`, `nota.ts`, `plazos.ts`,
+`panel.ts`, `exportar.ts` y `feriados.ts`. Las acciones siguen las reglas de
+12.1 (comando, `versionVista`, idempotencia, `conflicto_version`, recepción
+implícita, `version + 1`) y tiran, como antes, `ErrorDominio` y
+`PermisoDenegado`. **No hubo cambios de esquema**: no hay migración nueva.
+
+### 15.1 Estados (3.1)
+
+| Función | De → A | Quién (`PermisoDenegado.motivo` si no) | Exige |
+|---|---|---|---|
+| `concluir(usuario, numero, versionVista, comandoId, { fechaEfectiva?, observacion? })` | en trámite / espera DIM → concluido | operador del área responsable del **último paso** (`no_es_paso_final`, `carga_historica_abierta`) | lo del pase más los documentos y campos con `exigir_al_salir_de: null` (`faltan_requisitos`, como el pase) |
+| `archivar(usuario, numero, ubicacionArchivo, versionVista, comandoId, opciones?)` | concluido → archivado | responsable, Mesa de Entradas, admin | `ubicacionArchivo` (hasta 120 caracteres; `DESCONOCIDA` no) |
+| `archivarSinConcluir(usuario, numero, { motivo, ubicacionArchivo, fechaEfectiva?, observacion? }, versionVista, comandoId)` | en trámite / espera DIM → archivado | Mesa de Entradas, admin | motivo (10+) y ubicación. Desde un paso externo, el mismo movimiento registra el regreso del papel (`datos.regreso_papel: {fecha, area_id}`) y el área actual pasa a la custodia |
+| `desarchivar(usuario, numero, motivo, versionVista, comandoId, opciones?)` | archivado → `estado_previo` | Mesa de Entradas, admin | motivo. Si vuelve a un estado activo, el papel va del archivo al paso en que estaba (recibido si el paso es externo o del área del usuario; si no, sin confirmar) y el plazo se vuelve a cargar |
+| `anular(usuario, numero, motivo, versionVista, comandoId, opciones?)` | en trámite / espera DIM → anulado | Mesa de Entradas, admin | motivo |
+| `reabrir(usuario, numero, motivo, versionVista, comandoId, opciones?)` | anulado → `estado_previo` | admin | motivo; no depende de que la anulación sea el último movimiento |
+| `cambiarUbicacionArchivo(usuario, numero, ubicacion, versionVista, comandoId, { motivo? })` | archivado | responsable, Mesa de Entradas, admin | movimiento `edicion` `{cambios: {ubicacion_archivo: [a, b]}}`; `DESCONOCIDA` solo si ya lo era |
+
+Devuelven `ResultadoEstado`: `{ numero, version, repetido, movimientoId,
+recepcionImplicitaId, estado, estadoPrevio, ubicacionArchivo, paso,
+areaActual, areaResponsable }`. Todas insertan un movimiento `estado`
+(`estado_anterior`, `estado_nuevo`, `paso_origen`, `area_origen_id`) con la
+fecha efectiva de las reglas del pase (no retrocede, hasta 30 días). Al salir
+de los estados activos el plazo se limpia. En concluido, archivado y anulado
+no hay pases ni devoluciones; en archivado y anulado tampoco ediciones,
+documentos ni adjuntos: solo notas, retirar adjuntos, correcciones del admin,
+desarchivar, reabrir y la ubicación de archivo.
+
+`agregarNota(usuario, numero, texto, versionVista, comandoId, { fechaEfectiva? })`:
+nota libre (todos menos Dirección), en cualquier estado; devuelve `{ numero,
+version, repetido, movimientoId }`. No dispara la recepción implícita.
+
+### 15.2 Reiniciar con otra plantilla y "archivar y abrir vinculado"
+
+- `reiniciar(usuario, numero, motivo, versionVista, comandoId)` (Mesa de
+  Entradas, admin; estados activos): anula con `datos.reinicio = true` y
+  devuelve `ResultadoReinicio`, que es `ResultadoEstado` más `precarga`.
+- `precargaAlta(usuario, numero, { ip? })`: lo de
+  `/expedientes/nuevo?desde=<numero>`. Registra `ver_expediente`
+  (`detalle.para = "precargar_alta"`) porque trae el contacto completo.
+
+  ```ts
+  { desde: { id, numero, estado, plantilla, tipoTramite, fechaInicio, reiniciable },
+    datos: { plantillaId: null, cementerioId, tipoMonumento, ubicacion, padron, numeroMunicipal,
+             formaPago, personas /* vigentes, sin id */, datosExtra, documentosRecibidos: [],
+             observaciones, fechaInicio /* hoy */, expedienteAnteriorId /* solo si reiniciable */ } }
+  ```
+
+  El formulario elige la plantilla nueva (`contextoAlta`), quita las personas
+  de roles que esa plantilla no tiene y llama a `alta()` con estos datos.
+- `alta()` acepta `expedienteAnteriorId` (string): el anterior tiene que
+  existir, estar anulado por un reinicio (`datos.reinicio`) y no tener ya un
+  siguiente; si no, `validacion` con ruta `expedienteAnteriorId`. El
+  movimiento `alta` guarda `datos.expediente_anterior` y `datos.vinculo`. El
+  aviso de duplicados no repite al anterior.
+- `archivarYAbrirVinculado(usuario, numero, { motivo, ubicacionArchivo }, datosAlta, versionVista, comandoId)`:
+  la caducidad de docs/fuentes, punto 6. En **una** transacción archiva sin
+  concluir (`datos.abre_vinculado = true`, sin anular) y da el alta del nuevo
+  con `expediente_anterior_id`. Devuelve `{ archivado: ResultadoEstado, nuevo:
+  ResultadoAlta }`; un reintento con el mismo comando devuelve lo mismo. Si el
+  alta falla, no se archiva nada. Revertir ese archivo con el nuevo abierto no
+  se permite. La plantilla de caducidad todavía no existe: el mecanismo se
+  probó con una de prueba (`tests/integracion/estados.test.ts`).
+- Ficha: `enlaces: { anterior: { numero, estado, plantilla, vinculo } | null,
+  siguientes: [...] }`, con `vinculo` `reinicio` o `vinculado` (además de
+  `expedienteAnterior` y `expedientesSiguientes`) y la situación `reiniciado`.
+
+### 15.3 Correcciones (2.13(b))
+
+Todas con motivo (10+), `versionVista` y `comandoId`; devuelven
+`ResultadoCorreccion`: `{ numero, version, repetido, movimientoId,
+corrigeMovimientoId, arrastrados }`. La ficha dice cuáles puede hacer el
+usuario sobre cada movimiento: `historial[i].correcciones` (`"revertir"`,
+`"fecha"`, `"observacion"`, `"subtarea"`, `"retirar_adjunto"`,
+`"purgar_adjunto"`) y `acciones.corregir`.
+
+| Función | Qué hace | Quién |
+|---|---|---|
+| `revertir(usuario, numero, movimientoId, motivo, …)` | El último movimiento que cambió el expediente (pase, devolución, cambio de estado o subtarea del paso actual), con su recepción implícita y las recepciones y notas posteriores (`arrastrados`). La proyección queda **idéntica** a la de antes. Si ya no es el último: `estado_no_admite` | autor (7 días) o admin |
+| `corregirFecha(usuario, numero, movimientoId, fecha, motivo, …)` | Fecha efectiva (`"YYYY-MM-DD"` o `datetime-local`); en un movimiento de ubicación, sin pasar al anterior ni al siguiente. No el alta (se edita la fecha de inicio) ni los adjuntos | autor (7 días) o admin |
+| `corregirObservacion(usuario, numero, movimientoId, observacion, motivo, …)` | La observación (la original queda en el historial) | autor (7 días) o admin |
+| `corregirSubtarea(usuario, numero, clave, cambio, motivo, …)` | `cambio` es `{ dato }` o `{ hecha: false }`: dato o tilde de una subtarea de un paso cerrado. Si el paso actual mide su plazo con ella (la notificación y la DIM), el plazo la sigue | autor del tilde (7 días) o admin |
+| `retirarAdjunto(usuario, numero, adjuntoId, motivo, …)` | Deja de verse; el archivo se conserva. También en archivado y anulado | autor (7 días) o admin |
+| `purgarAdjunto(usuario, numero, adjuntoId, motivo, …)` | Ley 25.326: lo retira y borra el archivo del disco después del commit (`AlmacenAdjuntos.borrar`). Nombre, tamaño y sha256 quedan en el movimiento `adjunto` | admin |
+| `suprimirPersona(usuario, numero, personaId, motivo, …)` | Ley 25.326: datos personales de esa versión en NULL y `suprimida_en`; la corrección apunta al movimiento que la creó. `busqueda` se rearma | admin |
+
+En archivado y anulado solo corrige el admin, salvo retirar un adjunto propio.
+La línea de tiempo: `historial[i].revertido`, `fechaCorregida`,
+`observacionCorregida` y `corregidoPor` (los ids de las correcciones). La
+reconstrucción (`reconstruirProyeccion`, pura) rehace las columnas del flujo
+desde el historial; las correcciones la usan para escribir la proyección, y
+los tests comparan con ella la proyección que escribe cada acción.
+
+### 15.4 Plazo DIM (3.6) y feriados
+
+- `ficha.plazo` (y la etiqueta `plazo` de la bandeja, y las filas de plazos
+  del panel): `{ desde, diasHabiles, cumplidoEn, vence, faltan, provisorio,
+  aniosSinCerrar, semaforo, texto }`. `vence` es `f_sumar_dias_habiles(desde,
+  30)`; `faltan`, `f_dias_habiles_entre(hoy, vence)` (negativo: vencido).
+  `semaforo`: `sin_iniciar`, `en_termino`, `por_vencer` (ámbar, 5 o menos),
+  `vencido` (rojo) o `cumplido` (DIM_PLAN_INICIADO tildada). `provisorio` si
+  algún año entre el inicio y el vencimiento no está cerrado en
+  `feriados_anios`. `texto`: "vence 30/11 · faltan 3 días hábiles
+  (provisorio)". Las situaciones `plazo_por_vencer` y `plazo_vencido` salen
+  del semáforo. Al vencer no cambia nada solo.
+- Feriados (escribe el admin; la pantalla es de la semana 5):
+  `listarFeriados(anio)`, `aniosDeFeriados()`, `guardarFeriado(usuario, {
+  fecha, descripcion, ambito, norma? }, motivo?)` (crea o modifica; da de alta
+  el año si falta), `quitarFeriado(usuario, fecha, motivo?)`,
+  `cerrarAnioFeriados(usuario, anio, motivo?)` y `reabrirAnioFeriados(usuario,
+  anio, motivo)` (con motivo obligatorio). Todo queda en `auditoria.cambios`
+  por el trigger, con el motivo.
+
+### 15.5 Transcripción histórica (2.13(c))
+
+Solo con `carga_historica` abierta; Mesa de Entradas y admin (permiso
+`transcribir`; si la carga no está abierta, `sin_carga_historica`).
+
+- `transcribir(usuario, numero, filas, versionVista)`: cada fila
+  `{ comandoId, fecha, precision?, pasoDestino, observacion?, fuente, motivo? }`
+  es un `pase` (hacia adelante; `datos.pasos_salteados` con los pasos que la
+  ficha no registra) o una `devolucion` (hacia atrás, con `motivo`), con
+  `carga_historica` y su `comando_id`. No exige subtareas ni documentos, no
+  tiene el límite de 30 días y no retrocede respecto de la fila anterior. El
+  lote es una transacción; los errores van en `filas[i].campo`; las filas ya
+  registradas vuelven con `repetida: true`. El papel llega recibido (nadie
+  confirma en la ficha). Devuelve `{ numero, version, filas: [{ comandoId,
+  movimientoId, tipo, repetida, paso }], paso }`.
+- `tildarSubtareaHistorica(usuario, numero, clave, dato, { fecha?, fuente, observacion? }, versionVista, comandoId)`:
+  una subtarea de un paso recorrido o del actual, con su fecha.
+- `transcribirEstado(usuario, numero, { estado, fecha, precision?, fuente, ubicacionArchivo?, motivo? }, versionVista, comandoId)`:
+  `estado` es `concluido` (desde el último paso) o `archivado` (desde
+  concluido o, con motivo, sin concluir); `ubicacionArchivo` admite
+  `DESCONOCIDA`.
+- `terminarCargaHistorica(usuario, numero, versionVista, comandoId)`: un
+  `edicion` `{cambios: {carga_historica: [true, false]}, historicos:
+  {subtareas, documentos}}`; lo obligatorio pendiente de los pasos anteriores
+  (de todos, si está concluido) pasa a histórico. `ficha.cargaHistoricaPendiente`
+  dice qué pasaría.
+
+### 15.6 Bandejas y panel
+
+- `PESTANAS_BANDEJA` suma `plazos` (lo que está en un paso con plazo y cuya
+  custodia es el área; Mesa de Entradas ve todo, con `soloConsulta`; ordenado
+  por vencimiento) y `carga_historica` (solo Mesa de Entradas: las cargas
+  abiertas, menos las anuladas). `contadoresBandeja` suma `plazos`,
+  `plazosAlerta` (ámbar y rojo de la custodia) y `carga_historica`. Con la
+  carga histórica abierta, el expediente no está en Por confirmar, En mi área,
+  Afuera ni Plazos, no suma al contador del encabezado y no es `demorado`.
+- `panel(usuario, { tipoTramiteId?, cementerioId? })` (todos): `conteos` por
+  estado, `matriz` área × tipo de trámite (estados activos), `demorados`,
+  `plazos.porVencer` y `plazos.vencidos`, `sinConfirmar` (más de 2 días
+  hábiles), `diferidos` y `correcciones` del mes, `cargasHistoricas` y
+  `avisos` ("Feriados de 2027 sin cerrar"). Todo sin las cargas históricas
+  abiertas, salvo su bloque. Las listas traen 50 filas y la cantidad. Cada
+  conteo y cada celda traen `busqueda` (`FiltrosBusqueda`); `rutaBusqueda()`
+  de `@/lib/presentacion/busqueda` arma la URL. El buscador suma el filtro
+  `cargaHistorica` (`historica=1|0` en la URL).
+
+### 15.7 CSV del buscador
+
+`exportarCsv(usuario, { q?, filtros? }, { ip? })` (Dirección y admin):
+`{ nombreArchivo, tipo, contenido, filas, truncado }`, hasta 5000 filas, sin
+teléfono, correo ni domicilio; separador `;`, CRLF, UTF-8 con BOM y las celdas
+que empiezan con `=`, `+`, `-` o `@` neutralizadas. Registra `exportar` en
+`auditoria.accesos` (`expediente_id` nulo, `detalle: { formato, q, filtros,
+filas, truncado }`). El Route Handler responde con `Content-Disposition:
+attachment` y `Cache-Control: private, no-store`.
+
+### 15.8 Lo nuevo en la ficha y en los permisos
+
+- `acciones` suma `concluir`, `archivar`, `archivarSinConcluir`,
+  `desarchivar`, `anular`, `reabrir`, `reiniciar`, `cambiarUbicacionArchivo`,
+  `nota`, `transcribir`, `suprimirPersona` y `purgarAdjunto` (Decision) y
+  `corregir` (boolean). `concluir.faltan` es el "Faltan N" de Concluir.
+- Permisos (3.2): `reiniciar_con_otra_plantilla`, `archivar_sin_concluir` y
+  `anular`, solo en estados activos; `desarchivar`, solo un archivado;
+  `reabrir`, solo un anulado; `concluir`, desde el último paso y sin la carga
+  abierta; nuevas `cambiar_ubicacion_archivo` y `transcribir`;
+  `corregir_movimiento` en archivado y anulado, solo el admin
+  (`ContextoPermiso.retirarAdjunto` deja al autor retirar su adjunto).
+  `MotivoDenegacion` suma `no_es_paso_final` y `sin_carga_historica` (con su
+  texto en `TEXTO_DENEGACION`).
+
+### 15.9 Pendientes
+
+- La plantilla real de caducidad (y su tipo de trámite): la Dirección no pasó
+  el circuito. "Archivar y abrir vinculado" ya funciona con cualquier
+  plantilla publicada.
+- La pantalla de feriados (semana 5). Las demás están hechas: sección 16.
+
+## 16. Las pantallas (semana 4)
+
+| Ruta | Qué llama |
+|---|---|
+| `/expedientes/[numero]` | `obtenerFicha` (y `opcionesAlta` si puede reiniciar o abrir un vinculado). Barra "Estado del expediente" según `ficha.acciones` (`botonesEstado()`): Concluir (con "Faltan N" de `ficha.concluir.faltan`, como el pase), Archivar, Archivar sin concluir (desde un paso externo, con la fecha en que volvió el papel; vuelve a la custodia), Archivar y abrir vinculado, Desarchivar, Cambiar ubicación de archivo, Reabrir, Reiniciar con otra plantilla, Anular y Agregar nota. Plazo DIM con semáforo en la cabecera y en el recorrido. "Reinicio de / Reiniciado en" y "Vinculado a / Sigue (vinculado) en" con `ficha.enlaces`. En el historial, el menú "Corregir" de cada movimiento con `correcciones`; Suprimir datos en cada persona (admin) |
+| `/expedientes/nuevo?desde=<numero>&plantilla=<id>` | `precargaAlta` (cementerio fijo, el del anterior), `contextoAlta`; el formulario abre con `valoresDesdePrecarga()` y manda `expedienteAnteriorId` si el anterior es `reiniciable`. Aviso "Reinicio de CEM-…" (y qué roles no pasan) |
+| `/expedientes/[numero]/transcribir` | `obtenerFicha` (`acciones.transcribir`, `cargaHistoricaPendiente`). Arriba lo ya transcripto (los movimientos con `cargaHistorica` y el alta); la grilla (`accionTranscribir` → `transcribir`), las subtareas de los pasos recorridos (`accionSubtareaHistorica`), "Cómo terminó según la ficha" (`accionEstadoHistorico`, con "No se sabe" = `DESCONOCIDA`), la foto de la ficha (el Route Handler de adjuntos, suelto, con el nombre "Ficha de papel - …") y "Terminar carga histórica" con confirmación (`accionTerminarCarga`, vuelve a la ficha) |
+| `/bandeja?pestana=plazos` y `?pestana=carga_historica` | `bandeja` y `contadoresBandeja`. Plazos: columna Vencimiento con semáforo, texto y "provisorio"; la pestaña aparece si hay algo (`contadores.plazos`) y muestra aparte cuántos están en ámbar o rojo (`plazosAlerta`). Carga histórica: solo Mesa de Entradas, con "Transcribir" en cada fila (`pestanasVisibles()`) |
+| `/panel?tramite=&cementerio=` | `panel` y `opcionesBusqueda`. Cada conteo, celda y lista con `busqueda` es un enlace a `rutaBusqueda()`; las filas van a la ficha y los movimientos (diferidos, correcciones) a `#mov-<id>`. Imprimible (`@media print`: sin encabezado ni filtros) |
+| `GET /expedientes/exportar?<los filtros del buscador>` | `exportarCsv`. 200 `text/csv; charset=utf-8` con `Content-Disposition: attachment; filename="expedientes-AAAA-MM-DD.csv"`, `Cache-Control: private, no-store`, `X-Filas` y `X-Truncado`; 401 sin sesión, 403 sin permiso, 422 con filtros inválidos (texto plano). El botón "Exportar CSV" del buscador (Dirección y admin) lleva los mismos parámetros (`rutaExportarDesde()`) |
+
+- **Server Actions** (en `src/app/(app)/expedientes/acciones.ts`, lógica en
+  `src/lib/presentacion/acciones-estados.ts`, probada en
+  `tests/integracion/pantallas-semana4.test.ts`): `accionEstado` (`accion`:
+  `concluir`, `archivar`, `archivar_sin_concluir`, `desarchivar`, `anular`,
+  `reabrir`, `ubicacion_archivo`), `accionNota`, `accionCorreccion` (`tipo`:
+  `revertir`, `fecha`, `observacion`, `subtarea_dato`, `subtarea_destildar`,
+  `retirar_adjunto`, `purgar_adjunto` con `confirmado: true`),
+  `accionSupresion` (con `confirmado: true`), `accionTranscribir`,
+  `accionSubtareaHistorica`, `accionEstadoHistorico`: como las del flujo,
+  `{ ok, version, repetido, mensaje }` o el `EstadoError`, y `refresh()`.
+  `accionReiniciar`, `accionVinculado` y `accionTerminarCarga` navegan con
+  `redirect()` (al alta precargada, a la ficha del nuevo, a la ficha) y solo
+  devuelven algo si hay error.
+- **"Archivar y abrir vinculado"** arma el alta del nuevo en el servidor:
+  `precargaAlta` + `contextoAlta` de la plantilla elegida +
+  `datosAltaVinculado()` (`src/lib/presentacion/formulario.ts`: quita las
+  personas de roles que la plantilla no tiene, lo que el cementerio o la
+  plantilla no piden y los documentos; la fecha de inicio es hoy). Si el alta
+  no valida, el diálogo muestra los errores y no se archiva nada.
+- **Correcciones**: `menuCorreccion()` ordena y rotula lo que dice
+  `historial[i].correcciones` (la de subtarea se parte en "Corregir el dato" y
+  "Destildar"); `movimientoCorregible()` arma lo que el diálogo precarga (la
+  fecha y la observación que valen). La línea de tiempo marca "Revertido",
+  tacha lo corregido (o solo la fecha u observación original) y enlaza cada
+  movimiento con su corrección (`#mov-<id>`) y al revés; `resumenCorreccion()`
+  dice qué hizo cada una. Purgar y suprimir piden una casilla de
+  confirmación explícita.
+- **Semáforo**: `mostrarPlazo()` (`src/lib/presentacion/estados.ts`): etiqueta
+  y color (ámbar por vencer, rojo vencido; el texto siempre acompaña al
+  color), el `texto` del dominio con mayúscula y, si es provisorio, qué años
+  de feriados faltan cerrar.
+- **Grilla de transcripción** (`src/lib/presentacion/transcripcion.ts`): cada
+  fila tiene su `comandoId` desde que se agrega (un reintento no repite
+  filas); `recorrerFilas()` dice si es pase o devolución (motivo) respecto de
+  la fila anterior; `loteParaEnviar()` saltea las vacías;
+  `erroresDeGrilla()` lleva `filas[i].campo` a la celda. Teclado: Tab recorre
+  la fila, Enter baja (en la última agrega una), Mayús+Enter sube y
+  Ctrl+Enter registra el lote.
+- **Cambio en el dominio** (mínimo, con test en `correcciones.test.ts`): la
+  ficha calcula `enAreaDesdePrecision` y `recibidoEnPrecision` con la fecha
+  corregida si la hubo (antes, un pase corregido a "solo el día" mostraba
+  "00:00").
+- **Piezas comunes**: `Pie`, `Motivo`, `Observacion` y `motivoCorto` pasaron
+  de `flujo/dialogos.tsx` a `flujo/piezas.tsx`; `useAccesoFaltante` y
+  `dialogoDeVuelta` (volver al pase o a concluir después de resolver un
+  faltante) están en `flujo/estado.ts`. `BotonImprimir` está en
+  `src/components/`.

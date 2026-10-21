@@ -3,15 +3,17 @@ import type { Transaccion } from "@/lib/db/crear-cliente";
 import { fechaDesdeDb, hoyEnTucuman, type FechaISO } from "@/lib/fechas";
 import { evaluarPermiso, exigirPermiso, type Decision, type EstadoExpediente, type UsuarioPermisos } from "../permisos";
 import type { DefinicionPlantilla, PasoPlantilla } from "../plantillas/esquema";
+import type { TipoPersona } from "./esquemas";
 import { comoEstado, exigirNumero, permisosDelExpediente, registrarAcceso, type OpcionesAcceso } from "./acceso";
 import { leerCamposUbicacion } from "./ubicacion";
-import { leerDefinicion, type CodigoNombre } from "./contexto";
+import { definicionDelExpediente, type CodigoNombre } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, exigirMotivo, limpiarMotivo, noEncontrado } from "./errores";
 import { mostrarContacto, type ContactoMostrado } from "./enmascarar";
 import {
   destinosPosibles,
   faltantesDelPaso,
+  faltantesParaConcluir,
   subtareasReiniciables,
   type DestinoPase,
   type Faltante,
@@ -21,6 +23,11 @@ import {
 } from "./flujo";
 import { leerItems, type EstadoDocumento } from "./items";
 import { numeroCorto } from "./numero";
+import type { VinculoAnterior } from "./alta";
+import { correccionesPosibles, type TipoCorreccion } from "./correcciones";
+import { calcularPlazo, type PlazoCalculado } from "./plazos";
+import { fechasCorregidas, movimientosRevertidos, observacionesCorregidas } from "./reconstruccion";
+import { pendientesHistoricos } from "./transcripcion";
 import { areasDelPaso } from "./proyeccion";
 
 /**
@@ -127,9 +134,13 @@ export interface PersonaFicha {
   /** La etiqueta del rol en la plantilla ("Titular de la concesión"). */
   etiquetaRol: string;
   orden: number;
+  tipo: TipoPersona;
   apellido: string | null;
   nombres: string | null;
   dni: string | null;
+  /** Persona jurídica: razón social y CUIT (11 dígitos). Como el nombre y el DNI, no se enmascaran. */
+  razonSocial: string | null;
+  cuit: string | null;
   fallecido: boolean;
   fechaDefuncion: FechaISO | null;
   vinculo: string | null;
@@ -185,6 +196,14 @@ export interface MovimientoFicha {
   corrigeMovimientoId: string | null;
   /** Ids de las correcciones de este movimiento: la línea de tiempo lo muestra tachado. */
   corregidoPor: string[];
+  /** Semana 4: lo revirtió una corrección (o lo arrastró la reversión de otro): ya no cuenta. */
+  revertido: boolean;
+  /** Semana 4: la fecha efectiva que vale, si se corrigió (la original es `fechaEfectiva`). */
+  fechaCorregida: { fechaEfectiva: Date; precisionFecha: PrecisionFecha } | null;
+  /** Semana 4: la observación que vale, si se corrigió (`{ valor: null }` si se borró). */
+  observacionCorregida: { valor: string | null } | null;
+  /** Semana 4: qué correcciones puede hacer el usuario sobre este movimiento (2.13(b)). */
+  correcciones: TipoCorreccion[];
   /** Personas que creó (alta o edición): las versiones nuevas dicen a cuál reemplazan. */
   personasCreadas: Array<{ id: string; rol: string; orden: number; reemplazaA: string | null }>;
 }
@@ -221,14 +240,21 @@ export interface DevolucionFicha {
   subtareasReiniciables: SubtareaReiniciable[];
 }
 
-export interface PlazoFicha {
-  desde: FechaISO | null;
-  diasHabiles: number;
-  cumplidoEn: FechaISO | null;
-  /** Vencimiento (f_sumar_dias_habiles), si el plazo ya empezó. */
-  vence: FechaISO | null;
-  /** Días hábiles que faltan (negativo: vencido hace N), si empezó. */
-  faltan: number | null;
+/**
+ * El plazo del paso (3.6): `desde`, `diasHabiles`, `cumplidoEn`, `vence`
+ * (f_sumar_dias_habiles), `faltan` (negativo: vencido hace N) y, semana 4,
+ * `semaforo`, `provisorio` (algún año sin cerrar en feriados),
+ * `aniosSinCerrar` y `texto` ("vence 30/11 · faltan 3 días hábiles").
+ */
+export type PlazoFicha = PlazoCalculado;
+
+/** Un expediente enlazado: el anterior (reinicio o vinculado) o uno siguiente. */
+export interface EnlaceExpediente {
+  numero: string;
+  estado: string;
+  plantilla: string;
+  /** `reinicio` (Reiniciar con otra plantilla) o `vinculado` (archivar y abrir vinculado: la caducidad). */
+  vinculo: VinculoAnterior;
 }
 
 export interface Ficha {
@@ -280,6 +306,12 @@ export interface Ficha {
   situaciones: Situacion[];
   expedienteAnterior: string | null;
   expedientesSiguientes: string[];
+  /** Semana 4: los enlaces con su estado y su tipo, para "Viene de…" y "Continúa en…". */
+  enlaces: { anterior: EnlaceExpediente | null; siguientes: EnlaceExpediente[] };
+  /** Semana 4: lo que falta para concluir ("Faltan N" del botón Concluir); vacío fuera del último paso. */
+  concluir: { faltan: Faltante[] };
+  /** Semana 4: con la carga histórica abierta, lo que "Terminar carga histórica" pasaría a histórico. */
+  cargaHistoricaPendiente: { subtareas: string[]; documentos: string[] } | null;
   creadoEn: Date;
   creadoPor: UsuarioFicha;
   recorrido: PasoFicha[];
@@ -317,6 +349,23 @@ export interface Ficha {
     adjuntar: Decision;
     darPase: Decision;
     devolver: Decision;
+    /** Semana 4 (3.1). `concluir` además depende de `concluir.faltan`. */
+    concluir: Decision;
+    archivar: Decision;
+    archivarSinConcluir: Decision;
+    desarchivar: Decision;
+    anular: Decision;
+    reabrir: Decision;
+    reiniciar: Decision;
+    cambiarUbicacionArchivo: Decision;
+    nota: Decision;
+    /** Transcripción y "Terminar carga histórica" (2.13(c)). */
+    transcribir: Decision;
+    /** Ley 25.326 (admin): en cada persona y cada adjunto. */
+    suprimirPersona: Decision;
+    purgarAdjunto: Decision;
+    /** Hay al menos un movimiento que el usuario puede corregir (ver `historial[i].correcciones`). */
+    corregir: boolean;
   };
 }
 
@@ -337,8 +386,8 @@ const INCLUIR = {
   areaActual: { select: { id: true, codigo: true, nombre: true, tipo: true } },
   areaResponsable: { select: { id: true, codigo: true, nombre: true, tipo: true } },
   creador: { select: { id: true, nombre: true, apellido: true } },
-  expedienteAnterior: { select: { numeroInterno: true } },
-  reiniciadoEn: { select: { numeroInterno: true } },
+  expedienteAnterior: { select: { numeroInterno: true, estado: true, plantilla: { select: { nombre: true } } } },
+  reiniciadoEn: { select: { numeroInterno: true, estado: true, plantilla: { select: { nombre: true } } }, orderBy: { id: "asc" } },
 } as const satisfies Prisma.ExpedienteInclude;
 
 function usuarioFicha(u: { id: number; nombre: string; apellido: string }): UsuarioFicha {
@@ -365,9 +414,12 @@ interface FilaPersona {
   id: bigint;
   rol: string;
   orden: number;
+  tipoPersona: string;
   apellido: string | null;
   nombres: string | null;
   dni: string | null;
+  razonSocial: string | null;
+  cuit: string | null;
   fallecido: boolean;
   fechaDefuncion: Date | null;
   vinculo: string | null;
@@ -388,9 +440,12 @@ function personaFicha(p: FilaPersona, etiquetas: ReadonlyMap<string, string>, co
     rol: p.rol,
     etiquetaRol: etiquetas.get(p.rol) ?? p.rol,
     orden: p.orden,
+    tipo: p.tipoPersona === "juridica" ? "juridica" : "fisica",
     apellido: p.apellido,
     nombres: p.nombres,
     dni: p.dni,
+    razonSocial: p.razonSocial,
+    cuit: p.cuit,
     fallecido: p.fallecido,
     fechaDefuncion: fechaDesdeDb(p.fechaDefuncion),
     vinculo: p.vinculo,
@@ -406,31 +461,14 @@ function personaFicha(p: FilaPersona, etiquetas: ReadonlyMap<string, string>, co
   };
 }
 
-async function calcularPlazo(tx: Transaccion, e: { plazoDesde: Date | null; plazoDiasHabiles: number | null; plazoCumplidoEn: Date | null }, hoy: FechaISO): Promise<PlazoFicha | null> {
-  if (e.plazoDiasHabiles === null) return null;
-  const desde = fechaDesdeDb(e.plazoDesde);
-  let vence: FechaISO | null = null;
-  let faltan: number | null = null;
-  if (desde !== null) {
-    // El vencimiento se calcula al leer (3.6): si se carga un asueto, se corrige solo.
-    const [r] = await tx.$queryRaw<Array<{ vence: string; faltan: number }>>`
-      SELECT public.f_sumar_dias_habiles(${desde}::date, ${e.plazoDiasHabiles}::int)::text AS vence,
-             public.f_dias_habiles_entre(${hoy}::date, public.f_sumar_dias_habiles(${desde}::date, ${e.plazoDiasHabiles}::int)) AS faltan`;
-    vence = r?.vence ?? null;
-    faltan = r?.faltan ?? null;
-  }
-  return { desde, diasHabiles: e.plazoDiasHabiles, cumplidoEn: fechaDesdeDb(e.plazoCumplidoEn), vence, faltan };
-}
-
-/** Días hábiles restantes a partir de los cuales el plazo se pinta "por vencer" (3.6). */
-const DIAS_PLAZO_POR_VENCER = 5;
-
 /** Arma la ficha sin registrar el acceso (lo registra quien llama: la ficha o la hoja del historial). */
-export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, numero: string, hoy: FechaISO) {
+export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, numero: string, hoy: FechaISO, ahora: Date = new Date()) {
   const e = await tx.expediente.findUnique({ where: { numeroInterno: numero }, include: INCLUIR });
   if (!e) throw noEncontrado(numero);
 
-  const def = leerDefinicion(e.plantilla.definicion, e.plantilla.codigo, e.plantilla.version);
+  // Resuelta para el cementerio y las personas: la ficha muestra lo mismo que
+  // después exige el pase (conceptos, documentos y subtareas que corresponden).
+  const def = await definicionDelExpediente(tx, e, e.plantilla);
   const permisos = await permisosDelExpediente(tx, e, def.pasos.length);
   const ver = evaluarPermiso("ver_datos_completos", permisos, usuario);
   const completo = ver.permitido && !ver.requiereMotivo;
@@ -567,6 +605,10 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     fuente: m.fuente,
     corrigeMovimientoId: m.corrigeMovimientoId?.toString() ?? null,
     corregidoPor: correcciones.get(m.id.toString()) ?? [],
+    revertido: false,
+    fechaCorregida: null,
+    observacionCorregida: null,
+    correcciones: [],
     personasCreadas: personas
       .filter((p) => p.creadaMovId === m.id)
       .map((p) => ({ id: p.id.toString(), rol: p.rol, orden: p.orden, reemplazaA: reemplaza.get(p.id.toString()) ?? null })),
@@ -589,22 +631,23 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
   if (e.pasoRetornoClave !== null) situaciones.push("devuelto");
   if (e.cargaHistorica) situaciones.push("carga_historica");
   if (e.expedienteAnterior !== null || e.reiniciadoEn.length > 0) situaciones.push("reiniciado");
-  if (plazo?.faltan !== null && plazo?.faltan !== undefined && plazo.cumplidoEn === null) {
-    if (plazo.faltan < 0) situaciones.push("plazo_vencido");
-    else if (plazo.faltan <= DIAS_PLAZO_POR_VENCER) situaciones.push("plazo_por_vencer");
-  }
+  if (plazo?.semaforo === "vencido") situaciones.push("plazo_vencido");
+  else if (plazo?.semaforo === "por_vencer") situaciones.push("plazo_por_vencer");
 
   // La precisión de en_area_desde y recibido_en: la del último movimiento de
   // ubicación con esa fecha (un alta con fecha de inicio pasada o un pase
-  // cargado "el 15" tienen precisión de día y no muestran "00:00").
+  // cargado "el 15" tienen precisión de día y no muestran "00:00"). Semana 4:
+  // si la fecha del movimiento se corrigió, vale la corregida, con su precisión.
   const precisionDe = (instante: Date | null): PrecisionFecha => {
     if (instante === null) return "minuto";
     let precision: PrecisionFecha = "minuto";
     let secuencia = -1;
     for (const m of movimientos) {
-      if (TIPOS_UBICACION.has(m.tipo) && m.fechaEfectiva.getTime() === instante.getTime() && m.secuencia > secuencia) {
+      const corregida = fechas.get(m.id.toString());
+      const fecha = corregida?.instante ?? m.fechaEfectiva;
+      if (TIPOS_UBICACION.has(m.tipo) && fecha.getTime() === instante.getTime() && m.secuencia > secuencia) {
         secuencia = m.secuencia;
-        precision = m.precisionFecha === "dia" ? "dia" : "minuto";
+        precision = (corregida?.precision ?? m.precisionFecha) === "dia" ? "dia" : "minuto";
       }
     }
     return precision;
@@ -627,6 +670,46 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
       };
     })
     .sort((a, b) => a.registradoEn.getTime() - b.registradoEn.getTime());
+
+  // Semana 4: reversiones, correcciones y enlaces.
+  const revertidos = movimientosRevertidos(movimientos);
+  const fechas = fechasCorregidas(movimientos);
+  const observaciones = observacionesCorregidas(movimientos);
+  const corregibles = correccionesPosibles({
+    def,
+    movimientos,
+    items,
+    pasoClave: e.pasoClave,
+    pasoOrden: e.pasoOrden,
+    estado: e.estado,
+    permisos,
+    usuario,
+    ahora,
+  });
+  for (const h of historial) {
+    h.revertido = revertidos.has(h.id);
+    const f = fechas.get(h.id);
+    h.fechaCorregida = f ? { fechaEfectiva: f.instante, precisionFecha: f.precision } : null;
+    h.observacionCorregida = observaciones.has(h.id) ? { valor: observaciones.get(h.id) ?? null } : null;
+    h.correcciones = corregibles.get(h.id) ?? [];
+  }
+  const altaMov = movimientos.find((m) => m.tipo === "alta");
+  const vinculoAlta = (altaMov?.datos as Record<string, unknown> | null)?.vinculo;
+  const enlaceAnterior: EnlaceExpediente | null = e.expedienteAnterior
+    ? {
+        numero: e.expedienteAnterior.numeroInterno,
+        estado: e.expedienteAnterior.estado,
+        plantilla: e.expedienteAnterior.plantilla.nombre,
+        vinculo: vinculoAlta === "vinculado" ? "vinculado" : "reinicio",
+      }
+    : null;
+  // El vínculo de un siguiente lo dice cómo quedó este: anulado (reinicio) o archivado (vinculado).
+  const siguientes: EnlaceExpediente[] = e.reiniciadoEn.map((x) => ({
+    numero: x.numeroInterno,
+    estado: x.estado,
+    plantilla: x.plantilla.nombre,
+    vinculo: e.estado === "anulado" ? "reinicio" : "vinculado",
+  }));
 
   const enCurso = e.pasoOrden < def.pasos.length;
   const pase: PaseFicha = {
@@ -700,6 +783,16 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     situaciones,
     expedienteAnterior: e.expedienteAnterior?.numeroInterno ?? null,
     expedientesSiguientes: e.reiniciadoEn.map((x) => x.numeroInterno),
+    enlaces: { anterior: enlaceAnterior, siguientes },
+    concluir: {
+      faltan:
+        e.pasoOrden === def.pasos.length && (e.estado === "en_tramite" || e.estado === "espera_pago_dim")
+          ? faltantesParaConcluir(def, items, datosExtra)
+          : [],
+    },
+    cargaHistoricaPendiente: e.cargaHistorica
+      ? pendientesHistoricos(def, items, e.pasoOrden, e.estado === "concluido" || (e.estado === "archivado" && e.estadoPrevio === "concluido"))
+      : null,
     creadoEn: e.creadoEn,
     creadoPor: usuarioFicha(e.creador),
     recorrido,
@@ -728,6 +821,19 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
       adjuntar: evaluarPermiso("adjuntar", permisos, usuario),
       darPase: evaluarPermiso("dar_pase", permisos, usuario),
       devolver: evaluarPermiso("devolver", permisos, usuario),
+      concluir: evaluarPermiso("concluir", permisos, usuario),
+      archivar: evaluarPermiso("archivar_concluido", permisos, usuario),
+      archivarSinConcluir: evaluarPermiso("archivar_sin_concluir", permisos, usuario),
+      desarchivar: evaluarPermiso("desarchivar", permisos, usuario),
+      anular: evaluarPermiso("anular", permisos, usuario),
+      reabrir: evaluarPermiso("reabrir", permisos, usuario),
+      reiniciar: evaluarPermiso("reiniciar_con_otra_plantilla", permisos, usuario),
+      cambiarUbicacionArchivo: evaluarPermiso("cambiar_ubicacion_archivo", permisos, usuario),
+      nota: evaluarPermiso("nota", permisos, usuario),
+      transcribir: evaluarPermiso("transcribir", permisos, usuario),
+      suprimirPersona: evaluarPermiso("suprimir_persona", permisos, usuario),
+      purgarAdjunto: evaluarPermiso("purgar_adjunto", permisos, usuario),
+      corregir: corregibles.size > 0,
     },
   };
   return { ficha, id: e.id };
@@ -750,7 +856,7 @@ export async function obtenerFicha(
   const numeroInterno = exigirNumero(numero);
   const hoy = hoyEnTucuman(deps.ahora?.() ?? new Date());
   return deps.escribir(usuario.id, null, async (tx) => {
-    const { ficha, id } = await armarFicha(tx, usuario, numeroInterno, hoy);
+    const { ficha, id } = await armarFicha(tx, usuario, numeroInterno, hoy, deps.ahora?.() ?? new Date());
     await registrarAcceso(tx, {
       usuarioId: usuario.id,
       accion: "ver_expediente",
@@ -772,6 +878,7 @@ export interface ContactoCompleto {
   rol: string;
   apellido: string | null;
   nombres: string | null;
+  razonSocial: string | null;
   vigente: boolean;
   telefono: string | null;
   telefonoWhatsapp: boolean;
@@ -847,6 +954,7 @@ export async function verDatosCompletos(
         rol: p.rol,
         apellido: p.apellido,
         nombres: p.nombres,
+        razonSocial: p.razonSocial,
         vigente: p.vigente,
         telefono: p.telefono,
         telefonoWhatsapp: p.telefonoWhatsapp,

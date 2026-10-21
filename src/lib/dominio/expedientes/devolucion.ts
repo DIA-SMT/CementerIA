@@ -1,5 +1,5 @@
 import { exigirPermiso, type UsuarioPermisos } from "../permisos";
-import { leerDefinicion } from "./contexto";
+import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, errorValidacion, estadoNoAdmite, exigirMotivo, limpiarMotivo } from "./errores";
 import {
@@ -95,7 +95,7 @@ export async function devolver(
           where: { id: expedienteId },
           include: { plantilla: { select: { codigo: true, version: true, definicion: true } } },
         });
-        const def = leerDefinicion(e.plantilla.definicion, e.plantilla.codigo, e.plantilla.version);
+        const def = await definicionDelExpediente(tx, e, e.plantilla);
         const m = await tx.movimiento.findUniqueOrThrow({ where: { id: movimientoId }, select: { pasoDestino: true, datos: true, comandoId: true } });
         const recepcion = await tx.movimiento.findFirst({ where: { expedienteId, tipo: "recepcion", comandoId: m.comandoId }, select: { id: true } });
         const datos = (m.datos ?? {}) as { subtareas_reiniciadas?: string[] };

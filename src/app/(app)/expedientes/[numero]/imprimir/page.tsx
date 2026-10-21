@@ -11,9 +11,9 @@ import { formatearFecha } from "@/lib/fechas";
 import { leerHoja, origenPublico, rutaFicha, urlAbsoluta } from "@/lib/presentacion/enlaces";
 import { contextoResumen } from "@/lib/presentacion/historial";
 import { svgQr } from "@/lib/presentacion/qr";
-import { etiquetaEstado, formatearDni, nombreCompleto } from "@/lib/presentacion/textos";
+import { documentoDePersona, etiquetaEstado, nombreCompleto } from "@/lib/presentacion/textos";
 import { LineaDeTiempo } from "../../linea-de-tiempo";
-import { BotonImprimir } from "./boton-imprimir";
+import { BotonImprimir } from "@/components/boton-imprimir";
 
 export async function generateMetadata(props: PageProps<"/expedientes/[numero]/imprimir">): Promise<Metadata> {
   const { numero } = await props.params;
@@ -92,7 +92,7 @@ function personas(lista: PersonaCaratula[]): React.ReactNode {
   return lista.map((p, i) => (
     <span key={i} className="block">
       {nombreCompleto(p)}
-      {p.dni ? ` · DNI ${formatearDni(p.dni)}` : ""}
+      {documentoDePersona(p) ? ` · ${documentoDePersona(p)}` : ""}
       {p.fallecido ? " · fallecido" : ""}
       {p.vinculo ? ` · ${p.vinculo}` : ""}
     </span>
@@ -224,7 +224,7 @@ function HojaDelHistorial({ hoja: d }: { hoja: HojaHistorial }) {
           Personas:{" "}
           {d.personas
             .filter((p) => p.vigente)
-            .map((p) => `${p.etiquetaRol} ${p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}${p.dni ? ` (DNI ${formatearDni(p.dni)})` : ""}`)
+            .map((p) => `${p.etiquetaRol} ${p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}${documentoDePersona(p) ? ` (${documentoDePersona(p)})` : ""}`)
             .join(" · ") || "—"}
         </p>
       </header>

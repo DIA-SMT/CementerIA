@@ -1,23 +1,32 @@
 import { describe, expect, it } from "vitest";
-import type { DefinicionPlantilla } from "../../../src/lib/dominio/plantillas/esquema";
+import type { DefinicionPlantilla, FiltroCementerios } from "../../../src/lib/dominio/plantillas/esquema";
 import { validarPublicacion } from "../../../src/lib/dominio/plantillas/validar";
 import { AREAS } from "../areas";
 import { TIPOS_MONUMENTO } from "../catalogos";
+import { CEMENTERIOS } from "../cementerios";
 import { PLANTILLAS } from "./index";
 
 // La transcripción de la sección 4 de docs/propuesta-mvp.md, en una forma
 // compacta escrita a mano mirando las tablas de la propuesta y no el código:
 // si alguien cambia una plantilla de la semilla sin querer, este test lo marca.
 //
-//   paso:      "CLAVE área dias_alerta [custodia:X] [estado] [plazo:N desde→hasta]: subtareas"
+//   paso:      "CLAVE área dias_alerta [custodia:X] [estado] [omitible] [plazo:N desde→hasta]: subtareas"
 //   subtarea:  "*" obligatoria; [f] fecha obligatoria; [t?] texto opcional
 //   documento: "CLAVE origen exigir_al_salir_de adjunto"
-//   persona:   "rol min..max fallecido [vinculo]"
+//   persona:   "rol min..max fallecido [vinculo] [juridica]"
 //   campo:     "clave tipo obligatorio|opcional exigir [buscable]"
+//   filtros (semana 4, docs/fuentes): "@OESTE,JARDIN_NORTE" solo en esos
+//   cementerios, "@-JARDIN_NORTE" en todos menos esos; "si_juridica:titular".
+
+function filtro(f: FiltroCementerios): string {
+  if (f.solo_cementerios !== null) return `@${f.solo_cementerios.join(",")}`;
+  if (f.excepto_cementerios !== null) return `@-${f.excepto_cementerios.join(",")}`;
+  return "";
+}
 
 function subtarea(s: DefinicionPlantilla["pasos"][number]["subtareas"][number]): string {
   const dato = s.dato === null ? "" : s.dato === "fecha" ? (s.dato_obligatorio ? "[f]" : "[f?]") : s.dato_obligatorio ? "[t]" : "[t?]";
-  return `${s.obligatoria ? "*" : ""}${s.clave}${dato}`;
+  return `${s.obligatoria ? "*" : ""}${s.clave}${dato}${filtro(s)}`;
 }
 
 function resumir(d: DefinicionPlantilla) {
@@ -26,14 +35,16 @@ function resumir(d: DefinicionPlantilla) {
     tipos_monumento: d.tipos_monumento,
     ubicacion_obligatoria: d.ubicacion_obligatoria,
     requiere_contacto: d.requiere_contacto,
-    personas: d.personas.map((p) => `${p.rol} ${p.min}..${p.max} ${p.fallecido}${p.pide_vinculo ? " vinculo" : ""}`),
+    personas: d.personas.map((p) => `${p.rol} ${p.min}..${p.max} ${p.fallecido}${p.pide_vinculo ? " vinculo" : ""}${p.admite_juridica ? " juridica" : ""}`),
     campos_extra: d.campos_extra.map(
       (c) => `${c.clave} ${c.tipo} ${c.obligatorio ? "obligatorio" : "opcional"} ${c.exigir_al_salir_de ?? "-"}${c.buscable ? " buscable" : ""}`,
     ),
     documentos: d.documentos.map(
-      (x) => `${x.clave} ${x.origen} ${x.exigir_al_salir_de ?? "-"} ${x.adjunto}${x.obligatorio ? "" : " opcional"}`,
+      (x) =>
+        `${x.clave} ${x.origen} ${x.exigir_al_salir_de ?? "-"} ${x.adjunto}${x.obligatorio ? "" : " opcional"}` +
+        `${filtro(x) ? ` ${filtro(x)}` : ""}${x.solo_si_juridica ? ` si_juridica:${x.solo_si_juridica}` : ""}`,
     ),
-    conceptos: d.conceptos.map((c) => `${c.clave} ${c.via} ${c.paso}`),
+    conceptos: d.conceptos.map((c) => `${c.clave} ${c.via} ${c.paso}${filtro(c) ? ` ${filtro(c)}` : ""}`),
     pasos: d.pasos.map((p) =>
       [
         `${p.clave} ${p.area} ${p.dias_alerta}`,
@@ -47,7 +58,8 @@ function resumir(d: DefinicionPlantilla) {
   };
 }
 
-const MONUMENTOS_RENOVACION = ["SOTANITO", "CAPILLA", "MAUSOLEO", "SEPULTURA"];
+// [F] Más el panteón (docs/fuentes); cada cementerio habilita los suyos.
+const MONUMENTOS_RENOVACION = ["SEPULTURA", "SOTANITO", "CAPILLA", "MAUSOLEO", "PANTEON"];
 const CAMPOS_CONCESION = [
   "concesion_desde fecha opcional COMPUTO_FINAL",
   "concesion_hasta fecha opcional COMPUTO_FINAL",
@@ -56,11 +68,22 @@ const DOCUMENTOS_RENOVACION = [
   "CONST_COMPUTOS direccion COMPUTO_ALTA no",
   "ESTADO_CUENTA direccion LIQUIDACION no",
   "CONST_PERIODOS direccion LIQUIDACION no",
+  // [F] Conservación de los últimos 5 años: Oeste y Jardín.
+  "CONSERVACION direccion LIQUIDACION no @OESTE,JARDIN_NORTE",
   "INFORME_TECNICO direccion LIQUIDACION sugerido",
   "DNI concesionario MESA no",
   "BOLETA_SERVICIO concesionario MESA no",
-  "COMPROBANTE_PAGO concesionario LIQUIDACION sugerido",
 ];
+// [F] Las asociaciones con panteón: solo si el titular es persona jurídica.
+const DOCUMENTOS_JURIDICA = [
+  "PERSONERIA concesionario MESA no si_juridica:titular",
+  "DESIGNACION_ASAMBLEA concesionario MESA no si_juridica:titular",
+];
+const COMPROBANTE = "COMPROBANTE_PAGO concesionario LIQUIDACION sugerido";
+// [F] Jardín no cobra inspección técnica: su boleta no la nombra.
+const LIQUIDACION_RENOVACION =
+  "LIQUIDACION LIQUIDACION 15: *LIQ_DEBITOS *LIQ_BOLETA[t?]@-JARDIN_NORTE *LIQ_BOLETA_JARDIN[t?]@JARDIN_NORTE *LIQ_PAGO[f]";
+const INSPECCION = "INSPECCION_TECNICA boleta LIQUIDACION @-JARDIN_NORTE";
 const MESA = "MESA MESA_ENTRADAS 2: *MESA_CARATULA";
 const COMPUTO_ALTA = "COMPUTO_ALTA COMPUTO 5: *COMP_GRABADO[t?]";
 const LEGAL = "LEGAL LEGAL 10: *LEG_DICTAMEN[t?]";
@@ -79,14 +102,14 @@ const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: 
       tipos_monumento: MONUMENTOS_RENOVACION,
       ubicacion_obligatoria: true,
       requiere_contacto: true,
-      personas: ["titular 1..1 no", "solicitante 0..1 no vinculo"],
+      personas: ["titular 1..1 no juridica", "solicitante 0..1 no vinculo"],
       campos_extra: CAMPOS_CONCESION,
-      documentos: ["FORM_INICIO_RENOV direccion MESA no", ...DOCUMENTOS_RENOVACION],
-      conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", "INSPECCION_TECNICA boleta LIQUIDACION", "ARRENDAMIENTO boleta LIQUIDACION"],
+      documentos: ["FORM_INICIO_RENOV direccion MESA no", ...DOCUMENTOS_RENOVACION, ...DOCUMENTOS_JURIDICA, COMPROBANTE],
+      conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", INSPECCION, "ARRENDAMIENTO boleta LIQUIDACION"],
       pasos: [
         MESA,
         COMPUTO_ALTA,
-        "LIQUIDACION LIQUIDACION 15: *LIQ_DEBITOS *LIQ_BOLETA[t?] *LIQ_PAGO[f]",
+        LIQUIDACION_RENOVACION,
         LEGAL,
         RESOLUCION_Y_TITULO,
         COMPUTO_FINAL,
@@ -103,18 +126,19 @@ const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: 
       tipos_monumento: MONUMENTOS_RENOVACION,
       ubicacion_obligatoria: true,
       requiere_contacto: true,
-      personas: ["titular 1..1 no", "solicitante 0..1 no vinculo"],
+      personas: ["titular 1..1 no juridica", "solicitante 0..1 no vinculo"],
       campos_extra: CAMPOS_CONCESION,
-      documentos: ["FORM_INICIO_RENOV direccion MESA no", ...DOCUMENTOS_RENOVACION],
-      conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", "INSPECCION_TECNICA boleta LIQUIDACION", "ARRENDAMIENTO plan_dim TRIBUTARIO"],
+      documentos: ["FORM_INICIO_RENOV direccion MESA no", ...DOCUMENTOS_RENOVACION, ...DOCUMENTOS_JURIDICA, COMPROBANTE],
+      conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", INSPECCION, "ARRENDAMIENTO plan_dim TRIBUTARIO"],
       pasos: [
         MESA,
         COMPUTO_ALTA,
-        "LIQUIDACION LIQUIDACION 15: *LIQ_DEBITOS *LIQ_BOLETA[t?] *LIQ_PAGO[f]",
+        LIQUIDACION_RENOVACION,
         LEGAL,
         "ADM_RESOLUCION ADMINISTRATIVO 15: *ADM_RES_CONF *ADM_RES_FIRMA *ADM_PROTOCOLO[t?]",
         "TRIBUTARIO TRIBUTARIO 10: *TRIB_NOTIFICADA[f] *TRIB_DEBITOS *TRIB_REMITIDO[f]",
-        "DIM DIM 60 custodia:TRIBUTARIO espera_pago_dim plazo:30 TRIB_NOTIFICADA→DIM_PLAN_INICIADO: DIM_PLAN_INICIADO[f] *DIM_DEUDA_CANCELADA[f]",
+        // [F] Omitible: Tributario manda directo al título si el concesionario paga después de la notificación.
+        "DIM DIM 60 custodia:TRIBUTARIO espera_pago_dim omitible plazo:30 TRIB_NOTIFICADA→DIM_PLAN_INICIADO: DIM_PLAN_INICIADO[f] *DIM_DEUDA_CANCELADA[f]",
         "ADM_TITULO ADMINISTRATIVO 15: *ADM_TIT_CONF[t?] *ADM_TIT_FIRMA",
         COMPUTO_FINAL,
         ENTREGA,
@@ -135,14 +159,15 @@ const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: 
       documentos: [
         "FORM_INICIO_RENOV_SPT direccion MESA no",
         ...DOCUMENTOS_RENOVACION,
+        COMPROBANTE,
         "ACTA_DEFUNCION concesionario MESA no",
         "ACTAS_VINCULO concesionario MESA no",
       ],
-      conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", "INSPECCION_TECNICA boleta LIQUIDACION", "ARRENDAMIENTO boleta LIQUIDACION"],
+      conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", INSPECCION, "ARRENDAMIENTO boleta LIQUIDACION"],
       pasos: [
         MESA,
         COMPUTO_ALTA,
-        "LIQUIDACION LIQUIDACION 15: *LIQ_DEBITOS *LIQ_BOLETA[t?] *LIQ_PAGO[f]",
+        LIQUIDACION_RENOVACION,
         "LEGAL LEGAL 10: *LEG_VINCULO *LEG_DICTAMEN[t?]",
         RESOLUCION_Y_TITULO,
         COMPUTO_FINAL,
@@ -200,6 +225,7 @@ const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: 
 const CATALOGOS = {
   areas: AREAS.map((a) => ({ ...a, activa: true })),
   tiposMonumento: TIPOS_MONUMENTO.map((t) => ({ ...t, activo: true })),
+  cementerios: CEMENTERIOS.map((c) => ({ codigo: c.codigo, activo: true })),
 };
 
 describe("plantillas de la semilla (sección 4)", () => {
@@ -232,6 +258,7 @@ const NOMBRES_SUBTAREA: Record<string, string> = {
   COMP_GRABADO: "Trámite grabado en el sistema de Cómputo",
   LIQ_DEBITOS: "Liquidación practicada y débitos generados",
   LIQ_BOLETA: "Boleta emitida: oficina, inspección técnica y arrendamiento",
+  LIQ_BOLETA_JARDIN: "Boleta emitida: oficina y arrendamiento",
   LIQ_PAGO: "Pago verificado: Rapipago, Pago Fácil o Banco Macro",
   LEG_DICTAMEN: "Dictamen emitido",
   LEG_VINCULO: "Vínculo con el titular acreditado",
@@ -268,6 +295,9 @@ const NOMBRES_DOCUMENTO: Record<string, string> = {
   COPIA_RES_CADUCIDAD: "Fotocopia de la resolución de caducidad",
   CONST_ANTECEDENTES: "Constancia de antecedentes y requisitos",
   CONST_INHUMAR: "Constancia para inhumar",
+  CONSERVACION: "Conservación abonada de los últimos 5 años (surge del estado de cuenta)",
+  PERSONERIA: "Personería jurídica de la asociación o sociedad",
+  DESIGNACION_ASAMBLEA: "Acta de asamblea con la designación de autoridades",
 };
 
 /** Lo que cambia en cada plantilla respecto de los nombres comunes. */
@@ -275,7 +305,11 @@ const NOMBRES_PROPIOS: Record<string, { subtareas?: Record<string, string>; docu
   RENOV_CONTADO: {},
   // 4(b): la boleta inicial no lleva el arrendamiento (va por plan en la DIM).
   RENOV_PLAN: {
-    subtareas: { LIQ_BOLETA: "Boleta emitida: oficina e inspección técnica", COMP_FINAL: "Finalización grabada" },
+    subtareas: {
+      LIQ_BOLETA: "Boleta emitida: oficina e inspección técnica",
+      LIQ_BOLETA_JARDIN: "Boleta emitida: derecho de oficina",
+      COMP_FINAL: "Finalización grabada",
+    },
     documentos: { COMPROBANTE_PAGO: "Copia del comprobante de pago de la boleta inicial" },
   },
   RENOV_SPT_CONTADO: {},
@@ -290,6 +324,18 @@ describe("plantillas de la semilla: nombres (sección 4)", () => {
     const documentos = p.definicion.documentos.map((d) => [d.clave, d.nombre]);
     expect(subtareas).toEqual(subtareas.map(([clave]) => [clave, propios.subtareas?.[clave] ?? NOMBRES_SUBTAREA[clave]]));
     expect(documentos).toEqual(documentos.map(([clave]) => [clave, propios.documentos?.[clave] ?? NOMBRES_DOCUMENTO[clave]]));
+  });
+
+  it("LIQ_BOLETA_JARDIN no nombra la inspección técnica: Jardín no la cobra (docs/fuentes)", () => {
+    const boleta = Object.fromEntries(
+      PLANTILLAS.map((p) => [p.codigo, p.definicion.pasos.flatMap((x) => x.subtareas).find((s) => s.clave === "LIQ_BOLETA_JARDIN")?.nombre ?? null]),
+    );
+    expect(boleta).toEqual({
+      RENOV_CONTADO: "Boleta emitida: oficina y arrendamiento",
+      RENOV_PLAN: "Boleta emitida: derecho de oficina",
+      RENOV_SPT_CONTADO: "Boleta emitida: oficina y arrendamiento",
+      NUEVA_CONC_CONTADO: null,
+    });
   });
 
   it("LIQ_BOLETA dice qué conceptos lleva la boleta en cada plantilla", () => {

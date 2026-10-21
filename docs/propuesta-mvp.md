@@ -77,9 +77,17 @@ En las tablas, NN significa NOT NULL y N acepta nulos.
 | codigo | text | NN | | UNIQUE: `OESTE`, `NORTE`, `JARDIN_NORTE` |
 | nombre | text | NN | | |
 | area_id | smallint | NN | | FK areas, UNIQUE (su área externa) |
-| campos_ubicacion | jsonb | NN | '[]' | CHECK jsonb_typeof = 'array'. Cada campo: `{clave, etiqueta, tipo: texto\|entero, obligatorio, patron, activo}` |
+| campos_ubicacion | jsonb | NN | '[]' | CHECK jsonb_typeof = 'array'. Cada campo: `{clave, etiqueta, tipo: texto\|entero, obligatorio, patron, activo, ayuda?}` (`ayuda`, opcional: cómo se escribe, para el formulario y el error) |
 | tipos_monumento | text[] | NN | '{}' | Códigos habilitados en ese cementerio (los valida la app) |
 | activo | boolean | NN | true | |
+
+> Actualizado el 20/10/2026 según docs/fuentes: **nomenclatura y monumentos de la semilla.**
+> - Oeste: Sección (texto, patrón `[A-H]`, una letra de la A a la H, según el plano base), Lote y N°. Sin cuadro: el plano no tiene cuadros.
+> - Jardín Norte: Sección en números romanos (texto, patrón `XL|X{0,3}(?:IX|IV|V?I{0,3})`, de I a XL [C: el tope]), Lote y N°.
+> - Norte: la provisoria (Sección · Cuadro · Lote · N°).
+> - Lote y N° siguen provisorios en los tres: falta saber cómo se numera dentro de cada sección [C].
+> - Tipos de monumento: Oeste y Norte habilitan SEPULTURA ("Sepultura o bóveda"), SOTANITO, CAPILLA, MAUSOLEO y PANTEON; Jardín Norte, solo SEPULTURA.
+> - Como los valores se guardan en mayúsculas, "iv" e "IV" (o "b" y "B") dan la misma `ubicacion_clave`.
 
 El alta exige que el cementerio tenga al menos un tipo de monumento habilitado, y al menos un campo de ubicación activo si la plantilla dice `ubicacion_obligatoria: true`. Si no los tiene, el formulario muestra "Falta configurar el cementerio" en lugar de una lista vacía.
 
@@ -87,7 +95,7 @@ El alta exige que el cementerio tenga al menos un tipo de monumento habilitado, 
 
 | Tabla | Columnas |
 |---|---|
-| `tipos_monumento` | id smallint identity PK; codigo text NN UNIQUE CHECK ~ '^[A-Z_]+$'; nombre text NN; activo boolean NN true. Semilla: `SOTANITO`, `CAPILLA`, `MAUSOLEO`, `SEPULTURA`, más `NICHO` y `CINERARIO_COMUN` [I] |
+| `tipos_monumento` | id smallint identity PK; codigo text NN UNIQUE CHECK ~ '^[A-Z_]+$'; nombre text NN; activo boolean NN true. Semilla: `SOTANITO`, `CAPILLA`, `MAUSOLEO`, `SEPULTURA` ("Sepultura o bóveda"), `PANTEON`, más `NICHO` y `CINERARIO_COMUN` [I] (Actualizado el 20/10/2026 según docs/fuentes: se agregó el panteón y SEPULTURA se llama "Sepultura o bóveda", como en los procedimientos; NICHO y CINERARIO_COMUN quedan en el catálogo pero ningún cementerio los habilita) |
 | `tipos_tramite` | id smallint identity PK; codigo text NN UNIQUE; nombre text NN; activo boolean NN true. Semilla: `RENOVACION`, `RENOVACION_SPT`, `NUEVA_CONCESION`. Los demás se agregan desde `/admin/catalogos` |
 
 ### 2.4 `usuarios`
@@ -181,6 +189,11 @@ Valores admitidos por campo:
 | `pasos[].instrucciones` | Texto opcional que se muestra en la ficha |
 | `subtareas[].dato` | `null`, `fecha` o `texto` |
 | `pasos[].plazo` | `{"dias_habiles":30,"desde_subtarea":"TRIB_NOTIFICADA","hasta_subtarea":"DIM_PLAN_INICIADO"}` |
+| `personas[].admite_juridica` | Actualizado el 20/10/2026 según docs/fuentes. `true`: el rol puede ser una persona jurídica (razón social y CUIT). Por defecto `false` |
+| `conceptos[]`, `documentos[]`, `subtareas[]`: `solo_cementerios` / `excepto_cementerios` | Actualizado el 20/10/2026 según docs/fuentes. Códigos de `cementerios`, o `null` (por defecto: en todos). Uno u otro. Lo que no corresponde al cementerio del expediente no aparece ni se exige |
+| `documentos[].solo_si_juridica` | Actualizado el 20/10/2026 según docs/fuentes. Rol de persona (con `admite_juridica`), o `null`. El documento corresponde solo si alguna persona vigente de ese rol es jurídica |
+
+> Actualizado el 20/10/2026 según docs/fuentes: la definición de un expediente es la de su plantilla **resuelta** para su cementerio y sus personas (`src/lib/dominio/plantillas/resolver.ts`): la ficha, la carátula, el "Faltan N", el pase, la devolución y la bandeja usan la misma. "Publicar" valida además que los cementerios de los filtros existan y estén activos, que no vayan los dos filtros juntos, que las subtareas de un plazo no se filtren y que `solo_si_juridica` nombre un rol que admite persona jurídica.
 
 ### 2.6 `expedientes` (estado actual, la proyección)
 
@@ -246,9 +259,12 @@ El estado de un documento es `pendiente`, `presentado`, `no_corresponde` o `hist
 | expediente_id | bigint | NN | | FK expedientes ON DELETE RESTRICT |
 | rol | text | NN | | CHECK ~ '^[a-z_]+$'; debe existir en `definicion.personas` (lo valida la app) |
 | orden | smallint | NN | 1 | UNIQUE (expediente_id, rol, orden) WHERE vigente |
-| apellido, nombres | text | N | | NN salvo suprimida (CHECK (suprimida_en IS NOT NULL OR (apellido IS NOT NULL AND nombres IS NOT NULL))) |
-| dni | text | N | | Solo dígitos; CHECK ~ '^[0-9]{6,9}$'; índice btree |
-| fallecido | boolean | NN | false | |
+| tipo_persona | text | NN | 'fisica' | CHECK in ('fisica','juridica'). Actualizado el 20/10/2026 según docs/fuentes (asociaciones con panteón) |
+| apellido, nombres | text | N | | NN en una física salvo suprimida; NULL en una jurídica (CHECK de nombre y de datos por tipo) |
+| dni | text | N | | Solo dígitos; CHECK ~ '^[0-9]{6,9}$'; índice btree. NULL en una jurídica |
+| razon_social | text | N | | Actualizado el 20/10/2026 según docs/fuentes. NN en una jurídica no suprimida; NULL en una física |
+| cuit | text | N | | Actualizado el 20/10/2026 según docs/fuentes. NN en una jurídica no suprimida; CHECK `f_cuit_valido` (11 dígitos y dígito verificador); NULL en una física; índice btree. La app exige además prefijo de persona jurídica (30, 33 o 34) |
+| fallecido | boolean | NN | false | Una jurídica, siempre false |
 | fecha_defuncion | date | N | | CHECK (fecha_defuncion IS NULL OR fallecido) |
 | vinculo | text | N | | "hijo", "cónyuge", "apoderado" |
 | telefono | text | N | | |
@@ -259,10 +275,10 @@ El estado de un documento es `pendiente`, `presentado`, `no_corresponde` o `hist
 | reemplazada_por_id | bigint | N | | FK expediente_personas: la versión que la reemplazó |
 | creada_mov_id | bigint | NN | | FK movimientos (`alta` o `edicion` que la creó) |
 | suprimida_en | timestamptz | N | | Supresión por Ley 25.326 (ver 2.13(b)) |
-| nombre_norm | text | NN | '' | Trigger: `f_normalizar(apellido ‖ ' ' ‖ nombres)`; GIN trigram |
+| nombre_norm | text | NN | '' | Trigger: `f_normalizar(apellido ‖ ' ' ‖ nombres ‖ ' ' ‖ razon_social)`; GIN trigram |
 
 - Editar una persona inserta una fila nueva y pasa la anterior a `vigente = false` con `reemplazada_por_id`. Quitar una persona es pasarla a `vigente = false`.
-- **Trigger `expediente_personas_proteger` (ENABLE ALWAYS):** admite solo dos clases de UPDATE. La primera pasa `vigente` de true a false y fija `reemplazada_por_id`. La segunda es la supresión: pone en NULL apellido, nombres, dni, teléfono, email, domicilio y vínculo, fija `suprimida_en` y exige `app.motivo`. Cualquier otro UPDATE se rechaza. No hay DELETE.
+- **Trigger `expediente_personas_proteger` (ENABLE ALWAYS):** admite solo dos clases de UPDATE. La primera pasa `vigente` de true a false y fija `reemplazada_por_id`. La segunda es la supresión: pone en NULL apellido, nombres, dni, razón social y CUIT (Actualizado el 20/10/2026 según docs/fuentes: la Ley 25.326 también protege a las personas de existencia ideal), teléfono, email, domicilio y vínculo, fija `suprimida_en` y exige `app.motivo`; `tipo_persona` se conserva. Cualquier otro UPDATE se rechaza. No hay DELETE.
 - Como `creada_mov_id` es NN y el movimiento se inserta antes, el `alta` y la `edicion` se insertan primero y las personas después, en la misma transacción.
 
 ### 2.8 `movimientos` (historial, solo inserción)
@@ -452,10 +468,10 @@ Los expedientes en curso conservan su `plantilla_id` y siguen exactamente con su
 
 `cementerios.campos_ubicacion` define la clave, la etiqueta, el tipo, la obligatoriedad, el patrón y si el campo está activo. El formulario y el esquema zod se arman en tiempo de ejecución a partir de esa definición.
 
-Los valores se guardan normalizados (trim, mayúsculas, enteros sin ceros a la izquierda) en `ubicacion`, por ejemplo `{"seccion":"3","cuadro":"B","lote":"12","numero":"45"}`.
+Los valores se guardan normalizados (trim, mayúsculas, enteros sin ceros a la izquierda) en `ubicacion`, por ejemplo `{"seccion":"3","cuadro":"B","lote":"12","numero":"45"}` (Actualizado el 20/10/2026 según docs/fuentes: en el Oeste `{"seccion":"B","lote":"12"}`, en Jardín `{"seccion":"IV","lote":"12"}`; "iv" se guarda "IV").
 - `ubicacion_clave` se arma solo con las claves presentes y no vacías, en orden alfabético, y solo cuando cambia la ubicación. Agregar o desactivar un campo no cambia la clave de los expedientes ya cargados.
 - El aviso de "otro expediente sobre el mismo espacio" compara `ubicacion_clave` dentro del cementerio y no salta cuando la clave es NULL.
-- Si Jardín Norte usa otros campos, por ejemplo Sector, Parcela y Fila, se configuran sin código.
+- Si Jardín Norte usa otros campos, por ejemplo Sector, Parcela y Fila, se configuran sin código. (Actualizado el 20/10/2026 según docs/fuentes: la sección de Jardín va en romanos y la del Oeste es una letra de la A a la H; ver 2.2.)
 - Una clave ya usada no se puede renombrar ni borrar: se pasa a `activo: false` y los valores viejos se siguen mostrando.
 - Con `ubicacion_obligatoria: false` (cinerario común), los campos pueden quedar vacíos.
 
@@ -485,7 +501,7 @@ Si la transacción falla se deshace también el número, así que no quedan huec
 - número interno y su forma corta (`42/2026`);
 - número municipal normalizado y padrón;
 - cementerio y `ubicacion_texto`;
-- nombres y DNI de todas las personas vigentes no suprimidas;
+- nombres y DNI de todas las personas vigentes no suprimidas (de una persona jurídica, razón social y CUIT: Actualizado el 20/10/2026 según docs/fuentes);
 - los `datos_extra` marcados `buscable`.
 
 La caja única de `/expedientes?q=` no adivina el tipo de número:
@@ -493,7 +509,7 @@ La caja única de `/expedientes?q=` no adivina el tipo de número:
 2. **Solo dígitos y separadores** (`.`, `-`, `/`, espacios). Se quitan los separadores y se busca en paralelo, por igualdad:
    - `numero_interno` en su forma corta (si la consulta tenía forma `N/AAAA`);
    - `numero_municipal_norm` y `padron_norm`;
-   - `expediente_personas.dni`; si son 11 dígitos, se busca además el DNI extraído del CUIL.
+   - `expediente_personas.dni`; si son 11 dígitos, se busca además el DNI extraído del CUIL y, Actualizado el 20/10/2026 según docs/fuentes, el `cuit` de una persona jurídica ("CUIT del titular").
 
    Si hay una sola coincidencia, se abre. Si hay varias, se listan indicando por dónde coincidió: "N° municipal", "N° interno", "padrón" o "DNI del solicitante".
 3. **Texto.** Se normaliza y cada palabra tiene que aparecer: `busqueda LIKE '%token%'`, acelerado por el índice trigram y ordenado por `similarity`. "gonzalez" encuentra "GONZÁLEZ".
@@ -627,18 +643,26 @@ Si fallan los puntos 4 a 6, el botón muestra **"Faltan N"** y abre la lista exa
 
 Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga inicial, a validar"`. Los datos de subtarea que el pedido no menciona se siembran como opcionales.
 
+> Actualizado el 20/10/2026 según docs/fuentes (procedimientos escaneados y lo que informó la Dirección): como todavía no hay producción, los cambios se hicieron sobre la versión 1 de la semilla en lugar de publicar una v2, y las `notas_cambio` lo dicen. [F] marca lo que sale de las fuentes. En resumen:
+> - (a), (b) y (c): monumentos SEPULTURA, SOTANITO, CAPILLA, MAUSOLEO y PANTEON (cada cementerio habilita los suyos: Jardín, solo sepultura).
+> - (a), (b) y (c): INSPECCION_TECNICA con `excepto_cementerios: [JARDIN_NORTE]` [F: Jardín no la cobra]. La subtarea de la boleta se separa en LIQ_BOLETA (con inspección técnica, excepto Jardín) y LIQ_BOLETA_JARDIN (sin ella, solo Jardín).
+> - (a), (b) y (c): documento CONSERVACION, "Conservación abonada de los últimos 5 años (surge del estado de cuenta)", provisto por la Dirección, exigido al salir de LIQUIDACION [I], con `solo_cementerios: [OESTE, JARDIN_NORTE]` [F]. El Norte no lo pide [C].
+> - (a) y (b): `titular` con `admite_juridica`; documentos PERSONERIA y DESIGNACION_ASAMBLEA, que trae el concesionario, exigidos al salir de MESA [I], con `solo_si_juridica: titular` [F]. (c) no: es por fallecimiento del titular.
+> - (b): el paso DIM es `omitible` [F]: Tributario puede dar el pase directo a ADM_TITULO, con motivo, si el concesionario paga después de la notificación.
+> - (d): sin cambios de fondo. Confirmado que no cobra inspección técnica [F].
+
 ### a) `RENOV_CONTADO`: Renovación, pago de contado (tipo `RENOVACION`)
 
 - **Forma de pago:** `contado`.
-- **Tipos de monumento:** SOTANITO, CAPILLA, MAUSOLEO, SEPULTURA.
-- **Personas:** `titular` 1..1 (`fallecido: no`) y `solicitante` 0..1 (`pide_vinculo`). `requiere_contacto: true`.
+- **Tipos de monumento:** SEPULTURA, SOTANITO, CAPILLA, MAUSOLEO y PANTEON (Actualizado el 20/10/2026 según docs/fuentes: se sumó el panteón).
+- **Personas:** `titular` 1..1 (`fallecido: no`; persona física o, Actualizado el 20/10/2026 según docs/fuentes, jurídica: `admite_juridica`) y `solicitante` 0..1 (`pide_vinculo`). `requiere_contacto: true`.
 - **Campos extra:** `concesion_desde` y `concesion_hasta`, de tipo fecha, opcionales y exigibles al salir de COMPUTO_FINAL [I]. Registran el período de 5 años renovados (pregunta 5).
 
 | # | Clave | Área | Subtareas (clave) | Documentos exigidos al salir | dias_alerta |
 |---|---|---|---|---|---|
-| 1 | MESA | MESA_ENTRADAS | \*Carátula impresa y agregada al expediente (MESA_CARATULA) [I] | FORM_INICIO_RENOV, DNI, BOLETA_SERVICIO [I: el pedido no dice en qué paso] | 2 |
+| 1 | MESA | MESA_ENTRADAS | \*Carátula impresa y agregada al expediente (MESA_CARATULA) [I] | FORM_INICIO_RENOV, DNI, BOLETA_SERVICIO [I: el pedido no dice en qué paso]; con titular persona jurídica, PERSONERIA y DESIGNACION_ASAMBLEA [F] | 2 |
 | 2 | COMPUTO_ALTA | COMPUTO | \*Trámite grabado en el sistema de Cómputo [t?: N° de registro, I] (COMP_GRABADO) | CONST_COMPUTOS [I] | 5 |
-| 3 | LIQUIDACION | LIQUIDACION | \*Liquidación practicada y débitos generados (LIQ_DEBITOS); \*Boleta emitida: oficina, inspección técnica y arrendamiento [t?: N° de boleta, I] (LIQ_BOLETA); \*Pago verificado: Rapipago, Pago Fácil o Banco Macro [f] (LIQ_PAGO) | ESTADO_CUENTA, CONST_PERIODOS, COMPROBANTE_PAGO, INFORME_TECNICO [C] | 15 |
+| 3 | LIQUIDACION | LIQUIDACION | \*Liquidación practicada y débitos generados (LIQ_DEBITOS); \*Boleta emitida: oficina, inspección técnica y arrendamiento [t?: N° de boleta, I] (LIQ_BOLETA, excepto Jardín); \*Boleta emitida: oficina y arrendamiento [t?] (LIQ_BOLETA_JARDIN, solo Jardín [F]); \*Pago verificado: Rapipago, Pago Fácil o Banco Macro [f] (LIQ_PAGO) | ESTADO_CUENTA, CONST_PERIODOS, CONSERVACION (Oeste y Jardín [F]), COMPROBANTE_PAGO, INFORME_TECNICO [C] | 15 |
 | 4 | LEGAL | LEGAL | \*Dictamen emitido [t?: N° de dictamen, I] (LEG_DICTAMEN) | — | 10 |
 | 5 | ADM_RESOLUCION | ADMINISTRATIVO | \*Resolución confeccionada (ADM_RES_CONF); \*Firma de la resolución por el Director (ADM_RES_FIRMA); \*Protocolización [t?: N° de resolución, I] (ADM_PROTOCOLO); \*Título confeccionado [t?: N° de título, I] (ADM_TIT_CONF); \*Firma del título (ADM_TIT_FIRMA) | — | 15 |
 | 6 | COMPUTO_FINAL | COMPUTO | \*Datos faltantes grabados (COMP_FINAL) [I: el contenido, resolución, título y período, es una suposición] | — | 5 |
@@ -652,6 +676,7 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 | CONST_COMPUTOS | Constancia de Cómputos (datos personales y catastrales) | COMPUTO_ALTA [I] | no |
 | ESTADO_CUENTA | Estado de cuenta | LIQUIDACION [I] | no |
 | CONST_PERIODOS | Constancia de los períodos que adeuda y cómo los abona | LIQUIDACION [I] | no |
+| CONSERVACION | Conservación abonada de los últimos 5 años (surge del estado de cuenta). Actualizado el 20/10/2026 según docs/fuentes: requisito de los procedimientos del Oeste y de Jardín; va como documento porque los procedimientos lo listan entre los requisitos que se presentan y lo acredita un papel de la Dirección. Solo Oeste y Jardín; el Norte [C] | LIQUIDACION [I] | no |
 | INFORME_TECNICO | Informe técnico; lo pide el concesionario en el cementerio | LIQUIDACION, antes de Legal [C] | sugerido |
 
 **Documentación que trae el concesionario:**
@@ -660,9 +685,11 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 |---|---|---|---|
 | DNI | Fotocopia del DNI | MESA [I] | no |
 | BOLETA_SERVICIO | Fotocopia de una boleta de servicio, para verificar el domicilio | MESA [I] | no |
+| PERSONERIA | Personería jurídica de la asociación o sociedad. Actualizado el 20/10/2026 según docs/fuentes: solo si el titular es persona jurídica (`solo_si_juridica: titular`) | MESA [I] | no |
+| DESIGNACION_ASAMBLEA | Acta de asamblea con la designación de autoridades. Ídem | MESA [I] | no |
 | COMPROBANTE_PAGO | Copia del comprobante de pago [I: figura en los pasos, no en la lista] | LIQUIDACION | sugerido |
 
-**Conceptos:** DERECHO_OFICINA, INSPECCION_TECNICA y ARRENDAMIENTO, los tres vía `boleta` en el paso LIQUIDACION.
+**Conceptos:** DERECHO_OFICINA, INSPECCION_TECNICA y ARRENDAMIENTO, los tres vía `boleta` en el paso LIQUIDACION. Actualizado el 20/10/2026 según docs/fuentes: INSPECCION_TECNICA con `excepto_cementerios: [JARDIN_NORTE]` (Jardín no la cobra).
 
 ### b) `RENOV_PLAN`: Renovación, solicitud de forma de pago (tipo `RENOVACION`)
 
@@ -671,10 +698,10 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 
 | # | Clave | Área | Subtareas (clave) | dias_alerta |
 |---|---|---|---|---|
-| 1–4 | MESA, COMPUTO_ALTA, LIQUIDACION, LEGAL | igual que (a) | En LIQUIDACION: "\*Boleta emitida: oficina e inspección técnica" (LIQ_BOLETA) | igual que (a) |
+| 1–4 | MESA, COMPUTO_ALTA, LIQUIDACION, LEGAL | igual que (a) | En LIQUIDACION: "\*Boleta emitida: oficina e inspección técnica" (LIQ_BOLETA, excepto Jardín) y "\*Boleta emitida: derecho de oficina" (LIQ_BOLETA_JARDIN, solo Jardín [F]) | igual que (a) |
 | 5 | ADM_RESOLUCION | ADMINISTRATIVO | \*ADM_RES_CONF; \*ADM_RES_FIRMA; \*ADM_PROTOCOLO [t?]. Sin título | 15 |
 | 6 | TRIBUTARIO | TRIBUTARIO | \*Resolución notificada al concesionario [f] (TRIB_NOTIFICADA); \*Débitos de arrendamiento generados (TRIB_DEBITOS); \*Expediente remitido a la DIM [f] (TRIB_REMITIDO) [I] | 10 |
-| 7 | DIM | DIM (externa, `custodia: TRIBUTARIO` [C], `estado: espera_pago_dim`, plazo de 30 días hábiles) | Concesionario inició la forma de pago [f] (DIM_PLAN_INICIADO; no obligatoria, cierra el plazo) [I]; \*DIM informa la deuda cancelada y devuelve el expediente [f] (DIM_DEUDA_CANCELADA) | 60 |
+| 7 | DIM | DIM (externa, `custodia: TRIBUTARIO` [C], `estado: espera_pago_dim`, plazo de 30 días hábiles; Actualizado el 20/10/2026 según docs/fuentes: `omitible`) | Concesionario inició la forma de pago [f] (DIM_PLAN_INICIADO; no obligatoria, cierra el plazo) [I]; \*DIM informa la deuda cancelada y devuelve el expediente [f] (DIM_DEUDA_CANCELADA) | 60 |
 | 8 | ADM_TITULO | ADMINISTRATIVO | \*ADM_TIT_CONF [t?]; \*ADM_TIT_FIRMA | 15 |
 | 9 | COMPUTO_FINAL | COMPUTO | \*Finalización grabada (COMP_FINAL) | 5 |
 | 10 | ADM_ENTREGA (final) | ADMINISTRATIVO | \*ADM_ENTREGADO [f] | 30 |
@@ -682,10 +709,14 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 **Conceptos:**
 - DERECHO_OFICINA e INSPECCION_TECNICA, vía `boleta` en el paso LIQUIDACION.
 - ARRENDAMIENTO, vía `plan_dim` en el paso TRIBUTARIO [C: ¿lo liquida Tributario o Liquidación?].
+- Actualizado el 20/10/2026 según docs/fuentes: INSPECCION_TECNICA, excepto en Jardín.
+
+> Actualizado el 20/10/2026 según docs/fuentes (lo que informó la Dirección): cuando vuelve de la DIM, si el concesionario canceló la deuda va a Administrativo para el título; si no abonó, vuelve a Tributario (una **devolución** con motivo, que puede reiniciar TRIB_NOTIFICADA) para que lo notifique. Si se presenta y paga, Tributario da el pase a ADM_TITULO **salteando la DIM** (paso omitible, con motivo, queda en `pasos_omitidos`). Si no paga, Asesoría Legal tramita la caducidad: archivar sin concluir con motivo y abrir un expediente de caducidad vinculado, en la próxima etapa.
 
 ### c) `RENOV_SPT_CONTADO`: Renovación sin perjuicio de tercero, contado (tipo `RENOVACION_SPT`)
 
-- **Pasos, monumentos, campos extra, conceptos y dias_alerta:** iguales que en (a). En LEGAL se agrega "\*Vínculo con el titular acreditado" (LEG_VINCULO) [I].
+- **Pasos, monumentos, campos extra, conceptos y dias_alerta:** iguales que en (a) (también la boleta y la inspección técnica según el cementerio, y la Conservación). En LEGAL se agrega "\*Vínculo con el titular acreditado" (LEG_VINCULO) [I].
+- Actualizado el 20/10/2026 según docs/fuentes: sin persona jurídica (es por fallecimiento del titular), así que tampoco personería ni designación de asamblea.
 - **Personas:**
   - `titular` 1..1 con `fallecido: si` (`fecha_defuncion` opcional) [I];
   - `solicitante` 1..1 con `pide_vinculo`; es el contacto por defecto.
@@ -697,7 +728,7 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 ### d) `NUEVA_CONC_CONTADO`: Nueva concesión de un monumento caducado, contado (tipo `NUEVA_CONCESION`)
 
 - **Forma de pago:** `contado`.
-- **Tipos de monumento:** `[]`, es decir, todos los habilitados en el cementerio [C].
+- **Tipos de monumento:** `[]`, es decir, todos los habilitados en el cementerio [C]. Actualizado el 20/10/2026 según docs/fuentes: en Jardín, solo sepultura; en el Oeste y el Norte, también sotanito, capilla, mausoleo y panteón.
 - **Personas:**
   - `titular` 1..1 (el nuevo concesionario, que es el contacto);
   - `solicitante` 0..1;
@@ -722,7 +753,7 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 
 **Documentación que trae el concesionario:** DNI, CONST_INHUMAR (constancia para inhumar) y BOLETA_SERVICIO, más COMPROBANTE_PAGO [I].
 
-**Conceptos:** DERECHO_OFICINA, ARRENDAMIENTO, APERTURA, INHUMACION y CONDUCCION, todos vía `boleta` en el paso LIQUIDACION.
+**Conceptos:** DERECHO_OFICINA, ARRENDAMIENTO, APERTURA, INHUMACION y CONDUCCION, todos vía `boleta` en el paso LIQUIDACION. Sin inspección técnica (Actualizado el 20/10/2026 según docs/fuentes: confirmado por los procedimientos).
 
 ### Lista para el taller de validación [C] (semana 1)
 
@@ -906,7 +937,7 @@ Todas las dependencias van con versión exacta, sin `^`.
 
 **Cinerario común.**
 - Plantilla corta: Mesa de Entradas → Liquidación → `$CEMENTERIO` → Administrativo.
-- `tipos_monumento: ["CINERARIO_COMUN"]` y `ubicacion_obligatoria: false`.
+- `tipos_monumento: ["CINERARIO_COMUN"]` y `ubicacion_obligatoria: false`. (Actualizado el 20/10/2026 según docs/fuentes: hoy ningún cementerio habilita CINERARIO_COMUN; al cargar esta plantilla hay que habilitarlo en Catálogos donde corresponda.)
 - Personas `difunto` 1..n y `solicitante` con vínculo, más un campo extra de texto para el N° de depósito o de urna. No requiere código.
 
 **Inhumación y exhumación.**

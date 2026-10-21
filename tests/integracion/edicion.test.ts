@@ -53,7 +53,7 @@ describe("datos del expediente", () => {
     const r = await exp.editar(
       mesa,
       numero,
-      { padron: padronNuevo, ubicacion: { seccion: "9", cuadro: "q", lote: "0031" }, observaciones: "Corrige la ficha" },
+      { padron: padronNuevo, ubicacion: { seccion: "h", lote: "0031" }, observaciones: "Corrige la ficha" },
       form.version,
       null,
       comando(),
@@ -64,9 +64,9 @@ describe("datos del expediente", () => {
     expect(e).toMatchObject({
       padron: padronNuevo,
       padronNorm: padronNuevo.replace("-", ""),
-      ubicacion: { seccion: "9", cuadro: "Q", lote: "31" },
-      ubicacionClave: "cuadro=Q;lote=31;seccion=9",
-      ubicacionTexto: "Sección 9 · Cuadro Q · Lote 31",
+      ubicacion: { seccion: "H", lote: "31" },
+      ubicacionClave: "lote=31;seccion=H",
+      ubicacionTexto: "Sección H · Lote 31",
       observaciones: "Corrige la ficha",
       version: 1,
     });
@@ -78,7 +78,7 @@ describe("datos del expediente", () => {
     expect(m.datos).toEqual({
       cambios: {
         padron: [form.valores.padron, padronNuevo],
-        ubicacion: [form.valores.ubicacion, { seccion: "9", cuadro: "Q", lote: "31" }],
+        ubicacion: [form.valores.ubicacion, { seccion: "H", lote: "31" }],
         observaciones: [null, "Corrige la ficha"],
       },
       personas: { baja: [], reemplazadas: [] },

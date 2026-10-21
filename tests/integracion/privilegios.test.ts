@@ -207,6 +207,8 @@ describe("dueños", () => {
           "expediente_personas_proteger",
           "expedientes_preparar",
           "f_actor",
+          // Semana 4: el CHECK del CUIT de una persona jurídica.
+          "f_cuit_valido",
           "f_dias_habiles_entre",
           "f_normalizar",
           "f_sumar_dias_habiles",
@@ -323,6 +325,8 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["cementerios_codigo_key", UNICO, "public.cementerios USING btree (codigo)"],
     ["cementerios_pkey", UNICO, "public.cementerios USING btree (id)"],
     ["expediente_personas_contacto_key", UNICO, "public.expediente_personas USING btree (expediente_id) WHERE (es_contacto AND vigente)"],
+    // Semana 4 (*_personas_juridicas): la caja única busca el CUIT por igualdad.
+    ["expediente_personas_cuit_idx", "", "public.expediente_personas USING btree (cuit)"],
     ["expediente_personas_dni_idx", "", "public.expediente_personas USING btree (dni)"],
     ["expediente_personas_expediente_id_idx", "", "public.expediente_personas USING btree (expediente_id)"],
     ["expediente_personas_nombre_norm_idx", "", "public.expediente_personas USING gin (nombre_norm gin_trgm_ops)"],

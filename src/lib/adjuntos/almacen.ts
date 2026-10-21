@@ -21,8 +21,8 @@ import { BYTES_CABECERA } from "./tipos";
  * 4. `barrerTemporales()`: lo que quedó en `tmp/` (un proceso que murió entre
  *    1 y 3) se borra pasadas 24 h. Lo corre `scripts/barrer-adjuntos-tmp.ts`.
  *
- * La app nunca borra un adjunto confirmado (la purga del admin es de la
- * semana 4).
+ * La app nunca borra un adjunto confirmado, salvo la purga del admin
+ * (`borrar()`, semana 4).
  */
 
 export interface ArchivoRecibido {
@@ -51,6 +51,11 @@ export interface AlmacenAdjuntos {
   abrir(ruta: string): Promise<ArchivoAbierto>;
   /** Borra los temporales modificados antes de `antesDe`; devuelve cuántos. */
   barrerTemporales(antesDe: Date): Promise<number>;
+  /**
+   * Semana 4: borra un archivo confirmado. Solo para la purga del admin (Ley
+   * 25.326, 2.13(b)). No falla si ya no está: una purga repetida no es un error.
+   */
+  borrar(ruta: string): Promise<void>;
 }
 
 export class ArchivoMuyGrande extends Error {
@@ -185,6 +190,13 @@ export function crearAlmacenEnDisco(raiz: string): AlmacenAdjuntos {
       // Los tipos de node:stream/web y los del DOM no coinciden en TypeScript,
       // pero son el mismo ReadableStream en tiempo de ejecución.
       return { contenido: Readable.toWeb(flujo) as unknown as ReadableStream<Uint8Array>, bytes: datos.size };
+    },
+
+    async borrar(ruta) {
+      const archivo = definitivo(ruta);
+      // En Linux el archivo es 0440: el unlink depende de la carpeta, no del archivo.
+      if (sep !== "/") await chmod(archivo, 0o600).catch(() => undefined);
+      await borrarSiExiste(archivo);
     },
 
     async barrerTemporales(antesDe) {

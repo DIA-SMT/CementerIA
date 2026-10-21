@@ -26,6 +26,10 @@ function movimiento(cambios: Partial<MovimientoFicha>): MovimientoFicha {
     fuente: null,
     corrigeMovimientoId: null,
     corregidoPor: [],
+    revertido: false,
+    fechaCorregida: null,
+    observacionCorregida: null,
+    correcciones: [],
     personasCreadas: [],
     ...cambios,
   };

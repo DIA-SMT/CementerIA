@@ -16,12 +16,15 @@ import {
 } from "./esquemas";
 
 const HOY = "2026-10-20";
-const CAMPOS = CEMENTERIOS[0].camposUbicacion;
+// El Norte: conserva la nomenclatura provisoria (sección, cuadro, lote y número).
+const CAMPOS = CEMENTERIOS.find((c) => c.codigo === "NORTE")?.camposUbicacion ?? [];
+const OESTE = CEMENTERIOS.find((c) => c.codigo === "OESTE")?.camposUbicacion ?? [];
+const JARDIN = CEMENTERIOS.find((c) => c.codigo === "JARDIN_NORTE")?.camposUbicacion ?? [];
 
 function contexto(definicion: DefinicionPlantilla = RENOV_CONTADO): ContextoEsquema {
   return {
     plantilla: { id: 7, definicion },
-    cementerio: { id: 3, camposUbicacion: CAMPOS },
+    cementerio: { id: 3, codigo: "NORTE", camposUbicacion: CAMPOS },
     tiposMonumento: definicion.tipos_monumento.length > 0 ? definicion.tipos_monumento : ["SOTANITO", "NICHO"],
     cementerios: ["OESTE", "NORTE", "JARDIN_NORTE"],
     hoy: HOY,
@@ -78,9 +81,12 @@ describe("alta: lo básico", () => {
           id: null,
           rol: "titular",
           orden: 1,
+          tipo: "fisica",
           apellido: "PRUEBA",
           nombres: "Ficticia Uno",
           dni: "90000001",
+          razonSocial: null,
+          cuit: null,
           fallecido: false,
           fechaDefuncion: null,
           vinculo: null,
@@ -97,6 +103,7 @@ describe("alta: lo básico", () => {
       fechaInicio: HOY,
       cargaHistorica: false,
       fuente: null,
+      expedienteAnteriorId: null,
     });
   });
 
@@ -255,6 +262,119 @@ describe("alta: ubicación, monumento, forma de pago, campos extra y documentos"
   it("documentos recibidos: solo los de la plantilla, sin repetir", () => {
     expect(alta(datos({ documentosRecibidos: ["DNI", "DNI", "FORM_INICIO_RENOV"] })).documentosRecibidos).toEqual(["DNI", "FORM_INICIO_RENOV"]);
     expect(errores(() => alta(datos({ documentosRecibidos: ["ACTA_DEFUNCION"] }))).map((e) => e.ruta)).toEqual(["documentosRecibidos[0]"]);
+  });
+
+  it("documentos recibidos: solo los que corresponden al cementerio (Conservación: Oeste y Jardín)", () => {
+    // En el Norte la Conservación pagada no se pide (a confirmar con la Dirección).
+    expect(errores(() => alta(datos({ documentosRecibidos: ["CONSERVACION"] }))).map((e) => e.ruta)).toEqual(["documentosRecibidos[0]"]);
+    const oeste = { ...contexto(), cementerio: { id: 3, codigo: "OESTE", camposUbicacion: OESTE } };
+    expect(alta(datos({ ubicacion: { seccion: "b", lote: "7" }, documentosRecibidos: ["CONSERVACION"] }), oeste).documentosRecibidos).toEqual([
+      "CONSERVACION",
+    ]);
+  });
+});
+
+describe("alta: nomenclatura por cementerio (docs/fuentes)", () => {
+  const conCampos = (codigo: string, campos: typeof CAMPOS) => ({ ...contexto(), cementerio: { id: 3, codigo, camposUbicacion: campos } });
+
+  it("Oeste: sección de la A a la H, en mayúsculas", () => {
+    const ctx = conCampos("OESTE", OESTE);
+    expect(alta(datos({ ubicacion: { seccion: " h ", lote: "012", numero: "" } }), ctx).ubicacion).toEqual({ seccion: "H", lote: "12" });
+    expect(errores(() => alta(datos({ ubicacion: { seccion: "I", lote: "1" } }), ctx))).toEqual([
+      { ruta: "ubicacion.seccion", mensaje: "Sección: el formato no es válido (una letra de la A a la H)" },
+    ]);
+    expect(errores(() => alta(datos({ ubicacion: { seccion: "3", lote: "1" } }), ctx)).map((e) => e.ruta)).toEqual(["ubicacion.seccion"]);
+  });
+
+  it("Jardín: sección en números romanos; \"iv\" y \"IV\" son la misma", () => {
+    const ctx = conCampos("JARDIN_NORTE", JARDIN);
+    const iv = alta(datos({ ubicacion: { seccion: "iv", lote: "3" } }), ctx).ubicacion;
+    expect(iv).toEqual({ seccion: "IV", lote: "3" });
+    expect(alta(datos({ ubicacion: { seccion: "IV", lote: "03" } }), ctx).ubicacion).toEqual(iv);
+    for (const valida of ["I", "IX", "XI", "XIV", "XXXIX", "XL"]) {
+      expect(alta(datos({ ubicacion: { seccion: valida, lote: "1" } }), ctx).ubicacion.seccion).toBe(valida);
+    }
+    for (const invalida of ["IIII", "VV", "XLI", "4", "A"]) {
+      expect(errores(() => alta(datos({ ubicacion: { seccion: invalida, lote: "1" } }), ctx)).map((e) => e.ruta)).toEqual(["ubicacion.seccion"]);
+    }
+  });
+});
+
+describe("alta: persona jurídica (docs/fuentes, asociaciones con panteón)", () => {
+  // CUIT ficticio de la semilla (30-99999013-0): dígito verificador válido.
+  const ASOCIACION: PersonaEntrada = {
+    rol: "titular",
+    tipo: "juridica",
+    razonSocial: "  Asociación Ficticia   de Socorros Mutuos ",
+    cuit: "30-99999013-0",
+    email: "asociacion@ejemplo.test",
+  };
+
+  it("razón social y CUIT, sin apellido ni DNI; puede ser el contacto", () => {
+    const v = alta(datos({ personas: [ASOCIACION] }));
+    expect(v.personas[0]).toMatchObject({
+      tipo: "juridica",
+      razonSocial: "Asociación Ficticia de Socorros Mutuos",
+      cuit: "30999990130",
+      apellido: null,
+      nombres: null,
+      dni: null,
+      fallecido: false,
+      esContacto: true,
+    });
+  });
+
+  it("CUIT obligatorio, de 11 dígitos, con dígito verificador y prefijo de persona jurídica", () => {
+    const mensaje = "CUIT: no es válido (11 dígitos, empieza con 30, 33 o 34 y el último es el verificador)";
+    expect(errores(() => alta(datos({ personas: [{ ...ASOCIACION, cuit: null }] })))).toContainEqual({ ruta: "personas[0].cuit", mensaje: "CUIT: es obligatorio" });
+    expect(errores(() => alta(datos({ personas: [{ ...ASOCIACION, cuit: "30-99999013-1" }] })))).toContainEqual({ ruta: "personas[0].cuit", mensaje });
+    expect(errores(() => alta(datos({ personas: [{ ...ASOCIACION, cuit: "3099999013" }] })))).toContainEqual({ ruta: "personas[0].cuit", mensaje });
+    // El CUIL de una persona (20-…) no es el de una asociación, aunque sea válido.
+    expect(errores(() => alta(datos({ personas: [{ ...ASOCIACION, cuit: "20-30111222-3" }] })))).toContainEqual({ ruta: "personas[0].cuit", mensaje });
+    expect(errores(() => alta(datos({ personas: [{ ...ASOCIACION, razonSocial: " " }] })))).toContainEqual({
+      ruta: "personas[0].razonSocial",
+      mensaje: "Razón social: es obligatoria",
+    });
+  });
+
+  it("una jurídica no lleva apellido, DNI ni fallecimiento; una física no lleva razón social ni CUIT", () => {
+    const e = errores(() => alta(datos({ personas: [{ ...ASOCIACION, apellido: "X", dni: "30111222", fallecido: true }] })));
+    expect(e.map((x) => x.ruta)).toEqual(expect.arrayContaining(["personas[0].apellido", "personas[0].dni", "personas[0].fallecido"]));
+    const f = errores(() => alta(datos({ personas: [{ ...TITULAR, razonSocial: "Algo", cuit: "30999990130" }] })));
+    expect(f.map((x) => x.ruta)).toEqual(expect.arrayContaining(["personas[0].razonSocial", "personas[0].cuit"]));
+  });
+
+  it("solo en los roles que la admiten: no el solicitante, ni el titular fallecido de la SPT", () => {
+    const solicitante: PersonaEntrada = { ...ASOCIACION, rol: "solicitante", vinculo: "apoderada", email: null };
+    expect(errores(() => alta(datos({ personas: [{ ...TITULAR, esContacto: true }, solicitante] })))).toContainEqual({
+      ruta: "personas[1].tipo",
+      mensaje: "Solicitante: tiene que ser una persona física",
+    });
+    const spt = contexto(RENOV_SPT_CONTADO);
+    const solicitanteSpt = { rol: "solicitante", apellido: "PRUEBA", nombres: "Dos", vinculo: "hija", email: "dos@ejemplo.test" };
+    expect(errores(() => alta(datos({ personas: [{ ...ASOCIACION, email: null }, solicitanteSpt] }), spt))).toContainEqual({
+      ruta: "personas[0].tipo",
+      mensaje: "Titular de la concesión (fallecido): tiene que ser una persona física",
+    });
+  });
+
+  it("la personería y la designación de asamblea se reciben solo si el titular es persona jurídica", () => {
+    expect(alta(datos({ personas: [ASOCIACION], documentosRecibidos: ["PERSONERIA", "DESIGNACION_ASAMBLEA"] })).documentosRecibidos).toEqual([
+      "PERSONERIA",
+      "DESIGNACION_ASAMBLEA",
+    ]);
+    expect(errores(() => alta(datos({ documentosRecibidos: ["PERSONERIA"] })))).toEqual([
+      {
+        ruta: "documentosRecibidos",
+        mensaje: "Personería jurídica de la asociación o sociedad: corresponde solo si Titular de la concesión es una persona jurídica",
+      },
+    ]);
+  });
+
+  it("en la edición, una persona física pasa a jurídica como versión nueva (el esquema la acepta)", () => {
+    const edicion = construirEsquemaEdicion({ ...contexto(), ubicacionAnterior: {}, cargaHistorica: false });
+    const v = validarCon(edicion, { personas: [{ ...ASOCIACION, id: "5" }] });
+    expect(v.personas?.[0]).toMatchObject({ id: "5", tipo: "juridica", cuit: "30999990130" });
   });
 });
 

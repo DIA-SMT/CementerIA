@@ -10,7 +10,7 @@ import { armarFicha, type Ficha, type MovimientoFicha } from "./ficha";
  * correcciones. Se agrega al expediente de papel al archivarlo.
  *
  * Como la carátula, no lleva teléfono, correo ni domicilio: de las personas
- * van el rol, el nombre y el DNI, para leer las altas y versiones nuevas de la
+ * van el rol, el nombre y el DNI (o la razón social y el CUIT), para leer las altas y versiones nuevas de la
  * línea de tiempo. Pedirla registra `imprimir` (`detalle.hoja = "historial"`).
  */
 
@@ -20,6 +20,9 @@ export interface PersonaHistorial {
   apellido: string | null;
   nombres: string | null;
   dni: string | null;
+  /** Persona jurídica. */
+  razonSocial: string | null;
+  cuit: string | null;
   vigente: boolean;
   suprimida: boolean;
 }
@@ -80,6 +83,8 @@ export async function datosHistorial(
       apellido: p.apellido,
       nombres: p.nombres,
       dni: p.dni,
+      razonSocial: p.razonSocial,
+      cuit: p.cuit,
       vigente: p.vigente,
       suprimida: p.suprimida,
     });

@@ -9,8 +9,9 @@ const base: DatosBusqueda = {
   cementerio: "Cementerio del Oeste",
   ubicacionTexto: "Sección 3 · Cuadro B · Lote 12 · N° 45",
   personas: [
-    { apellido: "GONZÁLEZ", nombres: "María José", dni: "30111222" },
-    { apellido: null, nombres: null, dni: null },
+    { apellido: "GONZÁLEZ", nombres: "María José", dni: "30111222", razonSocial: null, cuit: null },
+    { apellido: null, nombres: null, dni: null, razonSocial: null, cuit: null },
+    { apellido: null, nombres: null, dni: null, razonSocial: "Asociación Ficticia de Socorros Mutuos", cuit: "30999990130" },
   ],
   extrasBuscables: ["Res. 77/2020", null, 15],
 };
@@ -18,7 +19,7 @@ const base: DatosBusqueda = {
 describe("armarBusqueda (2.13(g))", () => {
   it("incluye número interno y forma corta, N° municipal y padrón (como se escribieron y normalizados), cementerio, ubicación, personas y extras buscables", () => {
     const b = armarBusqueda(base);
-    for (const parte of ["cem 2026 00042", "42", "12 345", "123452026", "p 0099", "p0099", "cementerio del oeste", "seccion 3", "cuadro b", "lote 12", "gonzalez maria jose", "30111222", "res 77", "15"]) {
+    for (const parte of ["cem 2026 00042", "42", "12 345", "123452026", "p 0099", "p0099", "cementerio del oeste", "seccion 3", "cuadro b", "lote 12", "gonzalez maria jose", "30111222", "asociacion ficticia de socorros mutuos", "30999990130", "res 77", "15"]) {
       expect(b, parte).toContain(parte);
     }
   });
@@ -29,7 +30,7 @@ describe("armarBusqueda (2.13(g))", () => {
 
   it("sin partes repetidas y determinista", () => {
     const una = armarBusqueda(base);
-    expect(armarBusqueda({ ...base, personas: [base.personas[0], base.personas[0]] })).toBe(una);
+    expect(armarBusqueda({ ...base, personas: [...base.personas, base.personas[0]] })).toBe(una);
     expect(una.match(/gonzalez/g)).toHaveLength(1);
     expect(armarBusqueda({ ...base })).toBe(una);
   });
@@ -59,16 +60,18 @@ describe("analizarConsulta: la caja única no adivina", () => {
   });
 
   it("DNI con puntos", () => {
-    expect(analizarConsulta("30.111.222")).toEqual({ tipo: "numerica", digitos: "30111222", formaCorta: null, dnis: ["30111222"] });
+    expect(analizarConsulta("30.111.222")).toEqual({ tipo: "numerica", digitos: "30111222", formaCorta: null, dnis: ["30111222"], cuits: [] });
   });
 
-  it("CUIL de 11 dígitos: también el DNI que contiene", () => {
+  it("CUIL o CUIT de 11 dígitos: también el DNI que contiene y el CUIT de una persona jurídica", () => {
     expect(analizarConsulta("20-30111222-3")).toEqual({
       tipo: "numerica",
       digitos: "20301112223",
       formaCorta: null,
       dnis: ["20301112223", "30111222"],
+      cuits: ["20301112223"],
     });
+    expect(analizarConsulta("30-99999013-0")).toMatchObject({ cuits: ["30999990130"] });
   });
 
   it("N° municipal con barra, que también puede ser la forma corta de un número interno", () => {
@@ -77,6 +80,7 @@ describe("analizarConsulta: la caja única no adivina", () => {
       digitos: "12342026",
       formaCorta: { anio: 2026, secuencia: 1234 },
       dnis: ["12342026"],
+      cuits: [],
     });
     expect(analizarConsulta("42 / 2026")).toMatchObject({ formaCorta: { anio: 2026, secuencia: 42 } });
   });

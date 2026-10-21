@@ -1,5 +1,7 @@
 import type { MovimientoFicha } from "@/lib/dominio/expedientes/ficha";
-import { ETIQUETA_CAMPO_EDICION, etiquetaEstado, nombreCompleto } from "./textos";
+import { formatearFecha } from "@/lib/fechas";
+import { resumenCorreccion, textoUbicacion } from "./estados";
+import { ETIQUETA_CAMPO_EDICION, ETIQUETA_DOCUMENTO, etiquetaEstado, nombreCompleto } from "./textos";
 
 /**
  * Qué dice cada movimiento en la línea de tiempo de la ficha y en la hoja del
@@ -10,6 +12,8 @@ export interface PersonaReferida {
   etiquetaRol: string;
   apellido: string | null;
   nombres: string | null;
+  /** Persona jurídica. */
+  razonSocial?: string | null;
 }
 
 export interface ContextoResumen {
@@ -17,6 +21,13 @@ export interface ContextoResumen {
   personas: ReadonlyMap<string, PersonaReferida>;
   /** Etiqueta de cada campo extra por clave ("concesion_hasta" → "Concesión hasta"). */
   camposExtra: ReadonlyMap<string, string>;
+  /** Semana 4: nombre de cada subtarea y documento por clave (si no están, se muestra la clave). */
+  subtareas: ReadonlyMap<string, string>;
+  documentos: ReadonlyMap<string, string>;
+}
+
+function objeto(datos: MovimientoFicha["datos"]): Record<string, unknown> {
+  return datos !== null && typeof datos === "object" && !Array.isArray(datos) ? (datos as Record<string, unknown>) : {};
 }
 
 function quien(p: PersonaReferida | undefined, rol: string): string {
@@ -54,6 +65,27 @@ export function resumenMovimiento(m: MovimientoFicha, ctx: ContextoResumen): str
     const campos = camposDeEdicion(m.datos, ctx).filter((c) => c !== "personas");
     if (campos.length > 0) lineas.push(`Cambió: ${campos.join(", ")}`);
   }
+  const d = objeto(m.datos);
+  if (m.tipo === "subtarea" && typeof d.subtarea === "string") {
+    const nombre = ctx.subtareas.get(d.subtarea) ?? d.subtarea;
+    const dato = typeof d.dato === "string" ? (/^d{4}-d{2}-d{2}$/.test(d.dato) ? formatearFecha(d.dato) : d.dato) : null;
+    lineas.push(d.hecha === false ? `${nombre}: destildada` : `${nombre}: tildada${dato ? ` (${dato})` : ""}`);
+  }
+  if (m.tipo === "documento" && typeof d.documento === "string") {
+    const estado = typeof d.estado === "string" ? (ETIQUETA_DOCUMENTO[d.estado] ?? d.estado).toLowerCase() : "";
+    lineas.push(`${ctx.documentos.get(d.documento) ?? d.documento}: ${estado}`);
+  }
+  if (m.tipo === "adjunto") {
+    const doc = typeof d.documento === "string" ? (ctx.documentos.get(d.documento) ?? d.documento) : "suelto";
+    lineas.push(typeof d.nombre === "string" ? `${d.nombre} (${doc})` : `Archivo (${doc})`);
+  }
+  if (m.tipo === "estado") {
+    if (typeof d.ubicacion_archivo === "string") lineas.push(`Ubicación en el archivo: ${textoUbicacion(d.ubicacion_archivo)}`);
+    if (d.regreso_papel) lineas.push(`El papel volvió a ${m.areaDestino?.nombre ?? "la custodia"}`);
+    if (d.reinicio === true) lineas.push("Anulado para reiniciarlo con otra plantilla");
+    if (d.abre_vinculado === true) lineas.push("Se archivó para abrir un expediente vinculado");
+  }
+  if (m.tipo === "correccion") lineas.push(resumenCorreccion(m.datos, (c) => ctx.subtareas.get(c) ?? c));
   for (const p of m.personasCreadas) {
     const persona = quien(ctx.personas.get(p.id), p.rol);
     lineas.push(m.tipo === "alta" ? `Persona: ${persona}` : p.reemplazaA ? `Datos nuevos de ${persona}` : `Persona agregada: ${persona}`);
@@ -74,9 +106,12 @@ export function resumenMovimiento(m: MovimientoFicha, ctx: ContextoResumen): str
 export function contextoResumen(
   personas: ReadonlyArray<{ id: string } & PersonaReferida>,
   camposExtra: ReadonlyArray<{ clave: string; etiqueta: string }> = [],
+  nombres: { subtareas?: ReadonlyArray<{ clave: string; nombre: string }>; documentos?: ReadonlyArray<{ clave: string; nombre: string }> } = {},
 ): ContextoResumen {
   return {
     personas: new Map(personas.map((p) => [p.id, p])),
     camposExtra: new Map(camposExtra.map((c) => [c.clave, c.etiqueta])),
+    subtareas: new Map((nombres.subtareas ?? []).map((x) => [x.clave, x.nombre])),
+    documentos: new Map((nombres.documentos ?? []).map((x) => [x.clave, x.nombre])),
   };
 }

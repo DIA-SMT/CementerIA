@@ -81,3 +81,31 @@ describe("clave y texto", () => {
     expect(leerCamposUbicacion(CAMPOS, "Oeste")).toHaveLength(5);
   });
 });
+
+describe("nomenclatura de la semana 4 (docs/fuentes)", () => {
+  const SECCION_OESTE: CampoUbicacion = { clave: "seccion", etiqueta: "Sección", tipo: "texto", obligatorio: true, patron: "[A-H]", activo: true, ayuda: "una letra de la A a la H" };
+  const SECCION_JARDIN: CampoUbicacion = { clave: "seccion", etiqueta: "Sección", tipo: "texto", obligatorio: true, patron: "XL|X{0,3}(?:IX|IV|V?I{0,3})", activo: true };
+
+  it("letras y romanos se guardan en mayúsculas: la clave de ubicación no depende de cómo se tipeó", () => {
+    const minuscula = validarUbicacion([SECCION_JARDIN], { seccion: " iv " }, { obligatoria: true });
+    const mayuscula = validarUbicacion([SECCION_JARDIN], { seccion: "IV" }, { obligatoria: true });
+    expect(minuscula).toEqual({ ok: true, ubicacion: { seccion: "IV" } });
+    expect(minuscula.ok && mayuscula.ok && claveDeUbicacion(minuscula.ubicacion) === claveDeUbicacion(mayuscula.ubicacion)).toBe(true);
+    expect(validarUbicacion([SECCION_OESTE], { seccion: "b" }, { obligatoria: true })).toEqual({ ok: true, ubicacion: { seccion: "B" } });
+  });
+
+  it("el error repite la ayuda del campo, si la tiene", () => {
+    expect(validarUbicacion([SECCION_OESTE], { seccion: "Z" }, { obligatoria: true })).toEqual({
+      ok: false,
+      errores: [{ ruta: "ubicacion.seccion", mensaje: "Sección: el formato no es válido (una letra de la A a la H)" }],
+    });
+    expect(validarUbicacion([SECCION_JARDIN], { seccion: "IIII" }, { obligatoria: true })).toMatchObject({
+      ok: false,
+      errores: [{ mensaje: "Sección: el formato no es válido" }],
+    });
+  });
+
+  it("leerCamposUbicacion acepta la ayuda y una configuración sin ella", () => {
+    expect(leerCamposUbicacion([SECCION_OESTE, SECCION_JARDIN], "Oeste").map((c) => c.ayuda)).toEqual(["una letra de la A a la H", undefined]);
+  });
+});

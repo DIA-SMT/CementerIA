@@ -1,5 +1,6 @@
 import type { FechaISO } from "@/lib/fechas";
 import { analizarDefinicion, type DefinicionPlantilla } from "../plantillas/esquema";
+import { resolverDefinicion, resolverPorCementerio, type CircunstanciasExpediente } from "../plantillas/resolver";
 import type { Lector } from "./dependencias";
 import { ErrorDominio } from "./errores";
 import type { ContextoEsquema } from "./esquemas";
@@ -38,6 +39,37 @@ export interface CementerioCargado {
   camposUbicacion: CampoUbicacion[];
   /** Códigos habilitados en el cementerio. */
   tiposMonumento: string[];
+}
+
+/**
+ * Lo que decide qué partes de la plantilla valen para un expediente: el código
+ * de su cementerio y los roles con una persona jurídica vigente (ver
+ * plantillas/resolver.ts). Las suprimidas cuentan: conservan el tipo.
+ */
+export async function circunstanciasDe(
+  lector: Pick<Lector, "cementerio" | "expedientePersona">,
+  exp: { id: bigint; cementerioId: number },
+): Promise<CircunstanciasExpediente> {
+  const cementerio = await lector.cementerio.findUniqueOrThrow({ where: { id: exp.cementerioId }, select: { codigo: true } });
+  const juridicas = await lector.expedientePersona.findMany({
+    where: { expedienteId: exp.id, vigente: true, tipoPersona: "juridica" },
+    select: { rol: true },
+  });
+  return { cementerio: cementerio.codigo, rolesJuridicos: juridicas.map((p) => p.rol) };
+}
+
+/**
+ * La definición de la plantilla de un expediente, validada y resuelta para su
+ * cementerio y sus personas: es la que muestran la ficha y la carátula y la
+ * que exigen el pase, la devolución, las subtareas y los documentos.
+ */
+export async function definicionDelExpediente(
+  lector: Pick<Lector, "cementerio" | "expedientePersona">,
+  exp: { id: bigint; cementerioId: number },
+  plantilla: { definicion: unknown; codigo: string; version: number },
+): Promise<DefinicionPlantilla> {
+  const def = leerDefinicion(plantilla.definicion, plantilla.codigo, plantilla.version);
+  return resolverDefinicion(def, await circunstanciasDe(lector, exp));
 }
 
 /**
@@ -107,6 +139,13 @@ export function tiposMonumentoAdmitidos(
 export interface ContextoFormulario {
   plantilla: PlantillaCargada;
   cementerio: CementerioCargado;
+  /**
+   * La definición sin lo que no corresponde al cementerio (documentos,
+   * conceptos y subtareas filtrados): la que muestra el formulario. Los
+   * documentos que dependen de una persona jurídica quedan; el formulario los
+   * muestra según las personas cargadas.
+   */
+  definicion: DefinicionPlantilla;
   /** Campos de ubicación ACTIVOS, en orden: los que muestra el formulario. */
   camposUbicacion: CampoUbicacion[];
   tiposMonumento: CodigoNombre[];
@@ -157,6 +196,7 @@ export async function cargarContexto(
   return {
     plantilla,
     cementerio,
+    definicion: resolverPorCementerio(def, cementerio.codigo),
     camposUbicacion: camposActivos,
     tiposMonumento,
     cementerios,
@@ -164,7 +204,7 @@ export async function cargarContexto(
     problemas,
     esquema: {
       plantilla: { id: plantilla.id, definicion: def },
-      cementerio: { id: cementerio.id, camposUbicacion: cementerio.camposUbicacion },
+      cementerio: { id: cementerio.id, codigo: cementerio.codigo, camposUbicacion: cementerio.camposUbicacion },
       tiposMonumento: tiposMonumento.map((t) => t.codigo),
       cementerios: cementerios.map((c) => c.codigo),
       hoy,

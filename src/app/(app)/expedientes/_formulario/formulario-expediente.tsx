@@ -36,6 +36,7 @@ import {
   cambiosEdicionDesde,
   claveNueva,
   datosAltaDesde,
+  documentosDelAlta,
   marcarContacto,
   puedeAgregar,
   puedeQuitar,
@@ -58,6 +59,9 @@ import { consultarDuplicados, guardarAlta, guardarEdicion } from "../acciones";
  *   en un resumen arriba que recibe el foco.
  * - Avisa posibles duplicados al salir de la ubicación, el padrón o el N°
  *   municipal; es un aviso, no un bloqueo.
+ * - `definicion` llega ya filtrada por el cementerio (contexto.definicion): los
+ *   documentos que se ofrecen son los de ese cementerio y, los que dependen de
+ *   una persona jurídica, aparecen al elegirla (`documentosDelAlta`).
  */
 
 interface Comunes {
@@ -78,6 +82,8 @@ export interface PropsAlta extends Comunes {
   puedeCargaHistorica: boolean;
   /** A dónde ir para elegir otro trámite o cementerio. */
   urlCambiar: string;
+  /** Semana 4: el alta continúa un expediente anulado por "Reiniciar con otra plantilla" (`?desde=`). */
+  expedienteAnteriorId?: string | null;
 }
 
 export interface PropsEdicion extends Comunes {
@@ -181,6 +187,10 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
   function alEnviar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     if (pendiente) return;
+    // Cada envío empieza de cero: "corregidas" son las rutas cambiadas desde
+    // el envío anterior. Sin esto, el error de un campo que se tocó antes del
+    // primer envío (una sección mal escrita) no se mostraba nunca.
+    setCorregidas(new Set());
     const boton = (evento.nativeEvent as SubmitEvent).submitter;
     const destino = boton instanceof HTMLButtonElement && boton.value === "ficha" ? "ficha" : "caratula";
     const form = new FormData();
@@ -193,6 +203,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         definicion: def,
         clavesUbicacion,
       });
+      if (alta.expedienteAnteriorId) datos.expedienteAnteriorId = alta.expedienteAnteriorId;
       const problemas = erroresDe(construirEsquemaAlta(alta.esquema), datos);
       if (problemas.length > 0) {
         setLocal({ mensaje: "Revisá los datos marcados", errores: problemas });
@@ -219,11 +230,11 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
       form.set("motivo", motivo);
     }
     setLocal(null);
-    setCorregidas(new Set());
     startTransition(() => enviar(form));
   }
 
   const minimoInicio = valores.cargaHistorica ? FECHA_MINIMA_INICIO : sumarDias(hoy, -DIAS_RETROACTIVOS_MAX);
+  const documentosAlta = documentosDelAlta(def, valores.personas);
   const nombrePaso = (clave: string | null) => (clave === null ? "concluir" : (def.pasos.find((p) => p.clave === clave)?.nombre ?? clave));
 
   return (
@@ -351,9 +362,16 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
             {camposUbicacion.map((c) => {
               const ruta = `ubicacion.${c.clave}`;
               return (
-                <Campo key={c.clave} ruta={ruta} etiqueta={c.etiqueta} obligatorio={def.ubicacion_obligatoria && c.obligatorio} errores={err(ruta)}>
+                <Campo
+                  key={c.clave}
+                  ruta={ruta}
+                  etiqueta={c.etiqueta}
+                  obligatorio={def.ubicacion_obligatoria && c.obligatorio}
+                  errores={err(ruta)}
+                  ayuda={c.ayuda ? `Se escribe ${c.ayuda}` : undefined}
+                >
                   <input
-                    {...atributosCampo(ruta, err(ruta))}
+                    {...atributosCampo(ruta, err(ruta), c.ayuda ? `${idDeCampo(ruta)}-ayuda` : undefined)}
                     type="text"
                     inputMode={c.tipo === "entero" ? "numeric" : undefined}
                     autoComplete="off"
@@ -475,11 +493,11 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </Seccion>
       ) : null}
 
-      {alta && def.documentos.length > 0 ? (
+      {alta && documentosAlta.length > 0 ? (
         <Seccion titulo="Documentos recibidos con el alta" descripcion="Marcá lo que se entrega hoy en el mostrador. Lo demás queda pendiente.">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             {(["direccion", "concesionario"] as const).map((origen) => {
-              const docs = def.documentos.filter((d) => d.origen === origen);
+              const docs = documentosAlta.filter((d) => d.origen === origen);
               return (
                 <fieldset key={origen}>
                   <legend className="mb-2 text-sm font-semibold text-slate-800">{origen === "direccion" ? "Dirección" : "Concesionario"}</legend>
@@ -709,11 +727,18 @@ function Persona({
 }) {
   const r = (campo: string) => `personas[${indice}].${campo}`;
   const idTitulo = `${idDeCampo(`personas[${indice}]`)}-titulo`;
-  const fallecido = rol.fallecido === "si" ? true : rol.fallecido === "no" ? false : p.fallecido;
-  const texto = (campo: "apellido" | "nombres" | "dni" | "vinculo" | "telefono" | "email" | "domicilio", etiqueta: string, opciones: { obligatorio?: boolean; tipo?: string; bloqueado: boolean; autoComplete?: string; inputMode?: "numeric" | "tel" | "email" }) => (
-    <Campo ruta={r(campo)} etiqueta={etiqueta} obligatorio={opciones.obligatorio} errores={err(r(campo))}>
+  // Una asociación con panteón (docs/fuentes): razón social y CUIT en vez de
+  // apellido, nombres y DNI, y no fallece. Solo en los roles que la admiten.
+  const juridica = rol.admite_juridica && p.tipo === "juridica";
+  const fallecido = juridica ? false : rol.fallecido === "si" ? true : rol.fallecido === "no" ? false : p.fallecido;
+  const texto = (
+    campo: "apellido" | "nombres" | "dni" | "razonSocial" | "cuit" | "vinculo" | "telefono" | "email" | "domicilio",
+    etiqueta: string,
+    opciones: { obligatorio?: boolean; tipo?: string; bloqueado: boolean; autoComplete?: string; inputMode?: "numeric" | "tel" | "email"; ayuda?: string },
+  ) => (
+    <Campo ruta={r(campo)} etiqueta={etiqueta} obligatorio={opciones.obligatorio} errores={err(r(campo))} ayuda={opciones.ayuda}>
       <input
-        {...atributosCampo(r(campo), err(r(campo)))}
+        {...atributosCampo(r(campo), err(r(campo)), opciones.ayuda ? `${idDeCampo(r(campo))}-ayuda` : undefined)}
         type={opciones.tipo ?? "text"}
         inputMode={opciones.inputMode}
         autoComplete={opciones.autoComplete ?? "off"}
@@ -740,11 +765,50 @@ function Persona({
         ) : null}
       </div>
       <MensajeError ruta={`personas[${indice}]`} errores={[...(err(`personas[${indice}]`) ?? []), ...(err(r("rol")) ?? []), ...(err(r("id")) ?? [])]} />
+      {rol.admite_juridica ? (
+        <fieldset
+          id={idDeCampo(r("tipo"))}
+          className="mb-3"
+          aria-invalid={err(r("tipo")) ? true : undefined}
+          aria-describedby={err(r("tipo")) ? `${idDeCampo(r("tipo"))}-error` : undefined}
+        >
+          <legend className="sr-only">Tipo de persona de {titulo}</legend>
+          <div className="flex flex-wrap gap-4">
+            {([
+              ["fisica", "Persona física"],
+              ["juridica", "Persona jurídica"],
+            ] as const).map(([tipo, etiqueta]) => (
+              <label key={tipo} className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={`tipo-${p.clave}`}
+                  value={tipo}
+                  checked={p.tipo === tipo}
+                  onChange={() => onCambiar(tipo === "juridica" ? { tipo, fallecido: false } : { tipo })}
+                  disabled={bloqueadoIdent}
+                  className={CLASE_CASILLA}
+                />
+                {etiqueta}
+              </label>
+            ))}
+          </div>
+          <MensajeError ruta={r("tipo")} errores={err(r("tipo"))} />
+        </fieldset>
+      ) : null}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {texto("apellido", "Apellido", { obligatorio: true, bloqueado: bloqueadoIdent })}
-        {texto("nombres", "Nombres", { obligatorio: true, bloqueado: bloqueadoIdent })}
-        {texto("dni", "DNI", { bloqueado: bloqueadoIdent, inputMode: "numeric" })}
-        {rol.fallecido === "opcional" ? (
+        {juridica ? (
+          <>
+            <div className="sm:col-span-2">{texto("razonSocial", "Razón social", { obligatorio: true, bloqueado: bloqueadoIdent })}</div>
+            {texto("cuit", "CUIT", { obligatorio: true, bloqueado: bloqueadoIdent, inputMode: "numeric", ayuda: "11 dígitos, con o sin guiones" })}
+          </>
+        ) : (
+          <>
+            {texto("apellido", "Apellido", { obligatorio: true, bloqueado: bloqueadoIdent })}
+            {texto("nombres", "Nombres", { obligatorio: true, bloqueado: bloqueadoIdent })}
+            {texto("dni", "DNI", { bloqueado: bloqueadoIdent, inputMode: "numeric" })}
+          </>
+        )}
+        {!juridica && rol.fallecido === "opcional" ? (
           <div className="flex items-end pb-2">
             <label className="inline-flex items-center gap-2 text-sm">
               <input

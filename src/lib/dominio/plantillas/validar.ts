@@ -3,6 +3,7 @@ import {
   destinoDePaso,
   type DefinicionPlantilla,
   type ErrorPlantilla,
+  type FiltroCementerios,
   type ResultadoDefinicion,
 } from "./esquema";
 
@@ -31,9 +32,17 @@ export interface TipoMonumentoCatalogo {
   activo: boolean;
 }
 
+/** Una fila de Prisma (`Cementerio`) sirve tal cual. */
+export interface CementerioCatalogo {
+  codigo: string;
+  activo: boolean;
+}
+
 export interface CatalogosPlantilla {
   areas: readonly AreaCatalogo[];
   tiposMonumento: readonly TipoMonumentoCatalogo[];
+  /** Para los filtros `solo_cementerios` y `excepto_cementerios`. */
+  cementerios: readonly CementerioCatalogo[];
 }
 
 /**
@@ -55,8 +64,15 @@ export interface CatalogosPlantilla {
  * - `ultimo_paso`: el último paso es de un área interna.
  * - `tipos_monumento`: existen; además, activos y sin repetir.
  * - `personas` (además): min ≤ max, y si `requiere_contacto` hay algún rol que
- *   pueda estar vivo para ser el contacto.
+ *   pueda estar vivo para ser el contacto; un rol que admite persona jurídica
+ *   no puede ser siempre fallecido.
  * - `subtareas` (además): `dato_obligatorio` exige que la subtarea pida un dato.
+ * - `cementerios` (semana 4): los filtros `solo_cementerios` y
+ *   `excepto_cementerios` nombran cementerios que existen y están activos, sin
+ *   repetir, y no van los dos juntos. Las subtareas del plazo de un paso no
+ *   se filtran: en algún cementerio el plazo no tendría cómo empezar o cumplirse.
+ * - `juridica` (semana 4): `solo_si_juridica` nombra un rol de la plantilla que
+ *   admite persona jurídica.
  */
 export type ReglaIntegridad =
   | "claves_unicas"
@@ -70,7 +86,9 @@ export type ReglaIntegridad =
   | "ultimo_paso"
   | "tipos_monumento"
   | "personas"
-  | "subtareas";
+  | "subtareas"
+  | "cementerios"
+  | "juridica";
 
 export interface ErrorIntegridad extends ErrorPlantilla {
   regla: ReglaIntegridad;
@@ -118,6 +136,55 @@ export function validarIntegridad(def: DefinicionPlantilla, catalogos: Catalogos
   def.personas.forEach((p, i) => {
     if (p.min > p.max) {
       error("personas", `personas[${i}]`, `El rol "${p.rol}" tiene mínimo ${p.min} y máximo ${p.max}`);
+    }
+    if (p.admite_juridica && p.fallecido === "si") {
+      error("personas", `personas[${i}].admite_juridica`, `El rol "${p.rol}" es siempre fallecido: no puede ser una persona jurídica`);
+    }
+  });
+
+  // --- Filtros por cementerio y por persona jurídica -----------------------------
+  const cementerios = new Map(catalogos.cementerios.map((c) => [c.codigo, c]));
+  const controlarFiltro = (filtro: FiltroCementerios, ruta: string, que: string): void => {
+    if (filtro.solo_cementerios !== null && filtro.excepto_cementerios !== null) {
+      error("cementerios", ruta, `${que}: usá solo_cementerios o excepto_cementerios, no los dos`);
+    }
+    for (const campo of ["solo_cementerios", "excepto_cementerios"] as const) {
+      const lista = filtro[campo];
+      if (lista === null) continue;
+      lista.forEach((codigo, j) => {
+        const r = `${ruta}.${campo}[${j}]`;
+        if (lista.indexOf(codigo) !== j) error("cementerios", r, `${que}: el cementerio ${codigo} está repetido`);
+        const c = cementerios.get(codigo);
+        if (!c) error("cementerios", r, `${que}: no existe el cementerio ${codigo}`);
+        else if (!c.activo) error("cementerios", r, `${que}: el cementerio ${codigo} está inactivo`);
+      });
+    }
+  };
+  const rolesPlantilla = new Map(def.personas.map((p) => [p.rol, p]));
+  def.documentos.forEach((d, i) => {
+    controlarFiltro(d, `documentos[${i}]`, `El documento "${d.clave}"`);
+    if (d.solo_si_juridica !== null) {
+      const rol = rolesPlantilla.get(d.solo_si_juridica);
+      if (!rol) {
+        error("juridica", `documentos[${i}].solo_si_juridica`, `El documento "${d.clave}" depende del rol "${d.solo_si_juridica}", que la plantilla no tiene`);
+      } else if (!rol.admite_juridica) {
+        error("juridica", `documentos[${i}].solo_si_juridica`, `El documento "${d.clave}" depende de que "${rol.rol}" sea persona jurídica, pero ese rol no la admite`);
+      }
+    }
+  });
+  def.conceptos.forEach((c, i) => controlarFiltro(c, `conceptos[${i}]`, `El concepto "${c.clave}"`));
+  def.pasos.forEach((p, i) => {
+    p.subtareas.forEach((s, j) => controlarFiltro(s, `pasos[${i}].subtareas[${j}]`, `La subtarea "${s.clave}"`));
+  });
+  const filtradas = new Set(
+    def.pasos.flatMap((p) => p.subtareas.filter((s) => s.solo_cementerios !== null || s.excepto_cementerios !== null).map((s) => s.clave)),
+  );
+  def.pasos.forEach((p, i) => {
+    if (!p.plazo) return;
+    for (const campo of ["desde_subtarea", "hasta_subtarea"] as const) {
+      if (filtradas.has(p.plazo[campo])) {
+        error("cementerios", `pasos[${i}].plazo.${campo}`, `El plazo del paso "${p.clave}" usa "${p.plazo[campo]}", que no está en todos los cementerios`);
+      }
     }
   });
   if (def.requiere_contacto && !def.personas.some((p) => p.fallecido !== "si")) {

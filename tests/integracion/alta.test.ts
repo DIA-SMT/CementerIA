@@ -8,7 +8,7 @@ import { conActorEn } from "@/lib/db/actor";
 import { crearServicioExpedientes, ErrorDominio } from "@/lib/dominio/expedientes";
 import { PermisoDenegado, type UsuarioPermisos } from "@/lib/dominio/permisos";
 import { anioEnTucuman, hoyEnTucuman, inicioDelDiaEnTucuman, sumarDias } from "@/lib/fechas";
-import { asegurarSemilla, comando, datosAlta, idArea, servicio, titular, unicoLetras, usuario, forzarEstado } from "./dominio";
+import { asegurarSemilla, comando, datosAlta, idArea, loteUnico, servicio, titular, unicoLetras, usuario, forzarEstado } from "./dominio";
 import { SISTEMA, clientePrisma, unico } from "./helper";
 
 const prisma = clientePrisma();
@@ -50,7 +50,8 @@ describe("alta normal", () => {
       numeroMunicipal: "4321/2026",
       documentosRecibidos: ["DNI", "FORM_INICIO_RENOV"],
       datosExtra: { concesion_hasta: "2031-10-20" },
-      ubicacion: { seccion: "07", cuadro: "zz", lote: "0099", numero: "" },
+      // Nomenclatura del Oeste: sección A a H, en minúscula a propósito.
+      ubicacion: { seccion: "g", lote: "0099", numero: "" },
     });
     const antes = Date.now();
     const r = await exp.alta(mesa, datos, comando());
@@ -68,9 +69,9 @@ describe("alta normal", () => {
       numeroMunicipal: "4321/2026",
       numeroMunicipalNorm: "43212026",
       tipoMonumento: "SEPULTURA",
-      ubicacion: { seccion: "7", cuadro: "ZZ", lote: "99" },
-      ubicacionClave: "cuadro=ZZ;lote=99;seccion=7",
-      ubicacionTexto: "Sección 7 · Cuadro ZZ · Lote 99",
+      ubicacion: { seccion: "G", lote: "99" },
+      ubicacionClave: "lote=99;seccion=G",
+      ubicacionTexto: "Sección G · Lote 99",
       formaPago: "contado",
       estado: "en_tramite",
       pasoClave: "MESA",
@@ -122,7 +123,7 @@ describe("alta normal", () => {
       adjuntos: {},
     });
     expect(e.busqueda).toContain(r.numeroCorto.replace("/", " "));
-    expect(e.busqueda).toContain(t.apellido.toLowerCase());
+    expect(e.busqueda).toContain((t.apellido ?? "").toLowerCase());
     expect(e.busqueda).toContain("43212026");
   });
 
@@ -197,7 +198,27 @@ describe("validaciones", () => {
       expect.arrayContaining([
         { ruta: "personas", mensaje: "Titular de la concesión: tiene que haber 1 (hay 0)" },
         { ruta: "ubicacion.lote", mensaje: "Lote: es obligatorio" },
+        // Oeste: una letra de la A a la H (docs/fuentes); el Oeste no tiene cuadros.
+        { ruta: "ubicacion.seccion", mensaje: "Sección: el formato no es válido (una letra de la A a la H)" },
+        { ruta: "ubicacion.cuadro", mensaje: 'El cementerio no tiene el campo "cuadro"' },
+      ]),
+    );
+  });
+
+  it("en el Norte, la nomenclatura provisoria: sección entera", async () => {
+    let error: unknown;
+    try {
+      await exp.alta(mesa, await datosAlta(prisma, { cementerio: "NORTE", ubicacion: { seccion: "x", cuadro: "B" } }), comando());
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(ErrorDominio);
+    const e = error as ErrorDominio;
+    expect(e.codigo).toBe("validacion");
+    expect(e.errores).toEqual(
+      expect.arrayContaining([
         { ruta: "ubicacion.seccion", mensaje: "Sección: tiene que ser un número entero" },
+        { ruta: "ubicacion.lote", mensaje: "Lote: es obligatorio" },
       ]),
     );
   });
@@ -287,7 +308,7 @@ describe("idempotencia por comando_id", () => {
 
 describe("avisos de duplicados", () => {
   it("misma ubicación en el cementerio, mismo padrón o mismo N° municipal; los anulados no cuentan", async () => {
-    const ubicacion = { seccion: "4", cuadro: unicoLetras("").slice(-3), lote: "12" };
+    const ubicacion = { seccion: "D", lote: loteUnico() };
     const padron = unicoLetras("PD-");
     const municipal = `${Date.now() % 100000}/2026`;
     const primero = await exp.alta(mesa, await datosAlta(prisma, { ubicacion, padron, numeroMunicipal: municipal }), comando());
@@ -296,7 +317,7 @@ describe("avisos de duplicados", () => {
     const cementerioId = (await datosAlta(prisma)).cementerioId;
     const avisos = await exp.avisosDuplicados(mesa, {
       cementerioId,
-      ubicacion: { seccion: "04", cuadro: ubicacion.cuadro.toLowerCase(), lote: "012" },
+      ubicacion: { seccion: "d", lote: `0${ubicacion.lote}` },
       padron: padron.toLowerCase(),
       numeroMunicipal: municipal.replace("/", "-"),
     });
@@ -309,9 +330,11 @@ describe("avisos de duplicados", () => {
       },
     ]);
 
-    // En otro cementerio, la misma ubicación no es el mismo espacio.
-    const otro = await exp.alta(mesa, await datosAlta(prisma, { cementerio: "NORTE", ubicacion }), comando());
-    expect(otro.avisos).toEqual([]);
+    // En otro cementerio, la misma ubicación no es el mismo espacio. Las
+    // nomenclaturas ya no coinciden (el Norte pide sección entera y cuadro):
+    // se consulta directo, con la misma clave en el Norte.
+    const norte = (await datosAlta(prisma, { cementerio: "NORTE" })).cementerioId;
+    expect(await exp.avisosDuplicados(mesa, { cementerioId: norte, ubicacion })).toEqual([]);
     const segundo = await exp.alta(mesa, await datosAlta(prisma, { ubicacion }), comando());
     expect(segundo.avisos.map((a) => [a.numero, a.coincidencias])).toEqual([[primero.numero, ["ubicacion"]]]);
 
@@ -333,9 +356,15 @@ describe("opciones del formulario", () => {
     const d = await datosAlta(prisma, { plantilla: "NUEVA_CONC_CONTADO" });
     const c = await exp.contextoAlta(mesa, d.plantillaId, d.cementerioId);
     expect(c.problemas).toEqual([]);
-    expect(c.camposUbicacion.map((x) => x.clave)).toEqual(["seccion", "cuadro", "lote", "numero"]);
-    // NUEVA_CONC_CONTADO admite todos los del cementerio.
-    expect(c.tiposMonumento.map((t) => t.codigo)).toEqual(["SOTANITO", "CAPILLA", "MAUSOLEO", "SEPULTURA", "NICHO", "CINERARIO_COMUN"]);
+    // El Oeste (docs/fuentes): sección A a H, lote y número.
+    expect(c.camposUbicacion.map((x) => x.clave)).toEqual(["seccion", "lote", "numero"]);
+    // NUEVA_CONC_CONTADO admite todos los del cementerio: los de los procedimientos.
+    expect(c.tiposMonumento.map((t) => t.codigo)).toEqual(["SEPULTURA", "SOTANITO", "CAPILLA", "MAUSOLEO", "PANTEON"]);
+    expect(c.tiposMonumento.find((t) => t.codigo === "SEPULTURA")?.nombre).toBe("Sepultura o bóveda");
+    // Jardín Norte habilita solo la sepultura.
+    const jardin = await datosAlta(prisma, { plantilla: "NUEVA_CONC_CONTADO", cementerio: "JARDIN_NORTE" });
+    const cj = await exp.contextoAlta(mesa, jardin.plantillaId, jardin.cementerioId);
+    expect(cj.tiposMonumento.map((t) => t.codigo)).toEqual(["SEPULTURA"]);
     expect(c.esquema.hoy).toBe(hoyEnTucuman());
     expect(await codigoDeError(exp.contextoAlta(computo, d.plantillaId, d.cementerioId))).toBe("permiso:area_no_habilitada");
   });

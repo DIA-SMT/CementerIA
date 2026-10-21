@@ -1,8 +1,11 @@
 /**
  * Dominio de expedientes. Semana 2: alta, edición, ficha, carátula, búsqueda y
  * aviso de duplicados. Semana 3: recepción, subtareas, documentos, adjuntos,
- * pase ("Faltan N"), devolución y bandejas. Referencia para las pantallas:
- * docs/api-dominio.md.
+ * pase ("Faltan N"), devolución y bandejas. Semana 4: estados (concluir,
+ * archivar, anular, reabrir, desarchivar), reiniciar con otra plantilla y
+ * archivar y abrir vinculado, correcciones, nota, transcripción histórica,
+ * plazo DIM, pestañas Plazos y Carga histórica, panel, CSV y feriados.
+ * Referencia para las pantallas: docs/api-dominio.md.
  *
  * Todo recibe sus dependencias (`DependenciasExpedientes`): la app usa
  * `expedientes` de ./servidor.ts, que ya las tiene puestas (cliente global y
@@ -33,6 +36,44 @@ import { editar } from "./editar";
 import { obtenerFicha, verDatosCompletos } from "./ficha";
 import { contextoAlta, formularioEdicion } from "./formulario";
 import { datosHistorial } from "./historial";
+import {
+  corregirFecha,
+  corregirObservacion,
+  corregirSubtarea,
+  purgarAdjunto,
+  retirarAdjunto,
+  revertir,
+  suprimirPersona,
+  type CambioSubtarea,
+} from "./correcciones";
+import {
+  anular,
+  archivar,
+  archivarSinConcluir,
+  archivarYAbrirVinculado,
+  cambiarUbicacionArchivo,
+  concluir,
+  desarchivar,
+  precargaAlta,
+  reabrir,
+  reiniciar,
+  type EntradaArchivarSinConcluir,
+  type OpcionesEstado,
+} from "./estados";
+import { exportarCsv } from "./exportar";
+import { aniosDeFeriados, cerrarAnioFeriados, guardarFeriado, listarFeriados, quitarFeriado, reabrirAnioFeriados } from "./feriados";
+import { agregarNota } from "./nota";
+import { panel, type FiltrosPanel } from "./panel";
+import {
+  terminarCargaHistorica,
+  tildarSubtareaHistorica,
+  transcribir,
+  transcribirEstado,
+  type EntradaEstadoHistorico,
+  type FilaTranscripcion,
+  type OpcionesSubtareaHistorica,
+} from "./transcripcion";
+import type { EntradaFechaEfectiva } from "./flujo";
 
 export function crearServicioExpedientes(deps: DependenciasExpedientes) {
   return {
@@ -133,6 +174,122 @@ export function crearServicioExpedientes(deps: DependenciasExpedientes) {
     contadorPorConfirmar: (usuario: UsuarioPermisos) => contadorPorConfirmar(deps, usuario),
     /** Cuántos hay en cada pestaña de `/bandeja` (y cuál tiene trabajo). */
     contadoresBandeja: (usuario: UsuarioPermisos) => contadoresBandeja(deps, usuario),
+
+    // --- Semana 4: estados (3.1) ---------------------------------------------
+    /** Concluir desde el último paso ("Faltan N" con lo de "al concluir"). */
+    concluir: (usuario: UsuarioPermisos, numero: string, versionVista: number, comandoId: string, opciones?: OpcionesEstado) =>
+      concluir(deps, usuario, numero, versionVista, comandoId, opciones),
+    /** Archivar un concluido. */
+    archivar: (usuario: UsuarioPermisos, numero: string, ubicacionArchivo: string, versionVista: number, comandoId: string, opciones?: OpcionesEstado) =>
+      archivar(deps, usuario, numero, ubicacionArchivo, versionVista, comandoId, opciones),
+    archivarSinConcluir: (usuario: UsuarioPermisos, numero: string, entrada: EntradaArchivarSinConcluir, versionVista: number, comandoId: string) =>
+      archivarSinConcluir(deps, usuario, numero, entrada, versionVista, comandoId),
+    desarchivar: (usuario: UsuarioPermisos, numero: string, motivo: string | null, versionVista: number, comandoId: string, opciones?: OpcionesEstado) =>
+      desarchivar(deps, usuario, numero, motivo, versionVista, comandoId, opciones),
+    anular: (usuario: UsuarioPermisos, numero: string, motivo: string | null, versionVista: number, comandoId: string, opciones?: OpcionesEstado) =>
+      anular(deps, usuario, numero, motivo, versionVista, comandoId, opciones),
+    reabrir: (usuario: UsuarioPermisos, numero: string, motivo: string | null, versionVista: number, comandoId: string, opciones?: OpcionesEstado) =>
+      reabrir(deps, usuario, numero, motivo, versionVista, comandoId, opciones),
+    cambiarUbicacionArchivo: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      ubicacionArchivo: string,
+      versionVista: number,
+      comandoId: string,
+      opciones?: { motivo?: string | null },
+    ) => cambiarUbicacionArchivo(deps, usuario, numero, ubicacionArchivo, versionVista, comandoId, opciones),
+    /** Reiniciar con otra plantilla (2.13(a)): anula y devuelve la precarga del alta nueva. */
+    reiniciar: (usuario: UsuarioPermisos, numero: string, motivo: string | null, versionVista: number, comandoId: string, opciones?: OpcionesEstado) =>
+      reiniciar(deps, usuario, numero, motivo, versionVista, comandoId, opciones),
+    /** Los datos de `/expedientes/nuevo?desde=<numero>`. */
+    precargaAlta: (usuario: UsuarioPermisos, numero: string, opciones?: OpcionesAcceso) => precargaAlta(deps, usuario, numero, opciones),
+    /** Archivar sin concluir y abrir un expediente vinculado (caducidad, docs/fuentes punto 6). */
+    archivarYAbrirVinculado: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      entrada: EntradaArchivarSinConcluir,
+      datosAlta: unknown,
+      versionVista: number,
+      comandoId: string,
+    ) => archivarYAbrirVinculado(deps, usuario, numero, entrada, datosAlta, versionVista, comandoId),
+    /** Nota libre. */
+    agregarNota: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      texto: string | null,
+      versionVista: number,
+      comandoId: string,
+      opciones?: { fechaEfectiva?: EntradaFechaEfectiva },
+    ) => agregarNota(deps, usuario, numero, texto, versionVista, comandoId, opciones),
+
+    // --- Semana 4: correcciones (2.13(b)) ----------------------------------
+    revertir: (usuario: UsuarioPermisos, numero: string, movimientoId: string, motivo: string | null, versionVista: number, comandoId: string) =>
+      revertir(deps, usuario, numero, movimientoId, motivo, versionVista, comandoId),
+    corregirFecha: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      movimientoId: string,
+      fecha: EntradaFechaEfectiva,
+      motivo: string | null,
+      versionVista: number,
+      comandoId: string,
+    ) => corregirFecha(deps, usuario, numero, movimientoId, fecha, motivo, versionVista, comandoId),
+    corregirObservacion: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      movimientoId: string,
+      observacion: string | null,
+      motivo: string | null,
+      versionVista: number,
+      comandoId: string,
+    ) => corregirObservacion(deps, usuario, numero, movimientoId, observacion, motivo, versionVista, comandoId),
+    corregirSubtarea: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      clave: string,
+      cambio: CambioSubtarea,
+      motivo: string | null,
+      versionVista: number,
+      comandoId: string,
+    ) => corregirSubtarea(deps, usuario, numero, clave, cambio, motivo, versionVista, comandoId),
+    retirarAdjunto: (usuario: UsuarioPermisos, numero: string, adjuntoId: string, motivo: string | null, versionVista: number, comandoId: string) =>
+      retirarAdjunto(deps, usuario, numero, adjuntoId, motivo, versionVista, comandoId),
+    purgarAdjunto: (usuario: UsuarioPermisos, numero: string, adjuntoId: string, motivo: string | null, versionVista: number, comandoId: string) =>
+      purgarAdjunto(deps, usuario, numero, adjuntoId, motivo, versionVista, comandoId),
+    suprimirPersona: (usuario: UsuarioPermisos, numero: string, personaId: string, motivo: string | null, versionVista: number, comandoId: string) =>
+      suprimirPersona(deps, usuario, numero, personaId, motivo, versionVista, comandoId),
+
+    // --- Semana 4: transcripción histórica (2.13(c)) -------------------------
+    transcribir: (usuario: UsuarioPermisos, numero: string, filas: readonly FilaTranscripcion[], versionVista: number) =>
+      transcribir(deps, usuario, numero, filas, versionVista),
+    tildarSubtareaHistorica: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      clave: string,
+      dato: string | null,
+      opciones: OpcionesSubtareaHistorica,
+      versionVista: number,
+      comandoId: string,
+    ) => tildarSubtareaHistorica(deps, usuario, numero, clave, dato, opciones, versionVista, comandoId),
+    transcribirEstado: (usuario: UsuarioPermisos, numero: string, entrada: EntradaEstadoHistorico, versionVista: number, comandoId: string) =>
+      transcribirEstado(deps, usuario, numero, entrada, versionVista, comandoId),
+    terminarCargaHistorica: (usuario: UsuarioPermisos, numero: string, versionVista: number, comandoId: string) =>
+      terminarCargaHistorica(deps, usuario, numero, versionVista, comandoId),
+
+    // --- Semana 4: panel, CSV y feriados -------------------------------------
+    panel: (usuario: UsuarioPermisos, filtros?: FiltrosPanel) => panel(deps, usuario, filtros),
+    /** CSV del buscador (Dirección y admin), sin contacto; registra `exportar`. */
+    exportarCsv: (usuario: UsuarioPermisos, entrada: EntradaBusqueda, opciones?: OpcionesAcceso) => exportarCsv(deps, usuario, entrada, opciones),
+    listarFeriados: (anio: number) => listarFeriados(deps, anio),
+    aniosDeFeriados: () => aniosDeFeriados(deps),
+    guardarFeriado: (
+      usuario: UsuarioPermisos,
+      entrada: { fecha: string; descripcion: string; ambito: string; norma?: string | null },
+      motivo?: string | null,
+    ) => guardarFeriado(deps, usuario, entrada, motivo ?? null),
+    quitarFeriado: (usuario: UsuarioPermisos, fecha: string, motivo?: string | null) => quitarFeriado(deps, usuario, fecha, motivo ?? null),
+    cerrarAnioFeriados: (usuario: UsuarioPermisos, anio: number, motivo?: string | null) => cerrarAnioFeriados(deps, usuario, anio, motivo ?? null),
+    reabrirAnioFeriados: (usuario: UsuarioPermisos, anio: number, motivo: string | null) => reabrirAnioFeriados(deps, usuario, anio, motivo),
   };
 }
 
@@ -187,6 +344,11 @@ export {
   destinosPosibles,
   faltantesDelPaso,
   faltantesParaSalir,
+  faltantesParaConcluir,
+  semaforoPlazo,
+  textoPlazo,
+  DIAS_PLAZO_POR_VENCER,
+  type SemaforoPlazo,
   interpretarFechaEfectiva,
   subtareasReiniciables,
   type DestinoPase,
@@ -210,6 +372,7 @@ export type {
   DatosCompletos,
   DevolucionFicha,
   DocumentoFicha,
+  EnlaceExpediente,
   Ficha,
   MovimientoFicha,
   PaseFicha,
@@ -221,6 +384,46 @@ export type {
   UsuarioFicha,
 } from "./ficha";
 export type { FormularioEdicion } from "./formulario";
+// Semana 4
+export type { VinculoAnterior, OpcionesAltaEn } from "./alta";
+export {
+  UBICACION_ARCHIVO_DESCONOCIDA,
+  type EntradaArchivarSinConcluir,
+  type OpcionesEstado,
+  type PrecargaAlta,
+  type ResultadoEstado,
+  type ResultadoReinicio,
+  type ResultadoVinculado,
+} from "./estados";
+export {
+  correccionesPosibles,
+  objetivoDeReversion,
+  type CambioSubtarea,
+  type ObjetivoReversion,
+  type ResultadoCorreccion,
+  type TipoCorreccion,
+} from "./correcciones";
+export { LARGO_MAXIMO_NOTA, type ResultadoNota } from "./nota";
+export {
+  pendientesHistoricos,
+  type EntradaEstadoHistorico,
+  type FilaTranscripcion,
+  type OpcionesSubtareaHistorica,
+  type ResultadoAccionHistorica,
+  type ResultadoFilaTranscripcion,
+  type ResultadoTranscripcion,
+} from "./transcripcion";
+export { DIAS_SIN_CONFIRMAR, MAXIMO_FILAS_PANEL, type FilaPanel, type FilaPlazoPanel, type FiltrosPanel, type Lista, type MovimientoPanel, type Panel } from "./panel";
+export { armarCsv, celdaCsv, COLUMNAS_CSV, MAXIMO_FILAS_CSV, type ExportacionCsv } from "./exportar";
+export { AMBITOS_FERIADO, type AmbitoFeriado, type AnioFeriados, type Feriado } from "./feriados";
+export type { PlazoCalculado } from "./plazos";
+export {
+  reconstruirProyeccion,
+  proyeccionComparable,
+  movimientosRevertidos,
+  type MovimientoReconstruible,
+  type ProyeccionFlujo,
+} from "./reconstruccion";
 export type { HojaHistorial, PersonaHistorial } from "./historial";
 export { canonizarNumeroInterno, formatearNumeroInterno, numeroCorto } from "./numero";
 export type { CampoUbicacion, Ubicacion } from "./ubicacion";

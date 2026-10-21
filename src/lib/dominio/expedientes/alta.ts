@@ -68,6 +68,7 @@ const Cabecera = z.looseObject({
   plantillaId: z.int({ error: "Elegí el trámite" }).positive(),
   cementerioId: z.int({ error: "Elegí el cementerio" }).positive(),
   cargaHistorica: z.boolean().optional(),
+  expedienteAnteriorId: z.string().nullable().optional(),
 });
 
 export function validarComando(comandoId: string): string {
@@ -120,9 +121,12 @@ export function filaPersona(
     expedienteId,
     rol: p.rol,
     orden,
+    tipoPersona: p.tipo,
     apellido: p.apellido,
     nombres: p.nombres,
     dni: p.dni,
+    razonSocial: p.razonSocial,
+    cuit: p.cuit,
     fallecido: p.fallecido,
     fechaDefuncion: fechaParaDb(p.fechaDefuncion),
     vinculo: p.vinculo,
@@ -173,135 +177,210 @@ export async function alta(
 
   exigirPermiso("alta", null, usuario);
   if (cabecera.data.cargaHistorica) exigirPermiso("carga_historica", null, usuario);
+  if (cabecera.data.expedienteAnteriorId) exigirPermiso("reiniciar_con_otra_plantilla", null, usuario);
 
   const ahora = deps.ahora?.() ?? new Date();
+  return deps.escribir(usuario.id, null, (tx) => altaEn(tx, usuario, datos, comando, ahora));
+}
+
+export interface OpcionesAltaEn {
+  /**
+   * Semana 4, "archivar y abrir vinculado" (caducidad): el expediente anterior
+   * se archivó sin concluir en esta misma transacción y el nuevo lo
+   * referencia sin que el anterior esté anulado.
+   */
+  anteriorVinculado?: { id: bigint; numero: string };
+}
+
+/**
+ * El alta dentro de una transacción ya abierta (con el actor fijado). La usan
+ * `alta()` y "archivar y abrir vinculado", que archiva el anterior y da de
+ * alta el nuevo en una sola transacción.
+ */
+export async function altaEn(
+  tx: Transaccion,
+  usuario: UsuarioPermisos,
+  datos: unknown,
+  comando: string,
+  ahora: Date,
+  opciones: OpcionesAltaEn = {},
+): Promise<ResultadoAlta> {
+  const cabecera = Cabecera.safeParse(datos);
+  if (!cabecera.success) throw errorValidacion(erroresDeZod(cabecera.error));
   const hoy = hoyEnTucuman(ahora);
   const anio = anioEnTucuman(ahora);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_NUMERACION}::int, ${anio}::int)`;
+  const repetido = await resultadoRepetido(tx, comando);
+  if (repetido) return repetido;
 
-  return deps.escribir(usuario.id, null, async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${LOCK_NUMERACION}::int, ${anio}::int)`;
-    const repetido = await resultadoRepetido(tx, comando);
-    if (repetido) return repetido;
+  const plantilla = await cargarPlantilla(tx, cabecera.data.plantillaId);
+  if (!plantilla) throw errorValidacion([{ ruta: "plantillaId", mensaje: "No existe ese trámite" }]);
+  if (plantilla.estado !== "publicada") {
+    throw new ErrorDominio(
+      "plantilla_no_publicada",
+      `La plantilla ${plantilla.codigo} v${plantilla.version} no está publicada: recargá el formulario para tomar la versión vigente`,
+    );
+  }
+  const cementerio = await cargarCementerio(tx, cabecera.data.cementerioId);
+  if (!cementerio || !cementerio.activo) throw errorValidacion([{ ruta: "cementerioId", mensaje: "Elegí un cementerio activo" }]);
 
-    const plantilla = await cargarPlantilla(tx, cabecera.data.plantillaId);
-    if (!plantilla) throw errorValidacion([{ ruta: "plantillaId", mensaje: "No existe ese trámite" }]);
-    if (plantilla.estado !== "publicada") {
-      throw new ErrorDominio(
-        "plantilla_no_publicada",
-        `La plantilla ${plantilla.codigo} v${plantilla.version} no está publicada: recargá el formulario para tomar la versión vigente`,
-      );
-    }
-    const cementerio = await cargarCementerio(tx, cabecera.data.cementerioId);
-    if (!cementerio || !cementerio.activo) throw errorValidacion([{ ruta: "cementerioId", mensaje: "Elegí un cementerio activo" }]);
+  const contexto = await cargarContexto(tx, plantilla, cementerio, hoy);
+  if (contexto.problemas.length > 0) throw new ErrorDominio("configuracion_incompleta", contexto.problemas.join(". "));
+  const v = validarCon(construirEsquemaAlta(contexto.esquema), datos);
+  const def = plantilla.definicion;
+  const anterior = await validarAnterior(tx, v.expedienteAnteriorId, opciones.anteriorVinculado ?? null);
 
-    const contexto = await cargarContexto(tx, plantilla, cementerio, hoy);
-    if (contexto.problemas.length > 0) throw new ErrorDominio("configuracion_incompleta", contexto.problemas.join(". "));
-    const v = validarCon(construirEsquemaAlta(contexto.esquema), datos);
-    const def = plantilla.definicion;
+  const maximo = await tx.expediente.aggregate({ where: { anio }, _max: { secuencia: true } });
+  const secuencia = (maximo._max.secuencia ?? 0) + 1;
+  const numero = formatearNumeroInterno(anio, secuencia);
 
-    const maximo = await tx.expediente.aggregate({ where: { anio }, _max: { secuencia: true } });
-    const secuencia = (maximo._max.secuencia ?? 0) + 1;
-    const numero = formatearNumeroInterno(anio, secuencia);
+  // De a una: dentro de la transacción todo va por la misma conexión.
+  const areas = await tx.area.findMany({ select: { id: true, codigo: true, tipo: true } });
+  const cementerios = await tx.cementerio.findMany({ select: { codigo: true, nombre: true, areaId: true } });
+  const primerPaso = def.pasos[0];
+  const destino = areasDelPaso(primerPaso, {
+    areas: new Map(areas.map((a) => [a.codigo, a])),
+    areaCementerioId: cementerio.areaId,
+    areaDeCementerio: new Map(cementerios.map((c) => [c.codigo, c.areaId])),
+    datosExtra: v.datosExtra,
+  });
 
-    // De a una: dentro de la transacción todo va por la misma conexión.
-    const areas = await tx.area.findMany({ select: { id: true, codigo: true, tipo: true } });
-    const cementerios = await tx.cementerio.findMany({ select: { codigo: true, nombre: true, areaId: true } });
-    const primerPaso = def.pasos[0];
-    const destino = areasDelPaso(primerPaso, {
-      areas: new Map(areas.map((a) => [a.codigo, a])),
-      areaCementerioId: cementerio.areaId,
-      areaDeCementerio: new Map(cementerios.map((c) => [c.codigo, c.areaId])),
-      datosExtra: v.datosExtra,
-    });
+  const esHoy = v.fechaInicio === hoy;
+  const fechaEfectiva = esHoy ? ahora : inicioDelDiaEnTucuman(v.fechaInicio);
+  const recibidoEn = destino.externa || usuario.area?.id === destino.areaActualId ? fechaEfectiva : null;
+  const ubicacionTexto = textoDeUbicacion(cementerio.camposUbicacion, v.ubicacion);
+  const busqueda = armarBusqueda({
+    anio,
+    secuencia,
+    numeroMunicipal: v.numeroMunicipal,
+    padron: v.padron,
+    cementerio: cementerio.nombre,
+    ubicacionTexto,
+    personas: v.personas,
+    extrasBuscables: extrasBuscables(def, v.datosExtra, new Map(cementerios.map((c) => [c.codigo, c.nombre]))),
+  });
 
-    const esHoy = v.fechaInicio === hoy;
-    const fechaEfectiva = esHoy ? ahora : inicioDelDiaEnTucuman(v.fechaInicio);
-    const recibidoEn = destino.externa || usuario.area?.id === destino.areaActualId ? fechaEfectiva : null;
-    const ubicacionTexto = textoDeUbicacion(cementerio.camposUbicacion, v.ubicacion);
-    const busqueda = armarBusqueda({
+  const expediente = await tx.expediente.create({
+    data: {
       anio,
       secuencia,
+      numeroInterno: numero,
       numeroMunicipal: v.numeroMunicipal,
-      padron: v.padron,
-      cementerio: cementerio.nombre,
-      ubicacionTexto,
-      personas: v.personas,
-      extrasBuscables: extrasBuscables(def, v.datosExtra, new Map(cementerios.map((c) => [c.codigo, c.nombre]))),
-    });
-
-    const expediente = await tx.expediente.create({
-      data: {
-        anio,
-        secuencia,
-        numeroInterno: numero,
-        numeroMunicipal: v.numeroMunicipal,
-        fechaInicio: fechaParaDb(v.fechaInicio),
-        tipoTramiteId: plantilla.tipoTramite.id,
-        plantillaId: plantilla.id,
-        cementerioId: cementerio.id,
-        tipoMonumento: v.tipoMonumento,
-        ubicacion: v.ubicacion,
-        ubicacionTexto,
-        padron: v.padron,
-        formaPago: v.formaPago,
-        observaciones: v.observaciones,
-        datosExtra: v.datosExtra,
-        estado: primerPaso.estado,
-        pasoClave: primerPaso.clave,
-        pasoOrden: 1,
-        areaActualId: destino.areaActualId,
-        areaResponsableId: destino.areaResponsableId,
-        enAreaDesde: fechaEfectiva,
-        recibidoEn,
-        // El plazo arranca con la fecha de su subtarea de inicio, que en el alta no está tildada.
-        plazoDiasHabiles: primerPaso.plazo?.dias_habiles ?? null,
-        cargaHistorica: v.cargaHistorica,
-        busqueda,
-        creadoPor: usuario.id,
-        version: 0,
-      },
-      select: { id: true },
-    });
-
-    const movimiento = await tx.movimiento.create({
-      data: {
-        expedienteId: expediente.id,
-        tipo: "alta",
-        fechaEfectiva,
-        precisionFecha: esHoy ? "minuto" : "dia",
-        usuarioId: usuario.id,
-        pasoDestino: primerPaso.clave,
-        areaDestinoId: destino.areaActualId,
-        estadoNuevo: primerPaso.estado,
-        datos: datosDelMovimiento(v, plantilla, cementerio.codigo),
-        cargaHistorica: v.cargaHistorica,
-        fuente: v.fuente,
-        comandoId: comando,
-      },
-      select: { id: true },
-    });
-
-    await tx.expedientePersona.createMany({ data: v.personas.map((p) => filaPersona(p, expediente.id, movimiento.id)) });
-    await tx.expediente.update({
-      where: { id: expediente.id },
-      data: { items: itemsIniciales(v.documentosRecibidos, movimiento.id) },
-    });
-
-    const avisos = await buscarDuplicados(tx, {
+      fechaInicio: fechaParaDb(v.fechaInicio),
+      tipoTramiteId: plantilla.tipoTramite.id,
+      plantillaId: plantilla.id,
+      expedienteAnteriorId: anterior?.id ?? null,
       cementerioId: cementerio.id,
-      ubicacionClave: claveDeUbicacion(v.ubicacion),
+      tipoMonumento: v.tipoMonumento,
+      ubicacion: v.ubicacion,
+      ubicacionTexto,
       padron: v.padron,
-      numeroMunicipal: v.numeroMunicipal,
-      excluirId: expediente.id,
-    });
-
-    return {
-      id: expediente.id.toString(),
-      numero,
-      numeroCorto: numeroCorto(anio, secuencia),
+      formaPago: v.formaPago,
+      observaciones: v.observaciones,
+      datosExtra: v.datosExtra,
+      estado: primerPaso.estado,
+      pasoClave: primerPaso.clave,
+      pasoOrden: 1,
+      areaActualId: destino.areaActualId,
+      areaResponsableId: destino.areaResponsableId,
+      enAreaDesde: fechaEfectiva,
+      recibidoEn,
+      // El plazo arranca con la fecha de su subtarea de inicio, que en el alta no está tildada.
+      plazoDiasHabiles: primerPaso.plazo?.dias_habiles ?? null,
+      cargaHistorica: v.cargaHistorica,
+      busqueda,
+      creadoPor: usuario.id,
       version: 0,
-      repetido: false,
-      avisos,
-    };
+    },
+    select: { id: true },
   });
+
+  const movimiento = await tx.movimiento.create({
+    data: {
+      expedienteId: expediente.id,
+      tipo: "alta",
+      fechaEfectiva,
+      precisionFecha: esHoy ? "minuto" : "dia",
+      usuarioId: usuario.id,
+      pasoDestino: primerPaso.clave,
+      areaDestinoId: destino.areaActualId,
+      estadoNuevo: primerPaso.estado,
+      datos: {
+        ...datosDelMovimiento(v, plantilla, cementerio.codigo),
+        ...(anterior ? { expediente_anterior: anterior.numero, vinculo: anterior.vinculo } : {}),
+      },
+      cargaHistorica: v.cargaHistorica,
+      fuente: v.fuente,
+      comandoId: comando,
+    },
+    select: { id: true },
+  });
+
+  await tx.expedientePersona.createMany({ data: v.personas.map((p) => filaPersona(p, expediente.id, movimiento.id)) });
+  await tx.expediente.update({
+    where: { id: expediente.id },
+    data: { items: itemsIniciales(v.documentosRecibidos, movimiento.id) },
+  });
+
+  const avisos = await buscarDuplicados(tx, {
+    cementerioId: cementerio.id,
+    ubicacionClave: claveDeUbicacion(v.ubicacion),
+    padron: v.padron,
+    numeroMunicipal: v.numeroMunicipal,
+    excluirId: expediente.id,
+  });
+
+  return {
+    id: expediente.id.toString(),
+    numero,
+    numeroCorto: numeroCorto(anio, secuencia),
+    version: 0,
+    repetido: false,
+    // El anterior está sobre el mismo espacio a propósito: no es un aviso.
+    avisos: anterior ? avisos.filter((a) => a.numero !== anterior.numero) : avisos,
+  };
+}
+
+/** Cómo se enlaza un expediente con el anterior (2.13(a) y docs/fuentes, punto 6). */
+export type VinculoAnterior = "reinicio" | "vinculado";
+
+/**
+ * El expediente anterior de un alta (`expediente_anterior_id`):
+ *
+ * - **reinicio** (2.13(a)): el anterior existe, quedó anulado por
+ *   "Reiniciar con otra plantilla" (su anulación lleva `datos.reinicio`) y
+ *   todavía no tiene un expediente siguiente;
+ * - **vinculado** (caducidad): lo fija "archivar y abrir vinculado", que acaba
+ *   de archivar el anterior en la misma transacción. No se acepta desde el
+ *   formulario.
+ */
+async function validarAnterior(
+  tx: Transaccion,
+  idTexto: string | null,
+  vinculado: { id: bigint; numero: string } | null,
+): Promise<{ id: bigint; numero: string; vinculo: VinculoAnterior } | null> {
+  if (vinculado) {
+    if (idTexto !== null && idTexto !== vinculado.id.toString()) {
+      throw errorValidacion([{ ruta: "expedienteAnteriorId", mensaje: "El expediente vinculado es el que se archiva" }]);
+    }
+    return { ...vinculado, vinculo: "vinculado" };
+  }
+  if (idTexto === null) return null;
+  const error = (mensaje: string) => errorValidacion([{ ruta: "expedienteAnteriorId", mensaje }], mensaje);
+  const anterior = await tx.expediente.findUnique({
+    where: { id: BigInt(idTexto) },
+    select: { id: true, numeroInterno: true, estado: true, reiniciadoEn: { select: { numeroInterno: true } } },
+  });
+  if (!anterior) throw error("No existe el expediente anterior");
+  if (anterior.estado !== "anulado") throw error(`${anterior.numeroInterno} no está anulado: se reinicia desde su ficha ("Reiniciar con otra plantilla")`);
+  const anulacion = await tx.movimiento.findFirst({
+    where: { expedienteId: anterior.id, tipo: "estado", estadoNuevo: "anulado" },
+    orderBy: { secuencia: "desc" },
+    select: { datos: true },
+  });
+  const datos = (anulacion?.datos ?? {}) as Record<string, unknown>;
+  if (datos.reinicio !== true) throw error(`${anterior.numeroInterno} se anuló sin reiniciarlo: no se puede continuar en otro expediente`);
+  const siguiente = anterior.reiniciadoEn[0];
+  if (siguiente) throw error(`${anterior.numeroInterno} ya continúa en ${siguiente.numeroInterno}`);
+  return { id: anterior.id, numero: anterior.numeroInterno, vinculo: "reinicio" };
 }

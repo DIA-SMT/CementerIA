@@ -61,11 +61,13 @@ describe("reglas que no necesitan expediente (semana 1)", () => {
   });
 
   it("archivar sin concluir, desarchivar y anular: Mesa de Entradas y admin", () => {
+    // Semana 4: cada una desde su estado (desarchivar, desde archivado).
     for (const accion of ["archivar_sin_concluir", "desarchivar", "anular"] as const) {
-      expect(puede(accion, expediente(), mesa)).toBe(true);
-      expect(puede(accion, expediente(), admin)).toBe(true);
-      expect(puede(accion, expediente(), liquidacion)).toBe(false);
-      expect(puede(accion, expediente(), direccion)).toBe(false);
+      const exp = expediente(accion === "desarchivar" ? { estado: "archivado" } : {});
+      expect(puede(accion, exp, mesa)).toBe(true);
+      expect(puede(accion, exp, admin)).toBe(true);
+      expect(puede(accion, exp, liquidacion)).toBe(false);
+      expect(puede(accion, exp, direccion)).toBe(false);
     }
   });
 
@@ -383,5 +385,80 @@ describe("semana 3: pases, recepción, subtareas, documentos, adjuntos y bandeja
   it("exigirPermiso tira con el motivo del flujo", () => {
     expect(() => exigirPermiso("dar_pase", expediente({ pasoFinal: true }), liquidacion)).toThrow(PermisoDenegado);
     expect(exigirPermiso("devolver", expediente(), liquidacion)).toEqual({ requiereMotivo: false });
+  });
+});
+
+describe("semana 4: estados, transcripción y correcciones (3.1, 3.2)", () => {
+  it("concluir: el responsable, solo desde el último paso y sin la carga histórica abierta", () => {
+    expect(puede("concluir", expediente({ pasoFinal: true }), liquidacion)).toBe(true);
+    expect(evaluarPermiso("concluir", expediente({ pasoFinal: false }), liquidacion)).toEqual({ permitido: false, motivo: "no_es_paso_final" });
+    expect(evaluarPermiso("concluir", expediente({ pasoFinal: true, cargaHistorica: true }), liquidacion)).toEqual({
+      permitido: false,
+      motivo: "carga_historica_abierta",
+    });
+    expect(evaluarPermiso("concluir", expediente({ pasoFinal: true }), mesa)).toEqual({ permitido: false, motivo: "no_es_responsable" });
+    expect(evaluarPermiso("concluir", expediente({ pasoFinal: true }), admin)).toEqual({ permitido: false, motivo: "admin_no_opera" });
+    expect(evaluarPermiso("concluir", expediente({ pasoFinal: true, estado: "concluido" }), liquidacion)).toEqual({
+      permitido: false,
+      motivo: "estado_no_admite",
+    });
+  });
+
+  it("archivar un concluido: responsable, Mesa y admin; no un expediente en trámite", () => {
+    const concluido = expediente({ estado: "concluido" });
+    for (const u of [liquidacion, mesa, admin]) expect(puede("archivar_concluido", concluido, u)).toBe(true);
+    expect(puede("archivar_concluido", concluido, legal)).toBe(false);
+    expect(evaluarPermiso("archivar_concluido", expediente(), mesa)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+  });
+
+  it("archivar sin concluir, anular y reiniciar: solo en estados activos; desarchivar, solo un archivado", () => {
+    for (const accion of ["archivar_sin_concluir", "anular", "reiniciar_con_otra_plantilla"] as const) {
+      expect(puede(accion, expediente({ estado: "espera_pago_dim" }), mesa)).toBe(true);
+      for (const estado of ["concluido", "archivado", "anulado"] as const) {
+        expect(evaluarPermiso(accion, expediente({ estado }), admin)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+      }
+    }
+    expect(evaluarPermiso("desarchivar", expediente(), mesa)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+    expect(puede("desarchivar", expediente({ estado: "archivado" }), admin)).toBe(true);
+    expect(evaluarPermiso("desarchivar", expediente({ estado: "archivado" }), liquidacion)).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+  });
+
+  it("reabrir: solo el admin y solo un anulado", () => {
+    expect(puede("reabrir", expediente({ estado: "anulado" }), admin)).toBe(true);
+    expect(evaluarPermiso("reabrir", expediente({ estado: "archivado" }), admin)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+    expect(evaluarPermiso("reabrir", expediente({ estado: "anulado" }), mesa)).toEqual({ permitido: false, motivo: "solo_admin" });
+    expect(evaluarPermiso("reabrir", expediente({ estado: "anulado" }), direccion)).toEqual({ permitido: false, motivo: "solo_lectura" });
+  });
+
+  it("cambiar la ubicación de archivo: un archivado, quien archiva", () => {
+    const archivado = expediente({ estado: "archivado" });
+    for (const u of [mesa, admin, liquidacion]) expect(puede("cambiar_ubicacion_archivo", archivado, u)).toBe(true);
+    expect(puede("cambiar_ubicacion_archivo", archivado, legal)).toBe(false);
+    expect(evaluarPermiso("cambiar_ubicacion_archivo", expediente(), mesa)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+  });
+
+  it("transcribir: Mesa y admin, con la carga histórica abierta", () => {
+    const abierta = expediente({ cargaHistorica: true });
+    expect(puede("transcribir", abierta, mesa)).toBe(true);
+    expect(puede("transcribir", { ...abierta, estado: "archivado" }, admin)).toBe(true);
+    expect(evaluarPermiso("transcribir", expediente(), mesa)).toEqual({ permitido: false, motivo: "sin_carga_historica" });
+    expect(evaluarPermiso("transcribir", abierta, liquidacion)).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+    expect(evaluarPermiso("transcribir", { ...abierta, estado: "anulado" }, mesa)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+  });
+
+  it("corregir en archivado y anulado: solo el admin, salvo retirar un adjunto propio", () => {
+    const ahora = new Date("2026-10-20T12:00:00Z");
+    const propio = { movimiento: { usuarioId: liquidacion.id, registradoEn: new Date("2026-10-19T12:00:00Z") }, ahora };
+    expect(puede("corregir_movimiento", expediente(), liquidacion, propio)).toBe(true);
+    for (const estado of ["archivado", "anulado"] as const) {
+      expect(evaluarPermiso("corregir_movimiento", expediente({ estado }), liquidacion, propio)).toEqual({ permitido: false, motivo: "estado_no_admite" });
+      expect(puede("corregir_movimiento", expediente({ estado }), liquidacion, { ...propio, retirarAdjunto: true })).toBe(true);
+      expect(puede("corregir_movimiento", expediente({ estado }), admin)).toBe(true);
+    }
+  });
+
+  it("nota: todos menos Dirección", () => {
+    for (const u of [mesa, liquidacion, legal, admin]) expect(puede("nota", expediente({ estado: "anulado" }), u)).toBe(true);
+    expect(puede("nota", expediente(), direccion)).toBe(false);
   });
 });

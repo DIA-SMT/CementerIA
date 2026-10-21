@@ -206,6 +206,87 @@ describe("(b) RENOV_PLAN: el paso DIM con custodia de Tributario", () => {
     for (let i = 0; i < 2; i++) await avanzar(exp, prisma, alta.numero);
     expect((await proyeccion(prisma, alta.numero)).pasoClave).toBe("ADM_ENTREGA");
   });
+
+  // El circuito que contó la Dirección el 20/10/2026 (docs/fuentes/README.md):
+  // si el concesionario no abonó, la DIM lo devuelve a Tributario para que lo
+  // notifique; si después se presenta y paga, sigue al título sin volver a la
+  // DIM. El paso DIM es omitible: Tributario lo saltea con motivo.
+  it("vuelta de la DIM sin pago: devolución a Tributario con motivo y pase directo al título salteando la DIM", async () => {
+    const hoy = hoyEnTucuman();
+    const alta = await exp.alta(mesa, await datosAlta(prisma, { plantilla: "RENOV_PLAN", fechaInicio: sumarDias(hoy, -25) }), comando());
+    for (let i = 0; i < 5; i++) await avanzar(exp, prisma, alta.numero);
+    let version = await completarPaso(exp, prisma, alta.numero, { fecha: sumarDias(hoy, -10) });
+
+    // Desde Tributario, la DIM es el paso siguiente y también se puede saltear (con motivo).
+    let v = await exp.validarPase(tributario, alta.numero);
+    expect(v.destinos.map((d) => [d.clave, d.tipo, d.requiereMotivo, d.faltan.length])).toEqual([
+      ["DIM", "siguiente", false, 0],
+      ["ADM_TITULO", "omitiendo", true, 0],
+    ]);
+    // Sin pagar, lo que corresponde es la DIM: se remite.
+    const aDim = await exp.darPase(tributario, alta.numero, "DIM", version, comando());
+    expect(aDim).toMatchObject({ paso: { clave: "DIM" }, estado: "espera_pago_dim" });
+
+    // La DIM informa que no abonó: vuelve a Tributario, que lo notifica de nuevo.
+    const noAbono = "No abonó: vuelve a Tributario para notificar al concesionario";
+    const dev = await exp.devolver(tributario, alta.numero, "TRIBUTARIO", noAbono, ["TRIB_NOTIFICADA"], aDim.version, comando());
+    expect(dev).toMatchObject({ paso: { clave: "TRIBUTARIO", orden: 6 }, pasoRetorno: "DIM" });
+    let e = await proyeccion(prisma, alta.numero);
+    expect(e).toMatchObject({
+      estado: "en_tramite",
+      pasoClave: "TRIBUTARIO",
+      pasoRetornoClave: "DIM",
+      plazoDesde: null,
+      plazoDiasHabiles: null,
+    });
+    expect(e.areaActual.codigo).toBe("TRIBUTARIO");
+    expect((await movimientos(prisma, alta.numero)).at(-1)).toMatchObject({
+      tipo: "devolucion",
+      motivo: noAbono,
+      pasoOrigen: "DIM",
+      pasoDestino: "TRIBUTARIO",
+      estadoAnterior: "espera_pago_dim",
+      estadoNuevo: "en_tramite",
+      areaOrigenId: await idArea(prisma, "DIM"),
+    });
+
+    // Hay que volver a notificar: hasta entonces, ningún destino está disponible.
+    v = await exp.validarPase(tributario, alta.numero);
+    expect(v.faltan.map((f) => [f.clave, f.tipo === "subtarea" ? f.motivo : null])).toEqual([["TRIB_NOTIFICADA", "reiniciada"]]);
+    expect(v.destinos.map((d) => [d.clave, d.tipo, d.esRetorno])).toEqual([
+      ["DIM", "siguiente", true],
+      ["ADM_TITULO", "omitiendo", false],
+    ]);
+    version = (await exp.tildarSubtarea(tributario, alta.numero, "TRIB_NOTIFICADA", hoy, e.version, comando())).version;
+
+    // Se presentó y pagó: pase a ADM_TITULO salteando la DIM, con motivo.
+    expect((await errorDe(exp.darPase(tributario, alta.numero, "ADM_TITULO", version, comando()))).codigo).toBe("motivo_requerido");
+    const pago = "Abonó después de la notificación: sigue al título sin volver a la DIM";
+    const titulo = await exp.darPase(tributario, alta.numero, "ADM_TITULO", version, comando(), { motivo: pago });
+    expect(titulo).toMatchObject({
+      paso: { clave: "ADM_TITULO", orden: 8 },
+      areaActual: { codigo: "ADMINISTRATIVO" },
+      sinConfirmar: true,
+      estado: "en_tramite",
+    });
+    e = await proyeccion(prisma, alta.numero);
+    // Pasar el paso que devolvió cierra el reenvío directo.
+    expect(e).toMatchObject({ pasoClave: "ADM_TITULO", pasoRetornoClave: null, plazoDesde: null, plazoDiasHabiles: null });
+    expect((await movimientos(prisma, alta.numero)).at(-1)).toMatchObject({
+      tipo: "pase",
+      motivo: pago,
+      pasoOrigen: "TRIBUTARIO",
+      pasoDestino: "ADM_TITULO",
+      areaOrigenId: await idArea(prisma, "TRIBUTARIO"),
+      datos: { pasos_omitidos: ["DIM"], pasos_salteados: [] },
+    });
+
+    // La ficha muestra la DIM como cumplida (salteada) y sigue hasta el final.
+    const f = await exp.obtenerFicha(administrativo, alta.numero);
+    expect(f.recorrido.find((p) => p.clave === "DIM")).toMatchObject({ omitible: true, situacion: "cumplido" });
+    for (let i = 0; i < 2; i++) await avanzar(exp, prisma, alta.numero);
+    expect((await proyeccion(prisma, alta.numero)).pasoClave).toBe("ADM_ENTREGA");
+  });
 });
 
 describe("(d) NUEVA_CONC_CONTADO: el paso $CEMENTERIO", () => {
@@ -348,7 +429,7 @@ describe("fechas retroactivas (2.13(c) y 3.3 punto 7)", () => {
 
 describe("pasos omitibles y carga histórica", () => {
   it("un posterior salteando solo omitibles exige motivo y queda en pasos_omitidos", async () => {
-    // Ninguna plantilla de la semilla tiene pasos omitibles: una de prueba, con Cómputo alta omitible.
+    // Una plantilla de prueba con Cómputo alta omitible (en la semilla, solo la DIM de (b) lo es).
     const codigo = `PRUEBA_OMITIBLE_${Date.now().toString(36).toUpperCase()}`;
     const tipo = await prisma.tipoTramite.findUniqueOrThrow({ where: { codigo: "RENOVACION" }, select: { id: true } });
     const definicion = { ...RENOV_CONTADO, pasos: RENOV_CONTADO.pasos.map((p) => (p.clave === "COMPUTO_ALTA" ? { ...p, omitible: true } : p)) };

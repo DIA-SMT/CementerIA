@@ -387,3 +387,114 @@ describe("expediente_personas: no hay DELETE", () => {
     });
   });
 });
+
+describe("expediente_personas: personas jurídicas (semana 4, *_personas_juridicas)", () => {
+  // CUIT ficticio con dígito verificador válido (rango 30-99999…, como la semilla).
+  const CUIT = "30999990130";
+  const INSERTAR = `
+    INSERT INTO public.expediente_personas
+      (expediente_id, rol, orden, tipo_persona, apellido, nombres, dni, razon_social, cuit, fallecido, email, creada_mov_id)
+    VALUES ($1, 'titular', $2, $3, $4, $5, $6, $7, $8, $9, 'asociacion@ejemplo.test', $10)`;
+  const SUPRIMIR_TODO = `
+    UPDATE public.expediente_personas
+       SET apellido = NULL, nombres = NULL, dni = NULL, razon_social = NULL, cuit = NULL, telefono = NULL,
+           email = NULL, domicilio = NULL, vinculo = NULL, suprimida_en = now()
+     WHERE id = $1`;
+
+  interface Juridica {
+    tipo?: string;
+    apellido?: string | null;
+    nombres?: string | null;
+    dni?: string | null;
+    razon_social?: string | null;
+    cuit?: string | null;
+    fallecido?: boolean;
+  }
+
+  async function insertar(c: pg.Client, x: Contexto, orden: number, p: Juridica = {}) {
+    return intentar(c, `${INSERTAR} RETURNING id, nombre_norm, tipo_persona`, [
+      x.expedienteId,
+      orden,
+      p.tipo ?? "juridica",
+      p.apellido ?? null,
+      p.nombres ?? null,
+      p.dni ?? null,
+      p.razon_social === undefined ? "Asociación Ficticia de Socorros Mutuos" : p.razon_social,
+      p.cuit === undefined ? CUIT : p.cuit,
+      p.fallecido ?? false,
+      x.persona.creada_mov_id,
+    ]);
+  }
+
+  it("razón social y CUIT, sin apellido ni DNI; nombre_norm sale de la razón social", async () => {
+    await conPersona("app", async (c, x) => {
+      const r = await insertar(c, x, 2);
+      expect(r).toMatchObject({ ok: true });
+      if (r.ok) expect(r.filas[0]).toMatchObject({ tipo_persona: "juridica", nombre_norm: "asociacion ficticia de socorros mutuos" });
+      // Las existentes (y las nuevas sin decir nada) son personas físicas.
+      expect((await fila<{ tipo_persona: string }>(c, "SELECT tipo_persona FROM public.expediente_personas WHERE id = $1", [x.persona.id])).tipo_persona).toBe("fisica");
+    });
+  });
+
+  it("el CUIT tiene 11 dígitos y el dígito verificador correcto (f_cuit_valido)", async () => {
+    await conPersona("app", async (c, x) => {
+      for (const [i, cuit] of ["30999990131", "3099999013", "30-99999013-0", "3099999013X"].entries()) {
+        expect(errorDe(await insertar(c, x, 10 + i, { cuit })), cuit).toMatch(/expediente_personas_cuit_check/);
+      }
+      const v = await fila<{ ok: boolean; mal: boolean; nulo: boolean | null }>(
+        c,
+        "SELECT public.f_cuit_valido('30999990130') AS ok, public.f_cuit_valido('20-3011') AS mal, public.f_cuit_valido(NULL) AS nulo",
+      );
+      expect(v).toEqual({ ok: true, mal: false, nulo: null });
+    });
+  });
+
+  it("una jurídica necesita razón social y CUIT", async () => {
+    await conPersona("app", async (c, x) => {
+      expect(errorDe(await insertar(c, x, 2, { razon_social: null }))).toMatch(/expediente_personas_nombre_check/);
+      expect(errorDe(await insertar(c, x, 3, { cuit: null }))).toMatch(/expediente_personas_nombre_check/);
+    });
+  });
+
+  it("cada tipo con sus datos: una jurídica no tiene apellido, DNI ni fallece; una física no tiene razón social ni CUIT", async () => {
+    await conPersona("app", async (c, x) => {
+      expect(errorDe(await insertar(c, x, 2, { apellido: "PRUEBA" }))).toMatch(/expediente_personas_tipo_datos_check/);
+      expect(errorDe(await insertar(c, x, 3, { dni: "99000009" }))).toMatch(/expediente_personas_tipo_datos_check/);
+      expect(errorDe(await insertar(c, x, 4, { fallecido: true }))).toMatch(/expediente_personas_tipo_datos_check/);
+      const fisicaConCuit = { tipo: "fisica", apellido: "PRUEBA", nombres: "Ficticia", razon_social: null };
+      expect(errorDe(await insertar(c, x, 5, fisicaConCuit))).toMatch(/expediente_personas_tipo_datos_check/);
+      // PostgreSQL prueba los CHECK por nombre: el de nombre falla antes que el de tipo.
+      expect(errorDe(await insertar(c, x, 6, { tipo: "otra" }))).toMatch(/expediente_personas_(nombre|tipo_persona)_check/);
+    });
+  });
+
+  it("el tipo no cambia con un UPDATE: se corrige con una versión nueva", async () => {
+    await conPersona("app", async (c, x) => {
+      const r = await intentar(
+        c,
+        "UPDATE public.expediente_personas SET tipo_persona = 'juridica', apellido = NULL, nombres = NULL, dni = NULL, razon_social = 'X', cuit = $2 WHERE id = $1",
+        [x.persona.id, CUIT],
+      );
+      expect(errorDe(r)).toMatch(SOLO_BAJA_O_SUPRESION);
+    });
+  });
+
+  it("supresión de una jurídica: también la razón social y el CUIT; conserva el tipo", async () => {
+    await conPersona("app", async (c, x) => {
+      const r = await insertar(c, x, 2);
+      if (!r.ok) throw new Error(r.error);
+      const id = String(r.filas[0].id);
+      // Sin borrar el CUIT no es una supresión: la rechaza el trigger.
+      expect(errorDe(await intentar(c, SUPRIMIR, [id]))).toMatch(SOLO_BAJA_O_SUPRESION);
+      expect(await intentar(c, SUPRIMIR_TODO, [id])).toMatchObject({ ok: true });
+      const p = await fila<{ razon_social: string | null; cuit: string | null; tipo_persona: string; nombre_norm: string }>(
+        c,
+        "SELECT razon_social, cuit, tipo_persona, nombre_norm FROM public.expediente_personas WHERE id = $1",
+        [id],
+      );
+      expect(p).toEqual({ razon_social: null, cuit: null, tipo_persona: "juridica", nombre_norm: "" });
+      // Una física se suprime igual que antes.
+      expect(await intentar(c, SUPRIMIR, [x.persona.id])).toMatchObject({ ok: true });
+    });
+  });
+});

@@ -90,6 +90,15 @@ export async function sembrar(cliente: Cliente, opciones: OpcionesSemilla): Prom
         })),
         skipDuplicates: true,
       });
+      // Los que ya estaban no se tocan (pueden haberse editado en Catálogos),
+      // pero se avisa si la semilla cambió: la nomenclatura y los monumentos de
+      // la semana 4 (docs/fuentes) no llegan a una base sembrada antes.
+      for (const c of await tx.cementerio.findMany({ where: { codigo: { in: CEMENTERIOS.map((x) => x.codigo) } } })) {
+        const semilla = CEMENTERIOS.find((x) => x.codigo === c.codigo);
+        if (semilla && (!isDeepStrictEqual(c.camposUbicacion, semilla.camposUbicacion) || !isDeepStrictEqual(c.tiposMonumento, semilla.tiposMonumento))) {
+          avisos.push(`El cementerio ${c.codigo} de la base no coincide con la semilla (nomenclatura o tipos de monumento): no se cambia. Para tomar la nueva: npm run db:reset.`);
+        }
+      }
 
       // --- Feriados ---------------------------------------------------------------
       const feriados = await tx.feriado.createMany({
@@ -158,6 +167,7 @@ async function sembrarPlantillas(tx: Transaccion, avisos: string[]): Promise<num
   const catalogos = {
     areas: await tx.area.findMany(),
     tiposMonumento: await tx.tipoMonumento.findMany(),
+    cementerios: await tx.cementerio.findMany(),
   };
   const idTipoTramite = await mapaDeIds(tx, "tipoTramite");
   let creadas = 0;

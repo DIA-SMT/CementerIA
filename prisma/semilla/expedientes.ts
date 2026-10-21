@@ -3,7 +3,15 @@
 //
 // TODOS FICTICIOS: apellidos que dicen que lo son (FICTICIO, DE PRUEBA,
 // EJEMPLO…), DNI 99.999.0NN, teléfonos 0381 000-0NNN, correos @ejemplo.test
-// (dominio reservado) y domicilios en "Calle Ficticia".
+// (dominio reservado) y domicilios en "Calle Ficticia". Las personas
+// jurídicas (asociaciones con panteón, semana 4) se llaman "… Ficticia …" y
+// tienen CUIT 30-99999NNN-D: el dígito verificador es válido (lo exige la
+// base) y el rango 30-99… no está asignado hoy a ninguna sociedad.
+//
+// La ubicación sigue la nomenclatura de cada cementerio (cementerios.ts): en
+// el Oeste, sección A a H; en Jardín, en romanos; en el Norte, la provisoria.
+// Algunas van en minúsculas o con ceros a la izquierda a propósito: el alta
+// las normaliza ("iv" = "IV", "012" = "12").
 //
 // Se crean con la función de alta del dominio, como Mesa de Entradas (el
 // usuario ficticio de la semilla), no con SQL suelto: así pasan por las mismas
@@ -23,6 +31,7 @@ import { conActorEn } from "../../src/lib/db/actor";
 import type { Cliente } from "../../src/lib/db/crear-cliente";
 import { crearServicioExpedientes, ErrorDominio } from "../../src/lib/dominio/expedientes";
 import type { DatosAlta, PersonaEntrada } from "../../src/lib/dominio/expedientes/esquemas";
+import { digitoVerificadorCuil } from "../../src/lib/dominio/cuil";
 import { esRol, type UsuarioPermisos } from "../../src/lib/dominio/permisos";
 import { hoyEnTucuman, sumarDias } from "../../src/lib/fechas";
 import { USUARIOS_FICTICIOS } from "./usuarios";
@@ -41,6 +50,15 @@ const APELLIDOS = ["FICTICIO", "DE PRUEBA", "EJEMPLO", "SIMULADO", "INVENTADO", 
 const NOMBRES = ["Ana", "Bruno", "Carla", "Diego", "Elena", "Fabián", "Gabriela", "Hernán", "Inés", "Julián", "Lucía", "Martín"];
 const CUADROS = ["A", "B", "C", "D", "E", "F"];
 const CEMENTERIOS = ["OESTE", "NORTE", "JARDIN_NORTE"] as const;
+const SECCIONES_OESTE = ["A", "B", "C", "D", "E", "F", "G", "H"];
+const SECCIONES_JARDIN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XIV"];
+/** Los de los procedimientos (cementerios.ts); Jardín habilita solo la sepultura. */
+const MONUMENTOS_OESTE_Y_NORTE = ["SEPULTURA", "SOTANITO", "CAPILLA", "MAUSOLEO", "PANTEON"];
+/**
+ * Los que tienen de titular una asociación con panteón (persona jurídica): una
+ * renovación de contado y una con plan, los dos en el Oeste.
+ */
+const CON_ASOCIACION: ReadonlySet<number> = new Set([13, 22]);
 const VINCULOS = ["hijo", "hija", "cónyuge", "apoderado", "nieta"];
 
 /**
@@ -68,6 +86,31 @@ function persona(n: number, k: number, extra: Partial<PersonaEntrada> & { rol: s
   };
 }
 
+/** CUIT ficticio de persona jurídica, 30-99999NNN-D, con dígito verificador válido. */
+export function cuitFicticio(n: number): string {
+  for (let k = n; ; k += 100) {
+    const base = `3099999${String(k % 1000).padStart(3, "0")}`;
+    const digito = digitoVerificadorCuil(base);
+    if (digito !== null) return `${base}${digito}`;
+  }
+}
+
+/** La ubicación según la nomenclatura del cementerio (cementerios.ts). */
+function ubicacionFicticia(n: number, cementerio: string): Record<string, string> {
+  // Con ceros a la izquierda a propósito: el alta los normaliza.
+  const lote = String((n * 7) % 40 + 1).padStart(n % 2 === 0 ? 3 : 1, "0");
+  const numero = n % 4 === 0 ? "" : String(n + 10);
+  if (cementerio === "OESTE") {
+    const seccion = SECCIONES_OESTE[n % SECCIONES_OESTE.length];
+    return { seccion: n % 2 === 0 ? seccion.toLowerCase() : seccion, lote, numero };
+  }
+  if (cementerio === "JARDIN_NORTE") {
+    const seccion = SECCIONES_JARDIN[n % SECCIONES_JARDIN.length];
+    return { seccion: n % 2 === 0 ? seccion.toLowerCase() : seccion, lote, numero };
+  }
+  return { seccion: String((n % 9) + 1), cuadro: CUADROS[n % CUADROS.length], lote, numero };
+}
+
 function contacto(n: number, k: number): Partial<PersonaEntrada> {
   const i = n * 3 + k;
   return {
@@ -85,15 +128,29 @@ export function datosFicticios(n: number, hoy: string): { plantilla: string; cem
   const historica = HISTORICOS.get(n);
 
   let personas: PersonaEntrada[];
-  let tipoMonumento = ["SOTANITO", "CAPILLA", "MAUSOLEO", "SEPULTURA"][n % 4];
-  if (plantilla === "RENOV_SPT_CONTADO") {
+  const jardin = cementerio === "JARDIN_NORTE";
+  let tipoMonumento = jardin ? "SEPULTURA" : MONUMENTOS_OESTE_Y_NORTE[n % MONUMENTOS_OESTE_Y_NORTE.length];
+  if (CON_ASOCIACION.has(n)) {
+    // Una asociación con panteón; la representa (y es el contacto) quien preside.
+    tipoMonumento = "PANTEON";
+    personas = [
+      {
+        rol: "titular",
+        tipo: "juridica",
+        razonSocial: `Asociación Ficticia de Socorros Mutuos N° ${n}`,
+        cuit: cuitFicticio(n),
+        ...contacto(n, 0),
+      },
+      persona(n, 1, { rol: "solicitante", vinculo: "presidente de la comisión directiva", ...contacto(n, 1), esContacto: true }),
+    ];
+  } else if (plantilla === "RENOV_SPT_CONTADO") {
     // El titular falleció; pide un familiar, que es el contacto.
     personas = [
       persona(n, 0, { rol: "titular", fallecido: true, fechaDefuncion: n % 2 === 0 ? "2018-06-10" : null }),
       persona(n, 1, { rol: "solicitante", vinculo: VINCULOS[n % VINCULOS.length], ...contacto(n, 1), esContacto: true }),
     ];
   } else if (plantilla === "NUEVA_CONC_CONTADO") {
-    tipoMonumento = ["NICHO", "SEPULTURA", "SOTANITO"][n % 3];
+    tipoMonumento = jardin ? "SEPULTURA" : ["SEPULTURA", "SOTANITO", "CAPILLA"][n % 3];
     personas = [persona(n, 0, { rol: "titular", ...contacto(n, 0), esContacto: true })];
     // Algunos con difuntos a inhumar.
     for (let d = 1; d <= n % 3; d++) personas.push(persona(n, d, { rol: "difunto", fallecido: true, fechaDefuncion: "2026-09-01" }));
@@ -112,20 +169,16 @@ export function datosFicticios(n: number, hoy: string): { plantilla: string; cem
       ? ["FORM_INICIO_NUEVA", "DNI", "BOLETA_SERVICIO"]
       : plantilla === "RENOV_SPT_CONTADO"
         ? ["FORM_INICIO_RENOV_SPT", "DNI", "ACTA_DEFUNCION"]
-        : ["FORM_INICIO_RENOV", "DNI", "BOLETA_SERVICIO"];
+        : CON_ASOCIACION.has(n)
+          ? ["FORM_INICIO_RENOV", "PERSONERIA", "DNI"]
+          : ["FORM_INICIO_RENOV", "DNI", "BOLETA_SERVICIO"];
 
   return {
     plantilla,
     cementerio,
     datos: {
       tipoMonumento,
-      ubicacion: {
-        seccion: String((n % 9) + 1),
-        cuadro: CUADROS[n % CUADROS.length],
-        // Con ceros a la izquierda a propósito: el alta los normaliza.
-        lote: String((n * 7) % 40 + 1).padStart(n % 2 === 0 ? 3 : 1, "0"),
-        numero: n % 4 === 0 ? "" : String(n + 10),
-      },
+      ubicacion: ubicacionFicticia(n, cementerio),
       padron: `PF-${String(n).padStart(4, "0")}`,
       numeroMunicipal: n % 2 === 0 ? `${1000 + n}/${historica ? historica.slice(0, 4) : "2026"}` : null,
       personas,
