@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, Plus, Printer, Save, Trash2, TriangleAlert } from "lucide-react";
+import { Building2, CircleAlert, FileText, Layers, Lock, MapPin, Plus, Printer, Save, Trash2, UserRound, type LucideIcon } from "lucide-react";
+import { Aviso } from "@/components/aviso";
 import {
   atributosCampo,
   Campo,
+  CLASE_BOTON_COMPACTO_PELIGRO,
   CLASE_BOTON_PRIMARIO,
   CLASE_BOTON_SECUNDARIO,
   CLASE_CASILLA,
@@ -237,6 +239,18 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
   const documentosAlta = documentosDelAlta(def, valores.personas);
   const nombrePaso = (clave: string | null) => (clave === null ? "concluir" : (def.pasos.find((p) => p.clave === clave)?.nombre ?? clave));
 
+  // El número de cada bloque, contando solo los que se muestran.
+  const bloques = [
+    "tramite",
+    "monumento",
+    "personas",
+    ...(def.campos_extra.length > 0 ? ["extras"] : []),
+    ...(alta && documentosAlta.length > 0 ? ["documentos"] : []),
+    "observaciones",
+    ...(motivoVisible ? ["motivo"] : []),
+  ];
+  const numeroDe = (bloque: string) => bloques.indexOf(bloque) + 1;
+
   return (
     <form onSubmit={alEnviar} noValidate className="space-y-5" aria-busy={pendiente}>
       {mostrado ? (
@@ -245,11 +259,16 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
           tabIndex={-1}
           role="alert"
           id="campo-formulario"
-          className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 focus-visible:outline-2 focus-visible:outline-red-800"
+          className="rounded-tarjeta border border-error-borde border-l-4 border-l-error bg-error-fondo px-4 py-3 text-sm text-error shadow-tarjeta focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error"
         >
-          <p className="flex items-center gap-1.5 font-medium">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-semibold">
             <CircleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
             {mostrado.mensaje}
+            {pendientes.length > 0 ? (
+              <span className="insignia bg-error text-white">
+                {pendientes.length === 1 ? "1 dato" : `${pendientes.length} datos`}
+              </span>
+            ) : null}
           </p>
           {estado?.codigo === "conflicto_version" && !local && edicion ? (
             <p className="mt-1">
@@ -267,10 +286,13 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
             </p>
           ) : null}
           {pendientes.length > 0 ? (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5">
+            <ul className="mt-2 list-disc space-y-0.5 pl-6">
               {pendientes.map((e, i) => (
                 <li key={`${e.ruta}-${i}`}>
-                  <a href={`#${idDeCampo(e.ruta)}`} className="underline underline-offset-2">
+                  <a
+                    href={`#${idDeCampo(e.ruta)}`}
+                    className="rounded-sm underline decoration-error/50 underline-offset-2 hover:decoration-error focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario"
+                  >
                     {e.mensaje}
                   </a>
                 </li>
@@ -281,46 +303,38 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
       ) : null}
 
       {edicion && edicion.avisosPermiso.length > 0 ? (
-        <div className="rounded border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+        <Aviso tono="neutro" icono={Lock}>
           {edicion.avisosPermiso.map((a) => (
             <p key={a}>{a}</p>
           ))}
-        </div>
+        </Aviso>
       ) : null}
 
-      <Seccion titulo="Trámite">
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-slate-600">Tipo de trámite</dt>
-            <dd className="font-medium text-slate-900">{props.plantilla.tipoTramite}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-600">Plantilla</dt>
-            <dd className="font-medium text-slate-900">
-              {props.plantilla.nombre} · v{props.plantilla.version}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-600">Cementerio</dt>
-            <dd className="font-medium text-slate-900">{props.cementerio.nombre}</dd>
-          </div>
+      <Seccion numero={numeroDe("tramite")} titulo="Información del trámite">
+        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+          <DatoTramite icono={FileText} titulo="Tipo de trámite" valor={props.plantilla.tipoTramite} />
+          <DatoTramite icono={Layers} titulo="Plantilla" valor={`${props.plantilla.nombre} · v${props.plantilla.version}`} />
+          <DatoTramite icono={MapPin} titulo="Cementerio" valor={props.cementerio.nombre} />
         </dl>
         {alta ? (
           <p className="text-sm">
             <Link href={alta.urlCambiar} className={CLASE_ENLACE}>
               Elegir otro trámite o cementerio
             </Link>{" "}
-            <span className="text-slate-600">(se pierde lo cargado)</span>
+            <span className="text-texto-secundario">(se pierde lo cargado)</span>
           </p>
         ) : null}
         {alta && def.forma_pago === "a_elegir" ? (
           <fieldset id={idDeCampo("formaPago")} aria-invalid={err("formaPago") ? true : undefined} aria-describedby={err("formaPago") ? `${idDeCampo("formaPago")}-error` : undefined}>
-            <legend className="mb-1 text-sm font-medium text-slate-800">
-              Forma de pago <span className="text-red-800" aria-hidden="true">*</span>
+            <legend className="mb-1.5 text-sm font-medium text-texto">
+              Forma de pago <span className="text-error" aria-hidden="true">*</span>
             </legend>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-2">
               {(["contado", "plan_pagos"] as const).map((forma) => (
-                <label key={forma} className="inline-flex items-center gap-2 text-sm">
+                <label
+                  key={forma}
+                  className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-control border border-borde-control bg-white px-3 text-sm transition-colors duration-150 hover:border-primario has-checked:border-primario has-checked:bg-superficie-azul has-checked:font-medium"
+                >
                   <input
                     type="radio"
                     name="formaPago"
@@ -338,8 +352,8 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         ) : null}
       </Seccion>
 
-      <Seccion titulo="Monumento y ubicación">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <Seccion numero={numeroDe("monumento")} titulo="Monumento y ubicación">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Campo ruta="tipoMonumento" etiqueta="Tipo de monumento" obligatorio errores={err("tipoMonumento")}>
             <select
               {...atributosCampo("tipoMonumento", err("tipoMonumento"))}
@@ -358,7 +372,11 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
           </Campo>
         </div>
         {camposUbicacion.length > 0 ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-control border border-borde bg-fondo/60 p-3 sm:grid-cols-4 sm:p-4">
+            <p className="col-span-full -mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-texto-secundario">
+              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+              Ubicación · {props.cementerio.nombre}
+            </p>
             {camposUbicacion.map((c) => {
               const ruta = `ubicacion.${c.clave}`;
               return (
@@ -386,7 +404,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
             })}
           </div>
         ) : null}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Campo ruta="padron" etiqueta="Padrón" errores={err("padron")}>
             <input
               {...atributosCampo("padron", err("padron"))}
@@ -414,27 +432,23 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </div>
         <div aria-live="polite">
           {avisos.length > 0 ? (
-            <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              <p className="flex items-center gap-1.5 font-medium">
-                <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
-                Posible duplicado: revisá antes de guardar (se puede guardar igual)
-              </p>
-              <ul className="mt-1 list-disc pl-5">
+            <Aviso tono="advertencia" titulo="Posible duplicado: revisá antes de guardar (se puede guardar igual)">
+              <ul className="list-disc pl-5">
                 {avisos.map((a) => (
                   <li key={a.numero}>
                     <a href={rutaFicha(a.numero)} target="_blank" rel="noopener" className={CLASE_ENLACE}>
                       {a.mensaje}
                     </a>{" "}
-                    <span className="text-amber-900">(se abre en otra pestaña)</span>
+                    <span>(se abre en otra pestaña)</span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Aviso>
           ) : null}
         </div>
       </Seccion>
 
-      <Seccion titulo="Personas" descripcion={def.requiere_contacto ? "Marcá qué persona es el contacto: tiene que tener teléfono o correo." : undefined}>
+      <Seccion numero={numeroDe("personas")} titulo="Personas" descripcion={def.requiere_contacto ? "Marcá qué persona es el contacto: tiene que tener teléfono o correo." : undefined}>
         <div id={idDeCampo("personas")} tabIndex={-1}>
           <MensajeError ruta="personas" errores={err("personas")} />
         </div>
@@ -456,8 +470,8 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
       </Seccion>
 
       {def.campos_extra.length > 0 ? (
-        <Seccion titulo="Datos del trámite" descripcion="Ninguno es obligatorio en el alta; los marcados se piden para avanzar.">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Seccion numero={numeroDe("extras")} titulo="Datos del trámite" descripcion="Ninguno es obligatorio en el alta; los marcados se piden para avanzar.">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {def.campos_extra.map((c) => {
               const ruta = `datosExtra.${c.clave}`;
               const valor = valores.datosExtra[c.clave] ?? "";
@@ -494,37 +508,54 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
       ) : null}
 
       {alta && documentosAlta.length > 0 ? (
-        <Seccion titulo="Documentos recibidos con el alta" descripcion="Marcá lo que se entrega hoy en el mostrador. Lo demás queda pendiente.">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <Seccion
+          numero={numeroDe("documentos")}
+          titulo="Documentación recibida con el alta"
+          descripcion="Marcá lo que se entrega hoy en el mostrador. Lo demás queda pendiente."
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {(["direccion", "concesionario"] as const).map((origen) => {
               const docs = documentosAlta.filter((d) => d.origen === origen);
+              const Icono = origen === "direccion" ? Building2 : UserRound;
+              const recibidos = docs.filter((d) => valores.documentosRecibidos.includes(d.clave)).length;
               return (
-                <fieldset key={origen}>
-                  <legend className="mb-2 text-sm font-semibold text-slate-800">{origen === "direccion" ? "Dirección" : "Concesionario"}</legend>
-                  {docs.length === 0 ? <p className="text-sm text-slate-600">Ninguno</p> : null}
-                  <ul className="space-y-1.5">
-                    {docs.map((d) => (
-                      <li key={d.clave}>
-                        <label className="inline-flex items-start gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={valores.documentosRecibidos.includes(d.clave)}
-                            onChange={(e) =>
-                              poner(
-                                "documentosRecibidos",
-                                e.target.checked ? [...valores.documentosRecibidos, d.clave] : valores.documentosRecibidos.filter((x) => x !== d.clave),
-                              )
-                            }
-                            className={`${CLASE_CASILLA} mt-0.5`}
-                          />
-                          <span>
-                            {d.nombre}
-                            {d.obligatorio ? <span className="text-slate-600"> (obligatorio)</span> : null}
-                          </span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
+                <fieldset key={origen} className="min-w-0 rounded-control border border-borde bg-fondo/60 px-3 pb-3 pt-2.5">
+                  <legend className="float-left mb-2 flex w-full items-center gap-2 text-sm font-semibold text-texto">
+                    <Icono className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
+                    {origen === "direccion" ? "Dirección" : "Concesionario"}
+                    {docs.length > 0 ? (
+                      <span className="ml-auto text-xs font-normal text-texto-secundario tabular-nums">
+                        {recibidos} de {docs.length}
+                        <span className="sr-only"> marcados</span>
+                      </span>
+                    ) : null}
+                  </legend>
+                  <div className="clear-both">
+                    {docs.length === 0 ? <p className="px-1 text-sm text-texto-secundario">Ninguno</p> : null}
+                    <ul className="space-y-0.5">
+                      {docs.map((d) => (
+                        <li key={d.clave}>
+                          <label className="flex cursor-pointer items-start gap-2.5 rounded-control px-2 py-1.5 text-sm transition-colors duration-150 hover:bg-white has-checked:bg-white">
+                            <input
+                              type="checkbox"
+                              checked={valores.documentosRecibidos.includes(d.clave)}
+                              onChange={(e) =>
+                                poner(
+                                  "documentosRecibidos",
+                                  e.target.checked ? [...valores.documentosRecibidos, d.clave] : valores.documentosRecibidos.filter((x) => x !== d.clave),
+                                )
+                              }
+                              className={`${CLASE_CASILLA} mt-0.5 shrink-0`}
+                            />
+                            <span>
+                              {d.nombre}
+                              {d.obligatorio ? <span className="text-texto-secundario"> (obligatorio)</span> : null}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </fieldset>
               );
             })}
@@ -533,65 +564,76 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </Seccion>
       ) : null}
 
-      <Seccion titulo="Observaciones y fecha de inicio">
-        <Campo ruta="observaciones" etiqueta="Observaciones" errores={err("observaciones")}>
-          <textarea
-            {...atributosCampo("observaciones", err("observaciones"))}
-            rows={3}
-            value={valores.observaciones}
-            onChange={(e) => poner("observaciones", e.target.value)}
-            disabled={bloqueadoContacto}
-            className={CLASE_CONTROL}
-          />
-        </Campo>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Campo
-            ruta="fechaInicio"
-            etiqueta="Fecha de inicio"
-            obligatorio
-            errores={err("fechaInicio")}
-            ayuda={valores.cargaHistorica ? "Desde 1950 hasta hoy" : `Hasta ${DIAS_RETROACTIVOS_MAX} días atrás`}
-          >
-            <input
-              {...atributosCampo("fechaInicio", err("fechaInicio"), `${idDeCampo("fechaInicio")}-ayuda`)}
-              type="date"
-              min={minimoInicio}
-              max={hoy}
-              value={valores.fechaInicio}
-              onChange={(e) => poner("fechaInicio", e.target.value)}
-              disabled={bloqueadoIdent}
+      <Seccion numero={numeroDe("observaciones")} titulo="Observaciones y fecha de inicio">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Campo ruta="observaciones" etiqueta="Observaciones" errores={err("observaciones")} className="lg:col-span-2">
+            <textarea
+              {...atributosCampo("observaciones", err("observaciones"))}
+              rows={3}
+              value={valores.observaciones}
+              onChange={(e) => poner("observaciones", e.target.value)}
+              disabled={bloqueadoContacto}
               className={CLASE_CONTROL}
             />
           </Campo>
-        </div>
-        {alta && alta.puedeCargaHistorica ? (
-          <div className="space-y-3">
-            <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-800">
+          <div className="space-y-4">
+            <Campo
+              ruta="fechaInicio"
+              etiqueta="Fecha de inicio"
+              obligatorio
+              errores={err("fechaInicio")}
+              ayuda={valores.cargaHistorica ? "Desde 1950 hasta hoy" : `Hasta ${DIAS_RETROACTIVOS_MAX} días atrás`}
+            >
               <input
-                type="checkbox"
-                checked={valores.cargaHistorica}
-                onChange={(e) => poner("cargaHistorica", e.target.checked)}
-                className={CLASE_CASILLA}
+                {...atributosCampo("fechaInicio", err("fechaInicio"), `${idDeCampo("fechaInicio")}-ayuda`)}
+                type="date"
+                min={minimoInicio}
+                max={hoy}
+                value={valores.fechaInicio}
+                onChange={(e) => poner("fechaInicio", e.target.value)}
+                disabled={bloqueadoIdent}
+                className={CLASE_CONTROL}
               />
-              Expediente iniciado antes del sistema
-            </label>
-            {valores.cargaHistorica ? (
-              <Campo ruta="fuente" etiqueta="Fuente" obligatorio errores={err("fuente")} ayuda='De dónde sale la fecha: por ejemplo "Ficha papel" o "Libro de pases de Legal"' className="sm:w-2/3">
+            </Campo>
+            {alta && alta.puedeCargaHistorica ? (
+              <label className="flex items-center gap-2 text-sm font-medium text-texto">
                 <input
-                  {...atributosCampo("fuente", err("fuente"), `${idDeCampo("fuente")}-ayuda`)}
-                  type="text"
-                  value={valores.fuente}
-                  onChange={(e) => poner("fuente", e.target.value)}
-                  className={CLASE_CONTROL}
+                  type="checkbox"
+                  checked={valores.cargaHistorica}
+                  onChange={(e) => poner("cargaHistorica", e.target.checked)}
+                  className={CLASE_CASILLA}
                 />
-              </Campo>
+                Expediente iniciado antes del sistema
+              </label>
             ) : null}
           </div>
+        </div>
+        {alta && alta.puedeCargaHistorica && valores.cargaHistorica ? (
+          <Campo
+            ruta="fuente"
+            etiqueta="Fuente"
+            obligatorio
+            errores={err("fuente")}
+            ayuda='De dónde sale la fecha: por ejemplo "Ficha papel" o "Libro de pases de Legal"'
+            className="lg:w-2/3"
+          >
+            <input
+              {...atributosCampo("fuente", err("fuente"), `${idDeCampo("fuente")}-ayuda`)}
+              type="text"
+              value={valores.fuente}
+              onChange={(e) => poner("fuente", e.target.value)}
+              className={CLASE_CONTROL}
+            />
+          </Campo>
         ) : null}
       </Seccion>
 
       {motivoVisible ? (
-        <Seccion titulo="Motivo del cambio" descripcion="El expediente ya tuvo un pase: para cambiar datos identificatorios hace falta el motivo. Queda en el historial.">
+        <Seccion
+          numero={numeroDe("motivo")}
+          titulo="Motivo del cambio"
+          descripcion="El expediente ya tuvo un pase: para cambiar datos identificatorios hace falta el motivo. Queda en el historial."
+        >
           <Campo ruta="motivo" etiqueta="Motivo" obligatorio errores={err("motivo")} ayuda={`${LARGO_MINIMO_MOTIVO} caracteres o más`}>
             <textarea
               {...atributosCampo("motivo", err("motivo"), `${idDeCampo("motivo")}-ayuda`)}
@@ -604,37 +646,63 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </Seccion>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-300 pt-4">
-        {alta ? (
-          <>
-            <button type="submit" value="caratula" disabled={pendiente} className={CLASE_BOTON_PRIMARIO}>
-              <Printer className="h-4 w-4" aria-hidden="true" />
-              Guardar e imprimir carátula
-            </button>
-            <button type="submit" value="ficha" disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
-              <Save className="h-4 w-4" aria-hidden="true" />
-              Guardar
-            </button>
-            <Link href="/expedientes" className={CLASE_ENLACE}>
-              Cancelar
-            </Link>
-          </>
-        ) : edicion ? (
-          <>
-            <button type="submit" disabled={pendiente} className={CLASE_BOTON_PRIMARIO}>
-              <Save className="h-4 w-4" aria-hidden="true" />
-              Guardar cambios
-            </button>
-            <Link href={rutaFicha(edicion.numero)} prefetch={false} className={CLASE_ENLACE}>
-              Cancelar
-            </Link>
-          </>
-        ) : null}
-        <span aria-live="polite" className="text-sm text-slate-600">
-          {pendiente ? "Guardando…" : ""}
-        </span>
+      {/* Barra de acciones al pie, fija abajo mientras se recorre el formulario
+          (globals.css reserva su alto con scroll-padding: el foco no queda tapado).
+          El primer botón de envío es "Guardar e imprimir carátula": Enter en un
+          campo envía con ese, como antes. */}
+      <div className="barra-acciones sticky bottom-0 z-10 -mx-4 border-t border-borde bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(15_47_93/0.06)] backdrop-blur-sm lg:-mx-8 lg:px-8 print:hidden">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {alta ? (
+            <>
+              <button type="submit" value="caratula" disabled={pendiente} className={CLASE_BOTON_PRIMARIO}>
+                <Printer className="h-4 w-4" aria-hidden="true" />
+                Guardar e imprimir carátula
+              </button>
+              <button type="submit" value="ficha" disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Guardar
+              </button>
+              <Link href="/expedientes" className={`${CLASE_ENLACE} px-1 text-sm`}>
+                Cancelar
+              </Link>
+            </>
+          ) : edicion ? (
+            <>
+              <button type="submit" disabled={pendiente} className={CLASE_BOTON_PRIMARIO}>
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Guardar cambios
+              </button>
+              <Link href={rutaFicha(edicion.numero)} prefetch={false} className={`${CLASE_ENLACE} px-1 text-sm`}>
+                Cancelar
+              </Link>
+            </>
+          ) : null}
+          <span aria-live="polite" className="text-sm text-texto-secundario empty:hidden">
+            {pendiente ? "Guardando…" : ""}
+          </span>
+          {/* El resumen de errores queda arriba: desde la barra se vuelve a él. */}
+          {mostrado && pendientes.length > 0 && !pendiente ? (
+            <a href="#campo-formulario" className={`${CLASE_ENLACE} inline-flex items-center gap-1 text-sm font-medium sm:ml-auto`}>
+              <CircleAlert className="h-4 w-4 text-error" aria-hidden="true" />
+              {pendientes.length === 1 ? "1 dato para corregir" : `${pendientes.length} datos para corregir`}
+            </a>
+          ) : null}
+        </div>
       </div>
     </form>
+  );
+}
+
+/** Un dato fijo del trámite (tipo, plantilla, cementerio) con su ícono: los indicadores del bloque 1. */
+function DatoTramite({ icono: Icono, titulo, valor }: { icono: LucideIcon; titulo: string; valor: string }) {
+  return (
+    <div className="min-w-0 rounded-control border border-borde bg-fondo/60 px-3 py-2.5">
+      <dt className="flex items-center gap-1.5 text-xs text-texto-secundario">
+        <Icono className="h-3.5 w-3.5 text-primario-oscuro" aria-hidden="true" />
+        {titulo}
+      </dt>
+      <dd className="mt-0.5 font-medium text-texto">{valor}</dd>
+    </div>
   );
 }
 
@@ -664,12 +732,12 @@ function GrupoRol({
   const delRol = valores.personas.map((p, indice) => ({ p, indice })).filter(({ p }) => p.rol === rol.rol);
   const cantidad = rol.min === rol.max ? `${rol.min}` : rol.min === 0 ? `hasta ${rol.max}` : `de ${rol.min} a ${rol.max}`;
   return (
-    <fieldset className="rounded border border-slate-200 px-3 pb-3 pt-1">
-      <legend className="px-1 text-sm font-semibold text-slate-900">
-        {rol.etiqueta} <span className="font-normal text-slate-600">({cantidad})</span>
+    <fieldset className="min-w-0 rounded-control border border-borde px-3 pb-3 pt-1 sm:px-4">
+      <legend className="px-1.5 text-sm font-semibold text-texto">
+        {rol.etiqueta} <span className="font-normal text-texto-secundario">({cantidad})</span>
       </legend>
-      {delRol.length === 0 ? <p className="text-sm text-slate-600">Ninguna cargada.</p> : null}
-      <div className="space-y-4">
+      {delRol.length === 0 ? <p className="py-1 text-sm text-texto-secundario">Ninguna cargada.</p> : null}
+      <div className="space-y-3">
         {delRol.map(({ p, indice }, n) => (
           <Persona
             key={p.clave}
@@ -751,14 +819,14 @@ function Persona({
   );
 
   return (
-    <div role="group" aria-labelledby={idTitulo} className="rounded bg-slate-50 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 id={idTitulo} className="text-sm font-medium text-slate-900">
+    <div role="group" aria-labelledby={idTitulo} className="rounded-control bg-fondo p-3 sm:p-4">
+      <div className="mb-3 flex min-h-8 items-center justify-between gap-2">
+        <h3 id={idTitulo} className="flex flex-wrap items-center gap-2 text-sm font-semibold text-texto">
           {titulo}
-          {p.esContacto ? <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-xs text-white">Contacto</span> : null}
+          {p.esContacto ? <span className="insignia bg-info-fondo text-info ring-1 ring-inset ring-info-borde">Contacto</span> : null}
         </h3>
         {puedeQuitar ? (
-          <button type="button" onClick={onQuitar} className={CLASE_BOTON_SECUNDARIO}>
+          <button type="button" onClick={onQuitar} className={CLASE_BOTON_COMPACTO_PELIGRO}>
             <Trash2 className="h-4 w-4" aria-hidden="true" />
             Quitar<span className="sr-only"> {titulo}</span>
           </button>

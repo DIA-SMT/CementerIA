@@ -23,44 +23,44 @@ export default async function PaginaUsuarios() {
   return (
     <section aria-labelledby="titulo-usuarios" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 id="titulo-usuarios" className="text-xl font-semibold text-slate-900">
+        <h1 id="titulo-usuarios" className="text-2xl font-semibold tracking-tight text-texto">
           Usuarios
         </h1>
         <BotonAltaUsuario areas={areas} />
       </div>
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-texto-secundario">
         {activos} activos de {usuarios.length} · {adminsActivos === 1 ? "1 administrador activo" : `${adminsActivos} administradores activos`}. Entran con Cidituc: el
         nombre y el correo se actualizan en cada ingreso.
       </p>
-      <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="tarjeta relative overflow-x-auto">
+        <table className="tabla-datos">
           <caption className="sr-only">Usuarios dados de alta</caption>
-          <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">CUIL</th>
-              <th scope="col" className="px-3 py-2 font-medium">Nombre</th>
-              <th scope="col" className="px-3 py-2 font-medium">Área</th>
-              <th scope="col" className="px-3 py-2 font-medium">Rol</th>
-              <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-              <th scope="col" className="px-3 py-2 font-medium">Último ingreso</th>
-              <th scope="col" className="px-3 py-2 font-medium">
+              <th scope="col" className="font-medium">CUIL</th>
+              <th scope="col" className="font-medium">Nombre</th>
+              <th scope="col" className="font-medium">Área</th>
+              <th scope="col" className="font-medium">Rol</th>
+              <th scope="col" className="font-medium">Estado</th>
+              <th scope="col" className="font-medium">Último ingreso</th>
+              <th scope="col" className="font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {usuarios.map((u) => (
-              <tr key={u.id} className={u.activo ? "" : "bg-slate-50 text-slate-600"}>
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{formatearCuit(u.cuil)}</td>
-                <th scope="row" className="px-3 py-2 font-normal">
+              <tr key={u.id} className={u.activo ? "" : "bg-fondo text-texto-secundario"}>
+                <td className="whitespace-nowrap font-mono text-xs">{formatearCuit(u.cuil)}</td>
+                <th scope="row" className="font-normal">
                   {u.apellido}, {u.nombre}
-                  {u.id === usuario.id ? <span className="ml-1 text-xs text-slate-600">(vos)</span> : null}
+                  {u.id === usuario.id ? <span className="ml-1 text-xs text-texto-secundario">(vos)</span> : null}
                 </th>
-                <td className="px-3 py-2">{u.area?.nombre ?? <span className="text-slate-500">Sin área</span>}</td>
-                <td className="px-3 py-2">{ROL_TEXTO[u.rol] ?? u.rol}</td>
-                <td className="px-3 py-2">{u.activo ? "Activo" : "Inactivo"}</td>
-                <td className="whitespace-nowrap px-3 py-2">{u.ultimoIngreso ? formatearFechaHora(u.ultimoIngreso) : <span className="text-slate-500">Nunca</span>}</td>
-                <td className="px-3 py-2">
+                <td>{u.area?.nombre ?? <span className="text-texto-secundario">Sin área</span>}</td>
+                <td>{ROL_TEXTO[u.rol] ?? u.rol}</td>
+                <td>{u.activo ? "Activo" : "Inactivo"}</td>
+                <td className="whitespace-nowrap">{u.ultimoIngreso ? formatearFechaHora(u.ultimoIngreso) : <span className="text-texto-secundario">Nunca</span>}</td>
+                <td>
                   <AccionesUsuario
                     usuario={{ id: u.id, nombre: `${u.nombre} ${u.apellido}`, cuil: u.cuil, areaId: u.area?.id ?? null, rol: u.rol, activo: u.activo }}
                     esUnoMismo={u.id === usuario.id}

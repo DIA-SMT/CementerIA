@@ -1,17 +1,24 @@
-import Form from "next/form";
 import Link from "next/link";
-import { Inbox, LogOut, Search } from "lucide-react";
+import { Inbox, LogOut } from "lucide-react";
 import { exigirUsuario } from "@/lib/auth/sesion";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
 import { inicioPara, navegacionPara, puedeVerPantalla } from "@/lib/dominio/navegacion";
 import { rutaBandeja } from "@/lib/presentacion/flujo";
-import { NavegacionPrincipal } from "./navegacion";
+import { CLASE_FOCO } from "@/components/formulario";
+import { BuscadorGlobal } from "./buscador-global";
+import { BarraLateral } from "./navegacion";
 
 /**
- * Cáscara de las pantallas con sesión: encabezado con la navegación del rol,
- * búsqueda global (lleva a /expedientes?q=), el contador "Por confirmar"
+ * Cáscara de las pantallas con sesión: barra lateral con la marca y la
+ * navegación del rol (en tablet y celular, franja con menú colapsable) y
+ * encabezado con la búsqueda global (lleva a /expedientes?q=), el contador "Por confirmar"
  * (enlazado a esa pestaña de la bandeja), nombre, área y Salir (sección 5,
- * "Navegación por rol"). Al imprimir no sale: los imprimibles van solos.
+ * "Navegación por rol"). Al imprimir no sale ni la barra ni el encabezado: los
+ * imprimibles van solos.
+ *
+ * En el celular el encabezado es una sola fila (57 px): el buscador queda detrás
+ * del botón "Buscador" (BuscadorGlobal), "Por confirmar" muestra solo el ícono y
+ * el número y Salir solo el ícono; los dos conservan su nombre accesible.
  *
  * Las Server Actions del flujo llaman a `refresh()`: la respuesta trae también
  * este layout, así que el contador se actualiza al confirmar o dar un pase.
@@ -28,79 +35,84 @@ export default async function LayoutConSesion({ children }: { children: React.Re
   const conBandeja = puedeVerPantalla(usuario, "bandeja");
   const porConfirmar = conBandeja ? await expedientes.contadorPorConfirmar(usuario) : 0;
 
+  // En escritorio el fondo azul sigue debajo de la barra lateral (que es
+  // sticky) hasta el final de la página.
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-slate-300 bg-white print:hidden">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2">
-          <Link href={inicioPara(usuario)} className="flex flex-col leading-tight">
-            <span className="text-base font-semibold tracking-tight text-slate-900">CementerIA</span>
-            <span className="text-xs text-slate-500">Dirección de Cementerios</span>
-          </Link>
+    <div className="flex min-h-full flex-1 flex-col lg:flex-row lg:bg-institucional print:bg-white">
+      <BarraLateral items={items} inicio={inicioPara(usuario)} />
 
-          <NavegacionPrincipal items={items} />
+      <div className="flex min-w-0 flex-1 flex-col bg-fondo print:bg-white">
+        <header className="border-b border-borde bg-white print:hidden">
+          {/* En el celular, una sola fila: buscador (detrás de un botón), "Por
+              confirmar" con su número, el usuario y Salir (solo ícono, con su
+              nombre para lectores de pantalla). Desde sm, el buscador abierto. */}
+          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:gap-x-4 sm:py-2.5 lg:px-8">
+            <BuscadorGlobal />
 
-          <Form action="/expedientes" role="search" aria-label="Búsqueda global" className="flex items-center">
-            <label htmlFor="busqueda-global" className="sr-only">
-              Buscar expediente
-            </label>
-            <input
-              id="busqueda-global"
-              name="q"
-              type="search"
-              autoComplete="off"
-              placeholder="N°, DNI, CUIT, padrón o nombre"
-              className="w-56 rounded-l border border-slate-400 bg-white px-2 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800"
-            />
-            <button
-              type="submit"
-              className="rounded-r border border-l-0 border-slate-400 bg-slate-100 px-2 py-1.5 text-slate-700 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800"
-            >
-              <Search className="h-4 w-4" aria-hidden="true" />
-              <span className="sr-only">Buscar</span>
-            </button>
-          </Form>
-
-          {conBandeja ? (
-            <Link
-              href={rutaBandeja("por_confirmar")}
-              className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800 ${
-                porConfirmar > 0 ? "border-amber-400 bg-amber-50 text-amber-950 hover:bg-amber-100" : "border-slate-300 text-slate-700 hover:bg-slate-100"
-              }`}
-            >
-              <Inbox className="h-4 w-4" aria-hidden="true" />
-              Por confirmar
-              <span className={`rounded-full px-1.5 text-xs font-semibold ${porConfirmar > 0 ? "bg-amber-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-                {porConfirmar}
-              </span>
-            </Link>
-          ) : null}
-
-          <div className="ml-auto flex items-center gap-4">
-            <div className="text-right leading-tight">
-              <p className="text-sm font-medium text-slate-900">
-                {usuario.nombre} {usuario.apellido}
-              </p>
-              <p className="text-xs text-slate-500">
-                {area}
-                {usuario.rol === "lectura" ? " · solo lectura" : null}
-              </p>
-            </div>
-            {/* Formulario y no enlace: la salida cambia estado (cierra todas las
-                sesiones del usuario) y un GET lo dispararía cualquier prefetch. */}
-            <form action="/auth/salir" method="post">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700"
+            {conBandeja ? (
+              <Link
+                href={rutaBandeja("por_confirmar")}
+                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-control border px-2.5 text-sm font-medium transition-colors duration-150 sm:px-3 ${CLASE_FOCO} ${
+                  porConfirmar > 0
+                    ? "border-advertencia-borde bg-advertencia-fondo text-advertencia hover:border-advertencia"
+                    : "border-borde bg-white text-texto-secundario hover:border-primario hover:bg-superficie-azul hover:text-primario-oscuro"
+                }`}
               >
-                <LogOut className="h-4 w-4" aria-hidden="true" />
-                Salir
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+                <Inbox className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only sm:not-sr-only">Por confirmar</span>
+                <span
+                  className={`min-w-6 rounded-full px-1.5 text-center text-xs font-semibold tabular-nums ${
+                    porConfirmar > 0 ? "bg-institucional text-white" : "bg-fondo text-texto-secundario ring-1 ring-inset ring-borde"
+                  }`}
+                >
+                  {porConfirmar}
+                </span>
+              </Link>
+            ) : null}
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 print:max-w-none print:p-0">{children}</main>
+            <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+              <div className="flex min-w-0 items-center gap-2.5 text-right leading-tight">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-texto">
+                    {usuario.nombre} {usuario.apellido}
+                  </p>
+                  <p className="truncate text-xs text-texto-secundario">
+                    {area}
+                    {usuario.rol === "lectura" ? " · solo lectura" : null}
+                  </p>
+                </div>
+                <span
+                  aria-hidden="true"
+                  className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full bg-superficie-azul text-xs font-semibold text-primario-oscuro sm:inline-flex"
+                >
+                  {iniciales(usuario.nombre, usuario.apellido)}
+                </span>
+              </div>
+              {/* Formulario y no enlace: la salida cambia estado (cierra todas las
+                  sesiones del usuario) y un GET lo dispararía cualquier prefetch. */}
+              <form action="/auth/salir" method="post" className="shrink-0">
+                <button
+                  type="submit"
+                  className={`inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-control border border-borde-control bg-white px-2.5 text-sm font-medium text-texto shadow-xs transition-colors duration-150 hover:border-primario hover:bg-superficie-azul hover:text-primario-oscuro sm:px-3.5 ${CLASE_FOCO}`}
+                >
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
+                  <span className="sr-only sm:not-sr-only">Salir</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8 lg:py-8 print:max-w-none print:p-0">{children}</main>
+      </div>
     </div>
   );
+}
+
+/** "Ana", "Pérez" → "AP": el círculo junto al nombre (decorativo). */
+function iniciales(nombre: string | null | undefined, apellido: string | null | undefined): string {
+  return [nombre, apellido]
+    .map((p) => (p ?? "").trim().charAt(0))
+    .join("")
+    .toLocaleUpperCase("es-AR");
 }

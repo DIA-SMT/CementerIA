@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, MensajeError } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, MensajeError } from "@/components/formulario";
 import type { FilaArea, FilaCementerio } from "@/lib/dominio/admin";
 import type { CampoUbicacion } from "@/lib/dominio/expedientes/ubicacion";
 import type { EstadoError } from "@/lib/presentacion/errores";
@@ -25,12 +25,12 @@ function Casilla({ ruta, etiqueta, marcado, poner, error, ayuda, deshabilitada =
   const errores = erroresDe(error, ruta);
   return (
     <div>
-      <label className="inline-flex items-center gap-2 text-sm text-slate-800">
+      <label className="inline-flex items-center gap-2 text-sm text-texto">
         <input {...atributosCampo(ruta, errores, ayuda ? `${ruta}-ayuda` : undefined)} type="checkbox" checked={marcado} disabled={deshabilitada} onChange={(e) => poner(e.target.checked)} className={CLASE_CASILLA} />
         {etiqueta}
       </label>
       {ayuda ? (
-        <p id={`${ruta}-ayuda`} className="ml-6 text-xs text-slate-600">
+        <p id={`${ruta}-ayuda`} className="ml-6 text-xs text-texto-secundario">
           {ayuda}
         </p>
       ) : null}
@@ -41,7 +41,7 @@ function Casilla({ ruta, etiqueta, marcado, poner, error, ayuda, deshabilitada =
 
 function PieDialogo({ pendiente, onCerrar, texto }: { pendiente: boolean; onCerrar: () => void; texto: string }) {
   return (
-    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+    <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
       <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
         Cancelar
       </button>
@@ -71,7 +71,7 @@ function CampoCodigo({ valor, poner, error, fijo, ayuda }: { valor: string; pone
         value={valor}
         onChange={(e) => poner(e.target.value)}
         onBlur={() => poner(normalizarClave(valor, false))}
-        className={`${CLASE_CONTROL} font-mono read-only:bg-slate-100`}
+        className={`${CLASE_CONTROL} font-mono read-only:bg-fondo`}
         data-autofocus={fijo ? undefined : true}
       />
     </Campo>
@@ -88,7 +88,7 @@ function useGuardar(catalogo: CatalogoAdmin, onHecho: (m: string) => void) {
 }
 
 function Etiqueta({ activo }: { activo: boolean }) {
-  return activo ? <span>Activo</span> : <span className="rounded bg-slate-200 px-1.5 text-xs text-slate-700">Inactivo</span>;
+  return activo ? <span>Activo</span> : <span className="insignia bg-fondo text-texto-secundario ring-1 ring-inset ring-borde">Inactivo</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ export function PestanaAreas({ areas }: { areas: readonly FilaArea[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-texto-secundario">
           Internas: tienen usuarios y reciben pases (Dirección no los recibe). Externas: la DIM y los cementerios, sin usuarios; los opera la custodia del paso.
         </p>
         <button type="button" aria-haspopup="dialog" onClick={() => setEditando("nueva")} className={CLASE_BOTON_PRIMARIO}>
@@ -110,33 +110,33 @@ export function PestanaAreas({ areas }: { areas: readonly FilaArea[] }) {
         </button>
       </div>
       <AvisoHecho mensaje={hecho} />
-      <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="tarjeta relative overflow-x-auto">
+        <table className="tabla-datos">
           <caption className="sr-only">Áreas</caption>
-          <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Código</th>
-              <th scope="col" className="px-3 py-2 font-medium">Nombre</th>
-              <th scope="col" className="px-3 py-2 font-medium">Tipo</th>
-              <th scope="col" className="px-3 py-2 font-medium">Recibe pases</th>
-              <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-              <th scope="col" className="px-3 py-2 font-medium">Uso</th>
-              <th scope="col" className="px-3 py-2 font-medium"><span className="sr-only">Acciones</span></th>
+              <th scope="col" className="font-medium">Código</th>
+              <th scope="col" className="font-medium">Nombre</th>
+              <th scope="col" className="font-medium">Tipo</th>
+              <th scope="col" className="font-medium">Recibe pases</th>
+              <th scope="col" className="font-medium">Estado</th>
+              <th scope="col" className="font-medium">Uso</th>
+              <th scope="col" className="font-medium"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {areas.map((a) => (
-              <tr key={a.id} className={a.activa ? "" : "text-slate-600"}>
-                <td className="px-3 py-2 font-mono text-xs">{a.codigo}</td>
-                <th scope="row" className="px-3 py-2 font-normal">{a.nombre}</th>
-                <td className="px-3 py-2">{a.tipo === "interna" ? "Interna" : "Externa"}</td>
-                <td className="px-3 py-2">{a.recibePases ? "Sí" : "No"}</td>
-                <td className="px-3 py-2"><Etiqueta activo={a.activa} /></td>
-                <td className="px-3 py-2 text-xs text-slate-700">
+              <tr key={a.id} className={a.activa ? "" : "text-texto-secundario"}>
+                <td className="font-mono text-xs">{a.codigo}</td>
+                <th scope="row" className="font-normal">{a.nombre}</th>
+                <td>{a.tipo === "interna" ? "Interna" : "Externa"}</td>
+                <td>{a.recibePases ? "Sí" : "No"}</td>
+                <td><Etiqueta activo={a.activa} /></td>
+                <td className="text-xs text-texto-secundario">
                   {[a.usuariosActivos > 0 ? `${a.usuariosActivos} usuarios activos` : null, a.cementerio ? `Área del cementerio ${a.cementerio}` : null, a.plantillas.length > 0 ? `En ${a.plantillas.join(", ")}` : null].filter(Boolean).join(" · ") || "—"}
                 </td>
-                <td className="px-3 py-2">
-                  <button type="button" aria-haspopup="dialog" onClick={() => setEditando(a)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+                <td>
+                  <button type="button" aria-haspopup="dialog" onClick={() => setEditando(a)} className={CLASE_BOTON_COMPACTO}>
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                     Modificar<span className="sr-only"> {a.nombre}</span>
                   </button>
@@ -215,7 +215,7 @@ export function PestanaCementerios({ cementerios, areasExternas, tiposMonumento 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-texto-secundario">
           La nomenclatura (campos de ubicación) y los monumentos de cada cementerio. Una clave que ya tiene valores en expedientes no se borra ni se renombra: se desactiva.
         </p>
         <button type="button" aria-haspopup="dialog" onClick={() => setEditando("nuevo")} className={CLASE_BOTON_PRIMARIO}>
@@ -226,23 +226,23 @@ export function PestanaCementerios({ cementerios, areasExternas, tiposMonumento 
       <AvisoHecho mensaje={hecho} />
       <ul className="space-y-3">
         {cementerios.map((c) => (
-          <li key={c.id} className="rounded border border-slate-300 bg-white px-4 py-3">
+          <li key={c.id} className="tarjeta px-4 py-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h2 className="font-medium text-slate-900">
-                  {c.nombre} <span className="font-mono text-xs font-normal text-slate-600">{c.codigo}</span> {c.activo ? null : <Etiqueta activo={false} />}
+                <h2 className="font-medium text-texto">
+                  {c.nombre} <span className="font-mono text-xs font-normal text-texto-secundario">{c.codigo}</span> {c.activo ? null : <Etiqueta activo={false} />}
                 </h2>
-                <p className="text-sm text-slate-700">
+                <p className="text-sm text-texto-secundario">
                   Área: {c.area.nombre} · {c.expedientes} expedientes{c.plantillas.length > 0 ? ` · Lo nombran los filtros de ${c.plantillas.join(", ")}` : ""}
                 </p>
               </div>
-              <button type="button" aria-haspopup="dialog" onClick={() => setEditando(c)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+              <button type="button" aria-haspopup="dialog" onClick={() => setEditando(c)} className={CLASE_BOTON_COMPACTO}>
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Modificar<span className="sr-only"> {c.nombre}</span>
               </button>
             </div>
-            <p className="mt-1 text-sm text-slate-800">Monumentos: {c.tiposMonumento.length > 0 ? c.tiposMonumento.map(nombreMonumento).join(", ") : <span className="text-red-800">ninguno (no se pueden dar altas)</span>}</p>
-            <p className="text-sm text-slate-800">
+            <p className="mt-1 text-sm text-texto">Monumentos: {c.tiposMonumento.length > 0 ? c.tiposMonumento.map(nombreMonumento).join(", ") : <span className="text-error">ninguno (no se pueden dar altas)</span>}</p>
+            <p className="text-sm text-texto">
               Ubicación:{" "}
               {c.camposUbicacion.length > 0
                 ? c.camposUbicacion.map((u) => `${u.etiqueta}${u.obligatorio ? "*" : ""}${u.activo ? "" : " (inactivo)"}`).join(" · ")
@@ -339,10 +339,10 @@ function DialogoCementerio({
         </div>
 
         <fieldset id="campo-tiposMonumento" className="space-y-1">
-          <legend className="mb-1 text-sm font-medium text-slate-800">Tipos de monumento habilitados</legend>
+          <legend className="mb-1 text-sm font-medium text-texto">Tipos de monumento habilitados</legend>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {tiposMonumento.map((t) => (
-              <label key={t.codigo} className="inline-flex items-center gap-1.5 text-sm text-slate-800">
+              <label key={t.codigo} className="inline-flex items-center gap-1.5 text-sm text-texto">
                 <input type="checkbox" checked={tipos.includes(t.codigo)} onChange={(e) => setTipos((ts) => (e.target.checked ? [...ts, t.codigo] : ts.filter((x) => x !== t.codigo)))} className={CLASE_CASILLA} />
                 {t.nombre}
                 {t.activo ? null : " (inactivo)"}
@@ -353,7 +353,7 @@ function DialogoCementerio({
         </fieldset>
 
         <fieldset className="space-y-2">
-          <legend className="mb-1 text-sm font-medium text-slate-800">Campos de ubicación (nomenclatura)</legend>
+          <legend className="mb-1 text-sm font-medium text-texto">Campos de ubicación (nomenclatura)</legend>
           <MensajeError ruta="camposUbicacion" errores={erroresCampos} />
           <ol className="space-y-2">
             {campos.map((c, i) => {
@@ -361,23 +361,23 @@ function DialogoCementerio({
               const usada = !c.nuevo && usadas[c.clave] !== undefined;
               const titulo = c.etiqueta || c.clave || `campo ${i + 1}`;
               return (
-                <li key={i} className="space-y-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                <li key={i} className="space-y-2 rounded-control border border-borde bg-fondo px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-texto">
                       {i + 1}. {titulo}
-                      {usada ? <span className="ml-2 text-xs font-normal text-slate-600">con valores en {usadas[c.clave]} expedientes: no se borra ni se renombra</span> : null}
+                      {usada ? <span className="ml-2 text-xs font-normal text-texto-secundario">con valores en {usadas[c.clave]} expedientes: no se borra ni se renombra</span> : null}
                     </p>
                     <div className="flex gap-1">
-                      <button type="button" disabled={i === 0} onClick={() => setCampos((cs) => mover(cs, i, -1))} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+                      <button type="button" disabled={i === 0} onClick={() => setCampos((cs) => mover(cs, i, -1))} className={CLASE_BOTON_COMPACTO}>
                         <ArrowUp className="h-4 w-4" aria-hidden="true" />
                         <span className="sr-only">Subir {titulo}</span>
                       </button>
-                      <button type="button" disabled={i === campos.length - 1} onClick={() => setCampos((cs) => mover(cs, i, 1))} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+                      <button type="button" disabled={i === campos.length - 1} onClick={() => setCampos((cs) => mover(cs, i, 1))} className={CLASE_BOTON_COMPACTO}>
                         <ArrowDown className="h-4 w-4" aria-hidden="true" />
                         <span className="sr-only">Bajar {titulo}</span>
                       </button>
                       {usada ? null : (
-                        <button type="button" onClick={() => setCampos((cs) => cs.filter((_, j) => j !== i))} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1 text-red-800`}>
+                        <button type="button" onClick={() => setCampos((cs) => cs.filter((_, j) => j !== i))} className={CLASE_BOTON_COMPACTO_PELIGRO}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                           <span className="sr-only">Quitar {titulo}</span>
                         </button>
@@ -394,7 +394,7 @@ function DialogoCementerio({
                         value={c.clave}
                         onChange={(e) => ponerCampo(i, { clave: e.target.value })}
                         onBlur={() => ponerCampo(i, { clave: normalizarClave(c.clave, true) })}
-                        className={`${CLASE_CONTROL} font-mono read-only:bg-slate-100`}
+                        className={`${CLASE_CONTROL} font-mono read-only:bg-fondo`}
                       />
                     </Campo>
                     <Campo ruta={`${ruta}.etiqueta`} etiqueta="Etiqueta" obligatorio errores={erroresDe(error, `${ruta}.etiqueta`)}>
@@ -424,7 +424,7 @@ function DialogoCementerio({
           <button
             type="button"
             onClick={() => setCampos((cs) => [...cs, { clave: "", etiqueta: "", tipo: "texto", obligatorio: false, patron: "", activo: true, ayuda: "", nuevo: true }])}
-            className={`${CLASE_BOTON_SECUNDARIO} py-1`}
+            className={CLASE_BOTON_COMPACTO}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Agregar campo de ubicación
@@ -457,34 +457,34 @@ export function PestanaSimple({ catalogo, titulo, descripcion, ayudaCodigo, fila
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-700">{descripcion}</p>
+        <p className="text-sm text-texto-secundario">{descripcion}</p>
         <button type="button" aria-haspopup="dialog" onClick={() => setEditando("nuevo")} className={CLASE_BOTON_PRIMARIO}>
           <Plus className="h-4 w-4" aria-hidden="true" />
           Nuevo {singular}
         </button>
       </div>
       <AvisoHecho mensaje={hecho} />
-      <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="tarjeta relative overflow-x-auto">
+        <table className="tabla-datos">
           <caption className="sr-only">{titulo}</caption>
-          <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Código</th>
-              <th scope="col" className="px-3 py-2 font-medium">Nombre</th>
-              <th scope="col" className="px-3 py-2 font-medium">Estado</th>
-              <th scope="col" className="px-3 py-2 font-medium">Uso</th>
-              <th scope="col" className="px-3 py-2 font-medium"><span className="sr-only">Acciones</span></th>
+              <th scope="col" className="font-medium">Código</th>
+              <th scope="col" className="font-medium">Nombre</th>
+              <th scope="col" className="font-medium">Estado</th>
+              <th scope="col" className="font-medium">Uso</th>
+              <th scope="col" className="font-medium"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {filas.map((f) => (
-              <tr key={f.id} className={f.activo ? "" : "text-slate-600"}>
-                <td className="px-3 py-2 font-mono text-xs">{f.codigo}</td>
-                <th scope="row" className="px-3 py-2 font-normal">{f.nombre}</th>
-                <td className="px-3 py-2"><Etiqueta activo={f.activo} /></td>
-                <td className="px-3 py-2 text-xs text-slate-700">{f.uso}</td>
-                <td className="px-3 py-2">
-                  <button type="button" aria-haspopup="dialog" onClick={() => setEditando(f)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+              <tr key={f.id} className={f.activo ? "" : "text-texto-secundario"}>
+                <td className="font-mono text-xs">{f.codigo}</td>
+                <th scope="row" className="font-normal">{f.nombre}</th>
+                <td><Etiqueta activo={f.activo} /></td>
+                <td className="text-xs text-texto-secundario">{f.uso}</td>
+                <td>
+                  <button type="button" aria-haspopup="dialog" onClick={() => setEditando(f)} className={CLASE_BOTON_COMPACTO}>
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                     Modificar<span className="sr-only"> {f.nombre}</span>
                   </button>

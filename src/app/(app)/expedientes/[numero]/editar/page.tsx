@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
-import { CLASE_ENLACE } from "@/components/formulario";
+import { Aviso } from "@/components/aviso";
+import { EncabezadoPagina } from "@/components/encabezado-pagina";
+import { CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio, expedientes, type FormularioEdicion } from "@/lib/dominio/expedientes/servidor";
@@ -40,12 +42,12 @@ export default async function PaginaEditar(props: PageProps<"/expedientes/[numer
     if (e instanceof ErrorDominio && e.codigo === "no_encontrado") notFound();
     if (e instanceof ErrorDominio && e.codigo === "estado_no_admite") {
       return (
-        <section className="space-y-3">
-          <h1 className="text-xl font-semibold text-slate-900">Editar {numero.toUpperCase()}</h1>
-          <p role="alert" className="rounded border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800">
-            {e.message}.
-          </p>
-          <Link href={rutaFicha(numero)} prefetch={false} className={CLASE_ENLACE}>
+        <section aria-labelledby="titulo-pantalla" className="space-y-4">
+          <EncabezadoPagina titulo={`Editar ${numero.toUpperCase()}`} volver={{ href: rutaFicha(numero), texto: "Volver a la ficha" }} />
+          <Aviso tono="advertencia" role="alert">
+            <p>{e.message}.</p>
+          </Aviso>
+          <Link href={rutaFicha(numero)} prefetch={false} className={CLASE_BOTON_SECUNDARIO}>
             Volver a la ficha
           </Link>
         </section>
@@ -70,16 +72,16 @@ export default async function PaginaEditar(props: PageProps<"/expedientes/[numer
 
   return (
     <section aria-labelledby="titulo-pantalla" className="space-y-5">
-      <div>
-        <h1 id="titulo-pantalla" className="text-xl font-semibold text-slate-900">
-          Editar <span className="font-mono">{form.numero}</span>
-        </h1>
-        <p className="text-sm">
-          <Link href={rutaFicha(form.numero)} prefetch={false} className={CLASE_ENLACE}>
-            Volver a la ficha
-          </Link>
-        </p>
-      </div>
+      <EncabezadoPagina
+        titulo={
+          <>
+            Editar <span className="font-mono">{form.numero}</span>
+          </>
+        }
+        antetitulo="Expedientes"
+        volver={{ href: rutaFicha(form.numero), texto: "Volver a la ficha" }}
+        descripcion="Cambiá lo que haga falta y guardá. Los campos con * son obligatorios."
+      />
       <FormularioExpediente
         modo="edicion"
         numero={form.numero}

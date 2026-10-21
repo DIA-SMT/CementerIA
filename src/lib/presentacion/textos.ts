@@ -14,13 +14,13 @@ export const ETIQUETA_ESTADO: Record<EstadoExpediente, string> = {
   anulado: "Anulado",
 };
 
-/** Clases de Tailwind de la etiqueta de cada estado (sobrias, con contraste AA). */
+/** Clases de Tailwind de la etiqueta de cada estado: los tokens semánticos de globals.css, con contraste AA (docs/diseno.md). */
 export const COLOR_ESTADO: Record<EstadoExpediente, string> = {
-  en_tramite: "bg-sky-50 text-sky-900 ring-sky-300",
-  espera_pago_dim: "bg-amber-50 text-amber-900 ring-amber-300",
-  concluido: "bg-emerald-50 text-emerald-900 ring-emerald-300",
-  archivado: "bg-slate-100 text-slate-800 ring-slate-300",
-  anulado: "bg-red-50 text-red-900 ring-red-300",
+  en_tramite: "bg-info-fondo text-info ring-info-borde",
+  espera_pago_dim: "bg-advertencia-fondo text-advertencia ring-advertencia-borde",
+  concluido: "bg-exito-fondo text-exito ring-exito-borde",
+  archivado: "bg-fondo text-texto-secundario ring-borde",
+  anulado: "bg-error-fondo text-error ring-error-borde",
 };
 
 export function etiquetaEstado(estado: string): string {

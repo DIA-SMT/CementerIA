@@ -76,6 +76,10 @@ de monumento y de trámite, y feriados con "Cerrar año"); y `/admin/auditoria`
 con el antes y el después, filtrados, paginados y con CSV registrado como
 `exportar`). Sin cambios de esquema.
 
+Rediseño visual, primera etapa: tokens de color y tipografía (Inter
+autoalojada), componentes base, ingreso, barra lateral y panel. Tokens, tabla de
+contrastes, marca provisoria y pendientes en [docs/diseno.md](docs/diseno.md).
+
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
 tocar código de Next, leer [AGENTS.md](AGENTS.md): Next 16 cambia APIs y

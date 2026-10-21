@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
+import { CLASE_BOTON_COMPACTO, CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
 import { COMODIN_CEMENTERIO, DATOS_SUBTAREA, ESTADOS_PASO, PREFIJO_CAMPO, type PasoPlantilla, type SubtareaPlantilla } from "@/lib/dominio/plantillas/esquema";
 import {
   activarPlazo,
@@ -59,7 +59,7 @@ export function PestanaPasos({ abiertos, setAbiertos }: { abiertos: Abiertos; se
   const { def, estructura, soloLectura } = useEditor();
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-texto-secundario">
         El recorrido del papel, en orden. El último paso tiene que ser de un área interna (ahí se concluye). Un paso externo (la DIM, un cementerio) o con comodín
         necesita la custodia: el área interna que lo sigue desde afuera.
       </p>
@@ -134,18 +134,18 @@ function Paso({
         const ahora = e.currentTarget.open;
         if (ahora !== abierto) alternar(indice, ahora);
       }}
-      className="rounded border border-slate-300 bg-white"
+      className="rounded-control border border-borde bg-white"
     >
-      <summary id={idDeCampo(ruta)} className="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800">
-        <span className="font-medium text-slate-900">
-          {indice + 1}. {paso.nombre || <span className="italic text-slate-500">(sin nombre)</span>}
+      <summary id={idDeCampo(ruta)} className="flex cursor-pointer flex-wrap items-center gap-2 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primario">
+        <span className="font-medium text-texto">
+          {indice + 1}. {paso.nombre || <span className="italic text-texto-secundario">(sin nombre)</span>}
         </span>
-        <span className="font-mono text-xs text-slate-600">{paso.clave}</span>
-        <span className="text-sm text-slate-600">· {destino}</span>
-        {paso.subtareas.length > 0 ? <span className="text-xs text-slate-600">· {paso.subtareas.length} subtareas</span> : null}
-        {cantidadErrores > 0 ? <span className="rounded-full bg-red-700 px-1.5 text-xs font-semibold text-white">{cantidadErrores} {cantidadErrores === 1 ? "error" : "errores"}</span> : null}
+        <span className="font-mono text-xs text-texto-secundario">{paso.clave}</span>
+        <span className="text-sm text-texto-secundario">· {destino}</span>
+        {paso.subtareas.length > 0 ? <span className="text-xs text-texto-secundario">· {paso.subtareas.length} subtareas</span> : null}
+        {cantidadErrores > 0 ? <span className="rounded-full bg-error px-1.5 text-xs font-semibold text-white">{cantidadErrores} {cantidadErrores === 1 ? "error" : "errores"}</span> : null}
       </summary>
-      <div className="space-y-4 border-t border-slate-200 px-3 py-3">
+      <div className="space-y-4 border-t border-borde px-3 py-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <ErroresDe ruta={ruta} />
           <BotonesOrden
@@ -193,8 +193,8 @@ function Paso({
         <Casilla ruta={`${ruta}.omitible`} etiqueta="Omitible (el pase lo puede saltear con motivo)" marcado={paso.omitible} poner={(v) => poner({ omitible: v })} />
         <CampoTexto ruta={`${ruta}.instrucciones`} etiqueta="Instrucciones (se muestran en la ficha)" multilinea valor={paso.instrucciones ?? ""} poner={(v) => poner({ instrucciones: v === "" ? null : v })} />
 
-        <fieldset className="space-y-2 rounded border border-slate-200 px-3 pb-3 pt-1">
-          <legend className="px-1 text-sm font-medium text-slate-800">Plazo</legend>
+        <fieldset className="space-y-2 rounded-control border border-borde px-3 pb-3 pt-1">
+          <legend className="px-1 text-sm font-medium text-texto">Plazo</legend>
           <Casilla ruta={`${ruta}.plazo`} etiqueta="Este paso tiene un plazo en días hábiles" marcado={paso.plazo !== null} poner={(v) => cambiar((d) => activarPlazo(d, indice, v))} />
           {paso.plazo ? (
             <div className="grid gap-3 sm:grid-cols-3">
@@ -220,9 +220,9 @@ function Paso({
         </fieldset>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-slate-800">Subtareas</legend>
+          <legend className="text-sm font-medium text-texto">Subtareas</legend>
           <ErroresDe ruta={`${ruta}.subtareas`} />
-          {paso.subtareas.length === 0 ? <p className="text-sm text-slate-600">Sin subtareas: el pase no exige nada en este paso.</p> : null}
+          {paso.subtareas.length === 0 ? <p className="text-sm text-texto-secundario">Sin subtareas: el pase no exige nada en este paso.</p> : null}
           <ol className="space-y-2">
             {paso.subtareas.map((s, j) => (
               <li key={`${s.clave}#${j}`}>
@@ -233,7 +233,7 @@ function Paso({
           {!soloLectura ? (
             <button
               type="button"
-              className={`${CLASE_BOTON_SECUNDARIO} py-1`}
+              className={CLASE_BOTON_COMPACTO}
               onClick={() => estructura((d) => agregarSubtarea(d, indice), idDeCampo(`${ruta}.subtareas[${paso.subtareas.length}].nombre`))}
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -252,9 +252,9 @@ function Subtarea({ paso, indice, subtarea, total }: { paso: number; indice: num
   const poner = (cambios: Parameters<typeof cambiarSubtarea>[3]) => cambiar((d) => cambiarSubtarea(d, paso, indice, cambios));
   const nombre = subtarea.nombre || subtarea.clave || `subtarea ${indice + 1}`;
   return (
-    <fieldset id={idDeCampo(ruta)} tabIndex={-1} className="space-y-3 rounded border border-slate-200 bg-slate-50 px-3 pb-3 pt-1">
-      <legend className="px-1 text-sm text-slate-800">
-        Subtarea {indice + 1}: {subtarea.nombre || <span className="italic text-slate-500">(sin nombre)</span>}
+    <fieldset id={idDeCampo(ruta)} tabIndex={-1} className="space-y-3 rounded-control border border-borde bg-fondo px-3 pb-3 pt-1">
+      <legend className="px-1 text-sm text-texto">
+        Subtarea {indice + 1}: {subtarea.nombre || <span className="italic text-texto-secundario">(sin nombre)</span>}
       </legend>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <ErroresDe ruta={ruta} />

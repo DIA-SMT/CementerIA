@@ -93,20 +93,20 @@ export function DialogoAdjuntar({ documento, volverA }: { documento: string | nu
               setArchivo(e.target.files?.[0] ?? null);
             }}
             data-autofocus
-            className={`${CLASE_CONTROL} file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-sm`}
+            className={`${CLASE_CONTROL} file:mr-3 file:rounded-control file:border-0 file:bg-superficie-azul file:px-2.5 file:py-1 file:text-sm file:font-medium file:text-primario-oscuro`}
           />
         </Campo>
         {archivo ? (
-          <p className="text-xs text-slate-700">
+          <p className="text-xs text-texto-secundario">
             {archivo.name} · {formatearBytes(archivo.size)}
           </p>
         ) : null}
-        <p className="text-xs text-slate-600">Adjuntar no marca el documento como presentado: eso se hace con &quot;Marcar&quot;.</p>
+        <p className="text-xs text-texto-secundario">Adjuntar no marca el documento como presentado: eso se hace con &quot;Marcar&quot;.</p>
         {error ? <AvisoError error={error} recargar={datos.rutaFicha} yaMostradas={["archivo"]} /> : null}
-        <p role="status" aria-live="polite" className="text-sm text-slate-700">
+        <p role="status" aria-live="polite" className="text-sm text-texto-secundario">
           {etapa === "preparando" ? "Preparando el archivo…" : etapa === "subiendo" ? "Subiendo…" : ""}
         </p>
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={cerrar} disabled={ocupado} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>

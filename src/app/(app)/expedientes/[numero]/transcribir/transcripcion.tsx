@@ -5,7 +5,18 @@ import { useRouter } from "next/navigation";
 import { CircleCheck, FileUp, Flag, Plus, Save, Trash2 } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, MensajeError } from "@/components/formulario";
+import {
+  atributosCampo,
+  Campo,
+  CLASE_BOTON_COMPACTO,
+  CLASE_BOTON_COMPACTO_PELIGRO,
+  CLASE_BOTON_PELIGRO,
+  CLASE_BOTON_PRIMARIO,
+  CLASE_BOTON_SECUNDARIO,
+  CLASE_CASILLA,
+  CLASE_CONTROL,
+  MensajeError,
+} from "@/components/formulario";
 import { LARGO_MINIMO_MOTIVO } from "@/lib/dominio/expedientes/errores";
 import type { EstadoExpediente } from "@/lib/dominio/permisos";
 import { comoDatetimeLocal, formatearFecha, hoyEnTucuman } from "@/lib/fechas";
@@ -70,7 +81,7 @@ export function Transcripcion({ datos }: { datos: DatosTranscripcion }) {
     <div className="space-y-5">
       <div role="status" aria-live="polite" className="empty:hidden">
         {aviso ? (
-          <p className="flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <p className="flex items-center gap-2 rounded-control border border-exito-borde bg-exito-fondo px-3 py-2 text-sm text-exito">
             <CircleCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
             {aviso.texto}
           </p>
@@ -93,11 +104,11 @@ interface PropsSeccion {
 
 function Seccion({ id, titulo, descripcion, children }: { id: string; titulo: string; descripcion?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="rounded border border-slate-300 bg-white p-4">
-      <h2 id={id} className="text-base font-semibold text-slate-900">
+    <section aria-labelledby={id} className="tarjeta px-4 pb-4 pt-3.5 sm:px-5">
+      <h2 id={id} className="titulo-seccion border-b border-borde pb-2.5">
         {titulo}
       </h2>
-      {descripcion ? <div className="mt-1 mb-3 text-sm text-slate-700">{descripcion}</div> : <div className="mb-3" />}
+      {descripcion ? <div className="mb-3 mt-2.5 text-sm text-texto-secundario">{descripcion}</div> : <div className="mb-3" />}
       {children}
     </section>
   );
@@ -205,7 +216,7 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
             Una fila por pase de la ficha de papel: la fecha y el paso al que llegó el papel. Si vuelve a un paso anterior es una devolución y lleva motivo. Las fechas no pueden ir
             hacia atrás. Para un expediente en curso alcanza con una fila (por ejemplo, &quot;está en Legal desde el 03/10&quot;).
           </p>
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-xs text-texto-secundario">
             Teclado: Tab pasa a la celda siguiente; Enter baja a la fila de abajo (en la última, agrega una); Mayús+Enter sube; Ctrl+Enter registra el lote.
           </p>
         </>
@@ -219,10 +230,10 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
         className="space-y-3"
         aria-busy={pendiente}
       >
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[960px] text-left text-sm">
             <caption className="sr-only">Grilla de pases de la ficha de papel: cada fila es un pase o una devolución</caption>
-            <thead className="border-b border-slate-300 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+            <thead className="border-b border-borde bg-fondo text-xs uppercase tracking-wide text-texto-secundario">
               <tr>
                 <th scope="col" className="w-8 px-2 py-2">
                   #
@@ -240,7 +251,7 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-borde">
               {filas.map((f, i) => {
                 const r = recorrido[i];
                 const devolucion = r?.tipo === "devolucion";
@@ -258,14 +269,14 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                 const mensaje = (c: ColumnaGrilla) => {
                   const err = errorCelda(f, c);
                   return err ? (
-                    <p id={`${idCelda(i, c)}-error`} className="mt-0.5 text-xs text-red-800">
+                    <p id={`${idCelda(i, c)}-error`} className="mt-0.5 text-xs text-error">
                       {err.join(" · ")}
                     </p>
                   ) : null;
                 };
                 return (
                   <tr key={f.id} className="align-top">
-                    <td className="px-2 py-1.5 text-slate-600">{i + 1}</td>
+                    <td className="px-2 py-1.5 text-texto-secundario">{i + 1}</td>
                     <td className="px-2 py-1.5">
                       <input
                         {...atributos("fecha")}
@@ -317,10 +328,10 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                       {mensaje("motivo")}
                     </td>
                     <td className="px-2 py-1.5 text-xs">
-                      <span className={r?.tipo === "devolucion" ? "font-medium text-red-900" : r?.tipo === "pase" ? "text-slate-900" : "text-slate-500"}>{r ? TEXTO_TIPO[r.tipo] : ""}</span>
+                      <span className={r?.tipo === "devolucion" ? "font-medium text-error" : r?.tipo === "pase" ? "text-texto" : "text-texto-secundario"}>{r ? TEXTO_TIPO[r.tipo] : ""}</span>
                     </td>
                     <td className="px-2 py-1.5">
-                      <button type="button" onClick={() => quitar(f.id)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+                      <button type="button" onClick={() => quitar(f.id)} className={CLASE_BOTON_COMPACTO_PELIGRO}>
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         <span className="sr-only">Quitar la fila {i + 1}</span>
                       </button>
@@ -356,18 +367,18 @@ function Subtareas({ datos, version, hecho }: PropsSeccion) {
   if (datos.subtareas.length === 0) return null;
   return (
     <Seccion id="titulo-subtareas" titulo="Subtareas de los pasos recorridos" descripcion="Se pueden tildar con la fecha que figura en el papel. Lo obligatorio que quede sin tildar pasa a histórico al terminar la carga.">
-      <ul className="divide-y divide-slate-200 text-sm">
+      <ul className="divide-y divide-borde text-sm">
         {datos.subtareas.map((s) => (
           <li key={s.clave} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
             <span>
               <span aria-hidden="true">{s.hecha ? "☑ " : "☐ "}</span>
               {s.nombre}
-              <span className="text-slate-600"> · {s.paso}</span>
-              {s.hecha && s.valor ? <span className="text-slate-700"> · {s.dato === "fecha" ? formatearFecha(s.valor) : s.valor}</span> : null}
+              <span className="text-texto-secundario"> · {s.paso}</span>
+              {s.hecha && s.valor ? <span className="text-texto-secundario"> · {s.dato === "fecha" ? formatearFecha(s.valor) : s.valor}</span> : null}
               <span className="sr-only">{s.hecha ? " (tildada)" : " (sin tildar)"}</span>
             </span>
             {s.hecha ? null : (
-              <button type="button" aria-haspopup="dialog" onClick={() => setAbierta(s)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-0.5 text-xs`}>
+              <button type="button" aria-haspopup="dialog" onClick={() => setAbierta(s)} className={CLASE_BOTON_COMPACTO}>
                 Tildar<span className="sr-only">: {s.nombre}</span>
               </button>
             )}
@@ -449,11 +460,11 @@ function DialogoSubtarea({
 
 function PieDialogo({ pendiente, texto, onCancelar, peligro = false }: { pendiente: boolean; texto: string; onCancelar: () => void; peligro?: boolean }) {
   return (
-    <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+    <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
       <button type="button" onClick={onCancelar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
         Cancelar
       </button>
-      <button type="submit" disabled={pendiente} className={peligro ? `${CLASE_BOTON_PRIMARIO} bg-red-800 hover:bg-red-700` : CLASE_BOTON_PRIMARIO}>
+      <button type="submit" disabled={pendiente} className={peligro ? CLASE_BOTON_PELIGRO : CLASE_BOTON_PRIMARIO}>
         {pendiente ? "Guardando…" : texto}
       </button>
     </div>
@@ -513,17 +524,17 @@ function EstadoFinal({ datos, version, hecho }: PropsSeccion) {
         }}
       >
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-slate-800">Estado</legend>
+          <legend className="mb-1 text-sm font-medium text-texto">Estado</legend>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             {puedeConcluir ? (
               <label className="inline-flex items-center gap-2 text-sm">
-                <input type="radio" name="estado-historico" checked={elegido === "concluido"} onChange={() => setEstado("concluido")} className="h-4 w-4 accent-slate-800" />
+                <input type="radio" name="estado-historico" checked={elegido === "concluido"} onChange={() => setEstado("concluido")} className="h-4 w-4 accent-primario" />
                 Concluido
               </label>
             ) : null}
             {puedeArchivar ? (
               <label className="inline-flex items-center gap-2 text-sm">
-                <input type="radio" name="estado-historico" checked={elegido === "archivado"} onChange={() => setEstado("archivado")} className="h-4 w-4 accent-slate-800" />
+                <input type="radio" name="estado-historico" checked={elegido === "archivado"} onChange={() => setEstado("archivado")} className="h-4 w-4 accent-primario" />
                 Archivado{activo ? " (sin concluir)" : ""}
               </label>
             ) : null}
@@ -550,7 +561,7 @@ function EstadoFinal({ datos, version, hecho }: PropsSeccion) {
                 className={CLASE_CONTROL}
               />
             </Campo>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-800">
+            <label className="inline-flex items-center gap-2 text-sm text-texto">
               <input type="checkbox" checked={desconocida} onChange={(x) => setDesconocida(x.target.checked)} className={CLASE_CASILLA} />
               No se sabe en qué caja está (queda como {UBICACION_DESCONOCIDA})
             </label>
@@ -631,7 +642,7 @@ function FotoFicha({ datos, version, hecho }: PropsSeccion) {
         }}
       >
         <div className="min-w-64 flex-1">
-          <label htmlFor="foto-ficha" className="mb-1 block text-sm font-medium text-slate-800">
+          <label htmlFor="foto-ficha" className="mb-1 block text-sm font-medium text-texto">
             Archivo
           </label>
           <input
@@ -642,10 +653,10 @@ function FotoFicha({ datos, version, hecho }: PropsSeccion) {
               setError(null);
               setArchivo(ev.target.files?.[0] ?? null);
             }}
-            className={`${CLASE_CONTROL} file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-sm`}
+            className={`${CLASE_CONTROL} file:mr-3 file:rounded-control file:border-0 file:bg-superficie-azul file:px-2.5 file:py-1 file:text-sm file:font-medium file:text-primario-oscuro`}
           />
           {archivo ? (
-            <p className="mt-1 text-xs text-slate-700">
+            <p className="mt-1 text-xs text-texto-secundario">
               {archivo.name} · {formatearBytes(archivo.size)}
             </p>
           ) : null}
@@ -710,7 +721,7 @@ function DialogoTerminar({ datos, version, onCerrar }: { datos: DatosTranscripci
         }}
       >
         {p && (p.subtareas.length > 0 || p.documentos.length > 0) ? (
-          <div className="text-sm text-slate-800">
+          <div className="text-sm text-texto">
             <p>Lo obligatorio de los pasos ya recorridos que sigue sin marcar pasa a &quot;histórico&quot; (el pase lo acepta):</p>
             <ul className="mt-1 list-disc pl-6">
               {p.subtareas.map((s) => (
@@ -722,10 +733,10 @@ function DialogoTerminar({ datos, version, onCerrar }: { datos: DatosTranscripci
             </ul>
           </div>
         ) : (
-          <p className="text-sm text-slate-800">No queda nada obligatorio sin marcar en los pasos recorridos.</p>
+          <p className="text-sm text-texto">No queda nada obligatorio sin marcar en los pasos recorridos.</p>
         )}
         <div>
-          <label className="flex items-start gap-2 text-sm font-medium text-slate-900">
+          <label className="flex items-start gap-2 text-sm font-medium text-texto">
             <input {...atributosCampo("confirmado", errores)} type="checkbox" checked={confirmado} onChange={(ev) => setConfirmado(ev.target.checked)} data-autofocus className={`${CLASE_CASILLA} mt-0.5`} />
             La ficha de papel está transcripta entera
           </label>

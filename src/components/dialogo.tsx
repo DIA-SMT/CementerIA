@@ -62,15 +62,15 @@ export function Dialogo({
         e.preventDefault();
         if (!ocupadoRef.current) onCerrarRef.current();
       }}
-      className={`m-auto w-[calc(100%-2rem)] ${ancho === "ancho" ? "max-w-4xl" : "max-w-lg"} rounded border border-slate-300 bg-white p-0 text-slate-900 shadow-xl backdrop:bg-slate-900/50`}
+      className={`m-auto w-[calc(100%-2rem)] ${ancho === "ancho" ? "max-w-4xl" : "max-w-lg"} rounded-panel border border-borde bg-white p-0 text-texto shadow-elevada backdrop:bg-institucional/55`}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+      <div className="flex items-start justify-between gap-3 border-b border-borde px-5 py-3.5">
         <div>
-          <h2 id={idTitulo} className="text-base font-semibold text-slate-900">
+          <h2 id={idTitulo} className="text-base font-semibold text-texto">
             {titulo}
           </h2>
           {descripcion ? (
-            <div id={idDescripcion} className="mt-0.5 text-sm text-slate-600">
+            <div id={idDescripcion} className="mt-0.5 text-sm text-texto-secundario">
               {descripcion}
             </div>
           ) : null}
@@ -81,14 +81,14 @@ export function Dialogo({
             if (!ocupado) onCerrar();
           }}
           disabled={ocupado}
-          className="rounded p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800 disabled:opacity-50"
+          className="-mr-1 rounded-control p-1.5 text-texto-secundario transition-colors duration-150 hover:bg-fondo hover:text-texto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario disabled:opacity-50"
         >
           <X className="h-5 w-5" aria-hidden="true" />
           {/* Nombre propio: varios diálogos tienen además un botón "Cerrar" en el pie, y dos botones con el mismo nombre confunden al lector de pantalla. */}
           <span className="sr-only">Cerrar ventana</span>
         </button>
       </div>
-      <div className="max-h-[75vh] overflow-y-auto px-4 py-3">{children}</div>
+      <div className="max-h-[75vh] overflow-y-auto px-5 py-4">{children}</div>
     </dialog>
   );
 }

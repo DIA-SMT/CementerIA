@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CLASE_ENLACE } from "@/components/formulario";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { formatearFecha } from "@/lib/fechas";
@@ -24,92 +25,92 @@ export default async function PaginaPlantillas() {
   return (
     <section aria-labelledby="titulo-plantillas" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 id="titulo-plantillas" className="text-xl font-semibold text-slate-900">
+        <h1 id="titulo-plantillas" className="text-2xl font-semibold tracking-tight text-texto">
           Plantillas de trámite
         </h1>
         <BotonNuevaPlantilla tiposTramite={tiposTramite} />
       </div>
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-texto-secundario">
         Cada trámite tiene como máximo una versión publicada (la que usan las altas nuevas) y un borrador. Publicar un borrador retira la versión anterior:
         los expedientes en curso siguen con la suya.
       </p>
 
-      <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="tarjeta relative overflow-x-auto">
+        <table className="tabla-datos">
           <caption className="sr-only">Plantillas por código</caption>
-          <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Código</th>
-              <th scope="col" className="px-3 py-2 font-medium">Trámite</th>
-              <th scope="col" className="px-3 py-2 font-medium">Publicada</th>
-              <th scope="col" className="px-3 py-2 font-medium">Borrador</th>
-              <th scope="col" className="px-3 py-2 font-medium">En curso por versión</th>
-              <th scope="col" className="px-3 py-2 font-medium">
+              <th scope="col" className="font-medium">Código</th>
+              <th scope="col" className="font-medium">Trámite</th>
+              <th scope="col" className="font-medium">Publicada</th>
+              <th scope="col" className="font-medium">Borrador</th>
+              <th scope="col" className="font-medium">En curso por versión</th>
+              <th scope="col" className="font-medium">
                 <span className="sr-only">Acciones</span>
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {filas.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-4 text-slate-600">
+                <td colSpan={6} className="px-3 py-4 text-texto-secundario">
                   Todavía no hay plantillas.
                 </td>
               </tr>
             ) : null}
             {filas.map((p) => (
               <tr key={p.codigo} className="align-top">
-                <th scope="row" className="px-3 py-2 font-mono text-xs font-medium text-slate-900">
+                <th scope="row" className="font-mono text-xs font-medium text-texto">
                   {p.codigo}
                 </th>
-                <td className="px-3 py-2">
-                  <span className="block text-slate-900">{p.nombre}</span>
-                  <span className="block text-xs text-slate-600">{p.tipoTramite.nombre}</span>
+                <td>
+                  <span className="block text-texto">{p.nombre}</span>
+                  <span className="block text-xs text-texto-secundario">{p.tipoTramite.nombre}</span>
                 </td>
-                <td className="px-3 py-2">
+                <td>
                   {p.publicada ? (
                     <>
-                      <Link href={rutaVersionPlantilla(p.codigo, p.publicada.version)} className="underline underline-offset-2">
+                      <Link href={rutaVersionPlantilla(p.codigo, p.publicada.version)} className={CLASE_ENLACE}>
                         v{p.publicada.version}
                       </Link>
-                      {p.publicada.publicadoEn ? <span className="block text-xs text-slate-600">desde {formatearFecha(p.publicada.publicadoEn)}</span> : null}
+                      {p.publicada.publicadoEn ? <span className="block text-xs text-texto-secundario">desde {formatearFecha(p.publicada.publicadoEn)}</span> : null}
                     </>
                   ) : (
-                    <span className="text-slate-600">Ninguna (no se ofrece en el alta)</span>
+                    <span className="text-texto-secundario">Ninguna (no se ofrece en el alta)</span>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td>
                   {p.borrador ? (
                     <>
-                      <Link href={rutaVersionPlantilla(p.codigo, p.borrador.version)} className="underline underline-offset-2">
+                      <Link href={rutaVersionPlantilla(p.codigo, p.borrador.version)} className={CLASE_ENLACE}>
                         v{p.borrador.version}
                       </Link>
-                      <span className="block text-xs text-slate-600">
+                      <span className="block text-xs text-texto-secundario">
                         {p.borrador.creadoPor ? `de ${p.borrador.creadoPor}, ` : ""}
                         {formatearFecha(p.borrador.creadoEn)}
                       </span>
                     </>
                   ) : (
-                    <span className="text-slate-500">—</span>
+                    <span className="text-texto-secundario">—</span>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td>
                   <ul className="space-y-0.5">
                     {p.versiones
                       .filter((v) => v.estado !== "borrador")
                       .map((v) => (
                         <li key={v.version}>
-                          <Link href={rutaVersionPlantilla(p.codigo, v.version)} className="underline underline-offset-2">
+                          <Link href={rutaVersionPlantilla(p.codigo, v.version)} className={CLASE_ENLACE}>
                             v{v.version}
                           </Link>{" "}
-                          <span className="text-xs text-slate-600">({ETIQUETA_ESTADO[v.estado]})</span>: {v.enCurso}
+                          <span className="text-xs text-texto-secundario">({ETIQUETA_ESTADO[v.estado]})</span>: {v.enCurso}
                           <span className="sr-only"> en curso</span>
-                          {v.total > v.enCurso ? <span className="text-xs text-slate-600"> de {v.total}</span> : null}
+                          {v.total > v.enCurso ? <span className="text-xs text-texto-secundario"> de {v.total}</span> : null}
                         </li>
                       ))}
                   </ul>
                 </td>
-                <td className="px-3 py-2">
+                <td>
                   <AccionesPlantilla codigo={p.codigo} publicada={p.publicada ? { version: p.publicada.version, enCurso: p.publicada.enCurso } : null} borrador={p.borrador?.version ?? null} />
                 </td>
               </tr>

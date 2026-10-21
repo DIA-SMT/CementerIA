@@ -1,30 +1,184 @@
 @import "tailwindcss";
 
 /*
- * Estilo sobrio, claro y de alto contraste: se usa muchas horas por día en PC
- * de oficina, y a veces en monitores viejos. Sin modo oscuro por ahora.
+ * Sistema visual de CementerIA (docs/diseno.md): institucional, sobrio y claro.
+ * Se usa muchas horas por día en PC de oficina, a veces en monitores viejos:
+ * densidad administrativa, buen contraste y nada de modo oscuro por ahora.
+ *
+ * Los colores son tokens de Tailwind (`bg-institucional`, `text-texto-secundario`,
+ * `border-borde`…). Cada combinación que se usa para texto está medida contra
+ * WCAG AA en docs/diseno.md: si se cambia un tono, volver a medirlo ahí.
  */
-:root {
-  --background: #f6f7f9;
-  --foreground: #1b1f24;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+@theme {
+  /* Tipografía: Inter autoalojada (@fontsource-variable/inter, importada en
+     src/app/layout.tsx). Sin next/font/google: el build no sale a internet. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
+
+  /* Marca. */
+  --color-institucional: #0f2f5d; /* azul institucional oscuro: barra lateral, títulos destacados */
+  --color-institucional-hover: #163b70; /* hover sobre la barra lateral */
+  --color-institucional-activo: #1a4683; /* ítem activo de la barra lateral */
+  --color-institucional-texto: #c7d6eb; /* texto secundario sobre el azul institucional */
+  --color-primario: #0f68ff; /* botones primarios, foco, acentos */
+  --color-primario-oscuro: #0b53cc; /* hover del primario; enlaces y texto azul sobre fondos tintados */
+  --color-celeste: #38b2f6; /* decorativo; como texto o ícono, solo sobre el azul institucional */
+  --color-superficie-azul: #e8f2ff; /* fondos tintados, chips informativos, ítems activos claros */
+  --color-amarillo: #f4c400; /* acento municipal: nunca como texto sobre blanco */
+
+  /* Neutros. */
+  --color-fondo: #f4f7fb;
+  --color-superficie: #ffffff;
+  --color-texto: #172b4d;
+  /* #6B7280 da 4,50:1 justo sobre el fondo (4,4993) y 4,28:1 sobre la superficie
+     azul: no llega a AA. Se oscurece a #5F6878 (5,23 y 4,97). */
+  --color-texto-secundario: #5f6878;
+  --color-borde: #dce3ec; /* bordes decorativos de tarjetas y tablas */
+  --color-borde-control: #7c8798; /* borde de los controles: 3,64:1 sobre blanco (WCAG 1.4.11) */
+
+  /* Semánticos: texto, fondo, borde y relleno sólido. */
+  --color-exito: #166534;
+  --color-exito-fondo: #eaf7ee;
+  --color-exito-borde: #9fd3b1;
+  --color-exito-solido: #15803d;
+  --color-advertencia: #8a4b00;
+  --color-advertencia-fondo: #fff4d6;
+  --color-advertencia-borde: #f4c400;
+  --color-error: #b42318;
+  --color-error-fondo: #fdecec;
+  --color-error-borde: #f2b8b5;
+  --color-error-hover: #912018; /* hover del botón rojo (blanco encima: 8,66:1) */
+  --color-info: #0b53cc;
+  --color-info-fondo: #e8f2ff;
+  --color-info-borde: #b5d3ff;
+
+  /* Radios: 8 px en controles, 12 px en tarjetas, 16 px en paneles grandes. */
+  --radius-control: 0.5rem;
+  --radius-tarjeta: 0.75rem;
+  --radius-panel: 1rem;
+
+  /* Sombras ligeras, teñidas del azul institucional. */
+  --shadow-tarjeta: 0 1px 2px rgb(15 47 93 / 0.05), 0 1px 3px rgb(15 47 93 / 0.07);
+  --shadow-elevada: 0 4px 12px rgb(15 47 93 / 0.08), 0 1px 3px rgb(15 47 93 / 0.06);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-fondo);
+    color: var(--color-texto);
+    font-family: var(--font-sans);
+  }
+
+  /* Un foco visible para todo lo que no trae el suyo: anillo azul de 2 px con
+     separación. Los controles del sistema lo repiten con sus clases. */
+  :focus-visible {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-superficie-azul);
+    color: var(--color-texto);
+  }
+}
+
+/* Tarjeta: el contenedor de bloques (12 px, borde suave y sombra ligera). */
+@utility tarjeta {
+  border-radius: var(--radius-tarjeta);
+  border: 1px solid var(--color-borde);
+  background-color: var(--color-superficie);
+  box-shadow: var(--shadow-tarjeta);
+}
+
+/* Título de un bloque dentro de una pantalla (el h2 de cada tarjeta). */
+@utility titulo-seccion {
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  font-weight: 600;
+  color: var(--color-texto);
+  letter-spacing: -0.005em;
+}
+
+/* Insignia (badge): la base; el color lo dan las clases de cada estado. */
+@utility insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+@layer components {
+  /* Tabla administrativa: encabezado tintado, filas compactas y hover suave. */
+  .tabla-datos {
+    width: 100%;
+    text-align: left;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  .tabla-datos thead {
+    background-color: var(--color-fondo);
+    border-bottom: 1px solid var(--color-borde);
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: var(--color-texto-secundario);
+  }
+  .tabla-datos thead th {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  /* Celdas compactas por defecto (las clases de cada celda las pisan: las
+     utilidades van en una capa posterior). Más aire en los bordes de la tarjeta. */
+  .tabla-datos :where(th, td) {
+    padding: 0.5rem 0.75rem;
+    vertical-align: top;
+  }
+  .tabla-datos :where(th, td):first-child {
+    padding-left: 1rem;
+  }
+  .tabla-datos :where(th, td):last-child {
+    padding-right: 1rem;
+  }
+  .tabla-datos :where(thead th) {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
+  .tabla-datos tbody tr + tr {
+    border-top: 1px solid var(--color-borde);
+  }
+  .tabla-datos tbody tr {
+    transition: background-color 120ms ease;
+  }
+  .tabla-datos tbody tr:hover {
+    background-color: rgb(232 242 255 / 0.45);
+  }
+}
+
+/* Movimiento reducido: sin transiciones ni animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /*
- * Imprimibles (sección 5): A4, sin librería de PDF. El encabezado de la app y
- * los botones llevan `print:hidden`.
+ * Imprimibles (sección 5): A4, sin librería de PDF. La barra lateral, el
+ * encabezado de la app y los botones llevan `print:hidden`; en el papel no hay
+ * fondos ni sombras.
  */
 @page {
   size: A4;
@@ -35,4 +189,14 @@ body {
   body {
     background: #fff;
   }
+  .tarjeta {
+    box-shadow: none;
+  }
+}
+
+/* Formularios con la barra de acciones fija al pie (nuevo expediente,
+   editar): al tabular, el navegador desplaza el campo con foco por encima de
+   la barra y no queda tapado (WCAG 2.4.11). */
+html:has(.barra-acciones) {
+  scroll-padding-bottom: 5.5rem;
 }

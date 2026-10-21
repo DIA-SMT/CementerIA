@@ -45,7 +45,7 @@ export function ProveedorFlujo({ datos, children }: { datos: DatosFlujo; childre
       {/* Región viva siempre presente: el lector de pantalla anuncia el aviso cuando cambia. */}
       <div role="status" aria-live="polite" className="empty:hidden">
         {aviso ? (
-          <p className="mb-4 flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 print:hidden">
+          <p className="mb-4 flex items-center gap-2 rounded-control border border-exito-borde bg-exito-fondo px-3 py-2 text-sm text-exito print:hidden">
             <CircleCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
             {aviso}
           </p>

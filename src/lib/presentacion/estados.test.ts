@@ -22,10 +22,10 @@ describe("semáforo del plazo DIM (3.6)", () => {
   it("ámbar por vencer, rojo vencido: con etiqueta y texto (el color no es la única señal)", () => {
     const ambar = mostrarPlazo({ ...base, semaforo: "por_vencer" });
     expect(ambar).toMatchObject({ etiqueta: "Por vencer", alerta: true, texto: "Vence 30/11 · faltan 3 días hábiles", aviso: null });
-    expect(ambar.clase).toContain("amber");
+    expect(ambar.clase).toContain("advertencia");
     const rojo = mostrarPlazo({ ...base, semaforo: "vencido", texto: "venció el 30/11 (hace 2 días hábiles)" });
     expect(rojo).toMatchObject({ etiqueta: "Vencido", alerta: true, texto: "Venció el 30/11 (hace 2 días hábiles)" });
-    expect(rojo.clase).toContain("red");
+    expect(rojo.clase).toContain("error");
   });
 
   it("en término, sin iniciar y cumplido no alertan", () => {

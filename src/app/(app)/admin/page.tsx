@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ClipboardList, FileCog, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { ArrowRight, ClipboardList, FileCog, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { Aviso } from "@/components/aviso";
+import { EncabezadoPagina } from "@/components/encabezado-pagina";
+import { CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
@@ -27,36 +30,14 @@ export default async function PaginaAdmin() {
 
   return (
     <section aria-labelledby="titulo-admin" className="space-y-5">
-      <h1 id="titulo-admin" className="text-xl font-semibold text-slate-900">
-        Administración
-      </h1>
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {SECCIONES_ADMIN.map((s) => {
-          const Icono = ICONOS[s.href] ?? FileCog;
-          return (
-            <li key={s.href}>
-              <Link
-                href={s.href}
-                className="flex h-full items-start gap-3 rounded border border-slate-300 bg-white px-4 py-3 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800"
-              >
-                <Icono className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" aria-hidden="true" />
-                <span>
-                  <span className="block font-medium text-slate-900">{s.etiqueta}</span>
-                  <span className="block text-sm text-slate-600">{s.descripcion}</span>
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <EncabezadoPagina id="titulo-admin" titulo="Administración" descripcion="Plantillas de trámite, usuarios, catálogos y auditoría. Los cambios quedan registrados." />
       {borradores.length > 0 || sinCerrar.length > 0 ? (
-        <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <h2 className="font-medium">Pendiente</h2>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+        <Aviso tono="advertencia" titulo={<span role="heading" aria-level={2}>Pendiente</span>}>
+          <ul className="list-disc space-y-0.5 pl-5">
             {borradores.map((p) => (
               <li key={p.codigo}>
                 Borrador sin publicar:{" "}
-                <Link href={`/admin/plantillas/${p.codigo}/v/${p.borrador?.version}`} className="underline underline-offset-2">
+                <Link href={`/admin/plantillas/${p.codigo}/v/${p.borrador?.version}`} className={CLASE_ENLACE}>
                   {p.codigo} v{p.borrador?.version}
                 </Link>
               </li>
@@ -64,15 +45,37 @@ export default async function PaginaAdmin() {
             {sinCerrar.length > 0 ? (
               <li>
                 Feriados sin cerrar: {sinCerrar.join(", ")} (
-                <Link href="/admin/catalogos?pestana=feriados" className="underline underline-offset-2">
+                <Link href="/admin/catalogos?pestana=feriados" className={CLASE_ENLACE}>
                   Catálogos, Feriados
                 </Link>
                 )
               </li>
             ) : null}
           </ul>
-        </div>
+        </Aviso>
       ) : null}
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {SECCIONES_ADMIN.map((s) => {
+          const Icono = ICONOS[s.href] ?? FileCog;
+          return (
+            <li key={s.href}>
+              <Link
+                href={s.href}
+                className={`group tarjeta flex h-full items-start gap-3 px-4 py-3.5 transition duration-150 hover:border-primario hover:shadow-elevada ${CLASE_FOCO}`}
+              >
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-superficie-azul text-primario-oscuro">
+                  <Icono className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-texto group-hover:text-primario-oscuro">{s.etiqueta}</span>
+                  <span className="block text-sm text-texto-secundario">{s.descripcion}</span>
+                </span>
+                <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-texto-secundario transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

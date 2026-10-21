@@ -32,7 +32,7 @@ export function FiltroCementerio({
   return (
     <div className="space-y-3 sm:col-span-2">
       <div>
-        <label htmlFor="filtro-cementerio" className="mb-1 block text-sm font-medium text-slate-800">
+        <label htmlFor="filtro-cementerio" className="mb-1.5 block text-sm font-medium text-texto">
           Cementerio
         </label>
         <select
@@ -53,11 +53,11 @@ export function FiltroCementerio({
       </div>
       {campos.length > 0 ? (
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-slate-800">Ubicación</legend>
+          <legend className="mb-1.5 text-sm font-medium text-texto">Ubicación</legend>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {campos.map((c) => (
               <div key={`${elegido}-${c.clave}`}>
-                <label htmlFor={`filtro-u-${c.clave}`} className="mb-1 block text-xs text-slate-700">
+                <label htmlFor={`filtro-u-${c.clave}`} className="mb-1 block text-xs font-medium text-texto-secundario">
                   {c.etiqueta}
                 </label>
                 <input
@@ -74,7 +74,7 @@ export function FiltroCementerio({
           </div>
         </fieldset>
       ) : (
-        <p className="text-xs text-slate-600">Elegí un cementerio para filtrar por sección, cuadro, lote…</p>
+        <p className="text-xs text-texto-secundario">Elegí un cementerio para filtrar por sección, cuadro, lote…</p>
       )}
     </div>
   );

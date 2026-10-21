@@ -56,3 +56,11 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Capturas del rediseño: solo se versionan 4 de referencia (docs/diseno.md);
+# las demás se regeneran con el arnés de e2e y quedan locales.
+/docs/capturas/rediseno/*
+!/docs/capturas/rediseno/login-1440.png
+!/docs/capturas/rediseno/panel-direccion-1440.png
+!/docs/capturas/rediseno/nuevo-formulario-error-1440.png
+!/docs/capturas/rediseno/ficha-1440.png

@@ -3,7 +3,8 @@ import Form from "next/form";
 import Link from "next/link";
 import { Download, Filter } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
-import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE } from "@/components/formulario";
+import { clasePestana } from "@/components/pestanas";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin, ETIQUETA_ACCION_ACCESO, type AccionAccesoAuditoria, type FilaAcceso, type FilaCambio, type Pagina } from "@/lib/dominio/admin/servidor";
 import { formatearFechaHora } from "@/lib/fechas";
@@ -40,19 +41,17 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
 
   return (
     <section aria-labelledby="titulo-auditoria" className="space-y-4">
-      <h1 id="titulo-auditoria" className="text-xl font-semibold text-slate-900">
+      <h1 id="titulo-auditoria" className="text-2xl font-semibold tracking-tight text-texto">
         Auditoría
       </h1>
       <nav aria-label="Vista de la auditoría">
-        <ul className="flex flex-wrap gap-1 border-b border-slate-300">
+        <ul className="flex flex-wrap gap-1 border-b border-borde">
           {(["accesos", "cambios"] as const).map((v) => (
             <li key={v}>
               <Link
                 href={rutaAuditoria(v, {})}
                 aria-current={v === vista ? "page" : undefined}
-                className={`-mb-px inline-flex rounded-t border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800 ${
-                  v === vista ? "border-slate-300 border-b-white bg-white font-medium text-slate-900" : "border-transparent text-slate-600 hover:text-slate-900"
-                }`}
+                className={clasePestana(v === vista)}
               >
                 {v === "accesos" ? "Accesos" : "Cambios de configuración"}
               </Link>
@@ -61,10 +60,10 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
         </ul>
       </nav>
 
-      <Form action="/admin/auditoria" className="grid gap-3 rounded border border-slate-300 bg-white px-4 py-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Filtros">
+      <Form action="/admin/auditoria" className="grid gap-3 tarjeta px-4 py-3.5 sm:grid-cols-2 lg:grid-cols-5" aria-label="Filtros">
         <input type="hidden" name="vista" value={vista} />
         <div>
-          <label htmlFor="filtro-usuario" className="mb-1 block text-sm font-medium text-slate-800">
+          <label htmlFor="filtro-usuario" className="mb-1 block text-sm font-medium text-texto">
             Usuario
           </label>
           <select id="filtro-usuario" name="usuario" defaultValue={activos.usuarioId ?? ""} className={CLASE_CONTROL}>
@@ -79,13 +78,13 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
         {vista === "accesos" ? (
           <>
             <div>
-              <label htmlFor="filtro-expediente" className="mb-1 block text-sm font-medium text-slate-800">
+              <label htmlFor="filtro-expediente" className="mb-1 block text-sm font-medium text-texto">
                 Expediente
               </label>
               <input id="filtro-expediente" name="expediente" type="text" placeholder="CEM-2026-00042 o 42/2026" defaultValue={filtros.accesos.numero ?? ""} className={CLASE_CONTROL} />
             </div>
             <div>
-              <label htmlFor="filtro-accion" className="mb-1 block text-sm font-medium text-slate-800">
+              <label htmlFor="filtro-accion" className="mb-1 block text-sm font-medium text-texto">
                 Acción
               </label>
               <select id="filtro-accion" name="accion" defaultValue={filtros.accesos.accion ?? ""} className={CLASE_CONTROL}>
@@ -100,7 +99,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
           </>
         ) : (
           <div>
-            <label htmlFor="filtro-tabla" className="mb-1 block text-sm font-medium text-slate-800">
+            <label htmlFor="filtro-tabla" className="mb-1 block text-sm font-medium text-texto">
               Qué
             </label>
             <select id="filtro-tabla" name="tabla" defaultValue={filtros.cambios.tabla ?? ""} className={CLASE_CONTROL}>
@@ -114,13 +113,13 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
           </div>
         )}
         <div>
-          <label htmlFor="filtro-desde" className="mb-1 block text-sm font-medium text-slate-800">
+          <label htmlFor="filtro-desde" className="mb-1 block text-sm font-medium text-texto">
             Desde
           </label>
           <input id="filtro-desde" name="desde" type="date" defaultValue={activos.desde ?? ""} className={CLASE_CONTROL} />
         </div>
         <div>
-          <label htmlFor="filtro-hasta" className="mb-1 block text-sm font-medium text-slate-800">
+          <label htmlFor="filtro-hasta" className="mb-1 block text-sm font-medium text-texto">
             Hasta
           </label>
           <input id="filtro-hasta" name="hasta" type="date" defaultValue={activos.hasta ?? ""} className={CLASE_CONTROL} />
@@ -144,7 +143,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
       {error ? <AvisoError error={error} recargar={rutaAuditoria(vista, {})} /> : null}
 
       {pagina ? (
-        <p className="text-sm text-slate-700" aria-live="polite">
+        <p className="text-sm text-texto-secundario" aria-live="polite">
           {pagina.total === 0 ? "No hay registros con esos filtros." : `${pagina.total === 1 ? "1 registro" : `${pagina.total} registros`} · página ${pagina.pagina} de ${pagina.paginas}`}
         </p>
       ) : null}
@@ -159,40 +158,40 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
 
 function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
   return (
-    <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-      <table className="w-full text-left text-sm">
+    <div className="tarjeta relative overflow-x-auto">
+      <table className="tabla-datos">
         <caption className="sr-only">Accesos</caption>
-        <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+        <thead>
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">Fecha y hora</th>
-            <th scope="col" className="px-3 py-2 font-medium">Usuario</th>
-            <th scope="col" className="px-3 py-2 font-medium">Acción</th>
-            <th scope="col" className="px-3 py-2 font-medium">Expediente</th>
-            <th scope="col" className="px-3 py-2 font-medium">Motivo y detalle</th>
-            <th scope="col" className="px-3 py-2 font-medium">IP</th>
+            <th scope="col" className="font-medium">Fecha y hora</th>
+            <th scope="col" className="font-medium">Usuario</th>
+            <th scope="col" className="font-medium">Acción</th>
+            <th scope="col" className="font-medium">Expediente</th>
+            <th scope="col" className="font-medium">Motivo y detalle</th>
+            <th scope="col" className="font-medium">IP</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody>
           {filas.map((f) => (
             <tr key={f.id} className="align-top">
-              <td className="whitespace-nowrap px-3 py-2">{formatearFechaHora(f.en)}</td>
-              <td className="px-3 py-2">{f.usuario ? f.usuario.nombre : <span className="text-slate-500">Sin usuario</span>}</td>
-              <td className="px-3 py-2">{ETIQUETA_ACCION_ACCESO[f.accion as AccionAccesoAuditoria] ?? f.accion}</td>
-              <td className="whitespace-nowrap px-3 py-2">
+              <td className="whitespace-nowrap">{formatearFechaHora(f.en)}</td>
+              <td>{f.usuario ? f.usuario.nombre : <span className="text-texto-secundario">Sin usuario</span>}</td>
+              <td>{ETIQUETA_ACCION_ACCESO[f.accion as AccionAccesoAuditoria] ?? f.accion}</td>
+              <td className="whitespace-nowrap">
                 {f.expediente ? (
                   // Sin prefetch: un prefetch de la ficha quedaría registrado como si se la hubiera abierto.
-                  <Link href={rutaFicha(f.expediente)} prefetch={false} className="underline underline-offset-2">
+                  <Link href={rutaFicha(f.expediente)} prefetch={false} className={CLASE_ENLACE}>
                     {f.expediente}
                   </Link>
                 ) : (
                   "—"
                 )}
               </td>
-              <td className="px-3 py-2">
-                {f.motivo ? <p className="font-medium text-slate-900">Motivo: {f.motivo}</p> : null}
-                <p className="text-xs text-slate-600">{detalleAcceso(f.detalle) || (f.motivo ? null : "—")}</p>
+              <td>
+                {f.motivo ? <p className="font-medium text-texto">Motivo: {f.motivo}</p> : null}
+                <p className="text-xs text-texto-secundario">{detalleAcceso(f.detalle) || (f.motivo ? null : "—")}</p>
               </td>
-              <td className="px-3 py-2 font-mono text-xs">{f.ip ?? "—"}</td>
+              <td className="font-mono text-xs">{f.ip ?? "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -203,41 +202,41 @@ function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
 
 function TablaCambios({ filas }: { filas: readonly FilaCambio[] }) {
   return (
-    <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-      <table className="w-full text-left text-sm">
+    <div className="tarjeta relative overflow-x-auto">
+      <table className="tabla-datos">
         <caption className="sr-only">Cambios de configuración</caption>
-        <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+        <thead>
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">Fecha y hora</th>
-            <th scope="col" className="px-3 py-2 font-medium">Usuario</th>
-            <th scope="col" className="px-3 py-2 font-medium">Qué</th>
-            <th scope="col" className="px-3 py-2 font-medium">Cambio</th>
+            <th scope="col" className="font-medium">Fecha y hora</th>
+            <th scope="col" className="font-medium">Usuario</th>
+            <th scope="col" className="font-medium">Qué</th>
+            <th scope="col" className="font-medium">Cambio</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody>
           {filas.map((f) => (
             <tr key={f.id} className="align-top">
-              <td className="whitespace-nowrap px-3 py-2">{formatearFechaHora(f.en)}</td>
-              <td className="px-3 py-2">{f.usuario.nombre}</td>
-              <td className="px-3 py-2">
-                <span className="block font-medium text-slate-900">
+              <td className="whitespace-nowrap">{formatearFechaHora(f.en)}</td>
+              <td>{f.usuario.nombre}</td>
+              <td>
+                <span className="block font-medium text-texto">
                   {f.operacionEtiqueta}: {f.tablaEtiqueta}
                 </span>
-                <span className="block text-xs text-slate-700">{f.registro}</span>
-                {f.motivo ? <span className="block text-xs text-slate-700">Motivo: {f.motivo}</span> : null}
+                <span className="block text-xs text-texto-secundario">{f.registro}</span>
+                {f.motivo ? <span className="block text-xs text-texto-secundario">Motivo: {f.motivo}</span> : null}
               </td>
-              <td className="px-3 py-2">
+              <td>
                 {f.diferencias.length === 0 ? (
-                  <span className="text-slate-500">Sin diferencias visibles</span>
+                  <span className="text-texto-secundario">Sin diferencias visibles</span>
                 ) : (
                   <dl className="space-y-0.5">
                     {f.diferencias.map((d) => (
                       <div key={d.campo}>
-                        <dt className="inline font-medium text-slate-800">{d.etiqueta}: </dt>
-                        <dd className="inline text-slate-800">
+                        <dt className="inline font-medium text-texto">{d.etiqueta}: </dt>
+                        <dd className="inline text-texto">
                           {f.operacion === "U" ? (
                             <>
-                              <del className="text-slate-500">{d.antes}</del>
+                              <del className="text-texto-secundario">{d.antes}</del>
                               <span aria-hidden="true"> → </span>
                               <span className="sr-only"> pasó a </span>
                               {d.despues}
@@ -269,7 +268,7 @@ function Paginas({ vista, filtros, pagina, paginas }: { vista: VistaAuditoria; f
           Anterior
         </Link>
       ) : null}
-      <span className="text-slate-700">
+      <span className="text-texto-secundario">
         Página {pagina} de {paginas}
       </span>
       {pagina < paginas ? (

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Check, Circle, CircleCheck, CircleDot, FileClock, MessageCircle, Pencil, Printer, ShieldX } from "lucide-react";
+import { Check, EyeOff, FileClock, MessageCircle, Pencil, Printer, ShieldX, Square, SquareCheck } from "lucide-react";
+import { Aviso } from "@/components/aviso";
 import { EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
-import { CLASE_BOTON_SECUNDARIO, CLASE_ENLACE } from "@/components/formulario";
+import { CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_ENLACE } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio, expedientes, type DocumentoFicha, type Ficha, type PersonaFicha } from "@/lib/dominio/expedientes/servidor";
@@ -119,49 +120,55 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
 
   return (
     <ProveedorFlujo datos={flujo}>
-      <article aria-labelledby="titulo-ficha" className="space-y-6">
+      <article aria-labelledby="titulo-ficha" className="space-y-5">
         {aviso === AVISO_EDITADO ? (
-          <p role="status" className="flex items-center gap-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            <Check className="h-4 w-4" aria-hidden="true" />
-            Cambios guardados.
-          </p>
+          <Aviso tono="exito" role="status">
+            <p>Cambios guardados.</p>
+          </Aviso>
         ) : null}
 
-        <header className="space-y-3 rounded border border-slate-300 bg-white p-4">
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <h1 id="titulo-ficha" className="font-mono text-2xl font-semibold tracking-tight text-slate-900">
-              {ficha.numero}
-            </h1>
-            <span className="text-sm text-slate-600">({ficha.numeroCorto})</span>
-            <EtiquetaEstado estado={ficha.estado} />
-            {ficha.situaciones.map((s) => (
-              <EtiquetaSituacion key={s} situacion={s} />
-            ))}
+        <header className="tarjeta overflow-hidden">
+          {/* Número, estado y situaciones: el h1 y la etiqueta de estado van en el mismo contenedor. */}
+          <div className="border-b border-borde px-4 pb-3.5 pt-4 sm:px-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-texto-secundario">
+              Expediente · {ficha.tipoTramite.nombre}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <h1 id="titulo-ficha" className="font-mono text-2xl font-semibold tracking-tight text-institucional">
+                {ficha.numero}
+              </h1>
+              <span className="text-sm text-texto-secundario tabular-nums">({ficha.numeroCorto})</span>
+              <EtiquetaEstado estado={ficha.estado} />
+              {ficha.situaciones.map((s) => (
+                <EtiquetaSituacion key={s} situacion={s} />
+              ))}
+            </div>
           </div>
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <Dato titulo="N° municipal">{ficha.numeroMunicipal ?? "—"}</Dato>
-            <Dato titulo="Trámite">
-              {ficha.tipoTramite.nombre}
-              <span className="block text-slate-700">
-                {ficha.plantilla.nombre} · v{ficha.plantilla.version}
-                {ficha.plantilla.hayVersionNueva ? (
-                  <span className="ml-1 rounded bg-amber-100 px-1 text-amber-900">hay v{ficha.plantilla.versionPublicada}</span>
-                ) : null}
-              </span>
-            </Dato>
-            <Dato titulo="Paso actual">
+
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 py-4 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
+            <Dato titulo="Paso actual" destacado>
               {ficha.paso.orden} de {ficha.paso.total}: {ficha.paso.nombre}
             </Dato>
-            <Dato titulo="Área actual">
+            <Dato titulo="Área actual" destacado>
               {ficha.areaActual.nombre}
               {ficha.areaResponsable.id !== ficha.areaActual.id ? (
-                <span className="block text-slate-700">Lo sigue: {ficha.areaResponsable.nombre}</span>
+                <span className="block text-xs font-normal text-texto-secundario">Lo sigue: {ficha.areaResponsable.nombre}</span>
               ) : null}
             </Dato>
             <Dato titulo="En el área desde">
               {formatearSegunPrecision(ficha.enAreaDesde, ficha.enAreaDesdePrecision)}
-              <span className="block text-slate-700">
+              <span className={`block text-xs ${ficha.recibidoEn ? "text-texto-secundario" : "font-medium text-advertencia"}`}>
                 {ficha.recibidoEn ? `Recibido el ${formatearSegunPrecision(ficha.recibidoEn, ficha.recibidoEnPrecision)}` : "Sin confirmar la recepción"}
+              </span>
+            </Dato>
+            <Dato titulo="N° municipal">{ficha.numeroMunicipal ?? "—"}</Dato>
+            <Dato titulo="Trámite">
+              {ficha.tipoTramite.nombre}
+              <span className="block text-xs text-texto-secundario">
+                {ficha.plantilla.nombre} · v{ficha.plantilla.version}
+                {ficha.plantilla.hayVersionNueva ? (
+                  <span className="insignia ml-1 bg-advertencia-fondo text-advertencia ring-1 ring-inset ring-advertencia-borde">hay v{ficha.plantilla.versionPublicada}</span>
+                ) : null}
               </span>
             </Dato>
             {ficha.enlaces.anterior || ficha.enlaces.siguientes.length > 0 ? (
@@ -172,7 +179,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
                     <Link href={rutaFicha(ficha.enlaces.anterior.numero)} prefetch={false} className={CLASE_ENLACE}>
                       {ficha.enlaces.anterior.numero}
                     </Link>
-                    <span className="text-slate-700">
+                    <span className="text-texto-secundario">
                       {" "}
                       ({ficha.enlaces.anterior.plantilla}, {etiquetaEstado(ficha.enlaces.anterior.estado).toLowerCase()})
                     </span>
@@ -184,7 +191,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
                     <Link href={rutaFicha(n.numero)} prefetch={false} className={CLASE_ENLACE}>
                       {n.numero}
                     </Link>
-                    <span className="text-slate-700">
+                    <span className="text-texto-secundario">
                       {" "}
                       ({n.plantilla}, {etiquetaEstado(n.estado).toLowerCase()})
                     </span>
@@ -199,41 +206,46 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
             ) : null}
           </dl>
 
-          <BarraAcciones />
-          <BarraEstado />
-
-          <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-            {puedeEditar ? (
-              <Link href={rutaEditar(ficha.numero)} prefetch={false} className={CLASE_BOTON_SECUNDARIO}>
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-                Editar
-              </Link>
-            ) : null}
-            {a.imprimir.permitido ? (
-              <>
-                <Link href={rutaImprimir(ficha.numero, "caratula")} prefetch={false} className={CLASE_BOTON_SECUNDARIO}>
-                  <Printer className="h-4 w-4" aria-hidden="true" />
-                  Imprimir carátula
+          {/* Acciones agrupadas: lo del paso (recepción, pase, devolución), el
+              estado del expediente y, aparte, editar, imprimir y contactar. */}
+          <div className="space-y-3 border-t border-borde bg-fondo/70 px-4 py-3.5 sm:px-5 print:hidden">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-3 empty:hidden">
+              <BarraAcciones />
+              <BarraEstado />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {puedeEditar ? (
+                <Link href={rutaEditar(ficha.numero)} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Editar
                 </Link>
-                <Link href={rutaImprimir(ficha.numero, "historial")} prefetch={false} className={CLASE_BOTON_SECUNDARIO}>
-                  <Printer className="h-4 w-4" aria-hidden="true" />
-                  Imprimir historial
+              ) : null}
+              {a.imprimir.permitido ? (
+                <>
+                  <Link href={rutaImprimir(ficha.numero, "caratula")} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+                    <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                    Imprimir carátula
+                  </Link>
+                  <Link href={rutaImprimir(ficha.numero, "historial")} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+                    <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                    Imprimir historial
+                  </Link>
+                </>
+              ) : null}
+              {a.transcribir.permitido ? (
+                <Link href={`${rutaFicha(ficha.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+                  <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Transcribir la ficha de papel
                 </Link>
-              </>
-            ) : null}
-            {a.transcribir.permitido ? (
-              <Link href={`${rutaFicha(ficha.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_SECUNDARIO}>
-                <FileClock className="h-4 w-4" aria-hidden="true" />
-                Transcribir la ficha de papel
-              </Link>
-            ) : null}
-            {whatsapp ? (
-              <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={CLASE_BOTON_SECUNDARIO}>
-                <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                WhatsApp al contacto
-                <span className="sr-only"> (se abre en otra pestaña)</span>
-              </a>
-            ) : null}
+              ) : null}
+              {whatsapp ? (
+                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={CLASE_BOTON_COMPACTO}>
+                  <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  WhatsApp al contacto
+                  <span className="sr-only"> (se abre en otra pestaña)</span>
+                </a>
+              ) : null}
+            </div>
           </div>
         </header>
 
@@ -255,7 +267,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
             <Dato titulo="Forma de pago">{ficha.formaPago ? (ETIQUETA_FORMA_PAGO[ficha.formaPago] ?? ficha.formaPago) : "—"}</Dato>
             <Dato titulo="Fecha de inicio">
               {formatearFecha(ficha.fechaInicio)}
-              {ficha.cargaHistorica ? <span className="block text-slate-700">Iniciado antes del sistema</span> : null}
+              {ficha.cargaHistorica ? <span className="block text-texto-secundario">Iniciado antes del sistema</span> : null}
             </Dato>
             <Dato titulo="Alta">
               {formatearFechaHora(ficha.creadoEn)} por {ficha.creadoPor.corto}
@@ -264,52 +276,71 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           </dl>
           {ficha.observaciones ? (
             <div className="mt-3 text-sm">
-              <p className="text-slate-600">Observaciones</p>
-              <p className="whitespace-pre-line text-slate-900">{ficha.observaciones}</p>
+              <p className="text-texto-secundario">Observaciones</p>
+              <p className="whitespace-pre-line text-texto">{ficha.observaciones}</p>
             </div>
           ) : null}
         </Bloque>
 
         <Bloque titulo="Recorrido">
-          <ol className="space-y-3">
-            {ficha.recorrido.map((p) => (
-              <li key={p.clave} aria-current={p.situacion === "actual" ? "step" : undefined} className={p.situacion === "actual" ? "rounded bg-sky-50 p-2 ring-1 ring-sky-200" : "px-2"}>
-                <div className="flex items-start gap-2 text-sm">
-                  {p.situacion === "cumplido" ? (
-                    <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-                  ) : p.situacion === "actual" ? (
-                    <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-sky-800" aria-hidden="true" />
-                  ) : (
-                    <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-                  )}
-                  <div>
+          {/* El recorrido de la plantilla como línea de pasos: cumplidos en verde, el actual destacado en azul, los pendientes en gris. */}
+          <ol>
+            {ficha.recorrido.map((p, i) => {
+              const actual = p.situacion === "actual";
+              const ultimo = i === ficha.recorrido.length - 1;
+              return (
+                <li key={p.clave} aria-current={actual ? "step" : undefined} className="relative flex gap-3 pb-3 last:pb-0">
+                  {!ultimo ? (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute bottom-0 left-3 top-7 w-0.5 -translate-x-1/2 ${p.situacion === "cumplido" ? "bg-exito-borde" : "bg-borde"}`}
+                    />
+                  ) : null}
+                  <span
+                    aria-hidden="true"
+                    className={`relative z-[1] mt-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums ${
+                      p.situacion === "cumplido"
+                        ? "bg-exito-solido text-white"
+                        : actual
+                          ? "bg-primario text-white ring-4 ring-superficie-azul"
+                          : "border-2 border-borde-control bg-white text-texto-secundario"
+                    }`}
+                  >
+                    {p.situacion === "cumplido" ? <Check className="h-3.5 w-3.5" /> : p.orden}
+                  </span>
+                  <div className={`min-w-0 flex-1 text-sm ${actual ? "rounded-control bg-superficie-azul/60 px-3 py-2 ring-1 ring-inset ring-info-borde" : "py-1"}`}>
                     <p>
-                      <span className="font-medium text-slate-900">
+                      <span className={actual ? "font-semibold text-institucional" : p.situacion === "cumplido" ? "font-medium text-texto" : "font-medium text-texto-secundario"}>
                         {p.orden}. {p.nombre}
                       </span>
-                      <span className="text-slate-700">
+                      <span className="text-texto-secundario">
                         {" "}
                         · {p.area?.nombre ?? p.areaDefinida}
                         {p.custodia ? ` (lo sigue ${p.custodia.nombre})` : ""}
                       </span>
+                      {actual ? <span className="insignia ml-2 bg-primario text-white">Paso actual</span> : null}
                       <span className="sr-only">
-                        {p.situacion === "cumplido" ? " (cumplido)" : p.situacion === "actual" ? " (paso actual)" : " (pendiente)"}
+                        {p.situacion === "cumplido" ? " (cumplido)" : actual ? "" : " (pendiente)"}
                       </span>
                     </p>
-                    {p.instrucciones ? <p className="text-xs text-slate-600">{p.instrucciones}</p> : null}
+                    {p.instrucciones ? <p className="text-xs text-texto-secundario">{p.instrucciones}</p> : null}
                     {p.subtareas.length > 0 ? (
-                      <ul className="mt-1 space-y-0.5">
+                      <ul className="mt-1.5 space-y-1">
                         {p.subtareas.map((s) => (
-                          <li key={s.clave} className="flex flex-wrap items-start gap-1.5 text-xs text-slate-700">
-                            <span aria-hidden="true">{s.hecha ? "☑" : "☐"}</span>
-                            <span>
+                          <li key={s.clave} className="flex flex-wrap items-start gap-1.5 text-xs text-texto">
+                            {s.hecha ? (
+                              <SquareCheck className="mt-px h-3.5 w-3.5 shrink-0 text-exito" aria-hidden="true" />
+                            ) : (
+                              <Square className="mt-px h-3.5 w-3.5 shrink-0 text-texto-secundario" aria-hidden="true" />
+                            )}
+                            <span className="min-w-0 flex-1">
                               {s.nombre}
-                              {s.obligatoria ? "" : " (opcional)"}
+                              {s.obligatoria ? "" : <span className="text-texto-secundario"> (opcional)</span>}
                               {s.hecha && s.valor ? `: ${s.dato === "fecha" ? formatearFecha(s.valor) : s.valor}` : ""}
-                              {s.reiniciadaPorMovimientoId && !s.hecha ? <span className="text-red-800"> · hay que rehacerla (devolución)</span> : null}
+                              {s.reiniciadaPorMovimientoId && !s.hecha ? <span className="font-medium text-error"> · hay que rehacerla (devolución)</span> : null}
                               <span className="sr-only">{s.hecha ? " (hecha)" : " (pendiente)"}</span>
                             </span>
-                            {p.situacion === "actual" && activo ? (
+                            {actual && activo ? (
                               <span className="ml-auto shrink-0">
                                 <BotonesSubtarea clave={s.clave} nombre={s.nombre} hecha={s.hecha} conDato={s.dato !== null} />
                               </span>
@@ -319,12 +350,12 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
                       </ul>
                     ) : null}
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
           {ficha.plazo && plazo ? (
-            <div className="mt-3 space-y-1 text-sm text-slate-800">
+            <div className="mt-3 space-y-1 border-t border-borde pt-3 text-sm text-texto">
               <p>
                 Plazo de {ficha.plazo.diasHabiles} días hábiles
                 {ficha.plazo.desde ? ` desde el ${formatearFecha(ficha.plazo.desde)} (notificación)` : ""}
@@ -348,7 +379,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
 
         <Bloque titulo="Personas">
           {!ficha.datosCompletos ? (
-            <p className="mb-3 text-sm text-slate-700">El teléfono, el correo y el domicilio se ven enmascarados porque tu área no trabaja este expediente.</p>
+            <p className="mb-3 text-sm text-texto-secundario">El teléfono, el correo y el domicilio se ven enmascarados porque tu área no trabaja este expediente.</p>
           ) : null}
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {ficha.personas.map((p) => (
@@ -364,8 +395,8 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           ) : null}
           {ficha.personasHistoricas.length > 0 ? (
             <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-slate-800">Versiones anteriores y bajas ({ficha.personasHistoricas.length})</summary>
-              <ul className="mt-2 space-y-1 text-slate-700">
+              <summary className="cursor-pointer text-texto">Versiones anteriores y bajas ({ficha.personasHistoricas.length})</summary>
+              <ul className="mt-2 space-y-1 text-texto-secundario">
                 {ficha.personasHistoricas.map((p) => (
                   <li key={p.id} className="flex flex-wrap items-center gap-2">
                     <span>
@@ -384,13 +415,13 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Bloque titulo="Conceptos a liquidar">
             {ficha.conceptos.length === 0 ? (
-              <p className="text-sm text-slate-600">Ninguno.</p>
+              <p className="text-sm text-texto-secundario">Ninguno.</p>
             ) : (
               <ul className="space-y-1 text-sm">
                 {ficha.conceptos.map((c) => (
                   <li key={c.clave}>
-                    <span className="text-slate-900">{c.nombre}</span>
-                    <span className="text-slate-700">
+                    <span className="text-texto">{c.nombre}</span>
+                    <span className="text-texto-secundario">
                       {" "}
                       · {c.via === "plan_dim" ? "plan de pagos en la DIM" : "boleta"} · en {c.paso.nombre}
                     </span>
@@ -401,16 +432,16 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           </Bloque>
           <Bloque titulo="Datos del trámite">
             {ficha.datosExtra.length === 0 ? (
-              <p className="text-sm text-slate-600">Este trámite no tiene datos propios.</p>
+              <p className="text-sm text-texto-secundario">Este trámite no tiene datos propios.</p>
             ) : (
               <dl className="space-y-1.5 text-sm">
                 {ficha.datosExtra.map((c) => (
                   <div key={c.clave}>
-                    <dt className="text-slate-600">{c.etiqueta}</dt>
-                    <dd className="text-slate-900">
+                    <dt className="text-texto-secundario">{c.etiqueta}</dt>
+                    <dd className="text-texto">
                       {c.valorTexto === null ? "—" : c.tipo === "fecha" && typeof c.valor === "string" ? formatearFecha(c.valor) : c.valorTexto}
                       {c.obligatorio && c.valorTexto === null ? (
-                        <span className="text-slate-600"> (se pide {c.exigirAlSalirDe ? `al salir de ${c.exigirAlSalirDe.nombre}` : "para concluir"})</span>
+                        <span className="text-texto-secundario"> (se pide {c.exigirAlSalirDe ? `al salir de ${c.exigirAlSalirDe.nombre}` : "para concluir"})</span>
                       ) : null}
                     </dd>
                   </div>
@@ -432,54 +463,74 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
   );
 }
 
-function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function Bloque({ titulo, children, aside }: { titulo: string; children: React.ReactNode; aside?: React.ReactNode }) {
   const id = `bloque-${titulo.toLowerCase().normalize("NFD").replace(/[^a-z]+/g, "-")}`;
   return (
-    <section aria-labelledby={id} className="rounded border border-slate-300 bg-white p-4">
-      <h2 id={id} className="mb-3 text-base font-semibold text-slate-900">
-        {titulo}
-      </h2>
+    <section aria-labelledby={id} className="tarjeta px-4 pb-4 pt-3.5 sm:px-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-borde pb-2.5">
+        <h2 id={id} className="titulo-seccion">
+          {titulo}
+        </h2>
+        {aside}
+      </div>
       {children}
     </section>
   );
 }
 
-function Dato({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function Dato({ titulo, destacado = false, children }: { titulo: string; destacado?: boolean; children: React.ReactNode }) {
   return (
-    <div>
-      <dt className="text-slate-600">{titulo}</dt>
-      <dd className="text-slate-900">{children}</dd>
+    <div className="min-w-0">
+      <dt className="text-xs text-texto-secundario">{titulo}</dt>
+      <dd className={destacado ? "mt-0.5 font-semibold text-institucional" : "mt-0.5 text-texto"}>{children}</dd>
     </div>
   );
 }
 
 function ListaDocumentos({ titulo, documentos }: { titulo: string; documentos: DocumentoFicha[] }) {
+  const presentados = documentos.filter((d) => d.estado !== "pendiente").length;
   return (
-    <div>
-      <h3 className="mb-2 text-sm font-semibold text-slate-800">{titulo}</h3>
+    <div className="min-w-0">
+      <h3 className="mb-1.5 flex items-center justify-between gap-2 text-sm font-semibold text-texto">
+        {titulo}
+        {documentos.length > 0 ? (
+          <span className="text-xs font-normal text-texto-secundario tabular-nums">
+            {presentados} de {documentos.length}
+            <span className="sr-only"> resueltos</span>
+          </span>
+        ) : null}
+      </h3>
       {documentos.length === 0 ? (
-        <p className="text-sm text-slate-600">Ninguno.</p>
+        <p className="text-sm text-texto-secundario">Ninguno.</p>
       ) : (
-        <ul className="divide-y divide-slate-200 text-sm">
+        <ul className="divide-y divide-borde text-sm">
           {documentos.map((d) => (
-            <li key={d.clave} className="py-1.5">
-              <div className="flex justify-between gap-3">
-                <span className="text-slate-900">
+            <li key={d.clave} className="py-2">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-texto">
                   {d.nombre}
-                  {d.obligatorio ? "" : <span className="text-slate-600"> (opcional)</span>}
+                  {d.obligatorio ? "" : <span className="text-texto-secundario"> (opcional)</span>}
                 </span>
-                <span className={d.estado === "pendiente" ? "font-medium text-amber-900" : "text-slate-800"}>
+                <span
+                  className={`insignia ring-1 ring-inset ${
+                    d.estado === "pendiente"
+                      ? "bg-advertencia-fondo text-advertencia ring-advertencia-borde"
+                      : d.estado === "presentado" || d.estado === "historico"
+                        ? "bg-exito-fondo text-exito ring-exito-borde"
+                        : "bg-fondo text-texto-secundario ring-borde"
+                  }`}
+                >
                   {ETIQUETA_DOCUMENTO[d.estado] ?? d.estado}
                 </span>
               </div>
-              {d.obligatorio && d.estado === "pendiente" ? (
-                <p className="text-xs text-slate-600">Se exige {d.exigirAlSalirDe ? `al salir de ${d.exigirAlSalirDe.nombre}` : "para concluir"}</p>
-              ) : null}
-              {d.obs ? <p className="text-xs text-slate-600">{d.obs}</p> : null}
-              <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs text-slate-600">
-                  {d.cantidadAdjuntos > 0 ? (d.cantidadAdjuntos === 1 ? "1 adjunto" : `${d.cantidadAdjuntos} adjuntos`) : d.adjunto === "obligatorio" ? "Lleva adjunto" : ""}
-                </span>
+              <div className="mt-0.5 flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
+                <div className="min-w-0 text-xs text-texto-secundario">
+                  {d.obligatorio && d.estado === "pendiente" ? <p>Se exige {d.exigirAlSalirDe ? `al salir de ${d.exigirAlSalirDe.nombre}` : "para concluir"}</p> : null}
+                  {d.obs ? <p>{d.obs}</p> : null}
+                  {d.cantidadAdjuntos > 0 || d.adjunto === "obligatorio" ? (
+                    <p>{d.cantidadAdjuntos > 0 ? (d.cantidadAdjuntos === 1 ? "1 adjunto" : `${d.cantidadAdjuntos} adjuntos`) : "Lleva adjunto"}</p>
+                  ) : null}
+                </div>
                 <BotonesDocumento clave={d.clave} nombre={d.nombre} adjunto={d.adjunto} />
               </div>
             </li>
@@ -494,9 +545,9 @@ function ListaDocumentos({ titulo, documentos }: { titulo: string; documentos: D
 function EtiquetaPlazo({ plazo }: { plazo: PlazoMostrado }) {
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
+      <span className={`insignia ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
       <span>{plazo.texto}</span>
-      {plazo.aviso ? <span className="block w-full text-xs text-slate-600">{plazo.aviso}</span> : null}
+      {plazo.aviso ? <span className="block w-full text-xs text-texto-secundario">{plazo.aviso}</span> : null}
     </span>
   );
 }
@@ -506,7 +557,7 @@ function BotonSuprimir({ persona: p }: { persona: PersonaFicha }) {
   return (
     <BotonFlujo
       dialogo={{ tipo: "suprimir", persona: { id: p.id, texto: `${p.etiquetaRol}: ${nombreCompleto(p)}` } }}
-      className="inline-flex items-center gap-1 rounded border border-red-300 bg-white px-2 py-0.5 text-xs text-red-900 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-800 print:hidden"
+      className={`${CLASE_BOTON_COMPACTO_PELIGRO} print:hidden`}
       etiqueta={`Suprimir los datos de ${p.etiquetaRol} (Ley 25.326)`}
     >
       <ShieldX className="h-3.5 w-3.5" aria-hidden="true" />
@@ -518,23 +569,23 @@ function BotonSuprimir({ persona: p }: { persona: PersonaFicha }) {
 function TarjetaPersona({ persona: p, suprimir }: { persona: PersonaFicha; suprimir: boolean }) {
   const c = p.contacto;
   return (
-    <div className="h-full rounded border border-slate-200 bg-slate-50 p-3 text-sm">
-      <p className="text-xs uppercase tracking-wide text-slate-600">
+    <div className="h-full rounded-control border border-borde bg-fondo/70 p-3 text-sm">
+      <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em] text-texto-secundario">
         {p.etiquetaRol}
-        {p.esContacto ? <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[11px] normal-case tracking-normal text-white">Contacto</span> : null}
+        {p.esContacto ? <span className="insignia bg-info-fondo normal-case tracking-normal text-info ring-1 ring-inset ring-info-borde">Contacto</span> : null}
       </p>
-      <p className="font-medium text-slate-900">{p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}</p>
-      <p className="text-slate-800">
+      <p className="mt-0.5 font-semibold text-texto">{p.suprimida ? "(datos suprimidos)" : nombreCompleto(p)}</p>
+      <p className="text-texto">
         {p.tipo === "juridica" ? "Persona jurídica · " : ""}
         {documentoDePersona(p) || (p.tipo === "juridica" ? "Sin CUIT" : "Sin DNI")}
         {p.fallecido ? ` · Fallecido${p.fechaDefuncion ? ` el ${formatearFecha(p.fechaDefuncion)}` : ""}` : ""}
         {p.vinculo ? ` · Vínculo: ${p.vinculo}` : ""}
       </p>
       {!p.fallecido && (c.telefono || c.email || c.domicilio) ? (
-        <dl className="mt-1 space-y-0.5 text-slate-800">
+        <dl className="mt-1.5 space-y-0.5 text-texto">
           {c.telefono ? (
             <div>
-              <dt className="inline text-slate-600">Teléfono: </dt>
+              <dt className="inline text-texto-secundario">Teléfono: </dt>
               <dd className="inline">
                 {c.telefono}
                 {c.telefonoWhatsapp ? " (WhatsApp)" : ""}
@@ -543,19 +594,24 @@ function TarjetaPersona({ persona: p, suprimir }: { persona: PersonaFicha; supri
           ) : null}
           {c.email ? (
             <div>
-              <dt className="inline text-slate-600">Correo: </dt>
-              <dd className="inline">{c.email}</dd>
+              <dt className="inline text-texto-secundario">Correo: </dt>
+              <dd className="inline break-all">{c.email}</dd>
             </div>
           ) : null}
           {c.domicilio ? (
             <div>
-              <dt className="inline text-slate-600">Domicilio: </dt>
+              <dt className="inline text-texto-secundario">Domicilio: </dt>
               <dd className="inline">{c.domicilio}</dd>
             </div>
           ) : null}
         </dl>
       ) : null}
-      {c.enmascarado && (c.telefono || c.email || c.domicilio) ? <p className="mt-1 text-xs text-slate-600">Enmascarado</p> : null}
+      {c.enmascarado && (c.telefono || c.email || c.domicilio) ? (
+        <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-texto-secundario">
+          <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+          Enmascarado
+        </p>
+      ) : null}
       {suprimir && !p.suprimida ? (
         <div className="mt-2">
           <BotonSuprimir persona={p} />

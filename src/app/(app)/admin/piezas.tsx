@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CircleCheck } from "lucide-react";
+import { Aviso } from "@/components/aviso";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_PELIGRO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
 import { LARGO_MINIMO_MOTIVO } from "@/lib/dominio/expedientes/errores";
 import type { EstadoError } from "@/lib/presentacion/errores";
 
@@ -40,10 +40,9 @@ export function AvisoHecho({ mensaje }: { mensaje: string | null }) {
   return (
     <div role="status" aria-live="polite">
       {mensaje ? (
-        <p className="flex items-start gap-1.5 rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
-          <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>{mensaje}</span>
-        </p>
+        <Aviso tono="exito">
+          <p>{mensaje}</p>
+        </Aviso>
       ) : null}
     </div>
   );
@@ -59,6 +58,7 @@ export function DialogoConfirmar({
   children,
   textoBoton,
   motivo = "no",
+  peligro = false,
   pendiente,
   error,
   recargar,
@@ -70,6 +70,8 @@ export function DialogoConfirmar({
   textoBoton: string;
   /** `obligatorio` exige 10 caracteres; `opcional` lo ofrece. */
   motivo?: "no" | "opcional" | "obligatorio";
+  /** Quita, descarta o desactiva: el botón que confirma va en rojo. */
+  peligro?: boolean;
   pendiente: boolean;
   error: EstadoError | null;
   recargar: string;
@@ -94,7 +96,7 @@ export function DialogoConfirmar({
           onConfirmar(texto);
         }}
       >
-        <div className="text-sm text-slate-800">{children}</div>
+        <div className="text-sm text-texto">{children}</div>
         {motivo !== "no" ? (
           <Campo ruta="motivo" etiqueta={motivo === "obligatorio" ? "Motivo" : "Motivo (opcional)"} obligatorio={motivo === "obligatorio"} errores={errores} ayuda="Queda en la auditoría">
             <textarea
@@ -109,11 +111,11 @@ export function DialogoConfirmar({
           </Campo>
         ) : null}
         {mostrado ? <AvisoError error={mostrado} recargar={recargar} yaMostradas={["motivo"]} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO} data-autofocus={motivo === "no" ? true : undefined}>
             Cancelar
           </button>
-          <button type="submit" disabled={pendiente} className={CLASE_BOTON_PRIMARIO}>
+          <button type="submit" disabled={pendiente} className={peligro ? CLASE_BOTON_PELIGRO : CLASE_BOTON_PRIMARIO}>
             {pendiente ? "Un momento…" : textoBoton}
           </button>
         </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CircleAlert } from "lucide-react";
 import { EtiquetaEstado } from "@/components/etiquetas";
-import { CLASE_ENLACE } from "@/components/formulario";
+import { CLASE_FOCO } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio, expedientes, type Ficha } from "@/lib/dominio/expedientes/servidor";
@@ -73,27 +73,30 @@ export default async function PaginaTranscribir(props: PageProps<"/expedientes/[
 
   return (
     <section aria-labelledby="titulo-pantalla" className="space-y-5">
-      <p>
-        <Link href={rutaFicha(ficha.numero)} prefetch={false} className={`${CLASE_ENLACE} inline-flex items-center gap-1 text-sm`}>
+      <header className="tarjeta px-4 py-4 sm:px-5">
+        <Link
+          href={rutaFicha(ficha.numero)}
+          prefetch={false}
+          className={`-ml-1 mb-1 inline-flex items-center gap-1 rounded-control px-1 text-sm font-medium text-primario-oscuro transition-colors duration-150 hover:text-institucional ${CLASE_FOCO}`}
+        >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Volver a la ficha
         </Link>
-      </p>
-      <header className="space-y-2 rounded border border-slate-300 bg-white p-4">
-        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h1 id="titulo-pantalla" className="text-xl font-semibold text-slate-900">
-            Transcribir la ficha de papel · <span className="font-mono">{ficha.numero}</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <h1 id="titulo-pantalla" className="text-xl font-semibold tracking-tight text-texto sm:text-2xl">
+            Transcribir la ficha de papel · <span className="font-mono text-institucional">{ficha.numero}</span>
           </h1>
           <EtiquetaEstado estado={ficha.estado} />
+          {ficha.cargaHistorica ? <span className="insignia bg-info-fondo text-info ring-1 ring-inset ring-info-borde">Carga histórica</span> : null}
         </div>
-        <p className="text-sm text-slate-700">
+        <p className="mt-1 text-sm text-texto-secundario">
           {ficha.tipoTramite.nombre} · {ficha.plantilla.nombre} v{ficha.plantilla.version} · iniciado el {formatearFecha(ficha.fechaInicio)} · hoy en {ficha.paso.orden} de{" "}
           {ficha.paso.total}: {ficha.paso.nombre} ({ficha.areaActual.nombre})
         </p>
       </header>
 
       {!permiso.permitido ? (
-        <p role="alert" className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <p role="alert" className="flex items-start gap-2 rounded-control border border-advertencia-borde bg-advertencia-fondo px-3 py-2 text-sm text-advertencia">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           {ficha.cargaHistorica
             ? `No podés transcribir este expediente. ${TEXTO_DENEGACION[permiso.motivo]}`
@@ -101,8 +104,8 @@ export default async function PaginaTranscribir(props: PageProps<"/expedientes/[
         </p>
       ) : null}
 
-      <section aria-labelledby="titulo-transcripto" className="rounded border border-slate-300 bg-white p-4">
-        <h2 id="titulo-transcripto" className="mb-3 text-base font-semibold text-slate-900">
+      <section aria-labelledby="titulo-transcripto" className="tarjeta p-4 sm:px-5">
+        <h2 id="titulo-transcripto" className="titulo-seccion mb-3 border-b border-borde pb-2.5">
           Lo ya transcripto
         </h2>
         <LineaDeTiempo historial={historicos} contexto={resumen} />

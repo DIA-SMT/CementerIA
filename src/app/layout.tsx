@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+// Inter autoalojada: el paquete trae los .woff2 y Next los sirve desde
+// /_next/static. Sin next/font/google, que bajaría las fuentes de Google al
+// compilar: el build para los servidores municipales no sale a internet.
+import "@fontsource-variable/inter";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,9 +12,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// Sin next/font/google: bajaría las fuentes de Google al compilar, y el build
-// para los servidores municipales no tiene por qué depender de salir a internet.
-// La tipografía del sistema alcanza para una herramienta interna.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="h-full antialiased">

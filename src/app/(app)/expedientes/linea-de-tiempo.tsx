@@ -22,14 +22,14 @@ export function LineaDeTiempo({
   /** Lo que va a la derecha de cada movimiento (el menú "Corregir" en la ficha). */
   acciones?: (m: MovimientoFicha) => React.ReactNode;
 }) {
-  if (historial.length === 0) return <p className="text-sm text-slate-600">Sin movimientos.</p>;
+  if (historial.length === 0) return <p className="text-sm text-texto-secundario">Sin movimientos.</p>;
   const porId = new Map(historial.map((m) => [m.id, m]));
   const fechaDe = (id: string) => {
     const m = porId.get(id);
     return m ? `${etiquetaMovimiento(m.tipo).toLowerCase()} del ${formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}` : "un movimiento anterior";
   };
   return (
-    <ol className="space-y-3">
+    <ol className="ml-1">
       {historial.map((m) => {
         // Tachado entero: revertido, o corregido en algo que no es la fecha ni la observación (un tilde, un adjunto retirado).
         const tachado = m.revertido || (m.corregidoPor.length > 0 && !m.fechaCorregida && !m.observacionCorregida);
@@ -37,50 +37,52 @@ export function LineaDeTiempo({
         const extra = acciones?.(m);
         const observacion = m.observacionCorregida ? m.observacionCorregida.valor : m.observacion;
         return (
-          <li key={m.id} id={`mov-${m.id}`} className="scroll-mt-4 break-inside-avoid border-l-2 border-slate-300 pl-3 target:bg-amber-50 print:border-slate-500">
+          <li key={m.id} id={`mov-${m.id}`} className={`relative scroll-mt-4 break-inside-avoid border-l-2 border-borde pb-3 pl-4 last:pb-0 target:rounded-r-control target:bg-advertencia-fondo print:border-borde-control print:before:hidden before:absolute before:-left-[7px] before:top-1 before:h-3 before:w-3 before:rounded-full before:border-2 before:border-white ${
+              tachado ? "before:bg-borde-control" : m.tipo === "pase" ? "before:bg-primario" : m.tipo === "devolucion" ? "before:bg-error" : "before:bg-institucional"
+            }`}>
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className={tachado ? "text-slate-500 line-through decoration-slate-500" : undefined}>
+              <div className={tachado ? "text-texto-secundario line-through decoration-texto-secundario" : undefined}>
                 <p className="text-sm">
                   {m.fechaCorregida ? (
                     <>
-                      <s className="text-slate-500" aria-label={`Fecha original: ${formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}`}>
+                      <s className="text-texto-secundario" aria-label={`Fecha original: ${formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}`}>
                         {formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}
                       </s>{" "}
-                      <span className="font-medium text-slate-900">{formatearSegunPrecision(m.fechaCorregida.fechaEfectiva, m.fechaCorregida.precisionFecha)}</span>
+                      <span className="font-medium text-texto">{formatearSegunPrecision(m.fechaCorregida.fechaEfectiva, m.fechaCorregida.precisionFecha)}</span>
                     </>
                   ) : (
-                    <span className="font-medium text-slate-900">{formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}</span>
+                    <span className="font-medium text-texto">{formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}</span>
                   )}
                   {" · "}
-                  <span className="font-medium">{etiquetaMovimiento(m.tipo)}</span>
-                  {m.areaUsuario ? <span className="text-slate-700"> · {m.areaUsuario.nombre}</span> : null}
+                  <span className="font-semibold text-texto">{etiquetaMovimiento(m.tipo)}</span>
+                  {m.areaUsuario ? <span className="text-texto-secundario"> · {m.areaUsuario.nombre}</span> : null}
                   {m.revertido ? (
-                    <span className="ml-2 inline-block rounded bg-slate-200 px-1.5 py-0.5 text-xs font-medium text-slate-800 no-underline">Revertido</span>
+                    <span className="insignia ml-2 bg-fondo text-texto no-underline ring-1 ring-inset ring-borde">Revertido</span>
                   ) : null}
                 </p>
                 {lineas.map((l) => (
-                  <p key={l} className="text-sm text-slate-800">
+                  <p key={l} className="text-sm text-texto">
                     {l}
                   </p>
                 ))}
-                {m.motivo ? <p className="text-sm text-slate-800">Motivo: {m.motivo}</p> : null}
+                {m.motivo ? <p className="text-sm text-texto">Motivo: {m.motivo}</p> : null}
                 {m.observacionCorregida ? (
-                  <p className="text-sm text-slate-800">
+                  <p className="text-sm text-texto">
                     Observación:{" "}
                     {m.observacion ? (
-                      <s className="text-slate-500" aria-label={`Observación original: ${m.observacion}`}>
+                      <s className="text-texto-secundario" aria-label={`Observación original: ${m.observacion}`}>
                         {m.observacion}
                       </s>
                     ) : null}{" "}
-                    {observacion ?? <span className="text-slate-600">(borrada)</span>}
+                    {observacion ?? <span className="text-texto-secundario">(borrada)</span>}
                   </p>
                 ) : observacion ? (
-                  <p className="text-sm text-slate-800">Observación: {observacion}</p>
+                  <p className="text-sm text-texto">Observación: {observacion}</p>
                 ) : null}
               </div>
               {extra ? <div className="shrink-0">{extra}</div> : null}
             </div>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-texto-secundario">
               Cargado el {formatearFechaHora(m.registradoEn)} por {m.usuario.corto}
               {m.fuente ? ` · fuente: ${m.fuente}` : ""}
               {m.cargaHistorica ? " · carga histórica" : ""}
@@ -88,22 +90,22 @@ export function LineaDeTiempo({
               {m.precisionFecha === "dia" ? " · fecha sin hora" : ""}
             </p>
             {m.corrigeMovimientoId ? (
-              <p className="text-xs text-slate-700">
+              <p className="text-xs text-texto-secundario">
                 Corrige{" "}
-                <a href={`#mov-${m.corrigeMovimientoId}`} className="underline underline-offset-2 hover:text-slate-900">
+                <a href={`#mov-${m.corrigeMovimientoId}`} className="underline underline-offset-2 hover:text-texto">
                   {fechaDe(m.corrigeMovimientoId)}
                 </a>
               </p>
             ) : null}
             {m.corregidoPor.length > 0 ? (
-              <p className="text-xs text-slate-700">
+              <p className="text-xs text-texto-secundario">
                 {m.revertido ? "Revertido por " : "Corregido por "}
                 {m.corregidoPor.map((id, i) => {
                   const c = porId.get(id);
                   return (
                     <span key={id}>
                       {i > 0 ? ", " : ""}
-                      <a href={`#mov-${id}`} className="underline underline-offset-2 hover:text-slate-900">
+                      <a href={`#mov-${id}`} className="underline underline-offset-2 hover:text-texto">
                         {c ? `la corrección del ${formatearFechaHora(c.registradoEn)}` : "una corrección"}
                       </a>
                     </span>
@@ -111,7 +113,7 @@ export function LineaDeTiempo({
                 })}
               </p>
             ) : m.revertido ? (
-              <p className="text-xs text-slate-700">Revertido junto con otro movimiento.</p>
+              <p className="text-xs text-texto-secundario">Revertido junto con otro movimiento.</p>
             ) : null}
           </li>
         );

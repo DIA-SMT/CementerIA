@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Download } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL } from "@/components/formulario";
 import {
   aplicarAtajo,
   ATAJOS_DEVOLUCION,
@@ -80,7 +80,7 @@ function DialogoRecepcion() {
           enviar(() => accionRecepcion({ numero: datos.numero, versionVista: version, comandoId, fechaEfectiva: fecha.valor }), hecho);
         }}
       >
-        <p className="text-sm text-slate-800">Confirmás que el expediente en papel llegó a tu área.</p>
+        <p className="text-sm text-texto">Confirmás que el expediente en papel llegó a tu área.</p>
         <CampoFecha fecha={fecha} error={error} ayuda="Si llegó antes y lo confirmás ahora, indicá cuándo llegó." />
         {error ? <AvisoError error={error} recargar={datos.rutaFicha} yaMostradas={RUTAS_EN_CAMPO} /> : null}
         <Pie pendiente={pendiente} texto="Confirmar recepción" textoPendiente="Confirmando…" onCancelar={cerrar} />
@@ -107,7 +107,7 @@ function DialogoPase() {
       <Dialogo titulo={tituloFaltan(faltan.length)} descripcion={`Para dar el pase desde ${datos.paso.nombre} falta:`} onCerrar={cerrar}>
         <div className="space-y-4">
           <ListaFaltan items={faltan} onAcceso={acceso} />
-          <div className="flex justify-end border-t border-slate-200 pt-3">
+          <div className="flex justify-end border-t border-borde pt-3">
             <button type="button" onClick={cerrar} className={CLASE_BOTON_SECUNDARIO} data-autofocus>
               Cerrar
             </button>
@@ -157,12 +157,12 @@ function FormularioPase() {
         }}
       >
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-slate-800">Destino</legend>
-          {opciones.length === 0 ? <p className="text-sm text-slate-700">No hay a dónde dar el pase.</p> : null}
+          <legend className="mb-1 text-sm font-medium text-texto">Destino</legend>
+          {opciones.length === 0 ? <p className="text-sm text-texto-secundario">No hay a dónde dar el pase.</p> : null}
           <ul className="space-y-2">
             {opciones.map((o, i) => (
               <li key={o.clave}>
-                <label className={`flex items-start gap-2 text-sm ${o.disponible ? "text-slate-900" : "text-slate-500"}`}>
+                <label className={`flex items-start gap-2 text-sm ${o.disponible ? "text-texto" : "text-texto-secundario"}`}>
                   <input
                     type="radio"
                     name="destino"
@@ -171,11 +171,11 @@ function FormularioPase() {
                     disabled={!o.disponible}
                     onChange={() => setDestino(o.clave)}
                     data-autofocus={i === 0 ? true : undefined}
-                    className="mt-0.5 h-4 w-4 accent-slate-800"
+                    className="mt-0.5 h-4 w-4 accent-primario"
                   />
                   <span>
                     {o.etiqueta}
-                    {o.detalle ? <span className="block text-xs text-slate-600">{o.detalle}</span> : null}
+                    {o.detalle ? <span className="block text-xs text-texto-secundario">{o.detalle}</span> : null}
                   </span>
                 </label>
               </li>
@@ -236,9 +236,9 @@ function DialogoDevolver() {
         </Campo>
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Atajos para el motivo">
-            <span className="text-xs text-slate-600">Atajos:</span>
+            <span className="text-xs text-texto-secundario">Atajos:</span>
             {ATAJOS_DEVOLUCION.map((a) => (
-              <button key={a} type="button" onClick={() => setMotivo((m) => aplicarAtajo(m, a))} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-0.5 text-xs`}>
+              <button key={a} type="button" onClick={() => setMotivo((m) => aplicarAtajo(m, a))} className={CLASE_BOTON_COMPACTO}>
                 {a}
               </button>
             ))}
@@ -246,14 +246,14 @@ function DialogoDevolver() {
           <Motivo valor={motivo} poner={setMotivo} error={error} ayuda="Lo ve el área que lo recibe, en rojo en su bandeja (10 caracteres o más)" />
         </div>
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-slate-800">Qué hay que rehacer</legend>
+          <legend className="mb-1 text-sm font-medium text-texto">Qué hay que rehacer</legend>
           {reiniciables.length === 0 ? (
-            <p className="text-sm text-slate-600">No hay subtareas tildadas desde ese paso.</p>
+            <p className="text-sm text-texto-secundario">No hay subtareas tildadas desde ese paso.</p>
           ) : (
             <ul className="space-y-1">
               {reiniciables.map((s) => (
                 <li key={s.clave}>
-                  <label className="flex items-start gap-2 text-sm text-slate-900">
+                  <label className="flex items-start gap-2 text-sm text-texto">
                     <input
                       type="checkbox"
                       checked={rehacer.includes(s.clave)}
@@ -261,14 +261,14 @@ function DialogoDevolver() {
                       className={`${CLASE_CASILLA} mt-0.5`}
                     />
                     <span>
-                      {s.nombre} <span className="text-slate-600">({s.paso.nombre})</span>
+                      {s.nombre} <span className="text-texto-secundario">({s.paso.nombre})</span>
                     </span>
                   </label>
                 </li>
               ))}
             </ul>
           )}
-          <p className="mt-1 text-xs text-slate-600">Las marcadas se destildan; lo demás sigue tildado (la firma en papel sigue existiendo).</p>
+          <p className="mt-1 text-xs text-texto-secundario">Las marcadas se destildan; lo demás sigue tildado (la firma en papel sigue existiendo).</p>
         </fieldset>
         <Observacion valor={observacion} poner={setObservacion} error={error} />
         <CampoFecha fecha={fecha} error={error} />
@@ -326,7 +326,7 @@ function DialogoTildar({ clave, volverA }: { clave: string; volverA: "pase" | "c
             <input {...atributosCampo("dato", erroresDato)} type="text" maxLength={200} value={dato} onChange={(e) => setDato(e.target.value)} data-autofocus className={CLASE_CONTROL} />
           </Campo>
         ) : (
-          <p className="text-sm text-slate-800">Se marca como hecha.</p>
+          <p className="text-sm text-texto">Se marca como hecha.</p>
         )}
         <Observacion valor={observacion} poner={setObservacion} error={error} />
         {fechaDelDato ? null : <CampoFecha fecha={fecha} error={error} ayuda="Cuándo se hizo, si no fue recién (hasta 30 días atrás)." />}
@@ -402,10 +402,10 @@ function DialogoDocumento({ clave, volverA }: { clave: string; volverA: "pase" |
         }}
       >
         <fieldset>
-          <legend className="mb-1 text-sm font-medium text-slate-800">Estado</legend>
+          <legend className="mb-1 text-sm font-medium text-texto">Estado</legend>
           <div className="space-y-1">
             {opciones.map((o, i) => (
-              <label key={o.valor} className="flex items-center gap-2 text-sm text-slate-900">
+              <label key={o.valor} className="flex items-center gap-2 text-sm text-texto">
                 <input
                   type="radio"
                   name="estado-documento"
@@ -413,7 +413,7 @@ function DialogoDocumento({ clave, volverA }: { clave: string; volverA: "pase" |
                   checked={estado === o.valor}
                   onChange={() => setEstado(o.valor)}
                   data-autofocus={i === 0 ? true : undefined}
-                  className="h-4 w-4 accent-slate-800"
+                  className="h-4 w-4 accent-primario"
                 />
                 {o.etiqueta}
               </label>
@@ -429,7 +429,7 @@ function DialogoDocumento({ clave, volverA }: { clave: string; volverA: "pase" |
             obligatoria={estado === "no_corresponde"}
           />
         ) : null}
-        {d.adjunto === "obligatorio" ? <p className="text-xs text-slate-700">Este documento lleva el archivo adjunto para poder dar el pase.</p> : null}
+        {d.adjunto === "obligatorio" ? <p className="text-xs text-texto-secundario">Este documento lleva el archivo adjunto para poder dar el pase.</p> : null}
         {error ? <AvisoError error={error} recargar={datos.rutaFicha} yaMostradas={RUTAS_EN_CAMPO} /> : null}
         <Pie pendiente={pendiente} texto="Guardar" textoPendiente="Guardando…" onCancelar={cerrar} />
       </form>
@@ -458,11 +458,11 @@ function DialogoVisor({ adjunto, motivo }: { adjunto: { movimientoId: string; no
       <div className="space-y-3">
         {adjunto.mime.startsWith("image/") ? (
           // eslint-disable-next-line @next/next/no-img-element -- lo sirve un Route Handler con control de acceso: no pasa por next/image.
-          <img src={src} alt={`Adjunto: ${adjunto.nombre}`} className="mx-auto max-h-[65vh] w-auto border border-slate-200" />
+          <img src={src} alt={`Adjunto: ${adjunto.nombre}`} className="mx-auto max-h-[65vh] w-auto border border-borde" />
         ) : (
-          <iframe src={src} title={`Adjunto: ${adjunto.nombre}`} className="h-[65vh] w-full border border-slate-200" />
+          <iframe src={src} title={`Adjunto: ${adjunto.nombre}`} className="h-[65vh] w-full border border-borde" />
         )}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <a href={rutaAdjunto(adjunto.movimientoId, { descargar: true, motivo })} className={CLASE_BOTON_SECUNDARIO} download>
             <Download className="h-4 w-4" aria-hidden="true" />
             Descargar

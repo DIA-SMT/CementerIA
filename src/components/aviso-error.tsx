@@ -24,7 +24,7 @@ export function AvisoError({
   const sueltos = error.errores.filter((e) => !yaMostradas.includes(e.ruta) && e.mensaje !== error.mensaje);
   const ofrecerRecarga = ["conflicto_version", "ya_recibido", "destino_invalido", "plantilla_no_publicada"].includes(error.codigo);
   return (
-    <div role="alert" className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+    <div role="alert" className="rounded-control border border-error-borde bg-error-fondo px-3 py-2.5 text-sm text-error">
       <p className="flex items-start gap-1.5 font-medium">
         <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <span>{error.mensaje}</span>
@@ -39,7 +39,7 @@ export function AvisoError({
       {ofrecerRecarga ? (
         <p className="mt-1">
           {/* Un <a> y no un Link: recarga la página entera, con la versión nueva. */}
-          <a href={recargar} className={`${CLASE_ENLACE} inline-flex items-center gap-1 text-red-950`}>
+          <a href={recargar} className={`${CLASE_ENLACE} inline-flex items-center gap-1 font-medium`}>
             <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
             Recargar la página
           </a>

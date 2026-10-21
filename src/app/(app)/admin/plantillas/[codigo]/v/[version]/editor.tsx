@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { CheckCheck, CircleAlert, Save, Send, Trash2 } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_BOTON_SECUNDARIO_PELIGRO, CLASE_CONTROL } from "@/components/formulario";
+import { clasePestana } from "@/components/pestanas";
 import { LARGO_MINIMO_MOTIVO, type ErrorCampo } from "@/lib/dominio/expedientes/errores";
 import type { DefinicionPlantilla } from "@/lib/dominio/plantillas/esquema";
 import {
@@ -177,7 +178,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
         }}
       >
         {!soloLectura ? (
-          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-slate-300 bg-slate-50/95 py-2 backdrop-blur" role="toolbar" aria-label="Acciones del borrador">
+          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-borde bg-white/95 py-2 backdrop-blur" role="toolbar" aria-label="Acciones del borrador">
             <button type="button" onClick={guardar} disabled={accion.pendiente} className={CLASE_BOTON_PRIMARIO} aria-keyshortcuts="Control+S">
               <Save className="h-4 w-4" aria-hidden="true" />
               Guardar borrador
@@ -190,11 +191,11 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
               <Send className="h-4 w-4" aria-hidden="true" />
               Publicar…
             </button>
-            <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("descartar")} disabled={accion.pendiente} className={`${CLASE_BOTON_SECUNDARIO} text-red-800`}>
+            <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("descartar")} disabled={accion.pendiente} className={CLASE_BOTON_SECUNDARIO_PELIGRO}>
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Descartar borrador…
             </button>
-            <span className="ml-auto text-sm text-slate-600" aria-live="polite">
+            <span className="ml-auto text-sm text-texto-secundario" aria-live="polite">
               {accion.pendiente ? "Un momento…" : sucio ? "Hay cambios sin guardar" : "Todo guardado"}
             </span>
           </div>
@@ -204,7 +205,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
         {accion.error ? <AvisoError error={accion.error} recargar={rutaVersionPlantilla(datos.codigo, datos.version)} yaMostradas={accion.error.errores.map((e) => e.ruta)} /> : null}
 
         {errores.length > 0 ? (
-          <nav aria-label="Errores de la validación" className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-950">
+          <nav aria-label="Errores de la validación" className="rounded-control border border-error-borde bg-error-fondo px-3 py-2 text-sm text-error">
             <p className="flex items-center gap-1.5 font-medium">
               <CircleAlert className="h-4 w-4" aria-hidden="true" />
               {errores.length === 1 ? "1 error para corregir antes de publicar" : `${errores.length} errores para corregir antes de publicar`}
@@ -212,7 +213,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
             <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto pl-6">
               {errores.map((e, i) => (
                 <li key={`${e.ruta}-${i}`} className="list-disc">
-                  <button type="button" onClick={() => irAError(e.ruta)} className="text-left underline underline-offset-2 hover:text-red-700">
+                  <button type="button" onClick={() => irAError(e.ruta)} className="text-left underline underline-offset-2 hover:text-error">
                     {ETIQUETA_PESTANA_EDITOR[pestanaDeRuta(e.ruta)]} · {ubicacionDeRuta(e.ruta, def)}: {e.mensaje}
                   </button>
                 </li>
@@ -221,7 +222,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
           </nav>
         ) : null}
 
-        <div role="tablist" aria-label="Partes de la plantilla" onKeyDown={teclaPestanas} className="flex flex-wrap gap-1 border-b border-slate-300">
+        <div role="tablist" aria-label="Partes de la plantilla" onKeyDown={teclaPestanas} className="flex flex-wrap gap-1 border-b border-borde">
           {PESTANAS_EDITOR.map((p) => {
             const actual = p === pestana;
             return (
@@ -237,13 +238,11 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
                 aria-controls={`panel-${p}`}
                 tabIndex={actual ? 0 : -1}
                 onClick={() => setPestana(p)}
-                className={`-mb-px inline-flex items-center gap-1.5 rounded-t border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800 ${
-                  actual ? "border-slate-300 border-b-white bg-white font-medium text-slate-900" : "border-transparent text-slate-600 hover:text-slate-900"
-                }`}
+                className={clasePestana(actual)}
               >
                 {ETIQUETA_PESTANA_EDITOR[p]}
                 {porPestana[p] > 0 ? (
-                  <span className="rounded-full bg-red-700 px-1.5 text-xs font-semibold text-white">
+                  <span className="rounded-full bg-error px-1.5 text-xs font-semibold text-white">
                     {porPestana[p]}
                     <span className="sr-only"> {porPestana[p] === 1 ? "error" : "errores"}</span>
                   </span>
@@ -253,7 +252,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
           })}
         </div>
 
-        <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`pestana-${pestana}`} tabIndex={-1} className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
+        <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`pestana-${pestana}`} tabIndex={-1} className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario">
           {/* Una versión publicada o retirada se ve con los controles deshabilitados: está congelada. */}
           <fieldset disabled={soloLectura} className="min-w-0 border-0 p-0">
             <legend className="sr-only">{ETIQUETA_PESTANA_EDITOR[pestana]}</legend>
@@ -290,6 +289,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
           <DialogoConfirmar
             titulo={`Descartar el borrador ${datos.codigo} v${datos.version}`}
             textoBoton="Descartar"
+            peligro
             pendiente={accion.pendiente}
             error={accion.error}
             recargar={RUTA_PLANTILLAS}
@@ -349,7 +349,7 @@ function DialogoPublicar({
           onPublicar(notas);
         }}
       >
-        <div className="space-y-1 text-sm text-slate-800">
+        <div className="space-y-1 text-sm text-texto">
           <p>Se guarda lo que está en pantalla, se valida y, si pasa, las altas nuevas usan esta versión desde ahora. Una versión publicada no se modifica.</p>
           {anterior ? <p>{anterior}</p> : null}
         </div>
@@ -365,7 +365,7 @@ function DialogoPublicar({
           />
         </Campo>
         {mostrado ? <AvisoError error={mostrado} recargar={rutaVersionPlantilla(datos.codigo, datos.version)} yaMostradas={["motivo"]} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>

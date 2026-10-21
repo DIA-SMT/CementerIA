@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRightLeft, Check, Download, Eye, FileUp, ListChecks, PackageCheck, Undo2 } from "lucide-react";
-import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
+import { CLASE_BOTON_ADVERTENCIA, CLASE_BOTON_COMPACTO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
 import { formatearFechaHora } from "@/lib/fechas";
 import { formatearBytes, itemsFaltan, textoBotonPase, tituloFaltan } from "@/lib/presentacion/flujo";
 import { faltantesDe, rutaAdjunto } from "./dialogos";
@@ -15,7 +15,6 @@ import type { DialogoFlujo } from "./tipos";
  * de cada subtarea y documento y la lista de adjuntos con su visor.
  */
 
-const CLASE_CHICO = `${CLASE_BOTON_SECUNDARIO} px-2 py-0.5 text-xs`;
 
 /** Confirmar recepción, Dar pase ("Faltan N") y Devolver. */
 export function BarraAcciones() {
@@ -38,7 +37,7 @@ export function BarraAcciones() {
         type="button"
         aria-haspopup="dialog"
         onClick={() => abrir({ tipo: "pase" })}
-        className={faltan > 0 ? `${CLASE_BOTON_SECUNDARIO} border-amber-500 bg-amber-50 text-amber-950 hover:bg-amber-100` : CLASE_BOTON_PRIMARIO}
+        className={faltan > 0 ? CLASE_BOTON_ADVERTENCIA : CLASE_BOTON_PRIMARIO}
       >
         <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
         {textoBotonPase(faltan)}
@@ -54,7 +53,11 @@ export function BarraAcciones() {
     );
   }
   if (botones.length === 0) return null;
-  return <div className="flex flex-wrap items-center gap-2">{botones}</div>;
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Acciones del paso">
+      {botones}
+    </div>
+  );
 }
 
 /**
@@ -67,19 +70,19 @@ export function PanelFaltan() {
   const items = final ? itemsFaltan(datos.concluir.faltan, datos.permisos, datos.rutaEditar) : faltantesDe(datos);
   const abrirItem = (d: DialogoFlujo) => abrir(d);
   return (
-    <section aria-labelledby="titulo-faltan" className={`rounded border p-4 ${items.length > 0 ? "border-amber-300 bg-amber-50" : "border-emerald-300 bg-emerald-50"}`}>
-      <h2 id="titulo-faltan" className="mb-2 flex items-center gap-2 text-base font-semibold text-slate-900">
+    <section aria-labelledby="titulo-faltan" className={`rounded-tarjeta border p-4 shadow-tarjeta sm:px-5 ${items.length > 0 ? "border-advertencia-borde bg-advertencia-fondo" : "border-exito-borde bg-exito-fondo"}`}>
+      <h2 id="titulo-faltan" className={`titulo-seccion mb-2 flex items-center gap-2 ${items.length > 0 ? "text-advertencia" : "text-exito"}`}>
         <ListChecks className="h-5 w-5" aria-hidden="true" />
         {final ? "Qué falta para concluir" : "Qué falta para avanzar"}
       </h2>
       {items.length === 0 ? (
-        <p className="flex items-center gap-1.5 text-sm text-emerald-900">
+        <p className="flex items-center gap-1.5 text-sm text-exito">
           <Check className="h-4 w-4" aria-hidden="true" />
           {final ? `Es el último paso y no falta nada: el expediente se puede concluir.` : `No falta nada para dar el pase desde ${datos.paso.nombre}.`}
         </p>
       ) : (
         <>
-          <p className="mb-1 text-sm text-amber-950">
+          <p className="mb-1 text-sm text-advertencia">
             {final ? tituloFaltan(items.length).replace("para avanzar", "para concluir") : `${tituloFaltan(items.length)} desde ${datos.paso.nombre}`}:
           </p>
           <ListaFaltan
@@ -103,7 +106,7 @@ export function BotonesSubtarea({ clave, nombre, hecha, conDato }: { clave: stri
   if (!datos.permisos.tildarSubtarea) return null;
   if (!hecha) {
     return (
-      <button type="button" aria-haspopup="dialog" aria-label={`Tildar: ${nombre}`} onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_CHICO}>
+      <button type="button" aria-haspopup="dialog" aria-label={`Tildar: ${nombre}`} onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_BOTON_COMPACTO}>
         Tildar
       </button>
     );
@@ -111,11 +114,11 @@ export function BotonesSubtarea({ clave, nombre, hecha, conDato }: { clave: stri
   return (
     <span className="inline-flex gap-1">
       {conDato ? (
-        <button type="button" aria-haspopup="dialog" aria-label={`Cambiar dato: ${nombre}`} onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_CHICO}>
+        <button type="button" aria-haspopup="dialog" aria-label={`Cambiar dato: ${nombre}`} onClick={() => abrir({ tipo: "tildar", clave })} className={CLASE_BOTON_COMPACTO}>
           Cambiar dato
         </button>
       ) : null}
-      <button type="button" aria-haspopup="dialog" aria-label={`Destildar: ${nombre}`} onClick={() => abrir({ tipo: "destildar", clave })} className={CLASE_CHICO}>
+      <button type="button" aria-haspopup="dialog" aria-label={`Destildar: ${nombre}`} onClick={() => abrir({ tipo: "destildar", clave })} className={CLASE_BOTON_COMPACTO}>
         Destildar
       </button>
     </span>
@@ -131,12 +134,12 @@ export function BotonesDocumento({ clave, nombre, adjunto }: { clave: string; no
   return (
     <span className="inline-flex gap-1">
       {marcar ? (
-        <button type="button" aria-haspopup="dialog" aria-label={`Marcar: ${nombre}`} onClick={() => abrir({ tipo: "documento", clave })} className={CLASE_CHICO}>
+        <button type="button" aria-haspopup="dialog" aria-label={`Marcar: ${nombre}`} onClick={() => abrir({ tipo: "documento", clave })} className={CLASE_BOTON_COMPACTO}>
           Marcar
         </button>
       ) : null}
       {adjuntar ? (
-        <button type="button" aria-haspopup="dialog" aria-label={`Adjuntar a ${nombre}`} onClick={() => abrir({ tipo: "adjuntar", documento: clave })} className={CLASE_CHICO}>
+        <button type="button" aria-haspopup="dialog" aria-label={`Adjuntar a ${nombre}`} onClick={() => abrir({ tipo: "adjuntar", documento: clave })} className={CLASE_BOTON_COMPACTO}>
           Adjuntar
         </button>
       ) : null}
@@ -164,9 +167,9 @@ export function ListaAdjuntos() {
         </button>
       ) : null}
       {datos.cantidadAdjuntos === 0 ? (
-        <p className="text-sm text-slate-600">No hay adjuntos.</p>
+        <p className="text-sm text-texto-secundario">No hay adjuntos.</p>
       ) : lista === null ? (
-        <div className="space-y-2 text-sm text-slate-700">
+        <div className="space-y-2 text-sm text-texto-secundario">
           <p>
             {datos.cantidadAdjuntos === 1 ? "Hay 1 adjunto." : `Hay ${datos.cantidadAdjuntos} adjuntos.`} Tu área no trabaja este expediente: para verlos,
             indicá el motivo (queda registrado).
@@ -177,12 +180,12 @@ export function ListaAdjuntos() {
           </button>
         </div>
       ) : (
-        <ul className="divide-y divide-slate-200 text-sm">
+        <ul className="divide-y divide-borde text-sm">
           {lista.map((a) => (
             <li key={a.movimientoId} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
               <span>
-                <span className="font-medium text-slate-900">{a.nombre}</span>
-                <span className="block text-xs text-slate-600">
+                <span className="font-medium text-texto">{a.nombre}</span>
+                <span className="block text-xs text-texto-secundario">
                   {nombreDocumento(a.documento)} · {formatearBytes(a.bytes)}
                   {a.detalle ? ` · ${a.detalle}` : ""}
                 </span>
@@ -193,7 +196,7 @@ export function ListaAdjuntos() {
                   aria-haspopup="dialog"
                   aria-label={`Ver ${a.nombre}`}
                   onClick={() => abrir({ tipo: "visor", adjunto: { movimientoId: a.movimientoId, nombre: a.nombre, mime: a.mime }, motivo })}
-                  className={CLASE_CHICO}
+                  className={CLASE_BOTON_COMPACTO}
                 >
                   <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                   Ver
@@ -202,7 +205,7 @@ export function ListaAdjuntos() {
                   href={rutaAdjunto(a.movimientoId, { descargar: true, motivo })}
                   download
                   aria-label={`Descargar ${a.nombre}`}
-                  className={CLASE_CHICO}
+                  className={CLASE_BOTON_COMPACTO}
                 >
                   <Download className="h-3.5 w-3.5" aria-hidden="true" />
                   Descargar

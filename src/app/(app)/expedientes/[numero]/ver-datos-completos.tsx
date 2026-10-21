@@ -26,8 +26,8 @@ export function VerDatosCompletos({ numero, area, etiquetas }: { numero: string;
   if (datos) {
     const vigentes = datos.personas.filter((p) => p.vigente);
     return (
-      <section aria-labelledby={idTitulo} className="rounded border border-amber-300 bg-amber-50 p-3 text-sm">
-        <h3 id={idTitulo} className="font-medium text-amber-950">
+      <section aria-labelledby={idTitulo} className="rounded-control border border-advertencia-borde bg-advertencia-fondo p-3 text-sm">
+        <h3 id={idTitulo} className="font-medium text-advertencia">
           Datos completos (tu consulta quedó registrada)
         </h3>
         <ul className="mt-2 space-y-2">
@@ -38,7 +38,7 @@ export function VerDatosCompletos({ numero, area, etiquetas }: { numero: string;
                 <span className="font-medium">
                   {etiquetas[p.rol] ?? p.rol}: {nombreCompleto(p)}
                 </span>
-                <div className="text-slate-800">
+                <div className="text-texto">
                   Teléfono: {p.telefono ?? "—"}
                   {wa ? (
                     <>
@@ -90,8 +90,8 @@ export function VerDatosCompletos({ numero, area, etiquetas }: { numero: string;
   }
 
   return (
-    <form onSubmit={confirmar} className="space-y-3 rounded border border-slate-300 bg-slate-50 p-3" aria-busy={pendiente}>
-      <p className="text-sm text-slate-700">
+    <form onSubmit={confirmar} className="space-y-3 rounded-control border border-borde bg-fondo p-3" aria-busy={pendiente}>
+      <p className="text-sm text-texto-secundario">
         Tu área no trabaja este expediente: para ver teléfono, correo y domicilio, escribí por qué. Queda registrado.
       </p>
       <Campo ruta="motivo" etiqueta="Motivo" obligatorio errores={errMotivo} ayuda={`${LARGO_MINIMO_MOTIVO} caracteres o más`}>

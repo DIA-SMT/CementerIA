@@ -4,7 +4,7 @@ import { useState } from "react";
 import { UserCheck, UserCog, UserPlus, UserX } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
 import { cuilValido } from "@/lib/dominio/cuil";
 import { ROLES, type Rol } from "@/lib/dominio/permisos";
 import type { EstadoError } from "@/lib/presentacion/errores";
@@ -117,7 +117,7 @@ function DialogoAlta({ areas, onCerrar, onHecho }: { areas: readonly Area[]; onC
         </Campo>
         <CamposAcceso areaId={areaId} rol={rol} setAreaId={setAreaId} setRol={setRol} areas={areas} error={error} />
         {error ? <AvisoError error={error} recargar={RUTA} yaMostradas={["cuil", "nombre", "apellido", "email", "rol", "areaId"]} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>
@@ -150,19 +150,19 @@ export function AccionesUsuario({ usuario, esUnoMismo, areas }: { usuario: Usuar
   return (
     <div className="flex flex-col items-start gap-1">
       <div className="flex flex-wrap gap-1">
-        <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("acceso")} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+        <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("acceso")} className={CLASE_BOTON_COMPACTO}>
           <UserCog className="h-4 w-4" aria-hidden="true" />
           Área o rol<span className="sr-only"> de {usuario.nombre}</span>
         </button>
         {usuario.activo ? (
           esUnoMismo ? null : (
-            <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("desactivar")} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1 text-red-800`}>
+            <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("desactivar")} className={CLASE_BOTON_COMPACTO_PELIGRO}>
               <UserX className="h-4 w-4" aria-hidden="true" />
               Desactivar<span className="sr-only"> a {usuario.nombre}</span>
             </button>
           )
         ) : (
-          <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("reactivar")} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+          <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("reactivar")} className={CLASE_BOTON_COMPACTO}>
             <UserCheck className="h-4 w-4" aria-hidden="true" />
             Reactivar<span className="sr-only"> a {usuario.nombre}</span>
           </button>
@@ -174,6 +174,7 @@ export function AccionesUsuario({ usuario, esUnoMismo, areas }: { usuario: Usuar
         <DialogoConfirmar
           titulo={`Desactivar a ${usuario.nombre}`}
           textoBoton="Desactivar"
+          peligro
           motivo="opcional"
           pendiente={accion.pendiente}
           error={accion.error}
@@ -222,9 +223,9 @@ function DialogoAcceso({ usuario, esUnoMismo, areas, onCerrar, onHecho }: { usua
         <Campo ruta="motivo" etiqueta="Motivo (opcional)" ayuda="Queda en la auditoría">
           <input {...atributosCampo("motivo", undefined, "campo-motivo-ayuda")} type="text" maxLength={300} value={motivo} onChange={(e) => setMotivo(e.target.value)} className={CLASE_CONTROL} />
         </Campo>
-        <p className="text-sm text-slate-700">Rige desde su próxima acción: la sesión vuelve a leer el área y el rol en cada pedido.</p>
+        <p className="text-sm text-texto-secundario">Rige desde su próxima acción: la sesión vuelve a leer el área y el rol en cada pedido.</p>
         {error ? <AvisoError error={error} recargar={RUTA} yaMostradas={["rol", "areaId"]} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>

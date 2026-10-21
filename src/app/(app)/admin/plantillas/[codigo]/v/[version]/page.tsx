@@ -48,24 +48,24 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
         </Link>
       </p>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 id="titulo-version" className="text-xl font-semibold text-slate-900">
-          {v.nombre} <span className="font-mono text-base font-normal text-slate-600">· {v.codigo} v{v.version}</span>
+        <h1 id="titulo-version" className="text-2xl font-semibold tracking-tight text-texto">
+          {v.nombre} <span className="font-mono text-base font-normal text-texto-secundario">· {v.codigo} v{v.version}</span>
         </h1>
-        <span className={`rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${v.estado === "publicada" ? "bg-emerald-50 text-emerald-900 ring-emerald-300" : v.estado === "borrador" ? "bg-amber-50 text-amber-950 ring-amber-300" : "bg-slate-100 text-slate-700 ring-slate-300"}`}>
+        <span className={`insignia ring-1 ring-inset ${v.estado === "publicada" ? "bg-exito-fondo text-exito ring-exito-borde" : v.estado === "borrador" ? "bg-advertencia-fondo text-advertencia ring-advertencia-borde" : "bg-fondo text-texto-secundario ring-borde"}`}>
           {ESTADO_TEXTO[v.estado]}
         </span>
       </div>
-      <dl className="grid gap-x-6 gap-y-1 text-sm text-slate-700 sm:grid-cols-2">
+      <dl className="tarjeta grid gap-x-6 gap-y-1 px-4 py-3 text-sm text-texto-secundario sm:grid-cols-2">
         <div>
-          <dt className="inline font-medium text-slate-800">Tipo de trámite: </dt>
+          <dt className="inline font-medium text-texto">Tipo de trámite: </dt>
           <dd className="inline">{v.tipoTramite.nombre}</dd>
         </div>
         <div>
-          <dt className="inline font-medium text-slate-800">Expedientes en curso con esta versión: </dt>
+          <dt className="inline font-medium text-texto">Expedientes en curso con esta versión: </dt>
           <dd className="inline">{v.enCurso}</dd>
         </div>
         <div>
-          <dt className="inline font-medium text-slate-800">Creada: </dt>
+          <dt className="inline font-medium text-texto">Creada: </dt>
           <dd className="inline">
             {formatearFechaHora(v.creadoEn)}
             {v.creadoPor ? ` por ${v.creadoPor}` : ""}
@@ -73,7 +73,7 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
         </div>
         {v.publicadoEn ? (
           <div>
-            <dt className="inline font-medium text-slate-800">Publicada: </dt>
+            <dt className="inline font-medium text-texto">Publicada: </dt>
             <dd className="inline">
               {formatearFechaHora(v.publicadoEn)}
               {v.publicadoPor ? ` por ${v.publicadoPor}` : ""}
@@ -82,23 +82,23 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
         ) : null}
         {v.notasCambio ? (
           <div className="sm:col-span-2">
-            <dt className="inline font-medium text-slate-800">Notas de cambio: </dt>
+            <dt className="inline font-medium text-texto">Notas de cambio: </dt>
             <dd className="inline whitespace-pre-line">{v.notasCambio}</dd>
           </div>
         ) : null}
       </dl>
       {v.versiones.length > 1 ? (
-        <nav aria-label="Otras versiones" className="text-sm text-slate-700">
+        <nav aria-label="Otras versiones" className="text-sm text-texto-secundario">
           Versiones:{" "}
           {v.versiones.map((x, i) => (
             <span key={x.version}>
               {i > 0 ? " · " : ""}
               {x.version === v.version ? (
-                <span aria-current="page" className="font-medium text-slate-900">
+                <span aria-current="page" className="font-medium text-texto">
                   v{x.version} ({x.estado})
                 </span>
               ) : (
-                <Link href={rutaVersionPlantilla(v.codigo, x.version)} className="underline underline-offset-2">
+                <Link href={rutaVersionPlantilla(v.codigo, x.version)} className={CLASE_ENLACE}>
                   v{x.version} ({x.estado})
                 </Link>
               )}
@@ -108,12 +108,12 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
       ) : null}
 
       {aviso === "publicada" && v.estado === "publicada" ? (
-        <p role="status" className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+        <p role="status" className="rounded-control border border-exito-borde bg-exito-fondo px-3 py-2 text-sm text-exito">
           Versión publicada: las altas nuevas la usan desde ahora{v.version > 1 ? "; la anterior quedó retirada y sus expedientes en curso siguen con ella" : ""}.
         </p>
       ) : null}
       {v.estado !== "borrador" ? (
-        <div className="flex flex-wrap items-start gap-3 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800">
+        <div className="flex flex-wrap items-start gap-3 rounded-control border border-borde bg-white px-3 py-2 text-sm text-texto">
           <p className="flex-1">
             {v.estado === "publicada" ? "Esta versión está publicada y congelada: para cambiarla, Editar crea el borrador de la siguiente." : "Esta versión está retirada y congelada."}
           </p>

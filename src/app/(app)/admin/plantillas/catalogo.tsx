@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FilePen, FilePlus2, PackageX } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
 import { RUTA_PLANTILLAS, rutaVersionPlantilla } from "@/lib/presentacion/rutas-admin";
 import { normalizarClave } from "@/lib/presentacion/editor-plantilla";
 import { accionEditarPlantilla, accionNuevaPlantilla, accionRetirar } from "../acciones";
@@ -65,7 +65,7 @@ function DialogoNueva({ tiposTramite, onCerrar }: { tiposTramite: ReadonlyArray<
           <input {...atributosCampo("nombre", erroresDe(error, "nombre"))} type="text" value={nombre} maxLength={200} onChange={(e) => setNombre(e.target.value)} className={CLASE_CONTROL} />
         </Campo>
         {error ? <AvisoError error={error} recargar={RUTA_PLANTILLAS} yaMostradas={["codigo", "tipoTramiteId", "nombre"]} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>
@@ -87,19 +87,19 @@ export function AccionesPlantilla({ codigo, publicada, borrador }: { codigo: str
   return (
     <div className="flex flex-col items-start gap-1.5">
       {borrador !== null ? (
-        <Link href={rutaVersionPlantilla(codigo, borrador)} className={`${CLASE_BOTON_SECUNDARIO} py-1`}>
+        <Link href={rutaVersionPlantilla(codigo, borrador)} className={CLASE_BOTON_COMPACTO}>
           <FilePen className="h-4 w-4" aria-hidden="true" />
           Seguir el borrador<span className="sr-only"> de {codigo}</span>
         </Link>
       ) : (
-        <button type="button" disabled={pendiente} onClick={() => enviar(() => accionEditarPlantilla(codigo))} className={`${CLASE_BOTON_SECUNDARIO} py-1`}>
+        <button type="button" disabled={pendiente} onClick={() => enviar(() => accionEditarPlantilla(codigo))} className={CLASE_BOTON_COMPACTO}>
           <FilePen className="h-4 w-4" aria-hidden="true" />
           {pendiente ? "Creando borrador…" : "Editar"}
           <span className="sr-only"> {codigo}</span>
         </button>
       )}
       {publicada ? (
-        <button type="button" aria-haspopup="dialog" onClick={() => setRetirando(true)} className={`${CLASE_BOTON_SECUNDARIO} py-1`}>
+        <button type="button" aria-haspopup="dialog" onClick={() => setRetirando(true)} className={CLASE_BOTON_COMPACTO}>
           <PackageX className="h-4 w-4" aria-hidden="true" />
           Retirar<span className="sr-only"> {codigo} v{publicada.version}</span>
         </button>
@@ -110,6 +110,7 @@ export function AccionesPlantilla({ codigo, publicada, borrador }: { codigo: str
         <DialogoConfirmar
           titulo={`Retirar ${codigo} v${publicada.version}`}
           textoBoton="Retirar"
+          peligro
           motivo="obligatorio"
           pendiente={retiro.pendiente}
           error={retiro.error}

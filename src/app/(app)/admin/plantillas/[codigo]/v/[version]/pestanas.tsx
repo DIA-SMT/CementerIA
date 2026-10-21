@@ -53,8 +53,8 @@ const TIPO_CAMPO_TEXTO: Record<string, string> = { texto: "Texto", numero: "Núm
 
 function Elemento({ ruta, titulo, children }: { ruta: string; titulo: React.ReactNode; children: React.ReactNode }) {
   return (
-    <fieldset id={idDeCampo(ruta)} tabIndex={-1} className="space-y-3 rounded border border-slate-300 bg-white px-3 pb-3 pt-1">
-      <legend className="px-1 text-sm font-medium text-slate-900">{titulo}</legend>
+    <fieldset id={idDeCampo(ruta)} tabIndex={-1} className="space-y-3 rounded-control border border-borde bg-white px-3 pb-3 pt-1">
+      <legend className="px-1 text-sm font-medium text-texto">{titulo}</legend>
       {children}
     </fieldset>
   );
@@ -71,7 +71,7 @@ function BotonAgregar({ texto, onClick }: { texto: string; onClick: () => void }
   );
 }
 
-const sinNombre = <span className="italic text-slate-500">(sin nombre)</span>;
+const sinNombre = <span className="italic text-texto-secundario">(sin nombre)</span>;
 
 // ---------------------------------------------------------------------------
 // General
@@ -94,11 +94,11 @@ export function PestanaGeneral({ nombre, ponerNombre }: { nombre: string; ponerN
         className="max-w-sm"
       />
       <fieldset id={idDeCampo("tipos_monumento")} tabIndex={-1} className="space-y-1.5">
-        <legend className="mb-1 text-sm font-medium text-slate-800">Tipos de monumento</legend>
-        <p className="text-xs text-slate-600">Ninguno marcado: todos los que cada cementerio tiene habilitados.</p>
+        <legend className="mb-1 text-sm font-medium text-texto">Tipos de monumento</legend>
+        <p className="text-xs text-texto-secundario">Ninguno marcado: todos los que cada cementerio tiene habilitados.</p>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {catalogos.tiposMonumento.map((t) => (
-            <label key={t.codigo} className="inline-flex items-center gap-1.5 text-sm text-slate-800">
+            <label key={t.codigo} className="inline-flex items-center gap-1.5 text-sm text-texto">
               <input type="checkbox" checked={def.tipos_monumento.includes(t.codigo)} onChange={(e) => cambiar((d) => alternarMonumento(d, t.codigo, e.target.checked))} className={CLASE_CASILLA} />
               {t.nombre}
               {t.activo ? null : " (inactivo)"}
@@ -107,7 +107,7 @@ export function PestanaGeneral({ nombre, ponerNombre }: { nombre: string; ponerN
           {def.tipos_monumento
             .filter((c) => !conocidos.includes(c))
             .map((c) => (
-              <label key={c} className="inline-flex items-center gap-1.5 text-sm text-red-900">
+              <label key={c} className="inline-flex items-center gap-1.5 text-sm text-error">
                 <input type="checkbox" checked onChange={() => cambiar((d) => alternarMonumento(d, c, false))} className={CLASE_CASILLA} />
                 {c} (no existe)
               </label>
@@ -142,7 +142,7 @@ export function PestanaPersonas() {
   const total = def.personas.length;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-700">Los roles de las personas del trámite. Un rol nuevo (cesionario, difunto) se define acá, sin código.</p>
+      <p className="text-sm text-texto-secundario">Los roles de las personas del trámite. Un rol nuevo (cesionario, difunto) se define acá, sin código.</p>
       <ErroresDe ruta="personas" />
       {def.personas.map((p, i) => {
         const ruta = `personas[${i}]`;
@@ -202,7 +202,7 @@ export function PestanaDocumentacion() {
   const rolesJuridicos = def.personas.filter((p) => p.admite_juridica);
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-700">Lo que se controla del papel: quién lo aporta, cuándo se exige y si va con adjunto.</p>
+      <p className="text-sm text-texto-secundario">Lo que se controla del papel: quién lo aporta, cuándo se exige y si va con adjunto.</p>
       <ErroresDe ruta="documentos" />
       {def.documentos.map((doc, i) => {
         const ruta = `documentos[${i}]`;
@@ -258,7 +258,7 @@ export function PestanaConceptos() {
   const total = def.conceptos.length;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-700">Lo que se cobra: por boleta o por el plan de pagos de la DIM, y en qué paso se liquida.</p>
+      <p className="text-sm text-texto-secundario">Lo que se cobra: por boleta o por el plan de pagos de la DIM, y en qué paso se liquida.</p>
       <ErroresDe ruta="conceptos" />
       {def.conceptos.map((c, i) => {
         const ruta = `conceptos[${i}]`;
@@ -309,7 +309,7 @@ function Opciones({ ruta, opciones, poner }: { ruta: string; opciones: string[];
   const errores = useErrores(ruta);
   return (
     <div>
-      <label htmlFor={idDeCampo(ruta)} className="mb-1 block text-sm font-medium text-slate-800">
+      <label htmlFor={idDeCampo(ruta)} className="mb-1 block text-sm font-medium text-texto">
         Opciones (una por renglón)
       </label>
       <textarea
@@ -335,7 +335,7 @@ export function PestanaCamposExtra() {
   const total = def.campos_extra.length;
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-texto-secundario">
         Datos propios del trámite (vencimiento de la concesión, cementerio de destino…). Un campo de tipo cementerio se puede usar como área de un paso ($CAMPO).
       </p>
       <ErroresDe ruta="campos_extra" />
@@ -385,17 +385,17 @@ export function PestanaVistaPrevia() {
   const id = useId();
   const [codigo, setCodigo] = useState(catalogos.cementerios.find((c) => c.activo)?.codigo ?? catalogos.cementerios[0]?.codigo ?? "");
   const cementerio = catalogos.cementerios.find((c) => c.codigo === codigo);
-  if (!cementerio) return <p className="text-sm text-slate-700">No hay cementerios cargados.</p>;
+  if (!cementerio) return <p className="text-sm text-texto-secundario">No hay cementerios cargados.</p>;
   const v = vistaPrevia(def, cementerio, { areas: catalogos.areas, tiposMonumento: catalogos.tiposMonumento });
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-700">Cómo queda lo que está en pantalla (aunque no esté guardado) para un expediente de cada cementerio: lo mismo que verán el alta y la ficha.</p>
+      <p className="text-sm text-texto-secundario">Cómo queda lo que está en pantalla (aunque no esté guardado) para un expediente de cada cementerio: lo mismo que verán el alta y la ficha.</p>
       <fieldset>
-        <legend className="mb-1 text-sm font-medium text-slate-800">Cementerio</legend>
+        <legend className="mb-1 text-sm font-medium text-texto">Cementerio</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {catalogos.cementerios.map((c) => (
-            <label key={c.codigo} className="inline-flex items-center gap-1.5 text-sm text-slate-800">
-              <input type="radio" name={`${id}-cementerio`} checked={c.codigo === codigo} onChange={() => setCodigo(c.codigo)} className="h-4 w-4 accent-slate-800" />
+            <label key={c.codigo} className="inline-flex items-center gap-1.5 text-sm text-texto">
+              <input type="radio" name={`${id}-cementerio`} checked={c.codigo === codigo} onChange={() => setCodigo(c.codigo)} className="h-4 w-4 accent-primario" />
               {c.nombre}
               {c.activo ? null : " (inactivo)"}
             </label>
@@ -404,21 +404,21 @@ export function PestanaVistaPrevia() {
       </fieldset>
       <div aria-live="polite" className="space-y-4">
         <section aria-label={`Recorrido en ${v.cementerio}`}>
-          <h3 className="text-base font-semibold text-slate-900">Recorrido en {v.cementerio}</h3>
-          <p className="text-sm text-slate-700">Monumentos: {v.monumentos.length > 0 ? v.monumentos.join(", ") : "ninguno (el alta no se podría cargar acá)"}</p>
+          <h3 className="text-base font-semibold text-texto">Recorrido en {v.cementerio}</h3>
+          <p className="text-sm text-texto-secundario">Monumentos: {v.monumentos.length > 0 ? v.monumentos.join(", ") : "ninguno (el alta no se podría cargar acá)"}</p>
           <ol className="mt-2 space-y-2">
             {v.pasos.map((p) => (
-              <li key={`${p.clave}#${p.numero}`} className="rounded border border-slate-200 bg-white px-3 py-2 text-sm">
-                <p className="font-medium text-slate-900">
-                  {p.numero}. {p.nombre} <span className="font-normal text-slate-600">→ {p.destino}</span>
+              <li key={`${p.clave}#${p.numero}`} className="rounded-control border border-borde bg-white px-3 py-2 text-sm">
+                <p className="font-medium text-texto">
+                  {p.numero}. {p.nombre} <span className="font-normal text-texto-secundario">→ {p.destino}</span>
                 </p>
                 {p.custodia || p.omitible || p.plazo ? (
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-texto-secundario">
                     {[p.custodia ? `custodia: ${p.custodia}` : null, p.omitible ? "omitible" : null, p.plazo ? `plazo: ${p.plazo}` : null].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
                 {p.subtareas.length > 0 ? (
-                  <ul className="mt-1 list-disc pl-5 text-slate-800">
+                  <ul className="mt-1 list-disc pl-5 text-texto">
                     {p.subtareas.map((s) => (
                       <li key={s.clave}>
                         {s.nombre}
@@ -433,29 +433,29 @@ export function PestanaVistaPrevia() {
           </ol>
         </section>
         <section aria-label="Documentación">
-          <h3 className="text-base font-semibold text-slate-900">Documentación</h3>
-          <ul className="list-disc pl-5 text-sm text-slate-800">
+          <h3 className="text-base font-semibold text-texto">Documentación</h3>
+          <ul className="list-disc pl-5 text-sm text-texto">
             {v.documentos.map((d) => (
               <li key={d.clave}>
-                {d.nombre} <span className="text-slate-600">({d.origen === "direccion" ? "Dirección" : "concesionario"}{d.obligatorio ? "" : ", opcional"}{d.soloSiJuridica ? `, solo si ${d.soloSiJuridica} es persona jurídica` : ""})</span>
+                {d.nombre} <span className="text-texto-secundario">({d.origen === "direccion" ? "Dirección" : "concesionario"}{d.obligatorio ? "" : ", opcional"}{d.soloSiJuridica ? `, solo si ${d.soloSiJuridica} es persona jurídica` : ""})</span>
               </li>
             ))}
           </ul>
         </section>
         <section aria-label="Conceptos">
-          <h3 className="text-base font-semibold text-slate-900">Conceptos</h3>
-          <ul className="list-disc pl-5 text-sm text-slate-800">
+          <h3 className="text-base font-semibold text-texto">Conceptos</h3>
+          <ul className="list-disc pl-5 text-sm text-texto">
             {v.conceptos.map((c) => (
               <li key={c.clave}>
-                {c.nombre} <span className="text-slate-600">({VIA_TEXTO[c.via] ?? c.via}, en {c.paso})</span>
+                {c.nombre} <span className="text-texto-secundario">({VIA_TEXTO[c.via] ?? c.via}, en {c.paso})</span>
               </li>
             ))}
           </ul>
         </section>
         {v.excluidos.length > 0 ? (
           <section aria-label="Lo que no corresponde en este cementerio">
-            <h3 className="text-base font-semibold text-slate-900">No corresponde en {v.cementerio}</h3>
-            <ul className="list-disc pl-5 text-sm text-slate-700">
+            <h3 className="text-base font-semibold text-texto">No corresponde en {v.cementerio}</h3>
+            <ul className="list-disc pl-5 text-sm text-texto-secundario">
               {v.excluidos.map((x) => (
                 <li key={x}>{x}</li>
               ))}

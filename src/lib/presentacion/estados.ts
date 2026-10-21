@@ -27,13 +27,17 @@ export const ETIQUETA_SEMAFORO: Record<SemaforoPlazo, string> = {
   cumplido: "Cumplido",
 };
 
-/** Clases de Tailwind de cada color: ámbar por vencer, rojo vencido (con el texto: el color no es la única señal). */
+/**
+ * Clases de Tailwind de cada color, con los tokens semánticos de globals.css:
+ * advertencia (ámbar) por vencer, error (rojo) vencido. Siempre con el texto:
+ * el color no es la única señal. Contrastes en docs/diseno.md.
+ */
 export const CLASE_SEMAFORO: Record<SemaforoPlazo, string> = {
-  sin_iniciar: "bg-slate-50 text-slate-800 ring-slate-300",
-  en_termino: "bg-emerald-50 text-emerald-900 ring-emerald-300",
-  por_vencer: "bg-amber-100 text-amber-950 ring-amber-500",
-  vencido: "bg-red-100 text-red-900 ring-red-400",
-  cumplido: "bg-slate-100 text-slate-700 ring-slate-300",
+  sin_iniciar: "bg-fondo text-texto ring-borde",
+  en_termino: "bg-exito-fondo text-exito ring-exito-borde",
+  por_vencer: "bg-advertencia-fondo text-advertencia ring-advertencia-borde",
+  vencido: "bg-error-fondo text-error ring-error-borde",
+  cumplido: "bg-fondo text-texto-secundario ring-borde",
 };
 
 export interface PlazoMostrado {

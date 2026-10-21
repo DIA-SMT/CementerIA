@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { TriangleAlert } from "lucide-react";
+import { ArrowRight, FileText, History, Library, TriangleAlert, Users, type LucideIcon } from "lucide-react";
 import { BotonImprimir } from "@/components/boton-imprimir";
-import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE } from "@/components/formulario";
+import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
+import { ICONO_PANTALLA } from "@/components/iconos-modulos";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { expedientes, type FilaPanel, type FilaPlazoPanel, type Lista, type MovimientoPanel } from "@/lib/dominio/expedientes/servidor";
+import { navegacionPara, SECCIONES_ADMIN } from "@/lib/dominio/navegacion";
 import { formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
 import { rutaFicha } from "@/lib/presentacion/enlaces";
 import { mostrarPlazo } from "@/lib/presentacion/estados";
@@ -22,7 +24,11 @@ export const metadata: Metadata = { title: "Panel" };
  * pases diferidos y correcciones del mes, cargas históricas abiertas y
  * avisos. Cada número que tiene un filtro equivalente lleva a la búsqueda
  * filtrada (`rutaBusqueda()`); las filas, a la ficha. Se imprime con
- * `@media print` (el encabezado y los filtros no salen).
+ * `@media print` (la portada, el encabezado y los filtros no salen).
+ *
+ * Arriba va la portada con la marca y los accesos rápidos a los módulos que el
+ * rol tiene (los mismos de la barra lateral, más las secciones de
+ * Administración para el admin). Todos los números son los del dominio.
  *
  * Leer el panel no registra accesos (no muestra contacto); abrir una ficha sí
  * (por eso los enlaces van sin prefetch).
@@ -37,12 +43,14 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
 
   return (
     <section aria-labelledby="titulo-pantalla" className="space-y-6 print:space-y-4 print:text-[11px]">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <Portada accesos={accesosRapidos(navegacionPara(usuario))} />
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 id="titulo-pantalla" className="text-xl font-semibold text-slate-900">
+          <h1 id="titulo-pantalla" className="text-2xl font-semibold tracking-tight text-texto print:text-xl">
             Panel
           </h1>
-          <p className="text-sm text-slate-600">
+          <p className="mt-0.5 text-sm text-texto-secundario">
             Al {formatearFecha(panel.hoy)}
             {tipo ? ` · ${tipo.nombre}` : ""}
             {cementerio ? ` · ${cementerio.nombre}` : ""}
@@ -52,9 +60,9 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
         <BotonImprimir />
       </div>
 
-      <Form action="/panel" className="flex flex-wrap items-end gap-3 rounded border border-slate-300 bg-white p-3 print:hidden" aria-label="Filtros del panel">
-        <div>
-          <label htmlFor="panel-tramite" className="mb-1 block text-sm font-medium text-slate-800">
+      <Form action="/panel" className="tarjeta flex flex-wrap items-end gap-3 p-4 print:hidden" aria-label="Filtros del panel">
+        <div className="w-full sm:w-auto sm:min-w-56">
+          <label htmlFor="panel-tramite" className="mb-1.5 block text-sm font-medium text-texto">
             Tipo de trámite
           </label>
           <select id="panel-tramite" name="tramite" defaultValue={valores.tramite} className={CLASE_CONTROL}>
@@ -66,8 +74,8 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
             ))}
           </select>
         </div>
-        <div>
-          <label htmlFor="panel-cementerio" className="mb-1 block text-sm font-medium text-slate-800">
+        <div className="w-full sm:w-auto sm:min-w-56">
+          <label htmlFor="panel-cementerio" className="mb-1.5 block text-sm font-medium text-texto">
             Cementerio
           </label>
           <select id="panel-cementerio" name="cementerio" defaultValue={valores.cementerio} className={CLASE_CONTROL}>
@@ -79,18 +87,23 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
             ))}
           </select>
         </div>
-        <button type="submit" className={CLASE_BOTON_PRIMARIO}>
-          Aplicar
-        </button>
-        <Link href="/panel" className={CLASE_BOTON_SECUNDARIO}>
-          Limpiar
-        </Link>
+        <div className="flex gap-2">
+          <button type="submit" className={CLASE_BOTON_PRIMARIO}>
+            Aplicar
+          </button>
+          <Link href="/panel" className={CLASE_BOTON_SECUNDARIO}>
+            Limpiar
+          </Link>
+        </div>
       </Form>
 
       {panel.avisos.length > 0 ? (
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {panel.avisos.map((a) => (
-            <li key={`${a.tipo}-${a.anio}`} className="flex items-start gap-2 rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            <li
+              key={`${a.tipo}-${a.anio}`}
+              className="flex items-start gap-2 rounded-control border border-advertencia-borde bg-advertencia-fondo px-3 py-2.5 text-sm text-advertencia"
+            >
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               {a.mensaje}
             </li>
@@ -99,19 +112,21 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
       ) : null}
 
       <section aria-labelledby="titulo-estados" className="break-inside-avoid">
-        <h2 id="titulo-estados" className="mb-2 text-base font-semibold text-slate-900">
-          Expedientes por estado <span className="font-normal text-slate-600">({textoCantidad(total)})</span>
+        <h2 id="titulo-estados" className="titulo-seccion mb-3">
+          Expedientes por estado <span className="font-normal text-texto-secundario">({textoCantidad(total)})</span>
         </h2>
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {panel.conteos.map((c) => (
             <li key={c.estado}>
               <Link
                 href={enlaceConteo(c.busqueda) ?? "/expedientes"}
                 prefetch={false}
-                className="block rounded border border-slate-300 bg-white p-3 hover:border-slate-500 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800 print:p-2"
+                className={`tarjeta block h-full p-4 transition duration-150 hover:border-primario hover:shadow-elevada ${CLASE_FOCO} print:p-2`}
               >
-                <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
-                <span className="mt-1 block text-2xl font-semibold text-slate-900 print:text-lg">{c.cantidad.toLocaleString("es-AR")}</span>
+                <span className={`insignia ring-1 ring-inset ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
+                <span className="mt-2 block text-3xl font-semibold tracking-tight text-institucional tabular-nums print:text-lg">
+                  {c.cantidad.toLocaleString("es-AR")}
+                </span>
                 <span className="sr-only"> expedientes: ver en la búsqueda</span>
               </Link>
             </li>
@@ -154,51 +169,149 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Portada y accesos rápidos
+// ---------------------------------------------------------------------------
+
+interface AccesoRapido {
+  href: string;
+  etiqueta: string;
+  Icono: LucideIcon;
+}
+
+/** Cómo se rotula cada módulo en los accesos rápidos (más explícito que en la barra). */
+const ETIQUETA_ACCESO: Record<string, string> = {
+  "/bandeja": "Ir a la bandeja",
+  "/expedientes/nuevo": "Nuevo expediente",
+  "/expedientes": "Buscar expedientes",
+};
+
+const ICONO_SECCION_ADMIN: Record<string, LucideIcon> = {
+  "/admin/plantillas": FileText,
+  "/admin/usuarios": Users,
+  "/admin/catalogos": Library,
+  "/admin/auditoria": History,
+};
+
+/**
+ * Los accesos rápidos: los módulos del menú del rol (navegacionPara) menos el
+ * panel, que es esta pantalla. Administración se abre en sus secciones. Nada
+ * que el rol no tenga: es la misma lista que arma la barra lateral.
+ */
+function accesosRapidos(items: ReturnType<typeof navegacionPara>): AccesoRapido[] {
+  return items
+    .filter((item) => item.pantalla !== "panel")
+    .flatMap((item): AccesoRapido[] =>
+      item.pantalla === "admin"
+        ? SECCIONES_ADMIN.map((s) => ({ href: s.href, etiqueta: s.etiqueta, Icono: ICONO_SECCION_ADMIN[s.href] ?? ICONO_PANTALLA.admin }))
+        : [{ href: item.href, etiqueta: ETIQUETA_ACCESO[item.href] ?? item.etiqueta, Icono: ICONO_PANTALLA[item.pantalla] }],
+    );
+}
+
+/**
+ * La portada: banda panorámica con la foto de la avenida (decorativa, `alt`
+ * vacío) bajo un velo azul que deja el texto blanco con contraste AA, la marca
+ * y los accesos rápidos. No sale en el papel.
+ */
+function Portada({ accesos }: { accesos: AccesoRapido[] }) {
+  return (
+    <div className="relative overflow-hidden rounded-panel bg-institucional shadow-tarjeta print:hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+      <img
+        src="/imagenes/panel-avenida-memorial-960.webp"
+        srcSet="/imagenes/panel-avenida-memorial-960.webp 960w, /imagenes/panel-avenida-memorial-1600.webp 1600w"
+        sizes="(min-width: 1024px) calc(100vw - 20rem), 100vw"
+        width={1600}
+        height={900}
+        alt=""
+        loading="eager"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-[50%_40%]"
+      />
+      <div aria-hidden="true" className="absolute inset-0 bg-linear-to-r from-institucional/95 via-institucional/90 to-institucional/75 lg:via-institucional/80 lg:to-institucional/35" />
+      <div className="relative flex flex-col gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between lg:gap-8 lg:py-7">
+        <div className="lg:shrink-0">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-white">
+            Municipalidad de San Miguel de Tucumán
+          </p>
+          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">CementerIA</p>
+          <p className="text-sm text-white sm:text-base">Dirección de Cementerios</p>
+          <span aria-hidden="true" className="mt-3 block h-1 w-12 rounded-full bg-amarillo" />
+        </div>
+        {accesos.length > 0 ? (
+          <nav aria-label="Accesos rápidos">
+            <ul className="flex flex-wrap gap-2 lg:justify-end">
+              {accesos.map(({ href, etiqueta, Icono }) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className={`group inline-flex min-h-10 items-center gap-2 rounded-control bg-white px-3.5 py-2 text-sm font-medium text-institucional shadow-xs transition-colors duration-150 hover:bg-superficie-azul focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}
+                  >
+                    <Icono className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
+                    {etiqueta}
+                    <ArrowRight className="h-3.5 w-3.5 text-texto-secundario transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bloques y tablas
+// ---------------------------------------------------------------------------
+
 type DatosPanel = Awaited<ReturnType<typeof expedientes.panel>>;
 
 function Matriz({ panel }: { panel: DatosPanel }) {
   const { areas, tipos, celdas } = panel.matriz;
   const celda = (areaId: number, tipoId: number) => celdas.find((c) => c.areaId === areaId && c.tipoTramiteId === tipoId);
   return (
-    <section aria-labelledby="titulo-matriz" className="break-inside-avoid">
-      <h2 id="titulo-matriz" className="mb-2 text-base font-semibold text-slate-900">
-        En trámite por área y tipo de trámite
-      </h2>
+    <section aria-labelledby="titulo-matriz" className="tarjeta overflow-hidden break-inside-avoid">
+      <div className="border-b border-borde px-4 py-3 print:px-2 print:py-1.5">
+        <h2 id="titulo-matriz" className="titulo-seccion">
+          En trámite por área y tipo de trámite
+        </h2>
+      </div>
       {areas.length === 0 || tipos.length === 0 ? (
-        <p className="rounded border border-slate-300 bg-white px-3 py-4 text-sm text-slate-700">No hay expedientes en trámite.</p>
+        <p className="px-4 py-4 text-sm text-texto-secundario">No hay expedientes en trámite.</p>
       ) : (
-        <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-          <table className="w-full text-left text-sm">
+        <div className="relative overflow-x-auto">
+          <table className="tabla-datos">
             <caption className="sr-only">Cantidad de expedientes en trámite según el área donde están y el tipo de trámite</caption>
-            <thead className="border-b border-slate-300 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+            <thead>
               <tr>
-                <th scope="col" className="px-3 py-2">
+                <th scope="col" className={CLASE_CELDA}>
                   Área
                 </th>
                 {tipos.map((t) => (
-                  <th key={t.id} scope="col" className="px-3 py-2 text-right">
+                  <th key={t.id} scope="col" className={`${CLASE_CELDA} text-right`}>
                     {t.nombre}
                   </th>
                 ))}
-                <th scope="col" className="px-3 py-2 text-right">
+                <th scope="col" className={`${CLASE_CELDA} text-right`}>
                   Total
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody>
               {areas.map((a) => {
                 const suma = tipos.reduce((s, t) => s + (celda(a.id, t.id)?.cantidad ?? 0), 0);
                 return (
                   <tr key={a.id}>
-                    <th scope="row" className="px-3 py-1.5 font-normal text-slate-900">
+                    <th scope="row" className={`${CLASE_CELDA} font-normal text-texto`}>
                       {a.nombre}
                     </th>
                     {tipos.map((t) => {
                       const c = celda(a.id, t.id);
                       return (
-                        <td key={t.id} className="px-3 py-1.5 text-right tabular-nums">
+                        <td key={t.id} className={`${CLASE_CELDA} text-right tabular-nums`}>
                           {c && c.cantidad > 0 ? (
-                            <Link href={enlaceConteo(c.busqueda) ?? "/expedientes"} prefetch={false} className={CLASE_ENLACE}>
+                            <Link href={enlaceConteo(c.busqueda) ?? "/expedientes"} prefetch={false} className={`${CLASE_ENLACE} font-medium`}>
                               {c.cantidad}
                               <span className="sr-only">
                                 {" "}
@@ -206,12 +319,12 @@ function Matriz({ panel }: { panel: DatosPanel }) {
                               </span>
                             </Link>
                           ) : (
-                            <span className="text-slate-400">0</span>
+                            <span className="text-texto-secundario">0</span>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-3 py-1.5 text-right font-medium tabular-nums">{suma}</td>
+                    <td className={`${CLASE_CELDA} text-right font-semibold tabular-nums text-institucional`}>{suma}</td>
                   </tr>
                 );
               })}
@@ -241,23 +354,32 @@ function Bloque({
   children: React.ReactNode;
 }) {
   const enlace = enlaceConteo(lista.busqueda);
-  const color = lista.cantidad === 0 ? "bg-slate-200 text-slate-700" : alerta === "rojo" ? "bg-red-700 text-white" : alerta === "ambar" ? "bg-amber-600 text-white" : "bg-slate-800 text-white";
+  // El número va junto al título: el color (rojo, ámbar) no es la única señal.
+  const color =
+    lista.cantidad === 0
+      ? "bg-fondo text-texto-secundario ring-1 ring-inset ring-borde"
+      : alerta === "rojo"
+        ? "bg-error text-white"
+        : alerta === "ambar"
+          ? "bg-amarillo text-institucional"
+          : "bg-institucional text-white";
+  const clasePastilla = `min-w-7 rounded-full px-2 text-center text-sm font-semibold tabular-nums ${color}`;
   return (
-    <section aria-labelledby={`titulo-${id}`} className="rounded border border-slate-300 bg-white p-4 print:break-inside-avoid print:p-2">
-      <h2 id={`titulo-${id}`} className="mb-2 flex flex-wrap items-center gap-2 text-base font-semibold text-slate-900">
+    <section aria-labelledby={`titulo-${id}`} className="tarjeta overflow-hidden print:break-inside-avoid">
+      <h2 id={`titulo-${id}`} className="titulo-seccion flex flex-wrap items-center gap-2 border-b border-borde px-4 py-3 print:px-2 print:py-1.5">
         {titulo}
         {enlace ? (
-          <Link href={enlace} prefetch={false} className={`rounded-full px-2 text-sm ${color} hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800`}>
+          <Link href={enlace} prefetch={false} className={`${clasePastilla} transition-opacity duration-150 hover:opacity-90 ${CLASE_FOCO}`}>
             {lista.cantidad}
             <span className="sr-only">: ver en la búsqueda</span>
           </Link>
         ) : (
-          <span className={`rounded-full px-2 text-sm ${color}`}>{lista.cantidad}</span>
+          <span className={clasePastilla}>{lista.cantidad}</span>
         )}
       </h2>
-      {lista.cantidad === 0 ? <p className="text-sm text-slate-600">Ninguno.</p> : children}
+      {lista.cantidad === 0 ? <p className="px-4 py-3 text-sm text-texto-secundario">Ninguno.</p> : children}
       {lista.filas.length < lista.cantidad ? (
-        <p className="mt-2 text-xs text-slate-600">
+        <p className="border-t border-borde px-4 py-2 text-xs text-texto-secundario">
           Se muestran {lista.filas.length} de {textoCantidad(lista.cantidad, singular, plural)}.
         </p>
       ) : null}
@@ -265,47 +387,47 @@ function Bloque({
   );
 }
 
-const CLASE_TABLA = "w-full text-left text-sm";
-const CLASE_THEAD = "border-b border-slate-300 bg-slate-50 text-xs uppercase tracking-wide text-slate-600";
+/** Las celdas de las tablas (`tabla-datos` de globals.css): compactas, con aire en los bordes de la tarjeta. */
+const CLASE_CELDA = "px-3 py-2 align-top first:pl-4 last:pr-4 print:px-1.5 print:py-1";
 
 function CeldaNumero({ numero, numeroCorto }: { numero: string; numeroCorto: string }) {
   return (
-    <th scope="row" className="px-2 py-1.5 font-normal whitespace-nowrap">
+    <th scope="row" className={`${CLASE_CELDA} font-normal whitespace-nowrap`}>
       <Link href={rutaFicha(numero)} prefetch={false} className={`${CLASE_ENLACE} font-mono`}>
         {numero}
       </Link>
-      <span className="block text-xs text-slate-600">{numeroCorto}</span>
+      <span className="block text-xs text-texto-secundario">{numeroCorto}</span>
     </th>
   );
 }
 
 function TablaFilas({ filas, conAlerta = false }: { filas: FilaPanel[]; conAlerta?: boolean }) {
   return (
-    <div className="overflow-x-auto">
-      <table className={CLASE_TABLA}>
-        <thead className={CLASE_THEAD}>
+    <div className="relative overflow-x-auto">
+      <table className="tabla-datos">
+        <thead>
           <tr>
-            <th scope="col" className="px-2 py-1.5">N° interno</th>
-            <th scope="col" className="px-2 py-1.5">Titular</th>
-            <th scope="col" className="px-2 py-1.5">Trámite y paso</th>
-            <th scope="col" className="px-2 py-1.5">Área</th>
-            <th scope="col" className="px-2 py-1.5">En el área</th>
+            <th scope="col" className={CLASE_CELDA}>N° interno</th>
+            <th scope="col" className={CLASE_CELDA}>Titular</th>
+            <th scope="col" className={CLASE_CELDA}>Trámite y paso</th>
+            <th scope="col" className={CLASE_CELDA}>Área</th>
+            <th scope="col" className={CLASE_CELDA}>En el área</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody>
           {filas.map((f) => (
-            <tr key={f.numero} className="align-top">
+            <tr key={f.numero}>
               <CeldaNumero numero={f.numero} numeroCorto={f.numeroCorto} />
-              <td className="px-2 py-1.5">{f.titular ?? "—"}</td>
-              <td className="px-2 py-1.5">
+              <td className={CLASE_CELDA}>{f.titular ?? "—"}</td>
+              <td className={CLASE_CELDA}>
                 {f.tramite}
-                <span className="block text-xs text-slate-600">{f.paso}</span>
+                <span className="block text-xs text-texto-secundario">{f.paso}</span>
               </td>
-              <td className="px-2 py-1.5">{f.areaActual.nombre}</td>
-              <td className="px-2 py-1.5">
-                <span className={conAlerta ? "font-medium text-red-800" : undefined}>{textoDias(f.diasEnArea)}</span>
-                {conAlerta && f.diasAlerta !== null ? <span className="block text-xs text-slate-600">alerta a los {f.diasAlerta}</span> : null}
-                <span className="block text-xs text-slate-600">desde {formatearFecha(f.enAreaDesde)}</span>
+              <td className={CLASE_CELDA}>{f.areaActual.nombre}</td>
+              <td className={CLASE_CELDA}>
+                <span className={conAlerta ? "font-medium text-error" : undefined}>{textoDias(f.diasEnArea)}</span>
+                {conAlerta && f.diasAlerta !== null ? <span className="block text-xs text-texto-secundario">alerta a los {f.diasAlerta}</span> : null}
+                <span className="block text-xs text-texto-secundario">desde {formatearFecha(f.enAreaDesde)}</span>
               </td>
             </tr>
           ))}
@@ -317,29 +439,29 @@ function TablaFilas({ filas, conAlerta = false }: { filas: FilaPanel[]; conAlert
 
 function TablaPlazos({ filas }: { filas: FilaPlazoPanel[] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className={CLASE_TABLA}>
-        <thead className={CLASE_THEAD}>
+    <div className="relative overflow-x-auto">
+      <table className="tabla-datos">
+        <thead>
           <tr>
-            <th scope="col" className="px-2 py-1.5">N° interno</th>
-            <th scope="col" className="px-2 py-1.5">Titular</th>
-            <th scope="col" className="px-2 py-1.5">Vencimiento</th>
+            <th scope="col" className={CLASE_CELDA}>N° interno</th>
+            <th scope="col" className={CLASE_CELDA}>Titular</th>
+            <th scope="col" className={CLASE_CELDA}>Vencimiento</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody>
           {filas.map((f) => {
             const p = mostrarPlazo(f.plazo);
             return (
-              <tr key={f.numero} className="align-top">
+              <tr key={f.numero}>
                 <CeldaNumero numero={f.numero} numeroCorto={f.numeroCorto} />
-                <td className="px-2 py-1.5">
+                <td className={CLASE_CELDA}>
                   {f.titular ?? "—"}
-                  <span className="block text-xs text-slate-600">{f.tramite}</span>
+                  <span className="block text-xs text-texto-secundario">{f.tramite}</span>
                 </td>
-                <td className="px-2 py-1.5">
-                  <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${p.clase}`}>{p.etiqueta}</span>
-                  <span className="block">{f.plazo.vence ? formatearFecha(f.plazo.vence) : "—"}</span>
-                  <span className="block text-xs text-slate-700">{p.texto}</span>
+                <td className={CLASE_CELDA}>
+                  <span className={`insignia ring-1 ring-inset ${p.clase}`}>{p.etiqueta}</span>
+                  <span className="mt-0.5 block">{f.plazo.vence ? formatearFecha(f.plazo.vence) : "—"}</span>
+                  <span className="block text-xs text-texto-secundario">{p.texto}</span>
                 </td>
               </tr>
             );
@@ -352,30 +474,30 @@ function TablaPlazos({ filas }: { filas: FilaPlazoPanel[] }) {
 
 function TablaMovimientos({ filas, conMotivo = false }: { filas: MovimientoPanel[]; conMotivo?: boolean }) {
   return (
-    <div className="overflow-x-auto">
-      <table className={CLASE_TABLA}>
-        <thead className={CLASE_THEAD}>
+    <div className="relative overflow-x-auto">
+      <table className="tabla-datos">
+        <thead>
           <tr>
-            <th scope="col" className="px-2 py-1.5">Expediente</th>
-            <th scope="col" className="px-2 py-1.5">Movimiento</th>
-            <th scope="col" className="px-2 py-1.5">Cargado</th>
+            <th scope="col" className={CLASE_CELDA}>Expediente</th>
+            <th scope="col" className={CLASE_CELDA}>Movimiento</th>
+            <th scope="col" className={CLASE_CELDA}>Cargado</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-200">
+        <tbody>
           {filas.map((m) => (
-            <tr key={m.movimientoId} className="align-top">
-              <th scope="row" className="px-2 py-1.5 font-normal whitespace-nowrap">
+            <tr key={m.movimientoId}>
+              <th scope="row" className={`${CLASE_CELDA} font-normal whitespace-nowrap`}>
                 <Link href={`${rutaFicha(m.numero)}#mov-${m.movimientoId}`} prefetch={false} className={`${CLASE_ENLACE} font-mono`}>
                   {m.numero}
                 </Link>
               </th>
-              <td className="px-2 py-1.5">
+              <td className={CLASE_CELDA}>
                 {etiquetaMovimiento(m.tipo)} del {formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}
-                {conMotivo && m.motivo ? <span className="block text-xs text-slate-600">{m.motivo}</span> : null}
+                {conMotivo && m.motivo ? <span className="block text-xs text-texto-secundario">{m.motivo}</span> : null}
               </td>
-              <td className="px-2 py-1.5">
+              <td className={CLASE_CELDA}>
                 {formatearFechaHora(m.registradoEn)}
-                <span className="block text-xs text-slate-600">{m.usuario}</span>
+                <span className="block text-xs text-texto-secundario">{m.usuario}</span>
               </td>
             </tr>
           ))}

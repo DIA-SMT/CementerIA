@@ -2,10 +2,19 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowRightLeft, CircleCheck, FileClock, PackageCheck } from "lucide-react";
+import { ArrowRightLeft, Clock, FileClock, FolderOpen, Inbox, PackageCheck } from "lucide-react";
+import { Aviso } from "@/components/aviso";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_ENLACE } from "@/components/formulario";
+import { EstadoVacio } from "@/components/estado-vacio";
+import {
+  CLASE_BOTON_COMPACTO,
+  CLASE_BOTON_COMPACTO_PRIMARIO,
+  CLASE_BOTON_PRIMARIO,
+  CLASE_BOTON_SECUNDARIO,
+  CLASE_CASILLA,
+  CLASE_ENLACE,
+} from "@/components/formulario";
 import type { FilaBandeja, PestanaBandeja } from "@/lib/dominio/expedientes/bandejas";
 import { formatearFecha, formatearSegunPrecision } from "@/lib/fechas";
 import { mostrarPlazo } from "@/lib/presentacion/estados";
@@ -22,15 +31,26 @@ import { accionPase, accionRecepcion, accionRecepciones } from "../expedientes/a
  * fila: si otro usuario lo movió en el medio, el dominio contesta "Otro
  * usuario modificó el expediente; recargá". Las Server Actions recargan la
  * bandeja (y el contador del encabezado) en la misma respuesta.
+ *
+ * Señales de cada fila (siempre con texto, el color no es la única): devuelto
+ * en rojo con una franja a la izquierda, demorado en rojo con reloj, el
+ * semáforo del plazo como insignia y "Sin confirmar" en ámbar.
  */
 
-const CLASE_CHICO = `${CLASE_BOTON_SECUNDARIO} px-2 py-1 text-xs`;
+type AvisoBandeja = { tipo: "ok"; texto: string; detalle?: string[] } | { tipo: "error"; error: EstadoError };
 
-type Aviso = { tipo: "ok"; texto: string; detalle?: string[] } | { tipo: "error"; error: EstadoError };
+/** Lo que se dice cuando una pestaña está vacía. */
+const VACIA: Record<PestanaBandeja, { titulo: string; texto: string }> = {
+  por_confirmar: { titulo: "No hay expedientes por confirmar.", texto: "Cuando otra área le dé un pase a la tuya, aparece acá para que confirmes la recepción." },
+  en_mi_area: { titulo: "No hay expedientes en esta pestaña.", texto: "Tu área no tiene expedientes para trabajar ahora." },
+  afuera: { titulo: "No hay expedientes en esta pestaña.", texto: "Ninguno de los que sigue tu área está en un área externa." },
+  plazos: { titulo: "No hay expedientes con plazo.", texto: "Cuando un expediente entre a la DIM, su vencimiento se sigue acá." },
+  carga_historica: { titulo: "No hay cargas históricas abiertas.", texto: "Los expedientes iniciados antes del sistema aparecen acá hasta que se termina su carga." },
+};
 
 export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; filas: FilaBandeja[] }) {
   const [seleccion, setSeleccion] = useState<string[]>([]);
-  const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [aviso, setAviso] = useState<AvisoBandeja | null>(null);
   const [paseRapido, setPaseRapido] = useState<FilaBandeja | null>(null);
   const [pendiente, iniciar] = useTransition();
   const [comandoLote, setComandoLote] = useState(nuevoComandoId);
@@ -68,30 +88,33 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
     });
   }
 
+  const vacia = VACIA[pestana];
+
   return (
     <div className="space-y-3">
       <div role="status" aria-live="polite" className="empty:hidden">
         {aviso?.tipo === "ok" ? (
-          <div className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            <p className="flex items-center gap-2">
-              <CircleCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {aviso.texto}
-            </p>
+          <Aviso tono="exito">
+            <p>{aviso.texto}</p>
             {aviso.detalle && aviso.detalle.length > 0 ? (
-              <ul className="mt-1 list-disc pl-6 text-red-900">
+              <ul className="list-disc pl-5 text-error">
                 {aviso.detalle.map((d) => (
                   <li key={d}>{d}</li>
                 ))}
               </ul>
             ) : null}
-          </div>
+          </Aviso>
         ) : null}
       </div>
       {aviso?.tipo === "error" ? <AvisoError error={aviso.error} recargar={rutaBandeja(pestana)} /> : null}
 
       {lote ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-2 text-sm text-slate-800">
+        <div
+          className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border px-4 py-2.5 transition-colors duration-150 ${
+            elegidos.length > 0 ? "border-info-borde bg-info-fondo" : "border-borde bg-white"
+          }`}
+        >
+          <label className="inline-flex items-center gap-2 text-sm font-medium text-texto">
             <input
               type="checkbox"
               checked={todos}
@@ -100,7 +123,15 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
             />
             Seleccionar todos
           </label>
-          <button type="button" onClick={confirmarSeleccionados} disabled={pendiente || elegidos.length === 0} className={CLASE_BOTON_PRIMARIO}>
+          <span className="text-sm text-texto-secundario tabular-nums" aria-hidden="true">
+            {elegidos.length} de {confirmables.length}
+          </span>
+          <button
+            type="button"
+            onClick={confirmarSeleccionados}
+            disabled={pendiente || elegidos.length === 0}
+            className={`${CLASE_BOTON_PRIMARIO} sm:ml-auto`}
+          >
             <PackageCheck className="h-4 w-4" aria-hidden="true" />
             {pendiente ? "Confirmando…" : `Confirmar seleccionados (${elegidos.length})`}
           </button>
@@ -108,135 +139,142 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
       ) : null}
 
       {filas.length === 0 ? (
-        <p className="rounded border border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-700">No hay expedientes en esta pestaña.</p>
+        <EstadoVacio icono={pestana === "por_confirmar" ? Inbox : FolderOpen} titulo={vacia.titulo} imagen={pestana === "por_confirmar" ? "parque-memorial" : undefined}>
+          <p>{vacia.texto}</p>
+        </EstadoVacio>
       ) : (
-        <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-          <table className="w-full min-w-[900px] text-left text-sm">
+        <div className="tarjeta relative overflow-x-auto">
+          <table className="tabla-datos min-w-[900px]">
             <caption className="sr-only">{conVencimiento ? "Expedientes con plazo, del que vence antes al último" : "Expedientes de la pestaña, del que llegó antes al más nuevo"}</caption>
-            <thead className="border-b border-slate-300 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
+            <thead>
               <tr>
                 {lote ? (
-                  <th scope="col" className="px-3 py-2">
+                  <th scope="col" className="w-10">
                     <span className="sr-only">Seleccionar</span>
                   </th>
                 ) : null}
-                <th scope="col" className="px-3 py-2">N° interno</th>
-                <th scope="col" className="px-3 py-2">N° municipal</th>
-                <th scope="col" className="px-3 py-2">Titular</th>
-                <th scope="col" className="px-3 py-2">Trámite</th>
-                <th scope="col" className="px-3 py-2">Paso</th>
-                <th scope="col" className="px-3 py-2">En el área</th>
-                {conVencimiento ? (
-                  <th scope="col" className="px-3 py-2">
-                    Vencimiento
-                  </th>
-                ) : null}
-                <th scope="col" className="px-3 py-2">Etiquetas</th>
-                <th scope="col" className="px-3 py-2">
+                <th scope="col">N° interno</th>
+                <th scope="col">N° municipal</th>
+                <th scope="col">Titular</th>
+                <th scope="col">Trámite</th>
+                <th scope="col">Paso</th>
+                <th scope="col">En el área</th>
+                {conVencimiento ? <th scope="col">Vencimiento</th> : null}
+                <th scope="col">Etiquetas</th>
+                <th scope="col">
                   <span className="sr-only">Acciones</span>
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody>
               {filas.map((f) => {
                 const devuelto = f.etiquetas.find((e) => e.tipo === "devuelto");
                 const etiquetaPlazo = f.etiquetas.find((e) => e.tipo === "plazo");
                 const plazo = etiquetaPlazo && etiquetaPlazo.tipo === "plazo" ? mostrarPlazo(etiquetaPlazo) : null;
+                const vencida = conVencimiento && plazo?.semaforo === "vencido";
+                // Franja a la izquierda de la primera celda: rojo si volvió devuelto o venció el plazo.
+                const franja = devuelto || vencida ? "shadow-[inset_4px_0_0_var(--color-error)]" : "";
                 return (
-                  <tr key={f.numero} className={devuelto ? "bg-red-50" : conVencimiento && plazo?.semaforo === "vencido" ? "bg-red-50/60" : undefined}>
+                  <tr key={f.numero} className={devuelto ? "bg-error-fondo" : vencida ? "bg-error-fondo/60" : undefined}>
                     {lote ? (
-                      <td className="px-3 py-2 align-top">
+                      <td className={franja}>
                         {f.puedeConfirmar ? (
                           <input
                             type="checkbox"
                             aria-label={`Seleccionar ${f.numero}`}
                             checked={elegidos.includes(f.numero)}
                             onChange={(e) => setSeleccion((s) => (e.target.checked ? [...s, f.numero] : s.filter((n) => n !== f.numero)))}
-                            className={CLASE_CASILLA}
+                            className={`${CLASE_CASILLA} mt-0.5`}
                           />
                         ) : null}
                       </td>
                     ) : null}
-                    <th scope="row" className="px-3 py-2 align-top font-normal">
+                    <th scope="row" className={`font-normal ${lote ? "" : franja}`}>
                       <Link href={rutaFicha(f.numero)} prefetch={false} className={`${CLASE_ENLACE} whitespace-nowrap font-mono font-medium`}>
                         {f.numero}
                       </Link>
-                      <span className="block text-xs text-slate-600">{f.numeroCorto}</span>
+                      <span className="block text-xs text-texto-secundario">{f.numeroCorto}</span>
                     </th>
-                    <td className="px-3 py-2 align-top">{f.numeroMunicipal ?? "—"}</td>
-                    <td className="px-3 py-2 align-top">{f.titular ?? "—"}</td>
-                    <td className="px-3 py-2 align-top">
+                    <td className="whitespace-nowrap tabular-nums">{f.numeroMunicipal ?? "—"}</td>
+                    <td className="font-medium">{f.titular ?? "—"}</td>
+                    <td>
                       {f.tramite.tipo}
-                      <span className="block text-xs text-slate-600">
+                      <span className="block text-xs text-texto-secundario">
                         {f.tramite.plantilla} · v{f.tramite.version}
                       </span>
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      {f.paso.orden}/{f.paso.total} {f.paso.nombre}
-                      {f.areaActual.externa ? <span className="block text-xs text-slate-600">En {f.areaActual.nombre}</span> : null}
+                    <td>
+                      <span className="whitespace-nowrap text-xs font-semibold text-primario-oscuro tabular-nums">
+                        {f.paso.orden}/{f.paso.total}
+                      </span>{" "}
+                      {f.paso.nombre}
+                      {f.areaActual.externa ? <span className="block text-xs text-texto-secundario">En {f.areaActual.nombre}</span> : null}
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <span className={f.demorado ? "font-semibold text-red-800" : "text-slate-900"}>
-                        {textoDias(f.diasEnArea)}
-                        {f.demorado ? <span className="block text-xs font-normal">demorado (alerta a los {f.diasAlerta})</span> : null}
+                    <td>
+                      <span className={f.demorado ? "inline-flex items-start gap-1 font-semibold text-error" : "text-texto"}>
+                        {f.demorado ? <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
+                        <span>
+                          <span className="whitespace-nowrap">{textoDias(f.diasEnArea)}</span>
+                          {f.demorado ? <span className="block text-xs font-normal">demorado (alerta a los {f.diasAlerta})</span> : null}
+                        </span>
                       </span>
-                      <span className="block text-xs text-slate-600">desde {formatearSegunPrecision(f.enAreaDesde, f.enAreaDesdePrecision)}</span>
+                      <span className="block whitespace-nowrap text-xs text-texto-secundario">desde {formatearSegunPrecision(f.enAreaDesde, f.enAreaDesdePrecision)}</span>
                     </td>
                     {conVencimiento ? (
-                      <td className="px-3 py-2 align-top">
+                      <td>
                         {plazo && etiquetaPlazo?.tipo === "plazo" ? (
                           <>
-                            <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
-                            <span className="block text-sm text-slate-900">{etiquetaPlazo.vence ? formatearFecha(etiquetaPlazo.vence) : "—"}</span>
-                            <span className="block text-xs text-slate-700">{plazo.texto}</span>
-                            {plazo.aviso ? <span className="block text-xs text-slate-600">{plazo.aviso}</span> : null}
+                            <span className={`insignia ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
+                            <span className="mt-0.5 block whitespace-nowrap text-texto">{etiquetaPlazo.vence ? formatearFecha(etiquetaPlazo.vence) : "—"}</span>
+                            <span className="block text-xs text-texto-secundario">{plazo.texto}</span>
+                            {plazo.aviso ? <span className="block text-xs text-texto-secundario">{plazo.aviso}</span> : null}
                           </>
                         ) : (
                           "—"
                         )}
                       </td>
                     ) : null}
-                    <td className="px-3 py-2 align-top">
-                      <ul className="flex flex-col gap-1">
+                    <td>
+                      <ul className="flex flex-col items-start gap-1">
                         {f.etiquetas.map((e, i) => (
                           <li key={`${e.tipo}-${i}`}>
                             {e.tipo === "devuelto" ? (
-                              <span className="inline-block rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-900 ring-1 ring-inset ring-red-300">
+                              <span className="inline-block max-w-64 rounded-control bg-white px-2 py-0.5 text-xs font-medium text-error ring-1 ring-inset ring-error-borde">
                                 {textoDevuelto(e)}
                               </span>
                             ) : e.tipo === "sin_confirmar" ? (
-                              <span className="inline-block rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-950 ring-1 ring-inset ring-amber-300">Sin confirmar</span>
+                              <span className="insignia bg-advertencia-fondo text-advertencia ring-1 ring-inset ring-advertencia-borde">Sin confirmar</span>
                             ) : (
-                              <span className={`inline-block rounded px-2 py-0.5 text-xs ring-1 ring-inset ${mostrarPlazo(e).clase}`}>
+                              <span className={`insignia ring-1 ring-inset ${mostrarPlazo(e).clase}`}>
                                 Plazo: {mostrarPlazo(e).etiqueta.toLowerCase()}
                                 {conVencimiento ? "" : ` · ${e.texto}`}
                               </span>
                             )}
                           </li>
                         ))}
-                        {f.soloConsulta ? <li className="text-xs text-slate-600">Consulta (lo sigue {f.areaResponsable.nombre})</li> : null}
+                        {f.soloConsulta ? <li className="text-xs text-texto-secundario">Consulta (lo sigue {f.areaResponsable.nombre})</li> : null}
                       </ul>
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="flex flex-col items-start gap-1">
+                    <td>
+                      <div className="flex flex-col items-stretch gap-1.5">
                         {f.puedeConfirmar ? (
-                          <button type="button" onClick={() => confirmarUno(f)} disabled={pendiente} className={CLASE_CHICO}>
+                          <button type="button" onClick={() => confirmarUno(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO_PRIMARIO}>
                             Confirmar<span className="sr-only"> la recepción de {f.numero}</span>
                           </button>
                         ) : null}
                         {f.paseRapido ? (
-                          <button type="button" aria-haspopup="dialog" onClick={() => setPaseRapido(f)} disabled={pendiente} className={CLASE_CHICO}>
+                          <button type="button" aria-haspopup="dialog" onClick={() => setPaseRapido(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO}>
                             <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
                             Dar pase rápido<span className="sr-only"> de {f.numero}</span>
                           </button>
                         ) : null}
                         {pestana === "carga_historica" ? (
-                          <Link href={`${rutaFicha(f.numero)}/transcribir`} prefetch={false} className={CLASE_CHICO}>
+                          <Link href={`${rutaFicha(f.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_COMPACTO}>
                             <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
                             Transcribir<span className="sr-only"> {f.numero}</span>
                           </Link>
                         ) : null}
-                        <Link href={rutaFicha(f.numero)} prefetch={false} className={CLASE_CHICO}>
+                        <Link href={rutaFicha(f.numero)} prefetch={false} className={CLASE_BOTON_COMPACTO}>
                           Abrir<span className="sr-only"> {f.numero}</span>
                         </Link>
                       </div>
@@ -285,15 +323,20 @@ function DialogoPaseRapido({ fila, recargar, onCerrar, onHecho }: { fila: FilaBa
           });
         }}
       >
-        <p className="text-sm text-slate-800">
-          Sale de {fila.paso.orden}. {fila.paso.nombre} y va a{" "}
-          <strong>
+        <div className="flex flex-wrap items-center gap-2 rounded-control border border-borde bg-fondo px-3 py-2.5 text-sm">
+          <span className="text-texto-secundario">
+            <span className="sr-only">Sale de </span>
+            {fila.paso.orden}. {fila.paso.nombre}
+          </span>
+          <ArrowRightLeft className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
+          <span className="sr-only"> y va a </span>
+          <strong className="font-semibold text-texto">
             {destino.orden}. {destino.nombre}
           </strong>
-          , con fecha de ahora. Para indicar otra fecha o una observación, abrí la ficha.
-        </p>
+        </div>
+        <p className="text-sm text-texto">El pase va con fecha de ahora. Para indicar otra fecha o una observación, abrí la ficha.</p>
         {error ? <AvisoError error={error} recargar={recargar} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>

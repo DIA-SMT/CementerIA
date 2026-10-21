@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Archive, ArchiveRestore, Ban, CheckCheck, FilePlus2, MapPin, MessageSquarePlus, RotateCcw, Unlock, type LucideIcon } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_ADVERTENCIA, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_BOTON_SECUNDARIO_PELIGRO, CLASE_CONTROL } from "@/components/formulario";
 import type { EstadoError } from "@/lib/presentacion/errores";
 import { botonesEstado, LARGO_MAXIMO_UBICACION, textoUbicacion, type AccionEstado } from "@/lib/presentacion/estados";
 import { itemsFaltan, nuevoComandoId, tituloFaltan } from "@/lib/presentacion/flujo";
@@ -50,7 +50,13 @@ export function BarraEstado() {
             aria-haspopup="dialog"
             onClick={() => abrir({ tipo: "estado", accion: b.accion })}
             className={
-              b.principal ? CLASE_BOTON_PRIMARIO : ambar ? `${CLASE_BOTON_SECUNDARIO} border-amber-500 bg-amber-50 text-amber-950 hover:bg-amber-100` : CLASE_BOTON_SECUNDARIO
+              b.principal
+                ? CLASE_BOTON_PRIMARIO
+                : ambar
+                  ? CLASE_BOTON_ADVERTENCIA
+                  : b.accion === "anular"
+                    ? CLASE_BOTON_SECUNDARIO_PELIGRO
+                    : CLASE_BOTON_SECUNDARIO
             }
           >
             <Icono className="h-4 w-4" aria-hidden="true" />
@@ -124,7 +130,7 @@ function DialogoConcluir() {
       <Dialogo titulo={tituloFaltan(faltan.length).replace("para avanzar", "para concluir")} descripcion={`Para concluir ${datos.numero} falta:`} onCerrar={cerrar}>
         <div className="space-y-4">
           <ListaFaltan items={faltan} onAcceso={acceso} />
-          <div className="flex justify-end border-t border-slate-200 pt-3">
+          <div className="flex justify-end border-t border-borde pt-3">
             <button type="button" onClick={cerrar} className={CLASE_BOTON_SECUNDARIO} data-autofocus>
               Cerrar
             </button>
@@ -151,7 +157,7 @@ function FormularioConcluir() {
           enviar(() => accionEstado({ accion: "concluir", numero: datos.numero, versionVista: version, comandoId, fechaEfectiva: fecha.valor, observacion }), hecho);
         }}
       >
-        <p className="text-sm text-slate-800">El trámite terminó. Después se archiva con la caja o el estante.</p>
+        <p className="text-sm text-texto">El trámite terminó. Después se archiva con la caja o el estante.</p>
         <Observacion valor={observacion} poner={setObservacion} error={error} />
         <CampoFecha fecha={fecha} error={error} ayuda="Cuándo terminó, si no fue recién (hasta 30 días atrás)." />
         {error ? <AvisoError error={error} recargar={datos.rutaFicha} yaMostradas={RUTAS} /> : null}
@@ -201,7 +207,7 @@ function AvisoRegreso() {
   const { datos } = useFlujo();
   if (!datos.paso.externo) return null;
   return (
-    <p className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+    <p className="rounded-control border border-info-borde bg-info-fondo px-3 py-2 text-sm text-info">
       El papel está en {datos.areaActual}. Al archivar se registra que volvió a <strong>{datos.areaResponsable}</strong> (la custodia): indicá abajo cuándo volvió.
     </p>
   );
@@ -239,7 +245,7 @@ function DialogoArchivarSinConcluir() {
           );
         }}
       >
-        <p className="text-sm text-slate-800">El trámite no sigue (por ejemplo, el concesionario desistió). Queda archivado y se puede desarchivar con motivo.</p>
+        <p className="text-sm text-texto">El trámite no sigue (por ejemplo, el concesionario desistió). Queda archivado y se puede desarchivar con motivo.</p>
         <AvisoRegreso />
         <Motivo valor={motivo} poner={setMotivo} error={error} ayuda="Por qué se archiva sin terminar (10 caracteres o más). Queda en el historial." autoFocus />
         <CampoUbicacion valor={ubicacion} poner={setUbicacion} error={error} />
@@ -294,11 +300,11 @@ function DialogoConMotivo({ accion }: { accion: "desarchivar" | "anular" | "reab
           enviar(() => accionEstado({ accion, numero: datos.numero, versionVista: version, comandoId, motivo }), hecho);
         }}
       >
-        <p className="text-sm text-slate-800">{t.explicacion}</p>
-        {accion === "desarchivar" && datos.ubicacionArchivo ? <p className="text-sm text-slate-700">Hoy está en: {textoUbicacion(datos.ubicacionArchivo)}.</p> : null}
+        <p className="text-sm text-texto">{t.explicacion}</p>
+        {accion === "desarchivar" && datos.ubicacionArchivo ? <p className="text-sm text-texto-secundario">Hoy está en: {textoUbicacion(datos.ubicacionArchivo)}.</p> : null}
         <Motivo valor={motivo} poner={setMotivo} error={error} ayuda="10 caracteres o más. Queda en el historial." autoFocus />
         {error ? <AvisoError error={error} recargar={datos.rutaFicha} yaMostradas={RUTAS} /> : null}
-        <Pie pendiente={pendiente} texto={t.boton} textoPendiente={t.pendiente} onCancelar={cerrar} />
+        <Pie pendiente={pendiente} texto={t.boton} textoPendiente={t.pendiente} onCancelar={cerrar} peligro={accion === "anular"} />
       </form>
     </Dialogo>
   );
@@ -383,7 +389,7 @@ function DialogoPlantillaNueva({ modo }: { modo: "reiniciar" | "vinculado" }) {
           });
         }}
       >
-        <p className="text-sm text-slate-800">
+        <p className="text-sm text-texto">
           {reiniciar
             ? "Este expediente se anula (queda la constancia) y se abre el alta del trámite nuevo con los datos, las personas, la ubicación, el padrón y el N° municipal precargados. Las dos fichas quedan enlazadas."
             : "Para la caducidad: este expediente se archiva sin concluir (no se anula) y se abre otro, del trámite que elijas, con sus datos y enlazado a este. Las dos cosas van juntas: si el alta no sale, no se archiva."}
@@ -414,7 +420,7 @@ function DialogoPlantillaNueva({ modo }: { modo: "reiniciar" | "vinculado" }) {
           </>
         )}
         {error ? <AvisoError error={error} recargar={datos.rutaFicha} yaMostradas={RUTAS} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={cerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>

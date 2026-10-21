@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { UserX } from "lucide-react";
+import { LogOut, UserX } from "lucide-react";
+import { CLASE_BOTON_SECUNDARIO, CLASE_ENLACE } from "@/components/formulario";
+import { MarcaMunicipal } from "@/components/marca-municipal";
 import { getUsuarioActual } from "@/lib/auth/sesion";
 import { COOKIE_SIN_ACCESO, verificarSinAcceso } from "@/lib/auth/sesion-token";
 import { inicioPara } from "@/lib/dominio/navegacion";
@@ -33,49 +35,52 @@ export default async function PaginaSinAcceso() {
   const datos = token ? await verificarSinAcceso(token, entorno().secretoSesion) : null;
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-5 rounded border border-slate-300 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-2">
-          <UserX className="h-5 w-5 text-slate-600" aria-hidden="true" />
-          <h1 className="text-lg font-semibold text-slate-900">No tenés acceso a CementerIA</h1>
-        </div>
-
-        {datos ? (
-          <>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded bg-slate-50 px-3 py-2 text-sm">
-              <dt className="text-slate-500">Nombre</dt>
-              <dd className="text-slate-900">
-                {[datos.nombre, datos.apellido].filter(Boolean).join(" ") || "(sin nombre en Cidituc)"}
-              </dd>
-              <dt className="text-slate-500">CUIL</dt>
-              <dd className="font-mono text-slate-900">{formatearCuil(datos.cuil)}</dd>
-            </dl>
-            <p className="text-sm text-slate-700">
-              {datos.motivo === "inactivo"
-                ? "Tu usuario de CementerIA está dado de baja. Si tenés que volver a usarlo, pedile al administrador que lo reactive."
-                : "Ingresaste bien con Cidituc, pero tu CUIL no tiene alta en CementerIA. Pedí el alta al administrador, con el CUIL de arriba y el área en la que trabajás."}
+    <main className="flex flex-1 items-center justify-center bg-linear-to-b from-superficie-azul/70 to-fondo px-4 py-12">
+      <div className="w-full max-w-md space-y-6">
+        <MarcaMunicipal />
+        <div className="tarjeta space-y-5 p-6 sm:p-7">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-advertencia-fondo text-advertencia">
+              <UserX className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <h1 className="text-lg font-semibold text-texto">No tenés acceso a CementerIA</h1>
+          </div>
+  
+          {datos ? (
+            <>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-control border border-borde bg-fondo px-3 py-2.5 text-sm">
+                <dt className="text-texto-secundario">Nombre</dt>
+                <dd className="text-texto">
+                  {[datos.nombre, datos.apellido].filter(Boolean).join(" ") || "(sin nombre en Cidituc)"}
+                </dd>
+                <dt className="text-texto-secundario">CUIL</dt>
+                <dd className="font-mono text-texto">{formatearCuil(datos.cuil)}</dd>
+              </dl>
+              <p className="text-sm text-texto">
+                {datos.motivo === "inactivo"
+                  ? "Tu usuario de CementerIA está dado de baja. Si tenés que volver a usarlo, pedile al administrador que lo reactive."
+                  : "Ingresaste bien con Cidituc, pero tu CUIL no tiene alta en CementerIA. Pedí el alta al administrador, con el CUIL de arriba y el área en la que trabajás."}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-texto">
+              Tu cuenta no tiene alta en CementerIA o el aviso venció. Si ya pediste el alta, volvé a ingresar; si no,
+              pedila al administrador.
             </p>
-          </>
-        ) : (
-          <p className="text-sm text-slate-700">
-            Tu cuenta no tiene alta en CementerIA o el aviso venció. Si ya pediste el alta, volvé a ingresar; si no,
-            pedila al administrador.
-          </p>
-        )}
-
-        <div className="flex items-center justify-between gap-3 pt-1">
-          <Link href="/login" className="text-sm text-slate-600 underline underline-offset-2 hover:text-slate-900">
-            Volver al ingreso
-          </Link>
-          {/* Borra los avisos que quedaron en este navegador (la PC puede ser compartida). */}
-          <form action="/auth/salir" method="post">
-            <button
-              type="submit"
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
-            >
-              Salir
-            </button>
-          </form>
+          )}
+  
+          <div className="flex items-center justify-between gap-3 border-t border-borde pt-4">
+            <Link href="/login" className={`${CLASE_ENLACE} text-sm`}>
+              Volver al ingreso
+            </Link>
+            {/* Borra los avisos que quedaron en este navegador (la PC puede ser compartida). */}
+            <form action="/auth/salir" method="post">
+              <button type="submit" className={CLASE_BOTON_SECUNDARIO}>
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Salir
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </main>

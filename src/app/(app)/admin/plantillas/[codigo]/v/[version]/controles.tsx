@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useId, useState } from "react";
 import { ArrowDown, ArrowUp, CircleAlert, Trash2 } from "lucide-react";
-import { atributosCampo, Campo, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, MensajeError } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_CASILLA, CLASE_CONTROL, MensajeError } from "@/components/formulario";
 import type { ErrorCampo } from "@/lib/dominio/expedientes/errores";
 import type { DefinicionPlantilla, FiltroCementerios as Filtro } from "@/lib/dominio/plantillas/esquema";
 import {
@@ -63,7 +63,7 @@ export function ErroresDe({ ruta }: { ruta: string }) {
   const errores = useErrores(ruta);
   if (!errores) return null;
   return (
-    <ul className="space-y-0.5 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+    <ul className="space-y-0.5 rounded-control border border-error-borde bg-error-fondo px-3 py-2 text-sm text-error">
       {errores.map((m, i) => (
         <li key={i} className="flex items-start gap-1.5">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -131,7 +131,7 @@ export function Casilla({ ruta, etiqueta, marcado, poner, ayuda, deshabilitada =
   const idAyuda = ayuda ? `${idDeCampo(ruta)}-ayuda` : undefined;
   return (
     <div>
-      <label className="inline-flex items-center gap-2 text-sm text-slate-800">
+      <label className="inline-flex items-center gap-2 text-sm text-texto">
         <input
           {...atributosCampo(ruta, errores, idAyuda)}
           type="checkbox"
@@ -143,7 +143,7 @@ export function Casilla({ ruta, etiqueta, marcado, poner, ayuda, deshabilitada =
         {etiqueta}
       </label>
       {ayuda ? (
-        <p id={idAyuda} className="ml-6 text-xs text-slate-600">
+        <p id={idAyuda} className="ml-6 text-xs text-texto-secundario">
           {ayuda}
         </p>
       ) : null}
@@ -283,11 +283,11 @@ export function FiltroCementerios({ ruta, filtro, poner }: { ruta: string; filtr
   const desconocidos = marcados.filter((c) => !conocidos.includes(c));
   return (
     <fieldset id={idDeCampo(`${ruta}.${campo}`)} tabIndex={-1} className="space-y-1.5">
-      <legend className="mb-1 text-sm font-medium text-slate-800">Cementerios</legend>
+      <legend className="mb-1 text-sm font-medium text-texto">Cementerios</legend>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {(["todos", "solo", "excepto"] as const).map((m) => (
-          <label key={m} className="inline-flex items-center gap-1.5 text-sm text-slate-800">
-            <input type="radio" name={`${id}-modo`} checked={modo === m} onChange={() => poner(filtroConModo(filtro, m))} className="h-4 w-4 accent-slate-800" />
+          <label key={m} className="inline-flex items-center gap-1.5 text-sm text-texto">
+            <input type="radio" name={`${id}-modo`} checked={modo === m} onChange={() => poner(filtroConModo(filtro, m))} className="h-4 w-4 accent-primario" />
             {ETIQUETA_MODO[m]}
           </label>
         ))}
@@ -295,14 +295,14 @@ export function FiltroCementerios({ ruta, filtro, poner }: { ruta: string; filtr
       {modo !== "todos" ? (
         <div className="flex flex-wrap gap-x-4 gap-y-1 pl-2" role="group" aria-label={modo === "solo" ? "Solo en estos cementerios" : "Menos en estos cementerios"}>
           {catalogos.cementerios.map((c) => (
-            <label key={c.codigo} className="inline-flex items-center gap-1.5 text-sm text-slate-800">
+            <label key={c.codigo} className="inline-flex items-center gap-1.5 text-sm text-texto">
               <input type="checkbox" checked={marcados.includes(c.codigo)} onChange={(e) => poner(filtroConCementerio(filtro, c.codigo, e.target.checked))} className={CLASE_CASILLA} />
               {c.nombre}
               {c.activo ? null : " (inactivo)"}
             </label>
           ))}
           {desconocidos.map((c) => (
-            <label key={c} className="inline-flex items-center gap-1.5 text-sm text-red-900">
+            <label key={c} className="inline-flex items-center gap-1.5 text-sm text-error">
               <input type="checkbox" checked onChange={() => poner(filtroConCementerio(filtro, c, false))} className={CLASE_CASILLA} />
               {c} (no existe)
             </label>
@@ -321,15 +321,15 @@ export function BotonesOrden({ ruta, nombre, indice, total, onMover, onQuitar }:
   const base = idDeCampo(ruta);
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <button type="button" id={`${base}-subir`} disabled={indice === 0} onClick={() => onMover(-1)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+      <button type="button" id={`${base}-subir`} disabled={indice === 0} onClick={() => onMover(-1)} className={CLASE_BOTON_COMPACTO}>
         <ArrowUp className="h-4 w-4" aria-hidden="true" />
         <span className="sr-only">Subir {nombre}</span>
       </button>
-      <button type="button" id={`${base}-bajar`} disabled={indice === total - 1} onClick={() => onMover(1)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+      <button type="button" id={`${base}-bajar`} disabled={indice === total - 1} onClick={() => onMover(1)} className={CLASE_BOTON_COMPACTO}>
         <ArrowDown className="h-4 w-4" aria-hidden="true" />
         <span className="sr-only">Bajar {nombre}</span>
       </button>
-      <button type="button" onClick={onQuitar} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1 text-red-800`}>
+      <button type="button" onClick={onQuitar} className={CLASE_BOTON_COMPACTO_PELIGRO}>
         <Trash2 className="h-4 w-4" aria-hidden="true" />
         <span className="sr-only">Quitar {nombre}</span>
       </button>

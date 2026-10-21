@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Lock, LockOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
-import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
+import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_FOCO } from "@/components/formulario";
 import { AMBITOS_FERIADO, type Feriado } from "@/lib/dominio/expedientes/feriados";
 import { formatearFecha } from "@/lib/fechas";
 import { accionFeriado } from "../acciones";
@@ -48,13 +48,13 @@ export function PestanaFeriados({
   return (
     <div className="space-y-3">
       <nav aria-label="Años de feriados" className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-slate-700">Año:</span>
+        <span className="text-texto-secundario">Año:</span>
         {anios.map((a) => (
           <Link
             key={a.anio}
             href={`/admin/catalogos?pestana=feriados&anio=${a.anio}`}
             aria-current={a.anio === anio ? "page" : undefined}
-            className={`rounded border px-2 py-1 ${a.anio === anio ? "border-slate-800 bg-slate-800 text-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100"}`}
+            className={`inline-flex min-h-8 items-center rounded-control border px-2.5 font-medium tabular-nums transition-colors duration-150 ${CLASE_FOCO} ${a.anio === anio ? "border-institucional bg-institucional text-white" : "border-borde-control bg-white text-texto hover:border-primario hover:bg-superficie-azul hover:text-primario-oscuro"}`}
           >
             {a.anio}
             {a.cerrado ? <span className="sr-only"> (cerrado)</span> : <span className="sr-only"> (sin cerrar)</span>}
@@ -63,7 +63,7 @@ export function PestanaFeriados({
         ))}
       </nav>
 
-      <div className={`flex flex-wrap items-center justify-between gap-2 rounded border px-3 py-2 text-sm ${cerrado ? "border-emerald-300 bg-emerald-50 text-emerald-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-control border px-3 py-2 text-sm ${cerrado ? "border-exito-borde bg-exito-fondo text-exito" : "border-advertencia-borde bg-advertencia-fondo text-advertencia"}`}>
         <p>
           {cerrado
             ? `${anio} está cerrado${cerradoTexto ? ` (${cerradoTexto})` : ""}: sus vencimientos son definitivos. Si se decreta un asueto, se agrega igual y el vencimiento se corrige solo.`
@@ -90,39 +90,39 @@ export function PestanaFeriados({
           Agregar feriado
         </button>
       </div>
-      <div className="overflow-x-auto rounded border border-slate-300 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="tarjeta relative overflow-x-auto">
+        <table className="tabla-datos">
           <caption className="sr-only">Feriados de {anio}</caption>
-          <thead className="border-b border-slate-300 bg-slate-50 text-slate-700">
+          <thead>
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">Fecha</th>
-              <th scope="col" className="px-3 py-2 font-medium">Descripción</th>
-              <th scope="col" className="px-3 py-2 font-medium">Ámbito</th>
-              <th scope="col" className="px-3 py-2 font-medium">Norma</th>
-              <th scope="col" className="px-3 py-2 font-medium"><span className="sr-only">Acciones</span></th>
+              <th scope="col" className="font-medium">Fecha</th>
+              <th scope="col" className="font-medium">Descripción</th>
+              <th scope="col" className="font-medium">Ámbito</th>
+              <th scope="col" className="font-medium">Norma</th>
+              <th scope="col" className="font-medium"><span className="sr-only">Acciones</span></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody>
             {feriados.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-slate-600">
+                <td colSpan={5} className="px-3 py-4 text-texto-secundario">
                   No hay feriados cargados para {anio}.
                 </td>
               </tr>
             ) : null}
             {feriados.map((f) => (
               <tr key={f.fecha}>
-                <td className="whitespace-nowrap px-3 py-2">{formatearFecha(f.fecha)}</td>
-                <th scope="row" className="px-3 py-2 font-normal">{f.descripcion}</th>
-                <td className="px-3 py-2">{AMBITO_TEXTO[f.ambito] ?? f.ambito}</td>
-                <td className="px-3 py-2 text-slate-700">{f.norma ?? "—"}</td>
-                <td className="px-3 py-2">
+                <td className="whitespace-nowrap">{formatearFecha(f.fecha)}</td>
+                <th scope="row" className="font-normal">{f.descripcion}</th>
+                <td>{AMBITO_TEXTO[f.ambito] ?? f.ambito}</td>
+                <td className="text-texto-secundario">{f.norma ?? "—"}</td>
+                <td>
                   <div className="flex gap-1">
-                    <button type="button" aria-haspopup="dialog" onClick={() => setEditando(f)} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1`}>
+                    <button type="button" aria-haspopup="dialog" onClick={() => setEditando(f)} className={CLASE_BOTON_COMPACTO}>
                       <Pencil className="h-4 w-4" aria-hidden="true" />
                       <span className="sr-only">Modificar el feriado del {formatearFecha(f.fecha)}</span>
                     </button>
-                    <button type="button" aria-haspopup="dialog" onClick={() => setConfirmar({ tipo: "quitar", feriado: f })} className={`${CLASE_BOTON_SECUNDARIO} px-2 py-1 text-red-800`}>
+                    <button type="button" aria-haspopup="dialog" onClick={() => setConfirmar({ tipo: "quitar", feriado: f })} className={CLASE_BOTON_COMPACTO_PELIGRO}>
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
                       <span className="sr-only">Quitar el feriado del {formatearFecha(f.fecha)}</span>
                     </button>
@@ -170,6 +170,7 @@ export function PestanaFeriados({
         <DialogoConfirmar
           titulo={`Quitar el feriado del ${formatearFecha(confirmar.feriado.fecha)}`}
           textoBoton="Quitar"
+          peligro
           motivo="opcional"
           pendiente={accion.pendiente}
           error={accion.error}
@@ -210,7 +211,7 @@ function DialogoFeriado({ anio, feriado, onCerrar, onHecho }: { anio: number; fe
             min={`${anio - 1}-01-01`}
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}
-            className={`${CLASE_CONTROL} max-w-48 read-only:bg-slate-100`}
+            className={`${CLASE_CONTROL} max-w-48 read-only:bg-fondo`}
             data-autofocus={feriado ? undefined : true}
           />
         </Campo>
@@ -233,7 +234,7 @@ function DialogoFeriado({ anio, feriado, onCerrar, onHecho }: { anio: number; fe
           <input {...atributosCampo("motivo", undefined, "campo-motivo-ayuda")} type="text" maxLength={300} value={motivo} onChange={(e) => setMotivo(e.target.value)} className={CLASE_CONTROL} />
         </Campo>
         {error ? <AvisoError error={error} recargar={`/admin/catalogos?pestana=feriados&anio=${anio}`} yaMostradas={["fecha", "descripcion", "ambito", "norma"]} /> : null}
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-3">
+        <div className="flex flex-wrap justify-end gap-2 border-t border-borde pt-3">
           <button type="button" onClick={onCerrar} disabled={pendiente} className={CLASE_BOTON_SECUNDARIO}>
             Cancelar
           </button>

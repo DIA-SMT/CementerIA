@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { Info, LogIn, TriangleAlert } from "lucide-react";
+import { CircleCheck, LogIn, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CLASE_BOTON_PRIMARIO, CLASE_ENLACE } from "@/components/formulario";
+import { MarcaMunicipal } from "@/components/marca-municipal";
 import { destinoSeguro } from "@/lib/auth/destino";
 import { textoDeError } from "@/lib/auth/errores";
 import { hostnameDeSolicitud } from "@/lib/auth/red";
@@ -54,70 +56,109 @@ export default async function PaginaLogin({ searchParams }: { searchParams: Prom
   const salio = texto(parametros.salida) === "1";
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">CementerIA</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Seguimiento de expedientes de la Dirección de Cementerios
-            <br />
-            Municipalidad de San Miguel de Tucumán
-          </p>
+    <main className="flex flex-1 flex-col bg-white lg:flex-row">
+      <FotoIngreso />
+
+      <div className="flex flex-1 items-center justify-center bg-linear-to-b from-superficie-azul/70 to-white px-4 py-10 sm:px-8 lg:py-12">
+        <div className="w-full max-w-md space-y-7">
+          <MarcaMunicipal tamano="grande" titulo />
+
+          <div className="tarjeta space-y-5 p-6 sm:p-7">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-texto">Ingresar</h2>
+              <p className="text-sm text-texto-secundario">Seguimiento de expedientes de la Dirección de Cementerios.</p>
+            </div>
+
+            {error ? (
+              <p
+                role="alert"
+                className="flex gap-2 rounded-control border border-advertencia-borde bg-advertencia-fondo px-3 py-2.5 text-sm text-advertencia"
+              >
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{error}</span>
+              </p>
+            ) : null}
+            {salio && !error ? (
+              <p
+                role="status"
+                className="flex gap-2 rounded-control border border-info-borde bg-info-fondo px-3 py-2.5 text-sm text-info"
+              >
+                <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Saliste de CementerIA. Se cerraron tus sesiones en esta y en las demás computadoras.</span>
+              </p>
+            ) : null}
+
+            {e.cidituc.habilitado ? (
+              // Un <a> común y no un <Link>: Link precarga el destino, y precargar
+              // /auth/ingresar emitiría un `state` nuevo que pisaría el del
+              // intento en curso.
+              <a
+                href={conDestino("/auth/ingresar", destino)}
+                className={`${CLASE_BOTON_PRIMARIO} min-h-11 w-full text-[0.9375rem]`}
+              >
+                <LogIn className="h-4 w-4" aria-hidden="true" />
+                Ingresar con Cidituc
+              </a>
+            ) : (
+              <p className="rounded-control border border-borde bg-fondo px-3 py-2.5 text-sm text-texto">
+                El ingreso con Cidituc todavía no está habilitado en este entorno.
+              </p>
+            )}
+
+            {devLogin ? (
+              <p className="border-t border-borde pt-4 text-center text-sm">
+                <a href={conDestino("/dev/login", destino)} className={CLASE_ENLACE}>
+                  Login simulado ({e.produccion ? "staging" : "desarrollo"})
+                </a>
+              </p>
+            ) : null}
+          </div>
+
+          <aside className="flex gap-2.5 text-xs leading-relaxed text-texto-secundario">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-institucional" aria-hidden="true" />
+            <p>
+              Sistema de uso interno, solo para el personal autorizado de la Municipalidad. Los ingresos y las consultas
+              quedan registrados. Los datos personales que contiene están protegidos por la Ley 25.326 de Protección de
+              los Datos Personales: se usan solo para tramitar los expedientes y no se copian ni se comparten fuera de
+              ese fin.
+            </p>
+          </aside>
         </div>
-
-        <div className="space-y-5 rounded border border-slate-300 bg-white p-6 shadow-sm">
-          {error ? (
-            <p
-              role="alert"
-              className="flex gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
-            >
-              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>{error}</span>
-            </p>
-          ) : null}
-          {salio && !error ? (
-            <p role="status" className="rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              Saliste de CementerIA. Se cerraron tus sesiones en esta y en las demás computadoras.
-            </p>
-          ) : null}
-
-          {e.cidituc.habilitado ? (
-            // Un <a> común y no un <Link>: Link precarga el destino, y precargar
-            // /auth/ingresar emitiría un `state` nuevo que pisaría el del
-            // intento en curso.
-            <a
-              href={conDestino("/auth/ingresar", destino)}
-              className="flex w-full items-center justify-center gap-2 rounded bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
-            >
-              <LogIn className="h-4 w-4" aria-hidden="true" />
-              Ingresar con Cidituc
-            </a>
-          ) : (
-            <p className="rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              El ingreso con Cidituc todavía no está habilitado en este entorno.
-            </p>
-          )}
-
-          {devLogin ? (
-            <a
-              href={conDestino("/dev/login", destino)}
-              className="block text-center text-sm text-slate-600 underline underline-offset-2 hover:text-slate-900"
-            >
-              Login simulado ({e.produccion ? "staging" : "desarrollo"})
-            </a>
-          ) : null}
-        </div>
-
-        <aside className="flex gap-2 text-xs leading-relaxed text-slate-600">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>
-            Sistema de uso interno, solo para el personal autorizado de la Municipalidad. Los ingresos y las consultas
-            quedan registrados. Los datos personales que contiene están protegidos por la Ley 25.326 de Protección de
-            los Datos Personales: se usan solo para tramitar los expedientes y no se copian ni se comparten fuera de
-            ese fin.
-          </p>
-        </aside>
       </div>
     </main>
+  );
+}
+
+/**
+ * La foto del ingreso (decorativa, `alt` vacío) con el velo azul: mitad
+ * izquierda en escritorio, con el nombre de la Municipalidad; en tablet y
+ * celular, una franja angosta arriba, sin texto. Un <img> común con srcset:
+ * nginx cierra /_next/image.
+ */
+function FotoIngreso() {
+  return (
+    <div className="relative h-24 shrink-0 overflow-hidden sm:h-36 lg:h-auto lg:w-[57%]">
+      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+      <img
+        src="/imagenes/ingreso-paseo-sereno-960.webp"
+        srcSet="/imagenes/ingreso-paseo-sereno-960.webp 960w, /imagenes/ingreso-paseo-sereno-1600.webp 1600w"
+        sizes="(min-width: 1024px) 57vw, 100vw"
+        width={1600}
+        height={900}
+        alt=""
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-[50%_60%]"
+      />
+      <div aria-hidden="true" className="absolute inset-0 bg-linear-to-t from-institucional/90 via-institucional/55 to-primario/25" />
+      <div className="relative hidden h-full flex-col justify-end p-10 text-white lg:flex xl:p-14">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white">Municipalidad de San Miguel de Tucumán</p>
+        <p className="mt-3 max-w-lg text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
+          Seguimiento de expedientes de la Dirección de Cementerios
+        </p>
+        <span aria-hidden="true" className="mt-6 block h-1 w-16 rounded-full bg-amarillo" />
+      </div>
+    </div>
   );
 }

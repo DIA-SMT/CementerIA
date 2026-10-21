@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { clasePestana } from "@/components/pestanas";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
@@ -53,19 +54,17 @@ export default async function PaginaCatalogos(props: PageProps<"/admin/catalogos
 
   return (
     <section aria-labelledby="titulo-catalogos" className="space-y-4">
-      <h1 id="titulo-catalogos" className="text-xl font-semibold text-slate-900">
+      <h1 id="titulo-catalogos" className="text-2xl font-semibold tracking-tight text-texto">
         Catálogos
       </h1>
       <nav aria-label="Catálogos">
-        <ul className="flex flex-wrap gap-1 border-b border-slate-300">
+        <ul className="flex flex-wrap gap-1 border-b border-borde">
           {PESTANAS.map((p) => (
             <li key={p.id}>
               <Link
                 href={`/admin/catalogos?pestana=${p.id}`}
                 aria-current={p.id === pestana ? "page" : undefined}
-                className={`-mb-px inline-flex rounded-t border px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-slate-800 ${
-                  p.id === pestana ? "border-slate-300 border-b-white bg-white font-medium text-slate-900" : "border-transparent text-slate-600 hover:text-slate-900"
-                }`}
+                className={clasePestana(p.id === pestana)}
               >
                 {p.etiqueta}
               </Link>
