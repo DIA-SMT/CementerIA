@@ -5,7 +5,8 @@
 // 1. Levanta un PostgreSQL 15 efímero con migraciones (el mismo módulo que la
 //    batería de integración, tests/integracion/base-efimera.ts) en
 //    `%TEMP%/cementeria-e2e-XXXX` y un puerto libre.
-// 2. Carga la semilla con los 30 expedientes ficticios (`prisma/seed.ts`).
+// 2. Carga la semilla con los 30 expedientes ficticios y los escenarios
+//    (`prisma/seed.ts`).
 // 3. `next build` (salvo E2E_SIN_BUILD=1) y `next start` en otro puerto libre,
 //    con NODE_ENV=test: así Next NO lee .env.local (Next solo lee .env.test*
 //    y .env con NODE_ENV=test), el login simulado se puede habilitar sin
@@ -144,11 +145,12 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
     await mkdir(adjuntos, { recursive: true });
 
     // La semilla, con el rol de la app y el admin ficticio de desarrollo. prisma/seed.ts
-    // carga .env.local con dotenv, que no pisa lo que ya está definido acá.
+    // carga .env.local con dotenv, que no pisa lo que ya está definido acá. Los
+    // adjuntos de los escenarios, en la carpeta de la app (no en ./.data).
     await correr(
       "La semilla",
       [path.join(RAIZ, "node_modules", "tsx", "dist", "cli.mjs"), path.join("prisma", "seed.ts")],
-      entornoLimpio({ DATABASE_URL: base.urlApp, ADMIN_INICIAL_CUIL: ADMIN_CUIL_DESARROLLO, NODE_ENV: "development" }),
+      entornoLimpio({ DATABASE_URL: base.urlApp, ADMIN_INICIAL_CUIL: ADMIN_CUIL_DESARROLLO, NODE_ENV: "development", ADJUNTOS_DIR: adjuntos }),
       logSemilla,
     );
 

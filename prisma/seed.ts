@@ -8,19 +8,24 @@
 //
 // Después, y aparte, los 30 expedientes ficticios de la sección 6: los da de
 // alta el usuario ficticio de Mesa de Entradas con la función de alta del
-// dominio (prisma/semilla/expedientes.ts), cada uno en su transacción.
+// dominio (prisma/semilla/expedientes.ts), cada uno en su transacción. Y
+// después de ellos, los escenarios (prisma/semilla/escenarios.ts): otro grupo
+// de expedientes ficticios repartidos por todo el circuito (las bandejas de
+// cada área, la DIM, los estados, correcciones), movidos con las funciones del
+// dominio por los usuarios ficticios de cada área.
 //
 // Es IDEMPOTENTE: crea lo que falta y deja como está lo que ya existe (ver
-// prisma/semilla/sembrar.ts; los expedientes, por su comando_id fijo).
-// Correrla dos veces no cambia nada.
+// prisma/semilla/sembrar.ts; los expedientes y los escenarios, por sus
+// comando_id fijos). Correrla dos veces no cambia nada.
 //
 // Opciones:
-//   --sin-ficticios   sin los usuarios de prueba por área ni los expedientes
-//                     ficticios. Es la única forma en que corre con
-//                     NODE_ENV=production.
+//   --sin-ficticios   sin los usuarios de prueba por área, ni los expedientes
+//                     ficticios ni los escenarios. Es la única forma en que
+//                     corre con NODE_ENV=production.
 
 import { config as cargarEnv } from "dotenv";
 import { crearCliente } from "../src/lib/db/crear-cliente";
+import { sembrarEscenarios } from "./semilla/escenarios";
 import { sembrarExpedientes } from "./semilla/expedientes";
 import { sembrar } from "./semilla/sembrar";
 import { ADMIN_CUIL_DESARROLLO } from "./semilla/usuarios";
@@ -61,6 +66,13 @@ async function main(): Promise<void> {
         expedientes.creados === 0
           ? `Expedientes ficticios: ya estaban los ${expedientes.existentes}.`
           : `Expedientes ficticios: ${expedientes.creados} creados (${expedientes.numeros[0]} a ${expedientes.numeros.at(-1)}).`,
+      );
+      // Después de los 30, para no cambiar su numeración.
+      const escenarios = await sembrarEscenarios(cliente);
+      console.log(
+        escenarios.creados === 0
+          ? `Escenarios: ya estaban sus ${escenarios.existentes} expedientes.`
+          : `Escenarios: ${escenarios.creados} expedientes creados en ${escenarios.escenarios.length} escenarios (${escenarios.numeros[0]} a ${escenarios.numeros.at(-1)}).`,
       );
     }
   } finally {

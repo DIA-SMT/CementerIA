@@ -282,6 +282,73 @@ plantillas y los 3 cementerios, algunos con solicitante distinto del titular,
 Oeste) y 3 históricos. Quedan en el primer paso. Cada uno tiene un `comando_id` fijo, así
 que una segunda corrida no los duplica.
 
+Después de los 30 carga los **escenarios** (`prisma/semilla/escenarios.ts`):
+34 expedientes ficticios más (`CEM-2026-00031` a `00064` en una base recién
+reseteada) repartidos por todo el circuito, para que cada bandeja y el panel
+tengan algo. Se crean y se mueven solo con las funciones del dominio (alta,
+recepción, tildes, documentos, pases, devoluciones, estados, correcciones,
+notas, adjuntos y transcripción), cada acción hecha por el usuario ficticio
+del área que corresponde, así que el historial, la proyección y la auditoría
+son los de un trámite real. Las fechas son días hábiles hacia atrás desde el
+día en que corre la semilla (deterministas para ese día) y respetan las reglas
+del dominio (no retroceden, hasta 30 días). Cada acción tiene un `comando_id`
+fijo: una segunda corrida no crea ni mueve nada. Personas: nombres "…
+Escenario", DNI de 9 dígitos `9999NNNNN` (no existen y no chocan con los de las
+pruebas), teléfonos `0381 000-5NNN`, correos `@ejemplo.test`.
+
+Con quién entrar por `/dev/login` para ver cada uno (el número es el de una
+base recién reseteada):
+
+| Entrar como | Escenario | Qué muestra |
+|---|---|---|
+| Cómputo | C1 · 00031 | Renovación (Norte) enviada hace 4 días hábiles y sin confirmar: Por confirmar y "sin confirmar" del panel |
+| Cómputo | C2 · 00032 | Sin perjuicio de tercero (Jardín) en Cómputo final, llegó ayer sin confirmar |
+| Cómputo | C3 · 00033 | Cómputo alta a medias (grabación tildada, constancia pendiente), demorado; Mesa corrigió la fecha de su pase |
+| Cómputo | C4 · 00034 | Cómputo final confirmado, sin grabar |
+| Liquidación | L1 · 00035, L2 · 00036 | Por confirmar (uno de hoy) |
+| Liquidación | L3 · 00037 | Panteón de una asociación (persona jurídica, Oeste): boleta emitida esperando el pago, con nota |
+| Liquidación | L4 · 00038 | Todo listo, con el comprobante adjunto (PNG): "Dar pase rápido" |
+| Liquidación | L5 · 00039 | Nueva concesión con dos difuntos, confirmada y sin empezar |
+| Liquidación | L6 · 00040 | Pase a Legal revertido (corrección del mes); queda listo |
+| Liquidación | L7 · 00041 | Devuelto por Asesoría Legal con motivo y la boleta para rehacer (fila roja) |
+| Asesoría Legal | G1 · 00042 | 12 días hábiles en Legal (demorado), con nota |
+| Asesoría Legal | G2 · 00043 | Vínculo acreditado y dictamen pendiente; actas "no corresponde" (hijo de crianza) |
+| Asesoría Legal | G3 · 00044 | Nueva concesión que volvió del cementerio, sin confirmar |
+| Administrativo | A1 · 00045 | Resolución confeccionada, falta la firma |
+| Administrativo | A2 · 00046 | Plan de pagos que volvió de la DIM pagado: título confeccionado, falta la firma |
+| Administrativo | A3 · 00047 | Entrega pendiente (nueva concesión, Jardín) |
+| Administrativo | A4 · 00048 | Título entregado: listo para concluir |
+| Administrativo | A5 · 00049 | Por confirmar |
+| Tributario | T1 · 00050 | Por confirmar |
+| Tributario | T2 · 00051 | Notificada, faltan los débitos y la remisión |
+| Tributario | D1 · 00052 | En la DIM (Afuera y Plazos): asociación con panteón, plazo en término |
+| Tributario | D2 · 00053 | En la DIM: plazo por vencer (iniciado antes del sistema, transcripto hasta Tributario) |
+| Tributario | D3 · 00054 | En la DIM: plazo vencido (iniciado antes del sistema, transcripto hasta la DIM), con nota |
+| Mesa de Entradas | M1 · 00055, M2 · 00056 | Nuevas concesiones en el cementerio (Afuera, custodia de Mesa); M1 con el conocimiento tildado y una nota |
+| Mesa de Entradas | M3 · 00057 | Devuelto por Cómputo ("Falta documentación"), sin confirmar hace 3 días hábiles |
+| Dirección | K1 · 00058, K2 · 00059 | Concluidos (K1 con el informe técnico adjunto en PDF) |
+| Dirección | K3 · 00060 | Concluido y archivado con caja |
+| Mesa de Entradas | X1 · 00061 | Archivado sin concluir desde el cementerio, con motivo, regreso del papel y caja |
+| Mesa de Entradas | Y1 · 00062 | Anulado con motivo (alta duplicada) |
+| Mesa de Entradas | R1 · 00063 → 00064 | Reiniciado desde Liquidación como plan de pagos: el anterior anulado y el nuevo en Mesa, enlazados |
+
+Como **Dirección**, `/panel` tiene números en todas las secciones: por estado,
+la matriz área × trámite, demorados, plazos por vencer y vencidos, sin
+confirmar, diferidos y correcciones del mes, y las 3 cargas históricas de los
+30. Mesa de Entradas ve además en Afuera y Plazos lo de la DIM, como consulta.
+
+- Los plazos por vencer y vencido necesitan una notificación de hace más de 25
+  días hábiles, que el límite de 30 días corridos no admite en un expediente
+  normal: D2 y D3 son "iniciados antes del sistema", transcriptos de la ficha
+  de papel con la notificación y su fecha, y con la carga histórica terminada.
+- No hay escenario de "archivar y abrir vinculado" (caducidad): la plantilla de
+  caducidad todavía no existe (docs/api-dominio.md, 15.2) y ninguna de las 4
+  sirve para abrir el expediente vinculado.
+- Cómputo, Liquidación, Legal y Administrativo no custodian pasos externos:
+  su pestaña Afuera queda vacía.
+- Si la semilla se corta a la mitad, la siguiente corrida del mismo día
+  completa lo que falta; otro día, `npm run db:reset`.
+
 - Cada plantilla pasa la validación de "Publicar" antes de grabarse; si una
   falla, no se graba nada.
 - Una plantilla publicada no se modifica (está congelada): si la semilla cambió
@@ -289,8 +356,8 @@ que una segunda corrida no los duplica.
   no lo toca y avisa si no coincide.
 - Las plantillas de la semilla se actualizaron el 20/10/2026 según docs/fuentes
   editando la v1 (todavía no hay producción); sus notas de cambio lo dicen.
-- En producción corre con `npm run db:seed -- --sin-ficticios` (sin usuarios
-  ni expedientes ficticios) y exige `ADMIN_INICIAL_CUIL`.
+- En producción corre con `npm run db:seed -- --sin-ficticios` (sin usuarios,
+  expedientes ficticios ni escenarios) y exige `ADMIN_INICIAL_CUIL`.
 
 ## Ingreso
 
