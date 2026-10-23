@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Inbox, LogOut } from "lucide-react";
 import { exigirUsuario } from "@/lib/auth/sesion";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
 import { inicioPara, navegacionPara, puedeVerPantalla } from "@/lib/dominio/navegacion";
+import { COOKIE_BARRA, leerPreferenciaBarra } from "@/lib/presentacion/barra-lateral";
 import { rutaBandeja } from "@/lib/presentacion/flujo";
 import { CLASE_FOCO } from "@/components/formulario";
 import { BuscadorGlobal } from "./buscador-global";
@@ -20,6 +22,12 @@ import { BarraLateral } from "./navegacion";
  * del botón "Buscador" (BuscadorGlobal), "Por confirmar" muestra solo el ícono y
  * el número y Salir solo el ícono; los dos conservan su nombre accesible.
  *
+ * La barra lateral se puede contraer a una franja de íconos en escritorio. La
+ * preferencia viene de una cookie que se lee acá, en el servidor (en Next 16
+ * `cookies()` es asíncrona): así la primera pintura ya sale contraída o
+ * expandida, sin parpadeo. Sin cookie, el CSS la contrae entre 1024 y 1279 px
+ * (src/lib/presentacion/barra-lateral.ts).
+ *
  * Las Server Actions del flujo llaman a `refresh()`: la respuesta trae también
  * este layout, así que el contador se actualiza al confirmar o dar un pase.
  *
@@ -34,12 +42,13 @@ export default async function LayoutConSesion({ children }: { children: React.Re
   const area = usuario.area?.nombre ?? (usuario.rol === "admin" ? "Administración del sistema" : "Sin área");
   const conBandeja = puedeVerPantalla(usuario, "bandeja");
   const porConfirmar = conBandeja ? await expedientes.contadorPorConfirmar(usuario) : 0;
+  const preferenciaBarra = leerPreferenciaBarra((await cookies()).get(COOKIE_BARRA)?.value);
 
   // En escritorio el fondo azul sigue debajo de la barra lateral (que es
   // sticky) hasta el final de la página.
   return (
     <div className="flex min-h-full flex-1 flex-col lg:flex-row lg:bg-institucional print:bg-white">
-      <BarraLateral items={items} inicio={inicioPara(usuario)} />
+      <BarraLateral items={items} inicio={inicioPara(usuario)} preferencia={preferenciaBarra} />
 
       <div className="flex min-w-0 flex-1 flex-col bg-fondo print:bg-white">
         <header className="border-b border-borde bg-white print:hidden">

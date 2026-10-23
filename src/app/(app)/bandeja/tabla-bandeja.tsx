@@ -89,6 +89,8 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
   }
 
   const vacia = VACIA[pestana];
+  const titulo = conVencimiento ? "Expedientes con plazo, del que vence antes al último" : "Expedientes de la pestaña, del que llegó antes al más nuevo";
+  const elegir = (numero: string, si: boolean) => setSeleccion((s) => (si ? [...s, numero] : s.filter((n) => n !== numero)));
 
   return (
     <div className="space-y-3">
@@ -143,147 +145,198 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
           <p>{vacia.texto}</p>
         </EstadoVacio>
       ) : (
-        <div className="tarjeta relative overflow-x-auto">
-          <table className="tabla-datos min-w-[900px]">
-            <caption className="sr-only">{conVencimiento ? "Expedientes con plazo, del que vence antes al último" : "Expedientes de la pestaña, del que llegó antes al más nuevo"}</caption>
-            <thead>
-              <tr>
-                {lote ? (
-                  <th scope="col" className="w-10">
-                    <span className="sr-only">Seleccionar</span>
-                  </th>
-                ) : null}
-                <th scope="col">N° interno</th>
-                <th scope="col">N° municipal</th>
-                <th scope="col">Titular</th>
-                <th scope="col">Trámite</th>
-                <th scope="col">Paso</th>
-                <th scope="col">En el área</th>
-                {conVencimiento ? <th scope="col">Vencimiento</th> : null}
-                <th scope="col">Etiquetas</th>
-                <th scope="col">
-                  <span className="sr-only">Acciones</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((f) => {
-                const devuelto = f.etiquetas.find((e) => e.tipo === "devuelto");
-                const etiquetaPlazo = f.etiquetas.find((e) => e.tipo === "plazo");
-                const plazo = etiquetaPlazo && etiquetaPlazo.tipo === "plazo" ? mostrarPlazo(etiquetaPlazo) : null;
-                const vencida = conVencimiento && plazo?.semaforo === "vencido";
-                // Franja a la izquierda de la primera celda: rojo si volvió devuelto o venció el plazo.
-                const franja = devuelto || vencida ? "shadow-[inset_4px_0_0_var(--color-error)]" : "";
-                return (
-                  <tr key={f.numero} className={devuelto ? "bg-error-fondo" : vencida ? "bg-error-fondo/60" : undefined}>
-                    {lote ? (
-                      <td className={franja}>
-                        {f.puedeConfirmar ? (
-                          <input
-                            type="checkbox"
-                            aria-label={`Seleccionar ${f.numero}`}
-                            checked={elegidos.includes(f.numero)}
-                            onChange={(e) => setSeleccion((s) => (e.target.checked ? [...s, f.numero] : s.filter((n) => n !== f.numero)))}
-                            className={`${CLASE_CASILLA} mt-0.5`}
-                          />
-                        ) : null}
-                      </td>
-                    ) : null}
-                    <th scope="row" className={`font-normal ${lote ? "" : franja}`}>
-                      <Link href={rutaFicha(f.numero)} prefetch={false} className={`${CLASE_ENLACE} whitespace-nowrap font-mono font-medium`}>
-                        {f.numero}
-                      </Link>
-                      <span className="block text-xs text-texto-secundario">{f.numeroCorto}</span>
+        // Tabla o tarjetas según el ancho que le queda a la bandeja (container
+        // query, no el de la ventana: depende de si la barra lateral está
+        // contraída). Tabla desde 56rem (896 px); debajo, una tarjeta por
+        // expediente. La que no corresponde queda con display:none: nunca hay
+        // dos botones con el mismo nombre al alcance del lector de pantalla.
+        <div className="@container">
+          <div className="tarjeta relative hidden overflow-x-auto @4xl:block">
+            <table className="tabla-datos table-fixed">
+              <caption className="sr-only">{titulo}</caption>
+              <colgroup>
+                {lote ? <col className="w-10" /> : null}
+                <col className="w-[9.5rem]" />
+                <col />
+                <col />
+                <col />
+                <col className="w-[8rem]" />
+                {conVencimiento ? <col className="w-[9rem]" /> : null}
+                <col className="w-[9.5rem]" />
+                <col className="w-[9.75rem]" />
+              </colgroup>
+              <thead>
+                <tr>
+                  {lote ? (
+                    <th scope="col">
+                      <span className="sr-only">Seleccionar</span>
                     </th>
-                    <td className="whitespace-nowrap tabular-nums">{f.numeroMunicipal ?? "—"}</td>
-                    <td className="font-medium">{f.titular ?? "—"}</td>
-                    <td>
+                  ) : null}
+                  <th scope="col">N° interno</th>
+                  <th scope="col">Titular</th>
+                  <th scope="col">Trámite</th>
+                  <th scope="col">Paso</th>
+                  <th scope="col">En el área</th>
+                  {conVencimiento ? <th scope="col">Vencimiento</th> : null}
+                  <th scope="col">Etiquetas</th>
+                  <th scope="col" className="pl-2">
+                    <span className="sr-only">Acciones</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((f) => {
+                  const senal = senalDeFila(f, conVencimiento);
+                  // Franja a la izquierda de la primera celda: rojo si volvió devuelto o venció el plazo.
+                  const franja = senal ? "shadow-[inset_4px_0_0_var(--color-error)]" : "";
+                  return (
+                    <tr key={f.numero} className={senal === "devuelto" ? "bg-error-fondo" : senal === "vencido" ? "bg-error-fondo/60" : undefined}>
+                      {lote ? (
+                        <td className={franja}>
+                          {f.puedeConfirmar ? <CasillaFila fila={f} elegida={elegidos.includes(f.numero)} onCambiar={elegir} /> : null}
+                        </td>
+                      ) : null}
+                      <th scope="row" className={`font-normal ${lote ? "" : franja}`}>
+                        <Link href={rutaFicha(f.numero)} prefetch={false} className={`${CLASE_ENLACE} whitespace-nowrap font-mono text-[0.8125rem] font-medium`}>
+                          {f.numero}
+                        </Link>
+                        <span className="block text-xs text-texto-secundario">{f.numeroCorto}</span>
+                        {f.numeroMunicipal ? (
+                          <span className="block truncate text-xs text-texto-secundario tabular-nums" title={`N° municipal ${f.numeroMunicipal}`}>
+                            <abbr title="Número municipal" className="no-underline">
+                              N° mun.
+                            </abbr>{" "}
+                            {f.numeroMunicipal}
+                          </span>
+                        ) : null}
+                      </th>
+                      <td>
+                        <span className="line-clamp-2 font-medium" title={f.titular ?? undefined}>
+                          {f.titular ?? "—"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="line-clamp-2" title={f.tramite.tipo}>
+                          {f.tramite.tipo}
+                        </span>
+                        <span className="block truncate text-xs text-texto-secundario" title={`${f.tramite.plantilla} · v${f.tramite.version}`}>
+                          {f.tramite.plantilla} · v{f.tramite.version}
+                        </span>
+                      </td>
+                      <td>
+                        {/* El orden arriba, chico, y el nombre en hasta dos renglones: así no se corta el nombre del paso. */}
+                        <span className="block text-xs font-semibold text-primario-oscuro tabular-nums">
+                          {f.paso.orden}/{f.paso.total}
+                        </span>
+                        <span className="line-clamp-2" title={f.paso.nombre}>
+                          {f.paso.nombre}
+                        </span>
+                        {f.areaActual.externa ? <span className="block truncate text-xs text-texto-secundario">En {f.areaActual.nombre}</span> : null}
+                      </td>
+                      <td>
+                        <EnElArea fila={f} />
+                      </td>
+                      {conVencimiento ? (
+                        <td>
+                          <Vencimiento fila={f} />
+                        </td>
+                      ) : null}
+                      <td>
+                        <Etiquetas fila={f} conVencimiento={conVencimiento} />
+                      </td>
+                      <td className="pl-2">
+                        <Acciones
+                          fila={f}
+                          pestana={pestana}
+                          pendiente={pendiente}
+                          onConfirmar={confirmarUno}
+                          onPaseRapido={setPaseRapido}
+                          className="flex flex-col items-stretch gap-1.5"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <ul aria-label={titulo} className="grid gap-3 @2xl:grid-cols-2 @4xl:hidden">
+            {filas.map((f) => {
+              const senal = senalDeFila(f, conVencimiento);
+              return (
+                <li
+                  key={f.numero}
+                  className={`tarjeta flex flex-col gap-3 p-4 ${
+                    senal === "devuelto"
+                      ? "border-error-borde bg-error-fondo shadow-[inset_4px_0_0_var(--color-error)]"
+                      : senal === "vencido"
+                        ? "border-error-borde shadow-[inset_4px_0_0_var(--color-error)]"
+                        : ""
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {lote && f.puedeConfirmar ? (
+                      <CasillaFila fila={f} elegida={elegidos.includes(f.numero)} onCambiar={elegir} className="mt-1" />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p className="flex flex-wrap items-baseline gap-x-2">
+                        <Link href={rutaFicha(f.numero)} prefetch={false} className={`${CLASE_ENLACE} font-mono font-medium`}>
+                          {f.numero}
+                        </Link>
+                        <span className="text-xs text-texto-secundario">{f.numeroCorto}</span>
+                      </p>
+                      <p className="mt-0.5 font-medium text-texto">{f.titular ?? "Sin titular"}</p>
+                    </div>
+                  </div>
+                  <dl className="grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
+                    <dt className="text-texto-secundario">Trámite</dt>
+                    <dd className="min-w-0">
                       {f.tramite.tipo}
                       <span className="block text-xs text-texto-secundario">
                         {f.tramite.plantilla} · v{f.tramite.version}
                       </span>
-                    </td>
-                    <td>
+                    </dd>
+                    <dt className="text-texto-secundario">Paso</dt>
+                    <dd className="min-w-0">
                       <span className="whitespace-nowrap text-xs font-semibold text-primario-oscuro tabular-nums">
                         {f.paso.orden}/{f.paso.total}
                       </span>{" "}
                       {f.paso.nombre}
                       {f.areaActual.externa ? <span className="block text-xs text-texto-secundario">En {f.areaActual.nombre}</span> : null}
-                    </td>
-                    <td>
-                      <span className={f.demorado ? "inline-flex items-start gap-1 font-semibold text-error" : "text-texto"}>
-                        {f.demorado ? <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
-                        <span>
-                          <span className="whitespace-nowrap">{textoDias(f.diasEnArea)}</span>
-                          {f.demorado ? <span className="block text-xs font-normal">demorado (alerta a los {f.diasAlerta})</span> : null}
-                        </span>
-                      </span>
-                      <span className="block whitespace-nowrap text-xs text-texto-secundario">desde {formatearSegunPrecision(f.enAreaDesde, f.enAreaDesdePrecision)}</span>
-                    </td>
+                    </dd>
+                    <dt className="text-texto-secundario">En el área</dt>
+                    <dd className="min-w-0">
+                      <EnElArea fila={f} />
+                    </dd>
                     {conVencimiento ? (
-                      <td>
-                        {plazo && etiquetaPlazo?.tipo === "plazo" ? (
-                          <>
-                            <span className={`insignia ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
-                            <span className="mt-0.5 block whitespace-nowrap text-texto">{etiquetaPlazo.vence ? formatearFecha(etiquetaPlazo.vence) : "—"}</span>
-                            <span className="block text-xs text-texto-secundario">{plazo.texto}</span>
-                            {plazo.aviso ? <span className="block text-xs text-texto-secundario">{plazo.aviso}</span> : null}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                      <>
+                        <dt className="text-texto-secundario">Vencimiento</dt>
+                        <dd className="min-w-0">
+                          <Vencimiento fila={f} />
+                        </dd>
+                      </>
                     ) : null}
-                    <td>
-                      <ul className="flex flex-col items-start gap-1">
-                        {f.etiquetas.map((e, i) => (
-                          <li key={`${e.tipo}-${i}`}>
-                            {e.tipo === "devuelto" ? (
-                              <span className="inline-block max-w-64 rounded-control bg-white px-2 py-0.5 text-xs font-medium text-error ring-1 ring-inset ring-error-borde">
-                                {textoDevuelto(e)}
-                              </span>
-                            ) : e.tipo === "sin_confirmar" ? (
-                              <span className="insignia bg-advertencia-fondo text-advertencia ring-1 ring-inset ring-advertencia-borde">Sin confirmar</span>
-                            ) : (
-                              <span className={`insignia ring-1 ring-inset ${mostrarPlazo(e).clase}`}>
-                                Plazo: {mostrarPlazo(e).etiqueta.toLowerCase()}
-                                {conVencimiento ? "" : ` · ${e.texto}`}
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                        {f.soloConsulta ? <li className="text-xs text-texto-secundario">Consulta (lo sigue {f.areaResponsable.nombre})</li> : null}
-                      </ul>
-                    </td>
-                    <td>
-                      <div className="flex flex-col items-stretch gap-1.5">
-                        {f.puedeConfirmar ? (
-                          <button type="button" onClick={() => confirmarUno(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO_PRIMARIO}>
-                            Confirmar<span className="sr-only"> la recepción de {f.numero}</span>
-                          </button>
-                        ) : null}
-                        {f.paseRapido ? (
-                          <button type="button" aria-haspopup="dialog" onClick={() => setPaseRapido(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO}>
-                            <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                            Dar pase rápido<span className="sr-only"> de {f.numero}</span>
-                          </button>
-                        ) : null}
-                        {pestana === "carga_historica" ? (
-                          <Link href={`${rutaFicha(f.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_COMPACTO}>
-                            <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
-                            Transcribir<span className="sr-only"> {f.numero}</span>
-                          </Link>
-                        ) : null}
-                        <Link href={rutaFicha(f.numero)} prefetch={false} className={CLASE_BOTON_COMPACTO}>
-                          Abrir<span className="sr-only"> {f.numero}</span>
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    {f.numeroMunicipal ? (
+                      <>
+                        <dt className="text-texto-secundario">N° municipal</dt>
+                        <dd className="min-w-0 tabular-nums">{f.numeroMunicipal}</dd>
+                      </>
+                    ) : null}
+                  </dl>
+                  {f.etiquetas.length > 0 || f.soloConsulta ? <Etiquetas fila={f} conVencimiento={conVencimiento} enFila /> : null}
+                  <Acciones
+                    fila={f}
+                    pestana={pestana}
+                    pendiente={pendiente}
+                    onConfirmar={confirmarUno}
+                    onPaseRapido={setPaseRapido}
+                    className="mt-auto flex flex-wrap gap-2 border-t border-borde pt-3"
+                  />
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -298,6 +351,146 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Piezas de una fila: las comparten la tabla y las tarjetas.
+// ---------------------------------------------------------------------------
+
+/** La señal roja de la fila: devuelto, o (en Plazos) con el plazo vencido. */
+function senalDeFila(f: FilaBandeja, conVencimiento: boolean): "devuelto" | "vencido" | null {
+  if (f.etiquetas.some((e) => e.tipo === "devuelto")) return "devuelto";
+  const plazo = f.etiquetas.find((e) => e.tipo === "plazo");
+  if (conVencimiento && plazo && plazo.tipo === "plazo" && mostrarPlazo(plazo).semaforo === "vencido") return "vencido";
+  return null;
+}
+
+function CasillaFila({
+  fila,
+  elegida,
+  onCambiar,
+  className = "",
+}: {
+  fila: FilaBandeja;
+  elegida: boolean;
+  onCambiar: (numero: string, si: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <input
+      type="checkbox"
+      aria-label={`Seleccionar ${fila.numero}`}
+      checked={elegida}
+      onChange={(e) => onCambiar(fila.numero, e.target.checked)}
+      className={`${CLASE_CASILLA} mt-0.5 ${className}`}
+    />
+  );
+}
+
+/** Días hábiles en el área (rojo con reloj si está demorado) y desde cuándo. */
+function EnElArea({ fila: f }: { fila: FilaBandeja }) {
+  return (
+    <>
+      <span className={f.demorado ? "inline-flex items-start gap-1 font-semibold text-error" : "text-texto"}>
+        {f.demorado ? <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
+        <span>
+          <span className="whitespace-nowrap">{textoDias(f.diasEnArea)}</span>
+          {f.demorado ? <span className="block text-xs font-normal">demorado (alerta a los {f.diasAlerta})</span> : null}
+        </span>
+      </span>
+      <span className="block text-xs text-texto-secundario">desde {formatearSegunPrecision(f.enAreaDesde, f.enAreaDesdePrecision)}</span>
+    </>
+  );
+}
+
+/** El vencimiento del plazo (pestaña Plazos) con su semáforo. */
+function Vencimiento({ fila: f }: { fila: FilaBandeja }) {
+  const etiqueta = f.etiquetas.find((e) => e.tipo === "plazo");
+  if (!etiqueta || etiqueta.tipo !== "plazo") return <>—</>;
+  const plazo = mostrarPlazo(etiqueta);
+  return (
+    <>
+      <span className={`insignia ring-1 ring-inset ${plazo.clase}`}>{plazo.etiqueta}</span>
+      <span className="mt-0.5 block whitespace-nowrap text-texto">{etiqueta.vence ? formatearFecha(etiqueta.vence) : "—"}</span>
+      <span className="block text-xs text-texto-secundario">{plazo.texto}</span>
+      {plazo.aviso ? <span className="block text-xs text-texto-secundario">{plazo.aviso}</span> : null}
+    </>
+  );
+}
+
+/**
+ * Devuelto (con el motivo), sin confirmar, plazo y "solo consulta". En la
+ * tabla el motivo de la devolución se corta a 3 renglones (el texto completo
+ * queda en el `title` y lo lee entero el lector de pantalla); en la tarjeta va
+ * entero, en una fila.
+ */
+function Etiquetas({ fila: f, conVencimiento, enFila = false }: { fila: FilaBandeja; conVencimiento: boolean; enFila?: boolean }) {
+  return (
+    <ul className={enFila ? "flex flex-wrap items-start gap-1.5" : "flex flex-col items-start gap-1"}>
+      {f.etiquetas.map((e, i) => (
+        <li key={`${e.tipo}-${i}`} className="max-w-full">
+          {e.tipo === "devuelto" ? (
+            <span
+              title={textoDevuelto(e)}
+              className={`${enFila ? "inline-block" : "line-clamp-3"} max-w-full rounded-control bg-white px-2 py-0.5 text-xs font-medium text-error ring-1 ring-inset ring-error-borde`}
+            >
+              {textoDevuelto(e)}
+            </span>
+          ) : e.tipo === "sin_confirmar" ? (
+            <span className="insignia bg-advertencia-fondo text-advertencia ring-1 ring-inset ring-advertencia-borde">Sin confirmar</span>
+          ) : (
+            <span className={`insignia max-w-full whitespace-normal ring-1 ring-inset ${mostrarPlazo(e).clase}`}>
+              Plazo: {mostrarPlazo(e).etiqueta.toLowerCase()}
+              {conVencimiento ? "" : ` · ${e.texto}`}
+            </span>
+          )}
+        </li>
+      ))}
+      {f.soloConsulta ? <li className="text-xs text-texto-secundario">Consulta (lo sigue {f.areaResponsable.nombre})</li> : null}
+    </ul>
+  );
+}
+
+/** Confirmar, Dar pase rápido, Transcribir y Abrir: botones compactos que no se parten. */
+function Acciones({
+  fila: f,
+  pestana,
+  pendiente,
+  onConfirmar,
+  onPaseRapido,
+  className,
+}: {
+  fila: FilaBandeja;
+  pestana: PestanaBandeja;
+  pendiente: boolean;
+  onConfirmar: (fila: FilaBandeja) => void;
+  onPaseRapido: (fila: FilaBandeja) => void;
+  className: string;
+}) {
+  return (
+    <div className={className}>
+      {f.puedeConfirmar ? (
+        <button type="button" onClick={() => onConfirmar(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO_PRIMARIO}>
+          Confirmar<span className="sr-only"> la recepción de {f.numero}</span>
+        </button>
+      ) : null}
+      {f.paseRapido ? (
+        <button type="button" aria-haspopup="dialog" onClick={() => onPaseRapido(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO}>
+          <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Dar pase rápido<span className="sr-only"> de {f.numero}</span>
+        </button>
+      ) : null}
+      {pestana === "carga_historica" ? (
+        <Link href={`${rutaFicha(f.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+          <FileClock className="h-3.5 w-3.5" aria-hidden="true" />
+          Transcribir<span className="sr-only"> {f.numero}</span>
+        </Link>
+      ) : null}
+      <Link href={rutaFicha(f.numero)} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+        Abrir<span className="sr-only"> {f.numero}</span>
+      </Link>
     </div>
   );
 }

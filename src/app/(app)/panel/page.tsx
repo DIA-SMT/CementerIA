@@ -42,7 +42,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
   const total = panel.conteos.reduce((s, c) => s + c.cantidad, 0);
 
   return (
-    <section aria-labelledby="titulo-pantalla" className="space-y-6 print:space-y-4 print:text-[11px]">
+    <section aria-labelledby="titulo-pantalla" className="@container space-y-6 print:space-y-4 print:text-[11px]">
       <Portada accesos={accesosRapidos(navegacionPara(usuario))} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -123,7 +123,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
                 prefetch={false}
                 className={`tarjeta block h-full p-4 transition duration-150 hover:border-primario hover:shadow-elevada ${CLASE_FOCO} print:p-2`}
               >
-                <span className={`insignia ring-1 ring-inset ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
+                <span className={`insignia max-w-full whitespace-normal ring-1 ring-inset ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
                 <span className="mt-2 block text-3xl font-semibold tracking-tight text-institucional tabular-nums print:text-lg">
                   {c.cantidad.toLocaleString("es-AR")}
                 </span>
@@ -136,7 +136,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
 
       <Matriz panel={panel} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 print:grid-cols-1">
+      <div className="grid grid-cols-1 gap-6 @5xl:grid-cols-2 print:grid-cols-1">
         <Bloque id="vencidos" titulo="Plazos DIM vencidos" lista={panel.plazos.vencidos} alerta="rojo">
           <TablaPlazos filas={panel.plazos.vencidos.filas} />
         </Bloque>
@@ -153,7 +153,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
         <TablaFilas filas={panel.sinConfirmar.filas} />
       </Bloque>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 print:grid-cols-1">
+      <div className="grid grid-cols-1 gap-6 @5xl:grid-cols-2 print:grid-cols-1">
         <Bloque id="diferidos" titulo={`Pases diferidos de ${textoMes(panel.diferidos.mes)} (más de 48 h entre la fecha y la carga)`} lista={panel.diferidos} singular="movimiento" plural="movimientos">
           <TablaMovimientos filas={panel.diferidos.filas} />
         </Bloque>
@@ -280,8 +280,8 @@ function Matriz({ panel }: { panel: DatosPanel }) {
       {areas.length === 0 || tipos.length === 0 ? (
         <p className="px-4 py-4 text-sm text-texto-secundario">No hay expedientes en trámite.</p>
       ) : (
-        <div className="relative overflow-x-auto">
-          <table className="tabla-datos">
+        <div className="relative @container overflow-x-auto">
+          <table className="tabla-datos tabla-apilable-amplia">
             <caption className="sr-only">Cantidad de expedientes en trámite según el área donde están y el tipo de trámite</caption>
             <thead>
               <tr>
@@ -309,7 +309,7 @@ function Matriz({ panel }: { panel: DatosPanel }) {
                     {tipos.map((t) => {
                       const c = celda(a.id, t.id);
                       return (
-                        <td key={t.id} className={`${CLASE_CELDA} text-right tabular-nums`}>
+                        <td key={t.id} data-etiqueta={t.nombre} className={`${CLASE_CELDA} text-right tabular-nums`}>
                           {c && c.cantidad > 0 ? (
                             <Link href={enlaceConteo(c.busqueda) ?? "/expedientes"} prefetch={false} className={`${CLASE_ENLACE} font-medium`}>
                               {c.cantidad}
@@ -324,7 +324,7 @@ function Matriz({ panel }: { panel: DatosPanel }) {
                         </td>
                       );
                     })}
-                    <td className={`${CLASE_CELDA} text-right font-semibold tabular-nums text-institucional`}>{suma}</td>
+                    <td data-etiqueta="Total" className={`${CLASE_CELDA} text-right font-semibold tabular-nums text-institucional`}>{suma}</td>
                   </tr>
                 );
               })}
@@ -403,8 +403,8 @@ function CeldaNumero({ numero, numeroCorto }: { numero: string; numeroCorto: str
 
 function TablaFilas({ filas, conAlerta = false }: { filas: FilaPanel[]; conAlerta?: boolean }) {
   return (
-    <div className="relative overflow-x-auto">
-      <table className="tabla-datos">
+    <div className="relative @container overflow-x-auto">
+      <table className="tabla-datos tabla-apilable">
         <thead>
           <tr>
             <th scope="col" className={CLASE_CELDA}>N° interno</th>
@@ -418,13 +418,13 @@ function TablaFilas({ filas, conAlerta = false }: { filas: FilaPanel[]; conAlert
           {filas.map((f) => (
             <tr key={f.numero}>
               <CeldaNumero numero={f.numero} numeroCorto={f.numeroCorto} />
-              <td className={CLASE_CELDA}>{f.titular ?? "—"}</td>
-              <td className={CLASE_CELDA}>
+              <td data-etiqueta="Titular" className={CLASE_CELDA}>{f.titular ?? "—"}</td>
+              <td data-etiqueta="Trámite y paso" className={CLASE_CELDA}>
                 {f.tramite}
                 <span className="block text-xs text-texto-secundario">{f.paso}</span>
               </td>
-              <td className={CLASE_CELDA}>{f.areaActual.nombre}</td>
-              <td className={CLASE_CELDA}>
+              <td data-etiqueta="Área" className={CLASE_CELDA}>{f.areaActual.nombre}</td>
+              <td data-etiqueta="En el área" className={CLASE_CELDA}>
                 <span className={conAlerta ? "font-medium text-error" : undefined}>{textoDias(f.diasEnArea)}</span>
                 {conAlerta && f.diasAlerta !== null ? <span className="block text-xs text-texto-secundario">alerta a los {f.diasAlerta}</span> : null}
                 <span className="block text-xs text-texto-secundario">desde {formatearFecha(f.enAreaDesde)}</span>
@@ -439,8 +439,8 @@ function TablaFilas({ filas, conAlerta = false }: { filas: FilaPanel[]; conAlert
 
 function TablaPlazos({ filas }: { filas: FilaPlazoPanel[] }) {
   return (
-    <div className="relative overflow-x-auto">
-      <table className="tabla-datos">
+    <div className="relative @container overflow-x-auto">
+      <table className="tabla-datos tabla-apilable-compacta">
         <thead>
           <tr>
             <th scope="col" className={CLASE_CELDA}>N° interno</th>
@@ -454,11 +454,11 @@ function TablaPlazos({ filas }: { filas: FilaPlazoPanel[] }) {
             return (
               <tr key={f.numero}>
                 <CeldaNumero numero={f.numero} numeroCorto={f.numeroCorto} />
-                <td className={CLASE_CELDA}>
+                <td data-etiqueta="Titular" className={CLASE_CELDA}>
                   {f.titular ?? "—"}
                   <span className="block text-xs text-texto-secundario">{f.tramite}</span>
                 </td>
-                <td className={CLASE_CELDA}>
+                <td data-etiqueta="Vencimiento" className={CLASE_CELDA}>
                   <span className={`insignia ring-1 ring-inset ${p.clase}`}>{p.etiqueta}</span>
                   <span className="mt-0.5 block">{f.plazo.vence ? formatearFecha(f.plazo.vence) : "—"}</span>
                   <span className="block text-xs text-texto-secundario">{p.texto}</span>
@@ -474,8 +474,8 @@ function TablaPlazos({ filas }: { filas: FilaPlazoPanel[] }) {
 
 function TablaMovimientos({ filas, conMotivo = false }: { filas: MovimientoPanel[]; conMotivo?: boolean }) {
   return (
-    <div className="relative overflow-x-auto">
-      <table className="tabla-datos">
+    <div className="relative @container overflow-x-auto">
+      <table className="tabla-datos tabla-apilable-compacta">
         <thead>
           <tr>
             <th scope="col" className={CLASE_CELDA}>Expediente</th>
@@ -491,11 +491,11 @@ function TablaMovimientos({ filas, conMotivo = false }: { filas: MovimientoPanel
                   {m.numero}
                 </Link>
               </th>
-              <td className={CLASE_CELDA}>
+              <td data-etiqueta="Movimiento" className={CLASE_CELDA}>
                 {etiquetaMovimiento(m.tipo)} del {formatearSegunPrecision(m.fechaEfectiva, m.precisionFecha)}
                 {conMotivo && m.motivo ? <span className="block text-xs text-texto-secundario">{m.motivo}</span> : null}
               </td>
-              <td className={CLASE_CELDA}>
+              <td data-etiqueta="Cargado" className={CLASE_CELDA}>
                 {formatearFechaHora(m.registradoEn)}
                 <span className="block text-xs text-texto-secundario">{m.usuario}</span>
               </td>

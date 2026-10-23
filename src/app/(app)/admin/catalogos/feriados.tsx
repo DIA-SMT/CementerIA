@@ -90,8 +90,8 @@ export function PestanaFeriados({
           Agregar feriado
         </button>
       </div>
-      <div className="tarjeta relative overflow-x-auto">
-        <table className="tabla-datos">
+      <div className="tarjeta relative @container overflow-x-auto">
+        <table className="tabla-datos tabla-apilable">
           <caption className="sr-only">Feriados de {anio}</caption>
           <thead>
             <tr>
@@ -112,10 +112,10 @@ export function PestanaFeriados({
             ) : null}
             {feriados.map((f) => (
               <tr key={f.fecha}>
-                <td className="whitespace-nowrap">{formatearFecha(f.fecha)}</td>
+                <td data-etiqueta="Fecha" className="whitespace-nowrap">{formatearFecha(f.fecha)}</td>
                 <th scope="row" className="font-normal">{f.descripcion}</th>
-                <td>{AMBITO_TEXTO[f.ambito] ?? f.ambito}</td>
-                <td className="text-texto-secundario">{f.norma ?? "—"}</td>
+                <td data-etiqueta="Ámbito">{AMBITO_TEXTO[f.ambito] ?? f.ambito}</td>
+                <td data-etiqueta="Norma" className="text-texto-secundario">{f.norma ?? "—"}</td>
                 <td>
                   <div className="flex gap-1">
                     <button type="button" aria-haspopup="dialog" onClick={() => setEditando(f)} className={CLASE_BOTON_COMPACTO}>

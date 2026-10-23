@@ -228,66 +228,139 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
             {resultado.hayMas ? " Hay más: afiná la búsqueda o usá los filtros." : ""}
           </p>
           {resultado.resultados.length > 0 ? (
-            <div className="tarjeta relative overflow-x-auto">
-              <table className="tabla-datos min-w-[760px]">
-                <caption className="sr-only">Resultados de la búsqueda</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">N° interno</th>
-                    <th scope="col">N° municipal</th>
-                    <th scope="col">Titular</th>
-                    <th scope="col">Trámite</th>
-                    <th scope="col">Paso y área</th>
-                    <th scope="col">Estado</th>
-                    {numerica ? <th scope="col">Coincide por</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultado.resultados.map((r) => (
-                    <tr key={r.id}>
-                      <td className="whitespace-nowrap">
+            // Tabla desde 56rem (896 px) de contenedor; debajo, una tarjeta por
+            // expediente. La que no corresponde queda con display:none (nunca
+            // dos enlaces iguales al alcance del lector de pantalla).
+            <div className="@container">
+              <div className="tarjeta relative hidden overflow-x-auto @4xl:block">
+                <table className="tabla-datos table-fixed">
+                  <caption className="sr-only">Resultados de la búsqueda</caption>
+                  <colgroup>
+                    <col className="w-[9.5rem]" />
+                    <col className="w-[7rem]" />
+                    <col />
+                    <col />
+                    <col />
+                    <col className="w-[10.5rem]" />
+                    {numerica ? <col className="w-[9rem]" /> : null}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col">N° interno</th>
+                      <th scope="col">N° municipal</th>
+                      <th scope="col">Titular</th>
+                      <th scope="col">Trámite</th>
+                      <th scope="col">Paso y área</th>
+                      <th scope="col">Estado</th>
+                      {numerica ? <th scope="col">Coincide por</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultado.resultados.map((r) => (
+                      <tr key={r.id}>
+                        <td className="whitespace-nowrap">
+                          <Link href={rutaFicha(r.numero)} prefetch={false} className={`${CLASE_ENLACE} font-mono text-[0.8125rem] font-medium`}>
+                            {r.numero}
+                          </Link>
+                          <div className="text-xs text-texto-secundario">{r.numeroCorto}</div>
+                        </td>
+                        <td className="truncate tabular-nums" title={r.numeroMunicipal ?? undefined}>
+                          {r.numeroMunicipal ?? <span className="text-texto-secundario">—</span>}
+                        </td>
+                        <td>
+                          {r.titular ? (
+                            <span className="line-clamp-2 font-medium" title={r.titular}>
+                              {r.titular}
+                            </span>
+                          ) : (
+                            <span className="text-texto-secundario">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="line-clamp-2" title={r.tipoTramite.nombre}>
+                            {r.tipoTramite.nombre}
+                          </div>
+                          <div className="truncate text-xs text-texto-secundario" title={`${r.plantilla.nombre} · v${r.plantilla.version}`}>
+                            {r.plantilla.nombre} · v{r.plantilla.version}
+                          </div>
+                          <div className="truncate text-xs text-texto-secundario" title={`${r.cementerio.nombre}${r.ubicacionTexto ? ` · ${r.ubicacionTexto}` : ""}`}>
+                            {r.cementerio.nombre}
+                            {r.ubicacionTexto ? ` · ${r.ubicacionTexto}` : ""}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="line-clamp-2" title={r.paso.nombre}>
+                            {r.paso.nombre}
+                          </div>
+                          <div className="truncate text-xs text-texto-secundario" title={r.areaActual.nombre}>
+                            {r.areaActual.nombre}
+                          </div>
+                        </td>
+                        <td className="[&_.insignia]:whitespace-normal">
+                          <EstadoResultado resultado={r} />
+                        </td>
+                        {numerica ? (
+                          <td>
+                            <Coincidencias resultado={r} />
+                          </td>
+                        ) : null}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <ul aria-label="Resultados de la búsqueda" className="grid gap-3 @2xl:grid-cols-2 @4xl:hidden">
+                {resultado.resultados.map((r) => (
+                  <li key={r.id} className="tarjeta flex flex-col gap-3 p-4">
+                    <div>
+                      <p className="flex flex-wrap items-baseline gap-x-2">
                         <Link href={rutaFicha(r.numero)} prefetch={false} className={`${CLASE_ENLACE} font-mono font-medium`}>
                           {r.numero}
                         </Link>
-                        <div className="text-xs text-texto-secundario">{r.numeroCorto}</div>
-                      </td>
-                      <td className="whitespace-nowrap tabular-nums">{r.numeroMunicipal ?? <span className="text-texto-secundario">—</span>}</td>
-                      <td className="font-medium">{r.titular ?? <span className="font-normal text-texto-secundario">—</span>}</td>
-                      <td>
-                        <div>{r.tipoTramite.nombre}</div>
-                        <div className="text-xs text-texto-secundario">
+                        <span className="text-xs text-texto-secundario">{r.numeroCorto}</span>
+                      </p>
+                      <p className="mt-0.5 font-medium text-texto">{r.titular ?? "Sin titular"}</p>
+                    </div>
+                    <dl className="grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
+                      <dt className="text-texto-secundario">Trámite</dt>
+                      <dd className="min-w-0">
+                        {r.tipoTramite.nombre}
+                        <span className="block text-xs text-texto-secundario">
                           {r.plantilla.nombre} · v{r.plantilla.version}
-                        </div>
-                        <div className="text-xs text-texto-secundario">
+                        </span>
+                        <span className="block text-xs text-texto-secundario">
                           {r.cementerio.nombre}
                           {r.ubicacionTexto ? ` · ${r.ubicacionTexto}` : ""}
-                        </div>
-                      </td>
-                      <td>
-                        <div>{r.paso.nombre}</div>
-                        <div className="text-xs text-texto-secundario">{r.areaActual.nombre}</div>
-                      </td>
-                      <td>
-                        <EtiquetaEstado estado={r.estado} />
-                        {r.sinConfirmar ? <div className="mt-1 text-xs font-medium text-advertencia">Sin confirmar recepción</div> : null}
-                        {r.cargaHistorica ? <div className="mt-1 text-xs text-texto-secundario">Antes del sistema</div> : null}
-                        <div className="mt-1 whitespace-nowrap text-xs text-texto-secundario">Inicio {formatearFecha(r.fechaInicio)}</div>
-                      </td>
-                      {numerica ? (
-                        <td>
-                          <ul className="flex flex-wrap gap-1">
-                            {r.coincidencias.map((c) => (
-                              <li key={c.etiqueta} className="insignia bg-info-fondo text-info ring-1 ring-inset ring-info-borde">
-                                {c.etiqueta}
-                              </li>
-                            ))}
-                          </ul>
-                        </td>
+                        </span>
+                      </dd>
+                      <dt className="text-texto-secundario">Paso y área</dt>
+                      <dd className="min-w-0">
+                        {r.paso.nombre}
+                        <span className="block text-xs text-texto-secundario">{r.areaActual.nombre}</span>
+                      </dd>
+                      <dt className="text-texto-secundario">Estado</dt>
+                      <dd className="min-w-0">
+                        <EstadoResultado resultado={r} />
+                      </dd>
+                      {r.numeroMunicipal ? (
+                        <>
+                          <dt className="text-texto-secundario">N° municipal</dt>
+                          <dd className="min-w-0 tabular-nums">{r.numeroMunicipal}</dd>
+                        </>
                       ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      {numerica ? (
+                        <>
+                          <dt className="text-texto-secundario">Coincide por</dt>
+                          <dd className="min-w-0">
+                            <Coincidencias resultado={r} />
+                          </dd>
+                        </>
+                      ) : null}
+                    </dl>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : (
             <EstadoVacio icono={SearchX} titulo="Sin resultados" imagen="avenida-azul">
@@ -300,6 +373,31 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** El estado de un resultado y sus aclaraciones (la celda empieza por el estado: así la buscan las pruebas). */
+function EstadoResultado({ resultado: r }: { resultado: ResultadoBusqueda["resultados"][number] }) {
+  return (
+    <>
+      <EtiquetaEstado estado={r.estado} />
+      {r.sinConfirmar ? <div className="mt-1 text-xs font-medium text-advertencia">Sin confirmar recepción</div> : null}
+      {r.cargaHistorica ? <div className="mt-1 text-xs text-texto-secundario">Antes del sistema</div> : null}
+      <div className="mt-1 whitespace-nowrap text-xs text-texto-secundario">Inicio {formatearFecha(r.fechaInicio)}</div>
+    </>
+  );
+}
+
+/** "Coincide por": en qué dato encontró la búsqueda numérica cada resultado. */
+function Coincidencias({ resultado: r }: { resultado: ResultadoBusqueda["resultados"][number] }) {
+  return (
+    <ul className="flex flex-wrap gap-1">
+      {r.coincidencias.map((c) => (
+        <li key={c.etiqueta} className="insignia max-w-full whitespace-normal bg-info-fondo text-info ring-1 ring-inset ring-info-borde">
+          {c.etiqueta}
+        </li>
+      ))}
+    </ul>
   );
 }
 

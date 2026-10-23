@@ -32,8 +32,8 @@ export default async function PaginaUsuarios() {
         {activos} activos de {usuarios.length} · {adminsActivos === 1 ? "1 administrador activo" : `${adminsActivos} administradores activos`}. Entran con Cidituc: el
         nombre y el correo se actualizan en cada ingreso.
       </p>
-      <div className="tarjeta relative overflow-x-auto">
-        <table className="tabla-datos">
+      <div className="tarjeta relative @container overflow-x-auto">
+        <table className="tabla-datos tabla-apilable-amplia">
           <caption className="sr-only">Usuarios dados de alta</caption>
           <thead>
             <tr>
@@ -51,15 +51,15 @@ export default async function PaginaUsuarios() {
           <tbody>
             {usuarios.map((u) => (
               <tr key={u.id} className={u.activo ? "" : "bg-fondo text-texto-secundario"}>
-                <td className="whitespace-nowrap font-mono text-xs">{formatearCuit(u.cuil)}</td>
+                <td data-etiqueta="CUIL" className="whitespace-nowrap font-mono text-xs">{formatearCuit(u.cuil)}</td>
                 <th scope="row" className="font-normal">
                   {u.apellido}, {u.nombre}
                   {u.id === usuario.id ? <span className="ml-1 text-xs text-texto-secundario">(vos)</span> : null}
                 </th>
-                <td>{u.area?.nombre ?? <span className="text-texto-secundario">Sin área</span>}</td>
-                <td>{ROL_TEXTO[u.rol] ?? u.rol}</td>
-                <td>{u.activo ? "Activo" : "Inactivo"}</td>
-                <td className="whitespace-nowrap">{u.ultimoIngreso ? formatearFechaHora(u.ultimoIngreso) : <span className="text-texto-secundario">Nunca</span>}</td>
+                <td data-etiqueta="Área">{u.area?.nombre ?? <span className="text-texto-secundario">Sin área</span>}</td>
+                <td data-etiqueta="Rol">{ROL_TEXTO[u.rol] ?? u.rol}</td>
+                <td data-etiqueta="Estado">{u.activo ? "Activo" : "Inactivo"}</td>
+                <td data-etiqueta="Último ingreso" className="whitespace-nowrap">{u.ultimoIngreso ? formatearFechaHora(u.ultimoIngreso) : <span className="text-texto-secundario">Nunca</span>}</td>
                 <td>
                   <AccionesUsuario
                     usuario={{ id: u.id, nombre: `${u.nombre} ${u.apellido}`, cuil: u.cuil, areaId: u.area?.id ?? null, rol: u.rol, activo: u.activo }}

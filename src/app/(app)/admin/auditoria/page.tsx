@@ -158,8 +158,8 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
 
 function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
   return (
-    <div className="tarjeta relative overflow-x-auto">
-      <table className="tabla-datos">
+    <div className="tarjeta relative @container overflow-x-auto">
+      <table className="tabla-datos tabla-apilable">
         <caption className="sr-only">Accesos</caption>
         <thead>
           <tr>
@@ -174,10 +174,10 @@ function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
         <tbody>
           {filas.map((f) => (
             <tr key={f.id} className="align-top">
-              <td className="whitespace-nowrap">{formatearFechaHora(f.en)}</td>
-              <td>{f.usuario ? f.usuario.nombre : <span className="text-texto-secundario">Sin usuario</span>}</td>
-              <td>{ETIQUETA_ACCION_ACCESO[f.accion as AccionAccesoAuditoria] ?? f.accion}</td>
-              <td className="whitespace-nowrap">
+              <td data-etiqueta="Fecha y hora" className="whitespace-nowrap">{formatearFechaHora(f.en)}</td>
+              <td data-etiqueta="Usuario">{f.usuario ? f.usuario.nombre : <span className="text-texto-secundario">Sin usuario</span>}</td>
+              <td data-etiqueta="Acción">{ETIQUETA_ACCION_ACCESO[f.accion as AccionAccesoAuditoria] ?? f.accion}</td>
+              <td data-etiqueta="Expediente" className="whitespace-nowrap">
                 {f.expediente ? (
                   // Sin prefetch: un prefetch de la ficha quedaría registrado como si se la hubiera abierto.
                   <Link href={rutaFicha(f.expediente)} prefetch={false} className={CLASE_ENLACE}>
@@ -187,11 +187,11 @@ function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
                   "—"
                 )}
               </td>
-              <td>
+              <td data-etiqueta="Motivo y detalle">
                 {f.motivo ? <p className="font-medium text-texto">Motivo: {f.motivo}</p> : null}
                 <p className="text-xs text-texto-secundario">{detalleAcceso(f.detalle) || (f.motivo ? null : "—")}</p>
               </td>
-              <td className="font-mono text-xs">{f.ip ?? "—"}</td>
+              <td data-etiqueta="IP" className="font-mono text-xs">{f.ip ?? "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -202,8 +202,8 @@ function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
 
 function TablaCambios({ filas }: { filas: readonly FilaCambio[] }) {
   return (
-    <div className="tarjeta relative overflow-x-auto">
-      <table className="tabla-datos">
+    <div className="tarjeta relative @container overflow-x-auto">
+      <table className="tabla-datos tabla-apilable">
         <caption className="sr-only">Cambios de configuración</caption>
         <thead>
           <tr>
@@ -216,16 +216,16 @@ function TablaCambios({ filas }: { filas: readonly FilaCambio[] }) {
         <tbody>
           {filas.map((f) => (
             <tr key={f.id} className="align-top">
-              <td className="whitespace-nowrap">{formatearFechaHora(f.en)}</td>
-              <td>{f.usuario.nombre}</td>
-              <td>
+              <td data-etiqueta="Fecha y hora" className="whitespace-nowrap">{formatearFechaHora(f.en)}</td>
+              <td data-etiqueta="Usuario">{f.usuario.nombre}</td>
+              <td data-etiqueta="Qué">
                 <span className="block font-medium text-texto">
                   {f.operacionEtiqueta}: {f.tablaEtiqueta}
                 </span>
                 <span className="block text-xs text-texto-secundario">{f.registro}</span>
                 {f.motivo ? <span className="block text-xs text-texto-secundario">Motivo: {f.motivo}</span> : null}
               </td>
-              <td>
+              <td data-etiqueta="Cambio">
                 {f.diferencias.length === 0 ? (
                   <span className="text-texto-secundario">Sin diferencias visibles</span>
                 ) : (

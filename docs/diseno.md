@@ -4,7 +4,10 @@ Rediseño visual (octubre de 2026), en dos etapas. La primera: tokens,
 componentes base, ingreso, barra lateral y encabezado, y panel. La segunda:
 encabezado compacto en el celular, nuevo expediente y edición, bandeja,
 búsqueda, ficha con sus diálogos, transcripción, administración y la página de
-"No encontrada". Sin cambios de lógica, rutas, Server Actions, permisos,
+"No encontrada". Después, una etapa de responsive (sección "Barra lateral
+desplegable y responsive"): barra lateral que se contrae a íconos y tablas que
+entran sin desplazamiento en notebook y pasan a tarjetas en tablet y celular.
+Sin cambios de lógica, rutas, Server Actions, permisos,
 validaciones, nombres de campos ni textos que usen las pruebas.
 
 Criterio: institucional, sobrio y claro, con densidad de trabajo
@@ -112,6 +115,8 @@ texto normal y 3:1 para texto grande (≥ 24 px, o ≥ 18,7 px en negrita),
 | blanco | `exito-solido` #15803D | 5,02 | 3 | Tilde de los pasos cumplidos del recorrido (ícono) |
 | `exito` #166534 | blanco | 7,13 | 3 | Tilde de subtarea hecha (ícono) |
 | `borde-control` #7C8798 | `fondo` #F4F7FB | 3,38 | 3 | Círculo de los pasos pendientes del recorrido |
+| blanco | `texto` #172B4D | 14,10 | 4,5 | Globos (tooltips) de la barra lateral contraída |
+| `institucional-texto` #C7D6EB | `institucional` #0F2F5D | 8,99 | 3 | Ícono del botón "Contraer menú" / "Expandir menú" |
 
 **Texto sobre fotos.** Medido en la app (Chromium, el píxel de fondo más claro
 detrás de cada línea, con el texto oculto: el peor caso), en 390, 768, 1024 y
@@ -179,10 +184,13 @@ Escala: títulos de pantalla `text-2xl`/`text-xl` semibold; títulos de bloque
 - **`src/components/dialogo.tsx`**, **`etiquetas.tsx`**, **`aviso-error.tsx`**,
   **`en-construccion.tsx`** y las clases de `src/lib/presentacion/textos.ts`
   (`COLOR_ESTADO`) y `estados.ts` (`CLASE_SEMAFORO`) usan los tokens.
-- **Tablas con desplazamiento horizontal**: el contenedor `overflow-x-auto`
-  lleva `relative`. Sin eso, los `sr-only` (posición absoluta) de las celdas
-  se ubicaban respecto de la página y la ensanchaban en el celular (la bandeja
-  daba 874 px de ancho en 390). Se agregó en todas las tablas de la app.
+- **Contenedor de las tablas**: `tarjeta relative @container overflow-x-auto`.
+  El `relative` sigue haciendo falta: sin eso, los `sr-only` (posición
+  absoluta) de las celdas se ubicaban respecto de la página y la ensanchaban en
+  el celular (la bandeja daba 874 px de ancho en 390). Desde la etapa
+  responsive ninguna tabla se desplaza de costado en los anchos medidos: el
+  `overflow-x-auto` queda solo como red de seguridad (ver "Tablas y
+  tarjetas").
 - **`src/components/iconos-modulos.ts`**: el ícono de lucide de cada módulo,
   compartido por la barra lateral y los accesos rápidos.
 
@@ -237,7 +245,8 @@ La barra lateral, el ingreso, `/sin-acceso` y `/dev/login` lo toman de ahí.
   salida, el login simulado donde corresponde y el aviso de uso interno y Ley
   25.326. `/sin-acceso` y `/dev/login` con la misma marca y tarjetas.
 - **Cáscara (`src/app/(app)/layout.tsx` y `navegacion.tsx`)**: barra lateral
-  azul institucional en escritorio (sticky, con íconos y el ítem activo con
+  azul institucional en escritorio (desde la etapa responsive, desplegable a
+  una franja de íconos: ver "Barra lateral desplegable y responsive"; sticky, con íconos y el ítem activo con
   fondo más claro y barra amarilla); en tablet y celular, franja con la marca y
   el botón "Menú" (`aria-expanded`, `aria-controls`; Escape cierra y devuelve
   el foco; se cierra al navegar). Encabezado blanco con la búsqueda global, el
@@ -348,12 +357,149 @@ izquierda, sobre blanco.
   acciones de la ficha y la banda de Administración llevan `print:hidden`; los
   puntos del historial no salen en papel.
 
+## Barra lateral desplegable y responsive
+
+Pedido: en una notebook (ventana de unos 1280 × 720) la bandeja no entraba: la
+columna de acciones quedaba cortada, Titular, Trámite y Paso se partían en 4 o
+5 renglones y la barra lateral fija de 256 px le quitaba espacio.
+
+### Barra lateral desplegable
+
+- **Escritorio (desde 1024 px)**: arriba de los módulos, junto al rótulo
+  "Módulos", un botón de ícono "Contraer menú" / "Expandir menú"
+  (`aria-expanded`, `aria-controls` apuntando a la barra; el nombre accesible
+  va en `sr-only`). Contraída, la barra mide 72 px (`w-18`): cada ítem muestra
+  solo su ícono, conserva su nombre (el texto queda `sr-only`, no `hidden`) y
+  el activo sigue con el fondo `institucional-activo` y la barra amarilla. La
+  marca queda en el monograma "SMT" (el texto de la marca, `sr-only`: el enlace
+  al inicio conserva su nombre). El rótulo "Módulos" y el aviso de la Ley
+  25.326 se ocultan.
+- **Globos** (tooltips): con la barra contraída, el nombre de cada ítem aparece
+  a la derecha al pasar el mouse y al enfocar con el teclado; el botón de
+  contraer lo muestra siempre. Blanco sobre `texto` (14,10:1). Van adentro del
+  enlace (`aria-hidden`: el nombre ya está), así se puede pasar el mouse por
+  encima sin que desaparezcan, y Escape los oculta hasta pasar a otro ítem
+  (WCAG 1.4.13).
+- **Preferencia**: cookie `cementeria_barra` (`expandida` o `colapsada`, un
+  año, `SameSite=Lax`, `Secure` en https; `src/lib/presentacion/barra-lateral.ts`).
+  No es localStorage: el layout la lee en el servidor (`await cookies()`, que en
+  Next 16 es asíncrona) y la manda a `BarraLateral`, que la pone en
+  `data-barra`. La primera pintura ya sale como la dejó la persona, sin
+  parpadeo, en esa pantalla, en las demás y al recargar.
+- **Sin preferencia** (`data-barra="auto"`): contraída entre 1024 y 1279 px y
+  expandida desde 1280. Lo resuelve el CSS, así que tampoco parpadea; el
+  `aria-expanded` se corrige al hidratar (`useSyncExternalStore` con
+  `matchMedia`). Por qué 1280: con la barra expandida a 1280 el contenido tiene
+  960 px y las tablas entran (ver abajo); por debajo, cada píxel cuenta. A
+  1280 justos (la notebook del pedido, si el navegador ocupa toda la pantalla)
+  arranca expandida, y si la ventana es un poco más angosta, contraída.
+- **Variante `barra-colapsada:`** (`globals.css`, `@custom-variant`): aplica
+  desde `lg` cuando `data-barra="colapsada"`, o con `"auto"` entre 64rem y
+  80rem. Se usa como cualquier variante: `barra-colapsada:w-18`,
+  `barra-colapsada:sr-only`.
+- **Transición** de 200 ms del ancho; con `prefers-reduced-motion` la regla
+  global la deja instantánea.
+- **Tablet y celular**: sin cambios de comportamiento: franja con la marca y el
+  botón "Menú" (disclosure). La preferencia de escritorio no se aplica ahí (la
+  variante empieza en `lg`), la lista siempre muestra los nombres y el botón de
+  contraer no existe en esos anchos (`hidden lg:flex`).
+
+### Breakpoints
+
+| Ancho de ventana | Barra | Contenido (con `px-8`) |
+|---|---|---|
+| < 768 (celular) | Franja con "Menú" | ancho − 32 |
+| 768–1023 (tablet) | Franja con "Menú" | ancho − 32 |
+| 1024–1279 | Contraída por defecto (72 px) | 888 a 1144 |
+| ≥ 1280 | Expandida por defecto (256 px) | 960 (1280) · 1046 (1366) · 1120 (1440) |
+
+Las tablas no miran el ancho de la ventana sino el de su contenedor
+(**container queries** de Tailwind 4: `@container` en el contenedor y
+`@4xl:`, `@2xl:` en los hijos), porque el espacio depende de si la barra está
+contraída. Umbrales usados: `@2xl` (42rem, 672 px: tarjetas en dos columnas),
+`@4xl` (56rem, 896 px: tabla de la bandeja y la búsqueda), `@5xl` (64rem,
+1024 px: el panel pasa a dos columnas).
+
+### Tablas y tarjetas
+
+Dos patrones, elegidos pantalla por pantalla:
+
+1. **Tabla o tarjetas** (bandeja y búsqueda, las más usadas): dos vistas del
+   mismo dato. Desde 56rem de contenedor, tabla `table-fixed` con anchos por
+   `colgroup` (número 9,5rem, días 8rem, etiquetas 9,5rem, acciones 9,75rem;
+   Titular, Trámite y Paso se reparten el resto), textos en hasta dos renglones
+   (`line-clamp-2`) o uno (`truncate`) con el texto completo en `title` (y
+   entero en el DOM: el lector de pantalla lo lee completo), N° municipal
+   debajo del número interno en la bandeja y acciones apiladas en botones
+   compactos que no se parten (`whitespace-nowrap`). Debajo de 56rem, una
+   tarjeta por expediente (`ul` con el mismo nombre que la tabla): número y
+   titular arriba, una lista de definición con trámite, paso, días en el área,
+   vencimiento y N° municipal, las etiquetas en fila y las acciones al pie;
+   devueltos y vencidos con la franja roja. **La vista que no corresponde queda
+   con `display: none`** (`hidden @4xl:block` / `@4xl:hidden`): nunca hay dos
+   botones con el mismo nombre accesibles a la vez, y las pruebas (que corren
+   a 1280) siguen encontrando la fila (`row`) y sus botones.
+2. **Tabla apilable** (panel, administración y transcripción):
+   `tabla-apilable` (apila por debajo de 48rem), `tabla-apilable-amplia`
+   (56rem) o `tabla-apilable-compacta` (30rem), con `@container` en el
+   contenedor y `data-etiqueta` en cada celda. Angosta, cada fila es un bloque
+   separado (como una tarjeta), el encabezado de la fila va primero (`order:
+   -1`) y cada celda muestra su rótulo a la izquierda (contenido generado, que
+   también se lee). Un solo DOM: los botones con diálogos y estado
+   (Usuarios, Catálogos, Feriados, la grilla de transcripción) no se duplican.
+   Las reglas van fuera de las capas para ganarle a las utilidades de las
+   celdas y solo en `@media screen`: en el papel las tablas salen como tablas.
+
+Pantalla por pantalla:
+
+- **Bandeja**: tabla desde 56rem (1280 con la barra expandida ya es tabla, sin
+  desplazamiento y con las acciones enteras); tarjetas en 1024 con la barra
+  expandida, tablet y celular (dos columnas desde 672 px de contenedor).
+- **Búsqueda**: igual que la bandeja; "Coincide por" y el estado pueden pasar a
+  dos renglones.
+- **Panel**: la matriz apila por área por debajo de 56rem (cada tipo de trámite
+  con su número enlazado); demorados, sin confirmar y cargas históricas por
+  debajo de 48rem; plazos y movimientos (tres columnas) por debajo de 30rem.
+  Los bloques de a dos (plazos, diferidos y correcciones) van lado a lado solo
+  desde 64rem de contenedor (antes, desde `lg`, quedaban de 338 px en 1024).
+  Las pastillas de estado pueden partirse ("Espera de pago en la DIM").
+- **Administración**: Usuarios y Áreas, apilables amplias (siete columnas con
+  acciones); auditoría (accesos y cambios), plantillas, tipos de monumento y
+  de trámite y feriados, apilables.
+- **Transcripción**: la grilla es tabla desde 56rem (sin desplazarse en 1280
+  con la barra expandida: el mínimo bajó de 960 a 896 px) y debajo cada fila
+  es una tarjeta con el rótulo de cada control. Los controles, sus nombres y
+  la navegación con el teclado no cambian.
+- **Ficha, alta, edición y diálogos**: no hubo que tocarlos: miden sin
+  desborde en todos los anchos y los botones no se parten (la barra de
+  acciones del formulario es `sticky`, no depende del ancho de la barra
+  lateral).
+
+### Mediciones
+
+`scrollWidth` contra `clientWidth` del documento, y botones y enlaces de las
+tablas visibles dentro de la ventana, con el arnés de e2e (base efímera con la
+semilla y sus escenarios en todas las áreas), en 1280 × 720, 1366 × 768,
+1024 × 768, 768 × 1024 y 390 × 844, con la barra expandida y contraída (en
+tablet y celular la barra es la franja): bandeja (Liquidación y Mesa, en sus
+pestañas), búsqueda con resultados (por texto y por número), panel, ficha,
+alta, Usuarios, Auditoría (accesos y cambios), Plantillas, Catálogos y
+transcripción. 128 de 128 sin desborde y sin acciones cortadas. Lo único que
+se desplaza de costado son las pestañas de la bandeja en el celular, a
+propósito (con el desvanecido).
+
 ## Capturas
 
 En `docs/capturas/rediseno/` (base efímera con la semilla y `next start`, como
-el arnés e2e; 1440 × 900, 768 × 1024 y 390 × 844).
+el arnés e2e; 1440 × 900, 768 × 1024 y 390 × 844; las de la etapa responsive,
+también en 1280 × 720). Las de página completa se sacan con la ventana del alto
+del documento, para que lo fijo (la barra de acciones, la barra lateral) quede
+en su lugar.
 
-En el repositorio se versionan solo cuatro de referencia, en 1440:
+En el repositorio se versionan solo cuatro de referencia, en 1440 (en la etapa
+responsive se regeneraron `panel-direccion-1440.png`, `ficha-1440.png` y
+`nuevo-formulario-error-1440.png`, por la barra lateral nueva; el ingreso no
+cambió):
 `login-1440.png`, `panel-direccion-1440.png`, `nuevo-formulario-error-1440.png`
 y `ficha-1440.png`. Las demás pesan unos 16 MB, están en `.gitignore` y se
 regeneran con el arnés de e2e cuando hacen falta.
@@ -371,6 +517,10 @@ regeneran con el arnés de e2e cuando hacen falta.
 | Foco con teclado | `foco-teclado-alta-1440.png`, `foco-teclado-alta-barra-1440.png`, `foco-teclado-dialogo-1440.png`, `foco-teclado-buscador-390.png` |
 | Imprimibles (medio `print`) | `imprimir-caratula-medio-print.png`, `imprimir-historial-medio-print.png` |
 | No encontrada | `no-encontrada-{1440,768,390}.png` |
+| Etapa responsive: bandeja de Liquidación (En mi área) en 1280 × 720 | `bandeja-liquidacion-1280-expandida.png`, `bandeja-liquidacion-1280-colapsada.png` |
+| Etapa responsive: bandeja en tablet y celular (tarjetas) | `bandeja-liquidacion-768.png`, `bandeja-liquidacion-390.png` |
+| Etapa responsive: búsqueda, panel y ficha en 1280 | `busqueda-resultados-1280.png`, `panel-direccion-1280.png`, `ficha-1280.png` |
+| Etapa responsive: globo de la barra contraída (foco con teclado) | `barra-colapsada-globo-1280.png` |
 
 Las de la primera etapa siguen ahí (las de `bandeja-mesa-*` se reemplazaron
 por `bandeja-pestanas-*`, y `ficha-*` por las nuevas). En las capturas de
@@ -381,9 +531,12 @@ página completa del formulario la barra de acciones se ve en su lugar, al pie.
 - **Logo oficial** cuando lo entregue Comunicación (ver "Marca").
 - **Imprimibles**: siguen con Inter; revisar si conviene otra fuente para el
   papel.
-- **Tablas en el celular**: se desplazan de costado dentro de su tarjeta (sin
-  desbordar la página); una vista de tarjetas por fila en 390 px queda para
-  otra etapa.
+- **Grilla de transcripción en 1280 con la barra expandida**: entra sin
+  desplazarse, pero Observación y Motivo quedan angostos (unos 90 px); con la
+  barra contraída o desde 1366 tienen lugar. Si molesta, contraer la barra.
+- **Tablas apiladas en Safari**: en Chrome y Edge la tabla apilada conserva
+  su semántica de tabla (medido con el árbol de accesibilidad); Safari puede
+  anunciarla como texto. El rótulo de cada celda se lee igual.
 - **Tab al final de un diálogo**: Chrome lleva el foco a la interfaz del
   navegador antes de volver al diálogo (es el `<dialog>` nativo, no el
   rediseño).

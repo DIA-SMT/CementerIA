@@ -35,8 +35,8 @@ export default async function PaginaPlantillas() {
         los expedientes en curso siguen con la suya.
       </p>
 
-      <div className="tarjeta relative overflow-x-auto">
-        <table className="tabla-datos">
+      <div className="tarjeta relative @container overflow-x-auto">
+        <table className="tabla-datos tabla-apilable">
           <caption className="sr-only">Plantillas por código</caption>
           <thead>
             <tr>
@@ -63,11 +63,11 @@ export default async function PaginaPlantillas() {
                 <th scope="row" className="font-mono text-xs font-medium text-texto">
                   {p.codigo}
                 </th>
-                <td>
+                <td data-etiqueta="Trámite">
                   <span className="block text-texto">{p.nombre}</span>
                   <span className="block text-xs text-texto-secundario">{p.tipoTramite.nombre}</span>
                 </td>
-                <td>
+                <td data-etiqueta="Publicada">
                   {p.publicada ? (
                     <>
                       <Link href={rutaVersionPlantilla(p.codigo, p.publicada.version)} className={CLASE_ENLACE}>
@@ -79,7 +79,7 @@ export default async function PaginaPlantillas() {
                     <span className="text-texto-secundario">Ninguna (no se ofrece en el alta)</span>
                   )}
                 </td>
-                <td>
+                <td data-etiqueta="Borrador">
                   {p.borrador ? (
                     <>
                       <Link href={rutaVersionPlantilla(p.codigo, p.borrador.version)} className={CLASE_ENLACE}>
@@ -94,7 +94,7 @@ export default async function PaginaPlantillas() {
                     <span className="text-texto-secundario">—</span>
                   )}
                 </td>
-                <td>
+                <td data-etiqueta="En curso">
                   <ul className="space-y-0.5">
                     {p.versiones
                       .filter((v) => v.estado !== "borrador")

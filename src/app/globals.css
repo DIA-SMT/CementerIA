@@ -62,6 +62,27 @@
   --shadow-elevada: 0 4px 12px rgb(15 47 93 / 0.08), 0 1px 3px rgb(15 47 93 / 0.06);
 }
 
+/*
+ * Barra lateral colapsada (src/app/(app)/navegacion.tsx, docs/diseno.md): solo
+ * en escritorio (lg, desde 1024 px). `data-barra` en la barra es la preferencia
+ * de la cookie (src/lib/presentacion/barra-lateral.ts); con "auto" (nunca
+ * eligió) se colapsa entre 1024 y 1279 px y se expande desde 1280 px. Todo en
+ * CSS: la primera pintura ya sale bien, sin esperar a React.
+ *   <span class="barra-colapsada:sr-only">Bandeja</span>
+ */
+@custom-variant barra-colapsada {
+  @media (width >= 64rem) {
+    &:where([data-barra="colapsada"], [data-barra="colapsada"] *) {
+      @slot;
+    }
+  }
+  @media (width >= 64rem) and (width < 80rem) {
+    &:where([data-barra="auto"], [data-barra="auto"] *) {
+      @slot;
+    }
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
@@ -199,4 +220,185 @@
    la barra y no queda tapado (WCAG 2.4.11). */
 html:has(.barra-acciones) {
   scroll-padding-bottom: 5.5rem;
+}
+
+/*
+ * Tabla apilable (docs/diseno.md, "Tablas y tarjetas"): cuando el contenedor
+ * (con `@container`) es angosto, cada fila pasa a ser un bloque, como una
+ * tarjeta, y cada celda muestra su rótulo (`data-etiqueta`) a la izquierda. Un
+ * solo DOM: no se duplican botones ni enlaces. `tabla-apilable` apila por
+ * debajo de 48rem (768 px de contenedor); `tabla-apilable-amplia`, por debajo
+ * de 56rem (896 px), para las de más columnas, y `tabla-apilable-compacta`,
+ * por debajo de 30rem (480 px), para las de tres columnas. El rótulo es contenido
+ * generado que el lector de pantalla también lee ("Área: Cómputo"). Fuera de
+ * las capas: así gana sobre las utilidades de las celdas (whitespace-nowrap,
+ * px-3…) solo mientras está apilada. Solo en pantalla: en el papel (A4, más
+ * angosto que 56rem) las tablas salen como tablas.
+ */
+@media screen {
+  @container (width < 30rem) {
+    .tabla-apilable-compacta {
+      display: block;
+      min-width: 0;
+      & :is(tbody, tr) {
+        display: block;
+      }
+      & thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      /* Columna flexible: el encabezado de la fila (el nombre, el código) va
+         primero aunque en la tabla no sea la primera columna. */
+      & tr {
+        display: flex;
+        flex-direction: column;
+        padding: 0.75rem 1rem;
+      }
+      & tr > :is(td, th) {
+        display: block;
+        padding: 0.125rem 0;
+        white-space: normal;
+        text-align: left;
+      }
+      /* El rótulo flota en el margen izquierdo de la celda; flow-root hace que
+         la celda crezca si el rótulo ocupa dos renglones. */
+      & tr > :is(td, th)[data-etiqueta] {
+        display: flow-root;
+        padding-left: 7.75rem;
+      }
+      & tr > :is(td, th)[data-etiqueta]::before {
+        content: attr(data-etiqueta) ":";
+        float: left;
+        margin-left: -7.75rem;
+        width: 7rem;
+        font-family: var(--font-sans);
+        line-height: 1.25rem;
+        letter-spacing: normal;
+        font-size: 0.8125rem;
+        font-weight: 400;
+        color: var(--color-texto-secundario);
+      }
+      & tr > th[scope="row"]:not([data-etiqueta]) {
+        order: -1;
+        font-weight: 600;
+      }
+      & tr > :is(td, th):not([data-etiqueta]):has(button, a[class*="min-h"]) {
+        padding-top: 0.5rem;
+      }
+    }
+  }
+  @container (width < 48rem) {
+    .tabla-apilable {
+      display: block;
+      min-width: 0;
+      & :is(tbody, tr) {
+        display: block;
+      }
+      & thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      /* Columna flexible: el encabezado de la fila (el nombre, el código) va
+         primero aunque en la tabla no sea la primera columna. */
+      & tr {
+        display: flex;
+        flex-direction: column;
+        padding: 0.75rem 1rem;
+      }
+      & tr > :is(td, th) {
+        display: block;
+        padding: 0.125rem 0;
+        white-space: normal;
+        text-align: left;
+      }
+      /* El rótulo flota en el margen izquierdo de la celda; flow-root hace que
+         la celda crezca si el rótulo ocupa dos renglones. */
+      & tr > :is(td, th)[data-etiqueta] {
+        display: flow-root;
+        padding-left: 7.75rem;
+      }
+      & tr > :is(td, th)[data-etiqueta]::before {
+        content: attr(data-etiqueta) ":";
+        float: left;
+        margin-left: -7.75rem;
+        width: 7rem;
+        font-family: var(--font-sans);
+        line-height: 1.25rem;
+        letter-spacing: normal;
+        font-size: 0.8125rem;
+        font-weight: 400;
+        color: var(--color-texto-secundario);
+      }
+      & tr > th[scope="row"]:not([data-etiqueta]) {
+        order: -1;
+        font-weight: 600;
+      }
+      & tr > :is(td, th):not([data-etiqueta]):has(button, a[class*="min-h"]) {
+        padding-top: 0.5rem;
+      }
+    }
+  }
+  @container (width < 56rem) {
+    .tabla-apilable-amplia {
+      display: block;
+      min-width: 0;
+      & :is(tbody, tr) {
+        display: block;
+      }
+      & thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      /* Columna flexible: el encabezado de la fila (el nombre, el código) va
+         primero aunque en la tabla no sea la primera columna. */
+      & tr {
+        display: flex;
+        flex-direction: column;
+        padding: 0.75rem 1rem;
+      }
+      & tr > :is(td, th) {
+        display: block;
+        padding: 0.125rem 0;
+        white-space: normal;
+        text-align: left;
+      }
+      /* El rótulo flota en el margen izquierdo de la celda; flow-root hace que
+         la celda crezca si el rótulo ocupa dos renglones. */
+      & tr > :is(td, th)[data-etiqueta] {
+        display: flow-root;
+        padding-left: 7.75rem;
+      }
+      & tr > :is(td, th)[data-etiqueta]::before {
+        content: attr(data-etiqueta) ":";
+        float: left;
+        margin-left: -7.75rem;
+        width: 7rem;
+        font-family: var(--font-sans);
+        line-height: 1.25rem;
+        letter-spacing: normal;
+        font-size: 0.8125rem;
+        font-weight: 400;
+        color: var(--color-texto-secundario);
+      }
+      & tr > th[scope="row"]:not([data-etiqueta]) {
+        order: -1;
+        font-weight: 600;
+      }
+      & tr > :is(td, th):not([data-etiqueta]):has(button, a[class*="min-h"]) {
+        padding-top: 0.5rem;
+      }
+    }
+  }
 }

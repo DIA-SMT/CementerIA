@@ -110,8 +110,8 @@ export function PestanaAreas({ areas }: { areas: readonly FilaArea[] }) {
         </button>
       </div>
       <AvisoHecho mensaje={hecho} />
-      <div className="tarjeta relative overflow-x-auto">
-        <table className="tabla-datos">
+      <div className="tarjeta relative @container overflow-x-auto">
+        <table className="tabla-datos tabla-apilable-amplia">
           <caption className="sr-only">Áreas</caption>
           <thead>
             <tr>
@@ -127,12 +127,12 @@ export function PestanaAreas({ areas }: { areas: readonly FilaArea[] }) {
           <tbody>
             {areas.map((a) => (
               <tr key={a.id} className={a.activa ? "" : "text-texto-secundario"}>
-                <td className="font-mono text-xs">{a.codigo}</td>
+                <td data-etiqueta="Código" className="font-mono text-xs">{a.codigo}</td>
                 <th scope="row" className="font-normal">{a.nombre}</th>
-                <td>{a.tipo === "interna" ? "Interna" : "Externa"}</td>
-                <td>{a.recibePases ? "Sí" : "No"}</td>
-                <td><Etiqueta activo={a.activa} /></td>
-                <td className="text-xs text-texto-secundario">
+                <td data-etiqueta="Tipo">{a.tipo === "interna" ? "Interna" : "Externa"}</td>
+                <td data-etiqueta="Recibe pases">{a.recibePases ? "Sí" : "No"}</td>
+                <td data-etiqueta="Estado"><Etiqueta activo={a.activa} /></td>
+                <td data-etiqueta="Uso" className="text-xs text-texto-secundario">
                   {[a.usuariosActivos > 0 ? `${a.usuariosActivos} usuarios activos` : null, a.cementerio ? `Área del cementerio ${a.cementerio}` : null, a.plantillas.length > 0 ? `En ${a.plantillas.join(", ")}` : null].filter(Boolean).join(" · ") || "—"}
                 </td>
                 <td>
@@ -464,8 +464,8 @@ export function PestanaSimple({ catalogo, titulo, descripcion, ayudaCodigo, fila
         </button>
       </div>
       <AvisoHecho mensaje={hecho} />
-      <div className="tarjeta relative overflow-x-auto">
-        <table className="tabla-datos">
+      <div className="tarjeta relative @container overflow-x-auto">
+        <table className="tabla-datos tabla-apilable">
           <caption className="sr-only">{titulo}</caption>
           <thead>
             <tr>
@@ -479,10 +479,10 @@ export function PestanaSimple({ catalogo, titulo, descripcion, ayudaCodigo, fila
           <tbody>
             {filas.map((f) => (
               <tr key={f.id} className={f.activo ? "" : "text-texto-secundario"}>
-                <td className="font-mono text-xs">{f.codigo}</td>
+                <td data-etiqueta="Código" className="font-mono text-xs">{f.codigo}</td>
                 <th scope="row" className="font-normal">{f.nombre}</th>
-                <td><Etiqueta activo={f.activo} /></td>
-                <td className="text-xs text-texto-secundario">{f.uso}</td>
+                <td data-etiqueta="Estado"><Etiqueta activo={f.activo} /></td>
+                <td data-etiqueta="Uso" className="text-xs text-texto-secundario">{f.uso}</td>
                 <td>
                   <button type="button" aria-haspopup="dialog" onClick={() => setEditando(f)} className={CLASE_BOTON_COMPACTO}>
                     <Pencil className="h-4 w-4" aria-hidden="true" />

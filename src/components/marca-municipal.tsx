@@ -75,18 +75,22 @@ export function LogoMunicipal({ variante = "clara", tamano = 40 }: { variante?: 
 
 /**
  * Logo y textos. `titulo` pone "CementerIA" como `<h1>` (el ingreso); si no,
- * va como texto. `detalle`: "completo" agrega la Municipalidad.
+ * va como texto. `detalle`: "completo" agrega la Municipalidad. `claseTexto`
+ * va en el bloque de textos (la barra lateral colapsada lo deja solo para
+ * lectores de pantalla y queda el monograma).
  */
 export function MarcaMunicipal({
   variante = "clara",
   tamano = "normal",
   titulo = false,
   detalle = "completo",
+  claseTexto = "",
 }: {
   variante?: Variante;
   tamano?: "normal" | "grande";
   titulo?: boolean;
   detalle?: "completo" | "breve";
+  claseTexto?: string;
 }) {
   const e = ESTILOS[variante];
   const grande = tamano === "grande";
@@ -94,7 +98,7 @@ export function MarcaMunicipal({
   return (
     <div className={`flex items-center ${grande ? "gap-4" : "gap-3"}`}>
       <LogoMunicipal variante={variante} tamano={grande ? 56 : 40} />
-      <div className="flex min-w-0 flex-col leading-tight">
+      <div className={`flex min-w-0 flex-col leading-tight ${claseTexto}`}>
         <Sistema className={`${grande ? "text-3xl" : "text-lg"} font-bold tracking-tight ${e.sistema}`}>CementerIA</Sistema>
         <span className={`${grande ? "text-base" : "text-xs"} font-medium ${e.detalle}`}>Dirección de Cementerios</span>
         {detalle === "completo" ? (

@@ -230,8 +230,11 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
         className="space-y-3"
         aria-busy={pendiente}
       >
-        <div className="relative overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+        {/* Grilla desde 56rem (896 px) de contenedor; más angosta, cada fila se
+            apila como una tarjeta con el rótulo de cada control (tabla-apilable-amplia,
+            globals.css). Los controles son los mismos: la navegación con flechas no cambia. */}
+        <div className="relative @container overflow-x-auto">
+          <table className="tabla-apilable-amplia w-full min-w-[56rem] text-left text-sm">
             <caption className="sr-only">Grilla de pases de la ficha de papel: cada fila es un pase o una devolución</caption>
             <thead className="border-b border-borde bg-fondo text-xs uppercase tracking-wide text-texto-secundario">
               <tr>
@@ -276,8 +279,8 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                 };
                 return (
                   <tr key={f.id} className="align-top">
-                    <td className="px-2 py-1.5 text-texto-secundario">{i + 1}</td>
-                    <td className="px-2 py-1.5">
+                    <td data-etiqueta="Fila" className="px-2 py-1.5 text-texto-secundario">{i + 1}</td>
+                    <td data-etiqueta={ETIQUETA_COLUMNA.fecha} className="px-2 py-1.5">
                       <input
                         {...atributos("fecha")}
                         type={f.precision === "dia" ? "date" : "datetime-local"}
@@ -289,14 +292,14 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                       />
                       {mensaje("fecha")}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td data-etiqueta={ETIQUETA_COLUMNA.precision} className="px-2 py-1.5">
                       <select {...atributos("precision")} value={f.precision} onChange={(e) => setFilas((fs) => fs.map((x) => (x.id === f.id ? cambiarPrecision(x, e.target.value === "minuto" ? "minuto" : "dia") : x)))} className={CLASE_CONTROL}>
                         <option value="dia">Día</option>
                         <option value="minuto">Día y hora</option>
                       </select>
                     </td>
-                    <td className="px-2 py-1.5">
-                      <select {...atributos("pasoDestino")} value={f.pasoDestino} onChange={(e) => poner(f.id, { pasoDestino: e.target.value })} className={`${CLASE_CONTROL} min-w-44`}>
+                    <td data-etiqueta={ETIQUETA_COLUMNA.pasoDestino} className="px-2 py-1.5">
+                      <select {...atributos("pasoDestino")} value={f.pasoDestino} onChange={(e) => poner(f.id, { pasoDestino: e.target.value })} className={`${CLASE_CONTROL} min-w-40`}>
                         <option value="">Elegí…</option>
                         {datos.pasos.map((p) => (
                           <option key={p.clave} value={p.clave}>
@@ -306,15 +309,15 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                       </select>
                       {mensaje("pasoDestino")}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td data-etiqueta={ETIQUETA_COLUMNA.observacion} className="px-2 py-1.5">
                       <input {...atributos("observacion")} type="text" maxLength={2000} value={f.observacion} onChange={(e) => poner(f.id, { observacion: e.target.value })} className={CLASE_CONTROL} />
                       {mensaje("observacion")}
                     </td>
-                    <td className="px-2 py-1.5">
-                      <input {...atributos("fuente")} type="text" maxLength={200} value={f.fuente} onChange={(e) => poner(f.id, { fuente: e.target.value })} className={`${CLASE_CONTROL} min-w-28`} />
+                    <td data-etiqueta={ETIQUETA_COLUMNA.fuente} className="px-2 py-1.5">
+                      <input {...atributos("fuente")} type="text" maxLength={200} value={f.fuente} onChange={(e) => poner(f.id, { fuente: e.target.value })} className={`${CLASE_CONTROL} min-w-24`} />
                       {mensaje("fuente")}
                     </td>
-                    <td className="px-2 py-1.5">
+                    <td data-etiqueta={ETIQUETA_COLUMNA.motivo} className="px-2 py-1.5">
                       <input
                         {...atributos("motivo")}
                         type="text"
@@ -327,7 +330,7 @@ function Grilla({ datos, version, hecho }: PropsSeccion) {
                       />
                       {mensaje("motivo")}
                     </td>
-                    <td className="px-2 py-1.5 text-xs">
+                    <td data-etiqueta="Qué es" className="px-2 py-1.5 text-xs">
                       <span className={r?.tipo === "devolucion" ? "font-medium text-error" : r?.tipo === "pase" ? "text-texto" : "text-texto-secundario"}>{r ? TEXTO_TIPO[r.tipo] : ""}</span>
                     </td>
                     <td className="px-2 py-1.5">

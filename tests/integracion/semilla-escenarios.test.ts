@@ -176,7 +176,9 @@ describe("escenarios de la semilla de desarrollo", () => {
     expect(nums(p.diferidos.filas).some((n) => primera.numeros.includes(n))).toBe(true);
     const areasConCeldas = new Set(p.matriz.areas.map((a) => a.codigo));
     for (const a of ["MESA_ENTRADAS", "COMPUTO", "LIQUIDACION", "LEGAL", "ADMINISTRATIVO", "TRIBUTARIO", "DIM"]) expect(areasConCeldas).toContain(a);
-    expect(p.matriz.tipos.map((t) => t.codigo).sort()).toEqual(["NUEVA_CONCESION", "RENOVACION", "RENOVACION_SPT"]);
+    // "Contiene" y no "es igual": la base de integración es compartida y, según
+    // el orden de los archivos, otros tests ya crearon tipos de trámite de prueba.
+    expect(p.matriz.tipos.map((t) => t.codigo)).toEqual(expect.arrayContaining(["NUEVA_CONCESION", "RENOVACION", "RENOVACION_SPT"]));
   });
 
   it("la proyección de cada expediente coincide con la reconstrucción desde sus movimientos", async () => {
