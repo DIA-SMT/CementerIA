@@ -24,6 +24,9 @@ describe("matcher del proxy", () => {
     "/admin/usuarios",
     "/adjuntos/123?descargar=1",
     "/api/expedientes/2026-00012/otra-cosa",
+    // Las páginas de avisos sí renuevan la sesión (es actividad de la persona).
+    "/avisos",
+    "/api/avisos/otra-cosa",
     // Un prefijo parecido no alcanza para quedar afuera.
     "/loginx",
     "/dev/loginx",
@@ -48,6 +51,8 @@ describe("matcher del proxy", () => {
     "/api/salud",
     // La subida de adjuntos se autentica sola: el proxy no toca ese cuerpo.
     "/api/expedientes/2026-00012/adjuntos",
+    // El refresco automático de la campana no renueva la sesión (se verifica en la ruta).
+    "/api/avisos/resumen",
   ])("no corre en %s", (url) => {
     expect(corre(url)).toBe(false);
   });

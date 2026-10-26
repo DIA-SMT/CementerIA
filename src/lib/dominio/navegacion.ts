@@ -5,7 +5,7 @@ import { AREA_MESA_ENTRADAS, puede, type UsuarioPermisos } from "./permisos";
  * cada uno. Pura, para probarla y para que el menú y las páginas digan lo mismo.
  */
 
-export type Pantalla = "bandeja" | "expedientes" | "expedientes_nuevo" | "panel" | "admin";
+export type Pantalla = "bandeja" | "expedientes" | "expedientes_nuevo" | "panel" | "metricas" | "admin";
 
 export interface ItemNavegacion {
   pantalla: Pantalla;
@@ -18,21 +18,26 @@ const ITEMS: Record<Pantalla, ItemNavegacion> = {
   expedientes_nuevo: { pantalla: "expedientes_nuevo", href: "/expedientes/nuevo", etiqueta: "Nuevo expediente" },
   expedientes: { pantalla: "expedientes", href: "/expedientes", etiqueta: "Buscar" },
   panel: { pantalla: "panel", href: "/panel", etiqueta: "Panel" },
+  metricas: { pantalla: "metricas", href: "/panel/metricas", etiqueta: "Métricas" },
   admin: { pantalla: "admin", href: "/admin", etiqueta: "Administración" },
 };
 
 /**
  * - Mesa de Entradas: Bandeja · Nuevo expediente · Buscar · Panel.
  * - Los demás operadores: Bandeja · Buscar · Panel.
- * - Dirección (y cualquier usuario de lectura): Panel · Buscar.
- * - Admin: Panel · Buscar · Administración.
+ * - Dirección: Panel · Métricas · Buscar (otro usuario de lectura: Panel · Buscar).
+ * - Admin: Panel · Métricas · Buscar · Administración.
+ *
+ * Métricas (las de gestión, /panel/metricas) es de Dirección y del admin
+ * (permiso `ver_metricas`).
  *
  * El admin puede dar altas (3.2) pero el menú de la sección 5 no le pone el
  * atajo: lo tiene en Buscar.
  */
 export function navegacionPara(usuario: UsuarioPermisos): ItemNavegacion[] {
-  if (usuario.rol === "admin") return [ITEMS.panel, ITEMS.expedientes, ITEMS.admin];
-  if (usuario.rol === "lectura") return [ITEMS.panel, ITEMS.expedientes];
+  const metricas = puede("ver_metricas", null, usuario) ? [ITEMS.metricas] : [];
+  if (usuario.rol === "admin") return [ITEMS.panel, ...metricas, ITEMS.expedientes, ITEMS.admin];
+  if (usuario.rol === "lectura") return [ITEMS.panel, ...metricas, ITEMS.expedientes];
   if (usuario.area?.codigo === AREA_MESA_ENTRADAS) {
     return [ITEMS.bandeja, ITEMS.expedientes_nuevo, ITEMS.expedientes, ITEMS.panel];
   }
@@ -67,6 +72,8 @@ export function puedeVerPantalla(usuario: UsuarioPermisos, pantalla: Pantalla): 
       return puede("alta", null, usuario);
     case "panel":
       return puede("ver_panel", null, usuario);
+    case "metricas":
+      return puede("ver_metricas", null, usuario);
     case "admin":
       return puede("administrar", null, usuario);
   }

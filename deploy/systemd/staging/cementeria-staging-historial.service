@@ -1,0 +1,49 @@
+# Verificación nocturna de la cadena de hash del historial de STAGING. Igual
+# que la de producción (deploy/systemd/cementeria-historial.service), con el
+# entorno de staging. Lo dispara cementeria-staging-historial.timer. Va en
+# /etc/systemd/system/.
+#
+# A mano: systemctl start cementeria-staging-historial
+
+[Unit]
+Description=CementerIA STAGING: verificación nocturna de la cadena de hash del historial
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cementeria-staging
+Group=cementeria-staging
+WorkingDirectory=/opt/cementeria-staging/actual
+ExecStart=/usr/bin/node scripts/verificar-historial.mjs
+# DATABASE_URL de staging; el script no usa ninguna otra variable de ese archivo.
+EnvironmentFile=/etc/cementeria-staging/cementeria.env
+Environment=NODE_ENV=production
+Environment=TZ=America/Argentina/Tucuman
+SyslogIdentifier=cementeria-staging-historial
+TimeoutStartSec=30min
+Nice=10
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

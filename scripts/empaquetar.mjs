@@ -425,6 +425,13 @@ async function main() {
     const scripts = path.join(paquete, "scripts");
     mkdirSync(scripts, { recursive: true });
     await compilarScript(fuente, "scripts/barrer-adjuntos-tmp.ts", path.join(scripts, "barrer-adjuntos-tmp.mjs"));
+    // La verificación nocturna de la cadena de hash del historial (timer
+    // cementeria-historial). Como la semilla, con el cliente de Prisma adentro.
+    await compilarScript(fuente, "scripts/verificar-historial.ts", path.join(scripts, "verificar-historial.mjs"), ["pg-native"]);
+    // Los avisos por tiempo (timer cementeria-avisos) y la purga de los leídos
+    // viejos (a mano, con la credencial de deploy; docs/despliegue.md).
+    await compilarScript(fuente, "scripts/generar-avisos.ts", path.join(scripts, "generar-avisos.mjs"), ["pg-native"]);
+    await compilarScript(fuente, "scripts/purgar-avisos.ts", path.join(scripts, "purgar-avisos.mjs"), ["pg-native"]);
     // La semilla, para el primer despliegue (catálogos, plantillas y el admin
     // inicial; en producción con --sin-ficticios).
     // Todo adentro (unos 7 MB): el node_modules del paquete tiene solo lo que

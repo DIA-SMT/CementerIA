@@ -1,0 +1,49 @@
+# Generación diaria de los avisos por tiempo de STAGING. Igual que la de
+# producción (deploy/systemd/cementeria-avisos.service), con el entorno de
+# staging. Lo dispara cementeria-staging-avisos.timer. Va en
+# /etc/systemd/system/.
+#
+# A mano: systemctl start cementeria-staging-avisos
+
+[Unit]
+Description=CementerIA STAGING: avisos por tiempo (plazos DIM, sin confirmar, demorados)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cementeria-staging
+Group=cementeria-staging
+WorkingDirectory=/opt/cementeria-staging/actual
+ExecStart=/usr/bin/node scripts/generar-avisos.mjs
+# DATABASE_URL de staging; el script no usa ninguna otra variable de ese archivo.
+EnvironmentFile=/etc/cementeria-staging/cementeria.env
+Environment=NODE_ENV=production
+Environment=TZ=America/Argentina/Tucuman
+SyslogIdentifier=cementeria-staging-avisos
+TimeoutStartSec=15min
+Nice=10
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

@@ -3,6 +3,8 @@ import { exigirPermiso, type EstadoExpediente, type UsuarioPermisos } from "../p
 import { exigirNumero, registrarAcceso, type OpcionesAcceso } from "./acceso";
 import type { DependenciasExpedientes } from "./dependencias";
 import { armarFicha, type Ficha, type MovimientoFicha } from "./ficha";
+import { huellaDelHistorial, type ResultadoIntegridad } from "./integridad";
+import type { TramoHistorial } from "./tramos";
 
 /**
  * La hoja imprimible del historial (docs/propuesta-mvp.md, sección 5,
@@ -12,6 +14,9 @@ import { armarFicha, type Ficha, type MovimientoFicha } from "./ficha";
  * Como la carátula, no lleva teléfono, correo ni domicilio: de las personas
  * van el rol, el nombre y el DNI (o la razón social y el CUIT), para leer las altas y versiones nuevas de la
  * línea de tiempo. Pedirla registra `imprimir` (`detalle.hoja = "historial"`).
+ *
+ * 26/10/2026: agrupada por paso (`tramos`) y con la huella de la cadena de
+ * hash (`integridad`), como la carátula.
  */
 
 export interface PersonaHistorial {
@@ -46,8 +51,19 @@ export interface HojaHistorial {
   personas: PersonaHistorial[];
   /** Etiquetas de los campos extra, para leer las ediciones (`datos_extra.<clave>`). */
   camposExtra: Array<{ clave: string; etiqueta: string }>;
+  /** 26/10/2026: nombres de las subtareas y los documentos, para leer los tildes y las marcas (como en la ficha). */
+  subtareas: Array<{ clave: string; nombre: string }>;
+  documentos: Array<{ clave: string; nombre: string }>;
   /** Del más viejo al más nuevo, como en la ficha. */
   historial: MovimientoFicha[];
+  /** 26/10/2026: agrupado por paso, con los días hábiles en cada área (como en la ficha). */
+  tramos: TramoHistorial[];
+  /**
+   * 26/10/2026: la huella de la cadena de hash al emitir la hoja: el hash del
+   * último movimiento (abreviado en `huella`), cuántos hay y si la cadena
+   * estaba íntegra. Liga el papel con el estado digital de ese momento.
+   */
+  integridad: ResultadoIntegridad;
   /** Hoy en Tucumán: va al pie ("Emitida el …"). */
   emitidaEl: FechaISO;
 }
@@ -104,7 +120,11 @@ export async function datosHistorial(
       areaActual: ficha.areaActual.nombre,
       personas: [...ficha.personas, ...ficha.personasHistoricas].map(persona),
       camposExtra: ficha.datosExtra.map((c) => ({ clave: c.clave, etiqueta: c.etiqueta })),
+      subtareas: ficha.recorrido.flatMap((p) => p.subtareas.map((s) => ({ clave: s.clave, nombre: s.nombre }))),
+      documentos: [...ficha.documentacion.direccion, ...ficha.documentacion.concesionario].map((x) => ({ clave: x.clave, nombre: x.nombre })),
       historial: ficha.historial,
+      tramos: ficha.tramos,
+      integridad: await huellaDelHistorial(tx, ficha.numero, id),
       emitidaEl: hoy,
     };
   });

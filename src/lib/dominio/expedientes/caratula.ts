@@ -8,6 +8,7 @@ import type { TipoPersona } from "./esquemas";
 import { numeroCorto } from "./numero";
 import { areasDelPaso } from "./proyeccion";
 import { leerCamposUbicacion } from "./ubicacion";
+import { huellaDelHistorial, type ResultadoIntegridad } from "./integridad";
 
 /**
  * La carátula (docs/propuesta-mvp.md, sección 5, "Imprimibles"): se abrocha al
@@ -19,6 +20,7 @@ import { leerCamposUbicacion } from "./ubicacion";
  *
  * El QR lo arma la pantalla con `rutaFicha` y la URL de la app (qrcode, SVG en
  * el servidor). Pedir la carátula registra `imprimir` en `auditoria.accesos`.
+ * 26/10/2026: lleva al pie la huella de la cadena de hash del historial.
  */
 
 export interface PersonaCaratula {
@@ -61,6 +63,12 @@ export interface Caratula {
   titulares: PersonaCaratula[];
   solicitantes: PersonaCaratula[];
   recorrido: PasoCaratula[];
+  /**
+   * 26/10/2026: la huella de la cadena de hash al emitirla (el hash del último
+   * movimiento, abreviado en `huella`, y cuántos movimientos había), para
+   * cotejar el papel con el historial digital.
+   */
+  integridad: ResultadoIntegridad;
   /** Hoy en Tucumán: va al pie ("Emitida el …"). */
   emitidaEl: FechaISO;
 }
@@ -169,6 +177,7 @@ export async function datosCaratula(
       titulares: e.personas.filter((p) => p.rol === "titular").map(persona),
       solicitantes: e.personas.filter((p) => p.rol === "solicitante").map(persona),
       recorrido,
+      integridad: await huellaDelHistorial(tx, e.numeroInterno, e.id),
       emitidaEl: hoy,
     };
   });

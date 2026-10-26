@@ -1,3 +1,4 @@
+import { avisarLlegada } from "../avisos/eventos";
 import { exigirPermiso, type UsuarioPermisos } from "../permisos";
 import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
@@ -200,6 +201,21 @@ export async function devolver(
           version: { increment: 1 },
         },
         select: { version: true, estado: true },
+      });
+      // "Te devolvieron un expediente", con el motivo, al área de destino (o a
+      // la custodia), en esta misma transacción. Reemplaza al aviso "llegó".
+      await avisarLlegada(tx, {
+        tipo: "devolucion",
+        expedienteId: exp.id,
+        movimientoId: m.id,
+        actorId: usuario.id,
+        actorAreaId: usuario.area?.id ?? null,
+        paso: destinoPaso.nombre,
+        areaOrigenId: exp.areaActualId,
+        areaActualId: areasDestino.areaActualId,
+        areaResponsableId: areasDestino.areaResponsableId,
+        motivo: motivoFinal,
+        ahora: ctx.ahora,
       });
       return {
         numero: exp.numeroInterno,

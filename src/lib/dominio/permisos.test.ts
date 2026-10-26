@@ -86,6 +86,15 @@ describe("reglas que no necesitan expediente (semana 1)", () => {
     expect(puede("exportar_csv", null, computo)).toBe(false);
   });
 
+  it("métricas de gestión: Dirección y admin", () => {
+    expect(puede("ver_metricas", null, direccion)).toBe(true);
+    expect(puede("ver_metricas", null, admin)).toBe(true);
+    expect(evaluarPermiso("ver_metricas", null, mesa)).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+    expect(evaluarPermiso("ver_metricas", null, computo)).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+    // Un usuario de lectura que no es de Dirección, tampoco.
+    expect(puede("ver_metricas", null, usuario("lectura", "LEGAL"))).toBe(false);
+  });
+
   it("nota libre: todos menos lectura", () => {
     expect(puede("nota", expediente(), legal)).toBe(true);
     expect(puede("nota", expediente(), admin)).toBe(true);
@@ -93,7 +102,7 @@ describe("reglas que no necesitan expediente (semana 1)", () => {
   });
 
   it("Dirección (lectura) no hace ninguna acción que escriba", () => {
-    const lecturas: readonly Accion[] = ["ver_expediente", "ver_datos_completos", "ver_panel", "exportar_csv", "imprimir"];
+    const lecturas: readonly Accion[] = ["ver_expediente", "ver_datos_completos", "ver_panel", "exportar_csv", "imprimir", "ver_metricas"];
     for (const accion of ACCIONES) {
       if (lecturas.includes(accion)) continue;
       expect(puede(accion, expediente(), direccion), accion).toBe(false);

@@ -1,0 +1,15 @@
+# Dispara cementeria-staging-avisos.service todos los días. Va en
+# /etc/systemd/system/; se activa con:
+#   systemctl enable --now cementeria-staging-avisos.timer
+
+[Unit]
+Description=CementerIA STAGING: avisos por tiempo, todas las mañanas
+
+[Timer]
+OnCalendar=*-*-* 06:15:00 America/Argentina/Tucuman
+# Si el servidor estaba apagado a esa hora, corre al arrancar.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

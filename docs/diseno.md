@@ -488,6 +488,140 @@ transcripción. 128 de 128 sin desborde y sin acciones cortadas. Lo único que
 se desplaza de costado son las pestañas de la bandeja en el celular, a
 propósito (con el desvanecido).
 
+## Historial de la ficha (26/10/2026)
+
+Filtros y agrupación del bloque Historial (`historial-filtrable.tsx`) y
+"Verificar integridad" (`verificar-integridad.tsx`). Sin tokens nuevos:
+
+- **Filtros** en una caja `rounded-control border-borde bg-fondo/70`, con
+  rótulos `text-xs` en mayúsculas `texto-secundario` (5,23:1 sobre el fondo).
+  Cada opción es una **pastilla** (`rounded-full`, 32 px de alto como
+  `CLASE_BOTON_COMPACTO`, foco con `CLASE_FOCO`) con `aria-pressed`: apretada,
+  borde y texto `primario-oscuro` sobre `superficie-azul` (5,95:1) y una tilde
+  (la señal no es solo el color); suelta, borde `borde-control` (3,64:1) sobre
+  blanco. La cantidad de cada tipo va en `texto-secundario`. El paso es un
+  `<select>` con `CLASE_CONTROL`. "Se ven N de M movimientos" en una región
+  viva (`aria-live`; el `role="status"` de la ficha queda para el aviso de la
+  última acción).
+- **Grupos**: título del tramo `text-sm font-semibold text-institucional` con
+  filete `border-borde`, el detalle (fechas y días hábiles) en
+  `texto-secundario` con `tabular-nums` e insignia "Está acá" en `primario`
+  (blanco encima, 4,73:1). En papel, la insignia va con borde y sin relleno.
+- **Verificar integridad**: botón compacto en el título del bloque; el
+  resultado ocupa la fila de abajo, en `exito` sobre `exito-fondo` (6,46:1) o
+  `error` sobre `error-fondo` (5,76:1), con ícono de escudo y el hash en
+  monoespaciada (la huella en negrita).
+- **Imprimibles**: el historial va agrupado por tramo (`h2` por tramo) y los
+  dos llevan la huella al pie, en monoespaciada. Los filtros y el botón son
+  `print:hidden`.
+
+## Gráficos (métricas de gestión, 26/10/2026)
+
+`/panel/metricas` es la primera pantalla con gráficos. Sin librerías (ni de
+gráficos ni de JavaScript en el navegador): HTML y CSS hechos a mano en
+`src/app/(app)/panel/metricas/graficos.tsx`, Server Components. La escala está
+en `src/lib/presentacion/graficos.ts` (pura, con tests).
+
+- **Formas**: barras horizontales para comparar categorías con nombres largos
+  (tiempo por paso, punta a punta por trámite, motivos, carga por área, antes y
+  con el sistema) y columnas para el tiempo (flujo por mes o semana y el stock
+  al cierre). Nunca dos ejes: dos medidas distintas van en dos gráficos.
+- **Escala**: arranca en 0 (son magnitudes) y termina en un tope redondo (1, 2
+  o 5 × 10ⁿ) con hasta 4 intervalos y marcas enteras (`escala()`); la barra
+  ocupa `valor ÷ tope` del largo (`porcentajeDe()`, nunca se sale). Sin datos,
+  de 0 a 1.
+- **Marcas**: barras de 14 px y columnas de hasta 24 px, con la punta
+  redondeada (4 px) y la base recta; líneas de la grilla de 1 px en `borde`
+  (decorativas) y el eje en `borde-control`. Una barra con valor mayor que 0
+  tiene siempre un mínimo visible.
+- **Colores** (relleno, WCAG 1.4.11 pide 3:1 contra el blanco): la serie
+  principal en `primario` (4,73:1), la segunda (o lo destacado, como el cuello
+  de botella) en `institucional` (13,25:1) y la línea de base ("antes del
+  sistema") en gris `borde-control` (3,64:1). El validador de paletas marca a
+  `institucional` como muy oscuro y poco saturado para una paleta categórica;
+  se acepta porque con `primario` se distingue de sobra (ΔE 29,7 en visión
+  normal y 30,1 con deuteranopía) y nunca es la única señal. Al imprimir se
+  conservan (`print-color-adjust: exact`).
+- **Rótulos**: el valor va escrito en la punta de cada barra (y sobre cada
+  columna si hay 16 o menos), en `texto` (nunca del color de la serie), en un
+  margen reservado a la derecha para que no se corte. Las etiquetas de las
+  barras van a la izquierda (13 rem) y, en un contenedor de menos de 36 rem,
+  arriba de la barra (container query `@xl`). En el eje de las columnas, si hay
+  más de 8 períodos los rótulos se saltean (`saltoDeRotulos()`). Leyenda solo
+  con dos series o más. Lo destacado lleva además un texto ("Cuello de
+  botella": blanco sobre `institucional`, 13,25:1).
+- **Accesibilidad**: cada gráfico es un `figure` con un `role="img"` y un texto
+  alternativo que dice qué muestra y el dato principal ("Mediana de días
+  hábiles en cada paso. El cuello de botella es …"); los números van en la
+  **tabla** que sigue (apilable), que es la fuente de verdad y lo que baja
+  "Exportar CSV". Cada barra tiene su globo (`title`) con el dato completo.
+- **Cifras clave** (`Cifra`, en `piezas.tsx`): rótulo `texto-secundario`, valor
+  24 px `institucional`, y debajo la comparación con la línea de base o el
+  contexto; la mejora en `exito` y el empeoramiento en `error`, siempre con el
+  texto que lo dice ("−8 días hábiles (−40 %) respecto de antes del sistema").
+  Con búsqueda equivalente, la tarjeta entera es el enlace. "Muestra chica" en
+  `advertencia` sobre blanco (6,80:1).
+- **Responsive**: la pantalla es `@container`; las secciones de a dos y los
+  gráficos lado a lado desde 56 rem de contenedor (`@4xl`); las tablas son
+  apilables (`tabla-apilable`, `-amplia` para la de pasos, `-compacta` para las
+  de tres columnas). Medido (scrollWidth = clientWidth) en 1440, 1280, 1024,
+  768 y 390, con la barra expandida y contraída, y por semana en 390: 11 de 11
+  sin desborde y ningún botón, enlace, tabla o gráfico fuera de la ventana.
+
+## Campana de avisos (26/10/2026)
+
+`src/app/(app)/campana-avisos.tsx` (Client Component), en el encabezado, a la
+izquierda del nombre; solo para quien recibe avisos (operadores con área).
+`/avisos` es la lista completa. Sin tokens nuevos. Ver docs/api-dominio.md,
+sección 21.
+
+- **Botón**: 40 × 40 px como el resto del encabezado (`rounded-control`,
+  borde `borde-control`, hover y abierto en `superficie-azul` con
+  `primario-oscuro`, foco con `CLASE_FOCO`), ícono `Bell` y, si hay no leídos,
+  el número en una pastilla blanco sobre `institucional` (13,25:1; "99+" desde
+  100). El número es decorativo (`aria-hidden`): el nombre accesible es "Avisos,
+  3 sin leer" o "Avisos, ninguno sin leer". Cuando el refresco trae avisos
+  nuevos, una región `aria-live="polite"` (sin `role="status"`, para no
+  mezclarse con el aviso de la última acción de la ficha) dice "Avisos nuevos:
+  N sin leer".
+- **Panel**: patrón disclosure (`aria-expanded`, `aria-controls`), no un
+  menú: adentro hay enlaces y un botón. Tarjeta blanca `rounded-tarjeta` con
+  `shadow-elevada`, 26 rem de ancho anclada a la derecha de la campana desde
+  `sm`; en el celular, del ancho del encabezado (menos 8 px por lado) y debajo
+  de él (la fila del encabezado es `relative`), así el encabezado sigue siendo
+  una sola fila. Al abrirse el foco va al título del panel ("Avisos · 3 sin
+  leer", `tabIndex=-1`); Escape lo cierra y devuelve el foco a la campana; se
+  cierra al hacer clic afuera, al salir con Tab y al cambiar de pantalla. Arriba,
+  "Marcar todos como leídos" (`CLASE_BOTON_COMPACTO`); al pie, "Ver todos los
+  avisos" (`CLASE_ENLACE` sobre `fondo` al 60 %: 6,43:1). La lista se desplaza
+  sola (hasta 26 rem o el 65 % de la ventana).
+- **Cada aviso**: un enlace a la ficha con el ícono del tipo en un círculo
+  (`IconoAviso`, `src/components/icono-aviso.tsx`: `Inbox` llegó, `Undo2`
+  devuelto, `Hourglass` por vencer, `CalendarX2` vencido, `SendHorizontal` sin
+  confirmar, `Clock` demorado, `Archive` concluido o archivado), el título (una
+  línea), el texto (dos, `line-clamp-2`; entero en el DOM) y "hace cuánto"
+  (`<time datetime>`). Sin leer: fondo `superficie-azul` al 40 % (texto 13,46:1,
+  secundario 5,36:1), título en negrita, un punto `primario` decorativo y "Sin
+  leer:" para lectores de pantalla. El foco va por dentro (`-outline-offset-2`)
+  para que no lo corte el desplazamiento de la lista.
+- **Tonos** (`TONO_TIPO_AVISO`, `src/lib/presentacion/avisos.ts`): los de
+  **prioridad alta** (devuelto y plazo vencido) en `error`: ícono `error`
+  sobre `error-fondo` (5,76:1), franja roja de 4 px a la izquierda (`border-error`,
+  6,57:1 contra el blanco) y la insignia "Prioridad alta" (el color nunca va
+  solo). Plazo por vencer, sin confirmar y demorado en `advertencia` (6,21:1);
+  llegó en `info` (5,95:1); concluido o archivado, neutro (`texto-secundario`
+  sobre `fondo`, 5,23:1).
+- **`/avisos`**: `EncabezadoPagina` con "Marcar todos como leídos"
+  (secundario); filtros en una tarjeta: "Todos" / "No leídos" como pastillas
+  enlazadas con `aria-current` y una tilde (como los filtros del historial) y el
+  tipo en un `<select>` con "Filtrar" (formulario GET, anda sin JavaScript);
+  la cuenta en una región viva; la lista en una tarjeta, una fila por aviso con
+  el mismo ícono, tono y franja que el panel, insignias "Prioridad alta" y "Sin
+  leer", y "Marcar como leído" / "Marcar como no leído" (compacto, con el
+  título en el nombre accesible). En el celular el botón baja debajo del texto.
+  Paginado de a 25 con Anterior y Siguiente. Mesa de Entradas tiene además
+  "Preferencias" (la casilla de "Concluido o archivado").
+
 ## Capturas
 
 En `docs/capturas/rediseno/` (base efímera con la semilla y `next start`, como
@@ -521,6 +655,7 @@ regeneran con el arnés de e2e cuando hacen falta.
 | Etapa responsive: bandeja en tablet y celular (tarjetas) | `bandeja-liquidacion-768.png`, `bandeja-liquidacion-390.png` |
 | Etapa responsive: búsqueda, panel y ficha en 1280 | `busqueda-resultados-1280.png`, `panel-direccion-1280.png`, `ficha-1280.png` |
 | Etapa responsive: globo de la barra contraída (foco con teclado) | `barra-colapsada-globo-1280.png` |
+| Métricas de gestión, como Dirección (página completa) | `metricas-direccion-{1440,1280,390}.png` |
 
 Las de la primera etapa siguen ahí (las de `bandeja-mesa-*` se reemplazaron
 por `bandeja-pestanas-*`, y `ficha-*` por las nuevas). En las capturas de

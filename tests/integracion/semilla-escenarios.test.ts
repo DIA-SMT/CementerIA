@@ -4,17 +4,18 @@
 // como semilla-expedientes.test.ts; la base es compartida, así que las bandejas
 // y el panel se miran filtrados por los expedientes de los escenarios.
 
+import { readFileSync } from "node:fs";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { crearAlmacenEnDisco } from "@/lib/adjuntos/almacen";
-import type { PestanaBandeja, ServicioExpedientes } from "@/lib/dominio/expedientes";
+import { verificarCadenas, type PestanaBandeja, type ServicioExpedientes } from "@/lib/dominio/expedientes";
 import type { UsuarioPermisos } from "@/lib/dominio/permisos";
 import { comandoFicticio } from "../../prisma/semilla/expedientes";
 import { ESCENARIOS, FUENTE_ESCENARIOS, sembrarEscenarios, type ResumenEscenarios } from "../../prisma/semilla/escenarios";
 import { asegurarSemilla, conciliacion, servicio, usuario, type CodigoUsuario } from "./dominio";
-import { clientePrisma } from "./helper";
+import { clientePrisma, conPg } from "./helper";
 
 const prisma = clientePrisma();
 const exp: ServicioExpedientes = servicio(prisma);
@@ -187,6 +188,45 @@ describe("escenarios de la semilla de desarrollo", () => {
       expect({ n, ...c.actual }).toEqual({ n, ...c.reconstruida });
     }
   });
+
+  it("la cadena de hash de cada escenario está íntegra, y el backfill de la migración *_cadena_hash da los mismos hashes que el trigger", async () => {
+    const resumen = await verificarCadenas(prisma);
+    const deEscenarios = new Set(primera.numeros);
+    const rotos = resumen.rotos.filter((r) => deEscenarios.has(r.numero));
+    expect(rotos).toEqual([]);
+    expect(resumen.expedientes).toBeGreaterThanOrEqual(primera.numeros.length);
+
+    // El bloque de backfill de la migración, tal cual, sobre la base sembrada
+    // con los hashes borrados (como estaba antes de la migración). En una
+    // transacción del superusuario que se revierte: nada queda cambiado.
+    const migracion = readFileSync(join(process.cwd(), "prisma", "migrations", "20261026120000_cadena_hash", "migration.sql"), "utf8");
+    const backfill = /-- <backfill>\r?\n([\s\S]*?)-- <\/backfill>/.exec(migracion)?.[1];
+    expect(backfill).toMatch(/DISABLE TRIGGER movimientos_inmutables[\s\S]*ENABLE ALWAYS TRIGGER movimientos_inmutables/);
+    await conPg("superusuario", async (c) => {
+      const hashes = () =>
+        c.query<{ id: string; hash: string | null; hash_anterior: string | null }>("SELECT id::text, hash, hash_anterior FROM public.movimientos ORDER BY id");
+      await c.query("BEGIN");
+      try {
+        const antes = (await hashes()).rows;
+        expect(antes.length).toBeGreaterThan(0);
+        await c.query(`ALTER TABLE public.movimientos DISABLE TRIGGER movimientos_inmutables;
+                       ALTER TABLE public.movimientos DROP CONSTRAINT movimientos_hash_check;
+                       UPDATE public.movimientos SET hash = NULL, hash_anterior = NULL;
+                       ALTER TABLE public.movimientos ENABLE ALWAYS TRIGGER movimientos_inmutables;`);
+        expect((await hashes()).rows.every((f) => f.hash === null)).toBe(true);
+        await c.query(backfill ?? "");
+        expect((await hashes()).rows).toEqual(antes);
+        const t = await c.query<{ tgenabled: string }>("SELECT tgenabled FROM pg_trigger WHERE tgname = 'movimientos_inmutables'");
+        expect(t.rows).toEqual([{ tgenabled: "A" }]);
+        const v = await c.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM public.expedientes e CROSS JOIN LATERAL public.f_verificar_cadena(e.id) v WHERE NOT v.integra",
+        );
+        expect(v.rows[0].n).toBe(0);
+      } finally {
+        await c.query("ROLLBACK");
+      }
+    });
+  }, 120_000);
 
   it("estados: concluidos, archivados con caja, anulado con motivo y reinicio enlazado", async () => {
     const estado = (clave: string) => prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: numero(clave) } });

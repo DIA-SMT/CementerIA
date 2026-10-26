@@ -29,6 +29,7 @@ import { calcularPlazo, type PlazoCalculado } from "./plazos";
 import { fechasCorregidas, movimientosRevertidos, observacionesCorregidas } from "./reconstruccion";
 import { pendientesHistoricos } from "./transcripcion";
 import { areasDelPaso } from "./proyeccion";
+import { agruparEnTramos, contarDiasHabiles, type TramoHistorial } from "./tramos";
 
 /**
  * La ficha digital (docs/propuesta-mvp.md, sección 5, `/expedientes/[numero]`)
@@ -323,6 +324,11 @@ export interface Ficha {
   conceptos: ConceptoFicha[];
   /** Ordenado por fecha efectiva y secuencia, del más viejo al más nuevo. */
   historial: MovimientoFicha[];
+  /**
+   * 26/10/2026: el historial agrupado por paso del circuito (./tramos.ts), con
+   * los días hábiles en cada área. Cada movimiento de `historial` está en uno.
+   */
+  tramos: TramoHistorial[];
   /** Adjuntos vigentes, del más viejo al más nuevo; null si están enmascarados (`datosCompletos` false). */
   adjuntos: AdjuntoFicha[] | null;
   cantidadAdjuntos: number;
@@ -693,6 +699,8 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     h.observacionCorregida = observaciones.has(h.id) ? { valor: observaciones.get(h.id) ?? null } : null;
     h.correcciones = corregibles.get(h.id) ?? [];
   }
+  // Después de las correcciones: lo revertido no abre tramo y vale la fecha corregida.
+  const tramos = await contarDiasHabiles(tx, agruparEnTramos(historial, e.estado === "en_tramite" || e.estado === "espera_pago_dim"), hoy);
   const altaMov = movimientos.find((m) => m.tipo === "alta");
   const vinculoAlta = (altaMov?.datos as Record<string, unknown> | null)?.vinculo;
   const enlaceAnterior: EnlaceExpediente | null = e.expedienteAnterior
@@ -804,6 +812,7 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     personasHistoricas: historicas,
     conceptos: def.conceptos.map((c) => ({ clave: c.clave, nombre: c.nombre, via: c.via, paso: refPaso(c.paso) ?? { clave: c.paso, nombre: c.paso } })),
     historial,
+    tramos,
     adjuntos: completo ? adjuntosVigentes : null,
     cantidadAdjuntos: adjuntosVigentes.length,
     pase,

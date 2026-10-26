@@ -51,7 +51,9 @@ Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
  PostgreSQL 15 (base cementeria, rol cementeria_app)
         ▲
         │ 02:00  cementeria-backup.timer ── pg_dump -Fc + adjuntos ── restic ──► servidor de backup
+        │ 03:30  cementeria-historial.timer ── verifica la cadena de hash del historial
         │ 04:30  cementeria-adjuntos-tmp.timer ── borra tmp/ de más de 24 h
+        │ 06:00  cementeria-avisos.timer ── avisos por tiempo (plazos DIM, sin confirmar, demorados)
 ```
 
 | Qué | Dónde |
@@ -63,7 +65,7 @@ Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
 | Adjuntos | `/var/lib/cementeria/adjuntos/` |
 | Dump mientras se sube | `/var/backups/cementeria/` (se borra al terminar) |
 | Caché de Next | `/var/cache/cementeria/` (la crea systemd) |
-| Logs de la app y de los timers | journald: `journalctl -u cementeria`, `-u cementeria-backup`, `-u cementeria-adjuntos-tmp` |
+| Logs de la app y de los timers | journald: `journalctl -u cementeria`, `-u cementeria-backup`, `-u cementeria-adjuntos-tmp`, `-u cementeria-historial`, `-u cementeria-avisos` |
 | Logs de nginx | `/var/log/nginx/cementeria-{access,error}.log` |
 
 Los archivos de configuración están versionados en `deploy/` y viajan dentro
@@ -74,6 +76,8 @@ del paquete:
 | `deploy/systemd/cementeria.service` | `/etc/systemd/system/` |
 | `deploy/systemd/cementeria-backup.{service,timer}` | `/etc/systemd/system/` |
 | `deploy/systemd/cementeria-adjuntos-tmp.{service,timer}` | `/etc/systemd/system/` |
+| `deploy/systemd/cementeria-historial.{service,timer}` | `/etc/systemd/system/` |
+| `deploy/systemd/cementeria-avisos.{service,timer}` | `/etc/systemd/system/` |
 | `deploy/systemd/staging/*` | `/etc/systemd/system/` (solo en la VM de staging) |
 | `deploy/nginx/conf.d/cementeria-log.conf` | `/etc/nginx/conf.d/` |
 | `deploy/nginx/snippets/cementeria-*.conf` | `/etc/nginx/snippets/` |
@@ -324,6 +328,8 @@ de seguridad por si alguna redirección futura vuelve a armarse con
 sudo cp deploy/systemd/cementeria.service \
         deploy/systemd/cementeria-backup.service deploy/systemd/cementeria-backup.timer \
         deploy/systemd/cementeria-adjuntos-tmp.service deploy/systemd/cementeria-adjuntos-tmp.timer \
+        deploy/systemd/cementeria-historial.service deploy/systemd/cementeria-historial.timer \
+        deploy/systemd/cementeria-avisos.service deploy/systemd/cementeria-avisos.timer \
         /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemd-analyze verify /etc/systemd/system/cementeria*.service /etc/systemd/system/cementeria*.timer
@@ -335,8 +341,68 @@ sudo systemctl enable cementeria.service      # arranca en el primer despliegue 
 | `cementeria.service` | `node server.js` como `cementeria`, `Restart=always` (hasta 5 veces en 10 min; después queda en falla), `TZ=America/Argentina/Tucuman`, `EnvironmentFile=/etc/cementeria/cementeria.env`, escucha en `127.0.0.1:3010`. Endurecida: `NoNewPrivileges`, `ProtectSystem=strict` con `ReadWritePaths=` a los adjuntos, `PrivateTmp`, sin capacidades, filtro de llamadas al sistema |
 | `cementeria-backup.timer` → `.service` | 02:00 de Tucumán: `scripts/backup.sh` como `cementeria-backup` (sección 12) |
 | `cementeria-adjuntos-tmp.timer` → `.service` | 04:30: `scripts/barrer-adjuntos-tmp.mjs` (compilado a JavaScript, sin tsx), sin red y sin los secretos de la app |
+| `cementeria-historial.timer` → `.service` | 03:30 (desde el 26/10/2026): `scripts/verificar-historial.mjs` (compilado, sin tsx) como `cementeria`, con `DATABASE_URL` del entorno de la app. Recalcula la cadena de hash de todos los expedientes (`f_verificar_cadena`) y deja el resumen en `auditoria.accesos` (`verificar_historial`, firmado por SISTEMA). Si hay un expediente con la cadena rota sale con 1: la unidad queda en `systemctl --failed` y el journal dice cuál, en qué movimiento y por qué (evento `historial.roto`). Ver "Verificación del historial" abajo |
+| `cementeria-avisos.timer` → `.service` | 06:00 (desde el 26/10/2026), antes de que empiece el trabajo: `scripts/generar-avisos.mjs` (compilado, sin tsx) como `cementeria`, con `DATABASE_URL` del entorno de la app. Genera los avisos por tiempo (plazo DIM por vencer y vencido, enviado sin confirmar, demorado; docs/api-dominio.md, 21.3), firmados por SISTEMA. Idempotente. Sale con 2 si no pudo; aun así la app los genera en la primera pantalla que carga un operador ese día. Ver "Avisos" abajo |
 
 Los timers se activan después del primer despliegue (sección 9, paso 6).
+
+**Avisos.** La campana del encabezado (docs/api-dominio.md, sección 21). Los
+avisos de los pases y devoluciones los crea la app al moverse el expediente;
+los que dependen del tiempo, `cementeria-avisos` cada mañana (y, si no
+corrió, la primera carga del día de un operador). Para mirar:
+`journalctl -u cementeria-avisos -n 5 -o cat` (evento `avisos.generados`, con
+lo creado por tipo). A mano: `sudo systemctl start cementeria-avisos`.
+
+*Retención.* Los avisos **leídos hace más de 90 días** se pueden borrar; los
+no leídos y los leídos recientes, nunca (lo que pasó está en el historial del
+expediente, que no se toca). La app no puede borrar avisos: la purga es del
+admin del sistema **[D]**, a mano y cuando haga falta (unos cientos de filas
+por día en producción: una vez por trimestre alcanza), con la credencial de
+deploy, como las migraciones:
+
+```bash
+# En el servidor. La URL se arma como en desplegar.sh: la clave no queda en la
+# línea de comandos ni en el historial del shell.
+cd /opt/cementeria/actual
+url_app=$(sudo grep -E '^DATABASE_URL=' /etc/cementeria/cementeria.env | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')
+read -rsp "Clave de cementeria_deploy: " clave; echo
+export MIGRATE_DATABASE_URL=$(printf '%s\n%s' "$url_app" "$clave" | node -e '
+  const [app, clave] = require("fs").readFileSync(0, "utf8").split("\n");
+  const u = new URL(app); u.username = "cementeria_deploy"; u.password = encodeURIComponent(clave);
+  process.stdout.write(u.toString());')
+unset clave url_app
+node scripts/purgar-avisos.mjs                 # cuenta lo que borraría (90 días)
+node scripts/purgar-avisos.mjs --confirmar     # borra; --dias N para más de 90
+unset MIGRATE_DATABASE_URL
+```
+
+Una línea JSON (`avisos.purga_simulada` o `avisos.purgados` con la cantidad).
+En desarrollo: `npm run avisos:purgar` (y `-- --confirmar`), con
+`MIGRATE_DATABASE_URL` de `.env.local`. `avisos_corridas` tiene una fila por
+día y no hace falta purgarla.
+
+**Verificación del historial.** Cada movimiento lleva el hash del anterior
+(docs/api-dominio.md, sección 19). Una cadena rota quiere decir que alguien
+cambió o borró un movimiento **por fuera de la aplicación** (la app no puede:
+privilegios y triggers), y solo un superusuario de PostgreSQL o el owner con
+DDL pueden. Qué hacer si `cementeria-historial` falla:
+
+1. `journalctl -u cementeria-historial -n 5 -o cat`: el expediente, el
+   movimiento y el motivo (`hash_distinto`: cambió un campo;
+   `hash_anterior_distinto`: no encadena con el anterior;
+   `secuencia_faltante`: se borró).
+2. No tocar nada en la base. Avisar al responsable de la base (Dirección de IA)
+   y a Sistemas, y revisar el log de DDL y pgaudit (pedido A6) de esa noche y
+   de las anteriores.
+3. Comparar con el último backup íntegro (sección 13: restaurarlo en la
+   instancia efímera y mirar ese movimiento) y con la huella del papel (la
+   carátula y el historial impresos llevan los 16 primeros caracteres del hash
+   del último movimiento al emitirse).
+4. La corrección, si corresponde, se decide por escrito: el historial no se
+   "arregla" recalculando la cadena.
+
+A mano, en cualquier momento: `sudo systemctl start cementeria-historial`. En
+la ficha, "Verificar integridad" hace lo mismo con un expediente.
 
 ---
 
@@ -377,7 +443,9 @@ npm run empaquetar
    `node_modules` mínimo, `.next/static`, `public`, `prisma/` (esquema y
    migraciones), `prisma.config.mjs`, la CLI de Prisma completa con el motor
    de Linux, `pg`, `scripts/` (backup, restauración, verificación,
-   `roles.sql`, el barrido y la semilla compilados a `.mjs`), `deploy/`,
+   `roles.sql`, el barrido, la verificación del historial, la generación y la
+   purga de avisos y la semilla
+   compilados a `.mjs`), `deploy/`,
    `VERSION` y `paquete.json`;
 4. controla que no haya `.env` ni binarios de otra plataforma y lo comprime:
    `cementeria-<versión>.tar.gz` y su `.sha256`, más una copia de
@@ -435,7 +503,7 @@ Orden, con todo lo de las secciones 2 a 7 hecho:
 6. **[S]** Backups (sección 12) y timers:
 
    ```bash
-   sudo systemctl enable --now cementeria-backup.timer cementeria-adjuntos-tmp.timer
+   sudo systemctl enable --now cementeria-backup.timer cementeria-adjuntos-tmp.timer cementeria-historial.timer cementeria-avisos.timer
    systemctl list-timers 'cementeria*'
    ```
 
@@ -579,6 +647,7 @@ bash <paquete>/scripts/restaurar-prueba.sh --salida resultado.json
    | migraciones | ninguna fallida; las mismas que el paquete (si no, aviso) |
    | conteos | filas por tabla en la base = filas en el dump (lee los `COPY` de `pg_restore --data-only`) |
    | historial | la secuencia de movimientos de cada expediente es 1..N, sin huecos |
+   | cadena | la cadena de hash de cada expediente está íntegra (`f_verificar_cadena`; aviso si el dump es de antes de la migración `*_cadena_hash`) |
    | adjuntos | 50 adjuntos al azar (no purgados) existen y coinciden en tamaño y sha256 con el historial |
 
 6. borra todo.
@@ -647,7 +716,7 @@ admite varias), y se actualiza `backup.env` y la copia del custodio.
 | # | Qué | Cómo | Esperado |
 |---|---|---|---|
 | 1 | Salud | `curl -sS https://DOM/api/salud` (sin `-k`) | `200` y `{"estado":"ok","version":"<la del paquete>","base":"ok"}` |
-| 2 | Servicio y timers (en la VM) | `systemctl status cementeria`; `systemctl list-timers 'cementeria*'`; `journalctl -u cementeria -p warning -n 20` | activo, dos timers, sin errores |
+| 2 | Servicio y timers (en la VM) | `systemctl status cementeria`; `systemctl list-timers 'cementeria*'`; `journalctl -u cementeria -p warning -n 20` | activo, tres timers, sin errores |
 | 3 | Cadena TLS | `openssl s_client -showcerts -connect DOM:443 -servername DOM </dev/null \| grep -c "BEGIN CERTIFICATE"` | 2 o más |
 | 4 | http → https | `curl -sI http://DOM/login` | `301` a `https://DOM/login` |
 | 5 | Encabezados | `curl -sI https://DOM/login` | `strict-transport-security`, `x-content-type-options: nosniff`, `x-frame-options: SAMEORIGIN`, `referrer-policy`, `content-security-policy`; **sin** `x-powered-by` ni versión de nginx en `server` |
@@ -660,6 +729,7 @@ admite varias), y se actualiza `backup.env` y la copia del custodio.
 | 12 | Adjunto de 10 MB | En **staging** (con un expediente ficticio): subir un PDF de 10 MB desde la ficha. Para armarlo: `{ printf '%%PDF-1.4\n'; head -c 10485751 /dev/urandom; } > prueba-10mb.pdf` | Se sube y se ve en el visor; uno de 11 MB da el mensaje de "más de 10 MB" |
 | 13 | El límite de nginx en producción (sin crear datos) | `head -c 10485760 /dev/zero \| curl -s -o /dev/null -w '%{http_code}\n' --data-binary @- https://DOM/api/expedientes/X/adjuntos` y lo mismo con 13 MB (`13631488`) | `401` (llega a la app, que pide sesión) y `413` (lo corta nginx) |
 | 14 | Barrido (en la VM) | `sudo systemctl start cementeria-adjuntos-tmp && journalctl -u cementeria-adjuntos-tmp -n 3` | Evento `adjuntos.barrido` |
+| 14 b | Verificación del historial (en la VM) | `sudo systemctl start cementeria-historial && journalctl -u cementeria-historial -n 3 -o cat` | Evento `historial.verificado` con `rotos: 0` |
 | 15 | Backup (en la VM, producción) | `sudo systemctl start cementeria-backup && journalctl -u cementeria-backup -n 20` | `backup terminado … (snapshot …)` |
 | 16 | pgaudit (A6, antes del primer dato real) | Pedido A6, "Cómo se verifica" | La migración aparece con `cementeria_deploy`; el ingreso de la app no |
 
@@ -703,7 +773,7 @@ sudo systemd-run --pipe --wait --collect \
   -E NODE_ENV=development -E ADMIN_INICIAL_CUIL=<CUIL> \
   /usr/bin/node scripts/semilla.mjs
 
-sudo systemctl enable --now cementeria-staging-adjuntos-tmp.timer
+sudo systemctl enable --now cementeria-staging-adjuntos-tmp.timer cementeria-staging-historial.timer cementeria-staging-avisos.timer
 ```
 
 Mientras `cementeria-staging` no esté en el derivador (B1), staging usa el

@@ -5,11 +5,11 @@ import { notFound } from "next/navigation";
 import { CLASE_ENLACE } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
-import { ErrorDominio, expedientes, type Caratula, type HojaHistorial, type PersonaCaratula } from "@/lib/dominio/expedientes/servidor";
+import { ErrorDominio, expedientes, type Caratula, type HojaHistorial, type PersonaCaratula, type ResultadoIntegridad } from "@/lib/dominio/expedientes/servidor";
 import { entorno } from "@/lib/entorno";
 import { formatearFecha } from "@/lib/fechas";
 import { leerHoja, origenPublico, rutaFicha, urlAbsoluta } from "@/lib/presentacion/enlaces";
-import { contextoResumen } from "@/lib/presentacion/historial";
+import { contextoResumen, textoIntegridad } from "@/lib/presentacion/historial";
 import { svgQr } from "@/lib/presentacion/qr";
 import { documentoDePersona, etiquetaEstado, nombreCompleto } from "@/lib/presentacion/textos";
 import { LineaDeTiempo } from "../../linea-de-tiempo";
@@ -191,11 +191,33 @@ function HojaCaratula({ caratula: c, url, qr }: { caratula: Caratula; url: strin
         </table>
       </section>
 
-      <footer className="border-t border-slate-400 pt-2 text-xs text-slate-700">
-        Emitida el {formatearFecha(c.emitidaEl)}. Esta carátula se abrocha al expediente de papel y reemplaza la ficha de pases. El código QR
-        abre la ficha digital (pide ingresar).
+      <footer className="space-y-1 border-t border-slate-400 pt-2 text-xs text-slate-700">
+        <p>
+          Emitida el {formatearFecha(c.emitidaEl)}. Esta carátula se abrocha al expediente de papel y reemplaza la ficha de pases. El código QR
+          abre la ficha digital (pide ingresar).
+        </p>
+        <Huella integridad={c.integridad} />
       </footer>
     </article>
+  );
+}
+
+/**
+ * La huella de la cadena de hash del historial al emitir la hoja (26/10/2026):
+ * los primeros 16 caracteres del hash del último movimiento y cuántos había.
+ * Liga el papel con el estado digital: "Verificar integridad" en la ficha
+ * muestra el hash actual para cotejarlo.
+ */
+function Huella({ integridad: r }: { integridad: ResultadoIntegridad }) {
+  if (!r.huella) return null;
+  return (
+    <p>
+      Huella del historial: <span className="font-mono font-semibold tracking-wide text-slate-900">{r.huella}</span> (hash del movimiento{" "}
+      {r.movimientos}, el último registrado al emitir){r.integra ? "." : null}
+      {r.integra ? null : (
+        <strong className="text-slate-900"> · ATENCIÓN: {textoIntegridad(r)}</strong>
+      )}
+    </p>
   );
 }
 
@@ -228,10 +250,13 @@ function HojaDelHistorial({ hoja: d }: { hoja: HojaHistorial }) {
             .join(" · ") || "—"}
         </p>
       </header>
-      <LineaDeTiempo historial={d.historial} contexto={contextoResumen(d.personas, d.camposExtra)} />
-      <footer className="border-t border-slate-400 pt-2 text-xs text-slate-700">
-        Emitido el {formatearFecha(d.emitidaEl)}. Fechas: la efectiva (cuándo pasó) y la de carga (cuándo se registró). Lo tachado fue corregido
-        después.
+      <LineaDeTiempo historial={d.historial} tramos={d.tramos} nivelTitulos={2} contexto={contextoResumen(d.personas, d.camposExtra, { subtareas: d.subtareas, documentos: d.documentos })} />
+      <footer className="space-y-1 border-t border-slate-400 pt-2 text-xs text-slate-700">
+        <p>
+          Emitido el {formatearFecha(d.emitidaEl)}. Agrupado por paso, con los días hábiles en cada área. Fechas: la efectiva (cuándo pasó) y la
+          de carga (cuándo se registró), si es otra. Lo tachado fue corregido después.
+        </p>
+        <Huella integridad={d.integridad} />
       </footer>
     </article>
   );

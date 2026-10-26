@@ -79,6 +79,8 @@ export const ACCIONES = [
   // Semana 4
   "cambiar_ubicacion_archivo", // caja o estante de un archivado (3.1)
   "transcribir", // la transcripción de la ficha y "Terminar carga histórica" (2.13(c))
+  // Métricas de gestión
+  "ver_metricas", // /panel/metricas: tiempos, flujo, carga, devoluciones y línea de base (Dirección y admin)
 ] as const;
 export type Accion = (typeof ACCIONES)[number];
 
@@ -347,6 +349,11 @@ export function evaluarPermiso(
 
     case "exportar_csv":
       // Dirección y admin; el CSV sale sin teléfono, correo ni domicilio.
+      return admin || areaEs(usuario, AREA_DIRECCION) ? SI : no("area_no_habilitada");
+
+    case "ver_metricas":
+      // Las métricas de gestión son de la conducción: Dirección y admin. Son
+      // agregados sin datos personales, pero no hacen al trabajo de cada área.
       return admin || areaEs(usuario, AREA_DIRECCION) ? SI : no("area_no_habilitada");
 
     default: {

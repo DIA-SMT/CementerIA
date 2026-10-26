@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AvisoDuplicado, DatosCompletos, ServicioExpedientes } from "@/lib/dominio/expedientes";
+import type { AvisoDuplicado, DatosCompletos, ResultadoIntegridad, ServicioExpedientes } from "@/lib/dominio/expedientes";
 import { errorValidacion } from "@/lib/dominio/expedientes/errores";
 import type { UsuarioPermisos } from "@/lib/dominio/permisos";
 import { rutaFicha, rutaImprimir } from "./enlaces";
@@ -92,6 +92,26 @@ export async function procesarVerDatos(
 ): Promise<ResultadoDatosCompletos> {
   try {
     return { ok: true, datos: await servicio.verDatosCompletos(usuario, numero, motivo, { ip }) };
+  } catch (e) {
+    return estadoDeError(e);
+  }
+}
+
+export type ResultadoVerificacion = { ok: true; resultado: ResultadoIntegridad } | EstadoError;
+
+/**
+ * "Verificar integridad" del historial (26/10/2026): recalcula la cadena de
+ * hash del expediente y lo deja en auditoria.accesos. Una cadena rota no es un
+ * error: es el resultado, y la pantalla lo muestra.
+ */
+export async function procesarIntegridad(
+  servicio: ServicioExpedientes,
+  usuario: UsuarioPermisos,
+  numero: string,
+  ip: string | null,
+): Promise<ResultadoVerificacion> {
+  try {
+    return { ok: true, resultado: await servicio.verificarIntegridad(usuario, numero, { ip }) };
   } catch (e) {
     return estadoDeError(e);
   }

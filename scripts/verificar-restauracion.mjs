@@ -22,6 +22,8 @@
 //   conteos      filas por tabla en la base = filas en el dump (lee los COPY de
 //                `pg_restore --data-only`); si no se pasa --dump, solo informa
 //   historial    la secuencia de movimientos de cada expediente es 1..N, sin huecos
+//   cadena       la cadena de hash de cada expediente está íntegra (f_verificar_cadena,
+//                migración *_cadena_hash; aviso si el dump es de antes)
 //   adjuntos     una muestra al azar de adjuntos (no purgados) existe en la
 //                carpeta restaurada con el tamaño y el sha256 del historial
 //
@@ -439,6 +441,31 @@ async function controlarHistorial(db, r) {
   }
 }
 
+/**
+ * La cadena de hash de cada expediente (26/10/2026): un dump que se restauró
+ * bien la trae íntegra. Si el dump es de antes de la migración *_cadena_hash
+ * (no está f_verificar_cadena), es un aviso, como migraciones.
+ */
+async function controlarCadena(db, r) {
+  const existe = await db.query("SELECT to_regprocedure('public.f_verificar_cadena(bigint)') IS NOT NULL AS hay");
+  if (!existe.rows[0].hay) {
+    r.aviso("cadena", "la base no tiene f_verificar_cadena: el dump es de antes de la cadena de hash");
+    return;
+  }
+  const { rows } = await db.query(
+    `SELECT e.numero_interno AS numero, v.integra, v.secuencia_rota, v.motivo
+       FROM public.expedientes e CROSS JOIN LATERAL public.f_verificar_cadena(e.id) v
+      ORDER BY e.id`,
+  );
+  const rotos = rows.filter((f) => !f.integra);
+  if (rotos.length > 0) {
+    const lista = rotos.slice(0, 10).map((f) => `${f.numero} (movimiento ${f.secuencia_rota}: ${f.motivo})`).join(", ");
+    r.falla("cadena", `${rotos.length} de ${rows.length} expedientes con la cadena de hash rota: ${lista}${rotos.length > 10 ? ", …" : ""}`);
+  } else {
+    r.ok("cadena", `la cadena de hash de los ${rows.length} expedientes está íntegra`);
+  }
+}
+
 function sha256DeArchivo(ruta) {
   return new Promise((resolve, reject) => {
     const hash = createHash("sha256");
@@ -523,6 +550,7 @@ async function verificar(opciones) {
       ["migraciones", () => controlarMigraciones(db, r, dirMigraciones)],
       ["conteos", () => controlarConteos(db, r, opciones)],
       ["historial", () => controlarHistorial(db, r)],
+      ["cadena", () => controlarCadena(db, r)],
       ["adjuntos", () => controlarAdjuntos(db, r, opciones)],
     ];
     for (const [nombre, control] of controles) {

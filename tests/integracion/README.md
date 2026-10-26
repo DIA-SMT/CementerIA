@@ -188,7 +188,8 @@ azar en ese año les correría la numeración.
 
 Detalle completo en `prisma/migrations/*_reglas_base/migration.sql`.
 
-- **13 tablas**: 11 de dominio en `public` y `auditoria.cambios` y
+- **16 tablas**: 14 de dominio en `public` (desde el 26/10/2026, `avisos`,
+  `avisos_preferencias` y `avisos_corridas`) y `auditoria.cambios` y
   `auditoria.accesos`. Más `public._prisma_migrations`. Todas de
   `cementeria_owner`.
 - **Triggers, todos `ENABLE ALWAYS`** (`pg_trigger.tgenabled = 'A'`):
@@ -211,11 +212,30 @@ Detalle completo en `prisma/migrations/*_reglas_base/migration.sql`.
 - **Funciones**: `f_unaccent`, `f_normalizar`, `f_actor`, `f_cuit_valido`
   (semana 4: 11 dígitos y dígito verificador),
   `f_sumar_dias_habiles`, `f_dias_habiles_entre` (intervalo `(desde, hasta]`,
-  negativo si `hasta < desde`; las dos dan NULL con un argumento NULL).
+  negativo si `hasta < desde`; las dos dan NULL con un argumento NULL). Desde
+  el 26/10/2026 (`*_cadena_hash`): `f_hash_inicial`, `f_hash_movimiento` y
+  `f_verificar_cadena`.
+- **Cadena de hash** (26/10/2026): `movimientos_sellar` fija `hash_anterior` y
+  `hash` en cada inserción (pisa lo que venga) y el CHECK
+  `movimientos_hash_check` los exige. Un movimiento creado con `crearMovimiento`
+  ya sale encadenado. Para simular una alteración: como superusuario, en una
+  transacción que se revierte, `ALTER TABLE public.movimientos DISABLE TRIGGER
+  movimientos_inmutables` (es DDL transaccional: el ROLLBACK lo deja como
+  estaba) y nada de otras conexiones sobre `movimientos` mientras tanto (el
+  ALTER toma un lock exclusivo). Ver `cadena.test.ts`.
+- **`auditoria.accesos`** admite además `verificar_historial` (26/10/2026).
+- **Avisos** (26/10/2026, `*_avisos`): `avisos.id` es identity ALWAYS; FK a
+  `usuarios`, `expedientes` y `movimientos` (por eso un `TRUNCATE movimientos
+  CASCADE` alcanza también a `avisos`: el rol de prueba de
+  `movimientos.test.ts` tiene TRUNCATE en las dos); CHECKs de tipo, prioridad,
+  largos, enlace relativo y canal `sistema`. Sin triggers.
 - **Privilegios de `cementeria_app`**: SELECT+INSERT en `movimientos` y
   `auditoria.*`; SELECT+INSERT+UPDATE en `expedientes`, `expediente_personas`,
   catálogos, `usuarios` y `feriados_anios`; además DELETE en `plantillas` y
-  `feriados`. Nada sobre `_prisma_migrations`.
+  `feriados`. En las tres de avisos, SELECT+INSERT y UPDATE solo de algunas
+  columnas (`avisos.leido_en`; `avisos_preferencias.activo, actualizado_en`;
+  `avisos_corridas.corrido_en, avisos`), sin DELETE. Nada sobre
+  `_prisma_migrations`.
 - **Índices** (los que compara el test de `pg_indexes`), además de las PK:
   - `areas_codigo_key`, `cementerios_codigo_key`, `cementerios_area_id_key`,
     `tipos_monumento_codigo_key`, `tipos_tramite_codigo_key`,
@@ -244,7 +264,9 @@ Detalle completo en `prisma/migrations/*_reglas_base/migration.sql`.
     devolución), `movimientos_expediente_id_area_destino_id_idx`,
     `movimientos_tipo_registrado_en_idx`;
   - `cambios_tabla_registro_id_idx`, `accesos_expediente_id_en_idx`,
-    `accesos_usuario_id_en_idx`.
+    `accesos_usuario_id_en_idx`;
+  - 26/10/2026: `avisos_no_leidos_idx` (parcial, `leido_en IS NULL`),
+    `avisos_usuario_id_creado_en_idx` y `avisos_usuario_id_clave_key` (único).
 
 ## La batería
 
@@ -252,7 +274,7 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 
 | Archivo | Qué garantiza | Propuesta |
 |---|---|---|
-| `humo.test.ts` | Migraciones aplicadas, 13 tablas, todas del owner | 2, "Roles de base" |
+| `humo.test.ts` | Migraciones aplicadas, 16 tablas, todas del owner | 2, "Roles de base" |
 | `movimientos.test.ts` | UPDATE, DELETE y TRUNCATE fallan con la app, con el owner y en replica (rol de prueba y superusuario); `movimientos_sellar` (secuencia, `registrado_en`, actor, `area_usuario_id`, lock); CHECKs de motivo, corrección, fecha efectiva, fuente; idempotencia de `comando_id` | 2.8, 2.11, 2.13(b) |
 | `personas.test.ts` | `expediente_personas_proteger`: nace vigente y con actor, baja y reemplazo (sin ciclos), supresión con motivo, todo otro UPDATE rechazado, sin DELETE; CHECKs e índices únicos. Semana 4: personas jurídicas (razón social y CUIT, `f_cuit_valido`, datos por tipo, el tipo no cambia por UPDATE, supresión que también borra razón social y CUIT) | 2.7, 2.13(b) |
 | `plantillas.test.ts` | `plantillas_congelar`: nace borrador, transiciones, solo se borran borradores, índices únicos parciales | 2.5, 2.13(a) |
@@ -265,8 +287,8 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 | `fechas.test.ts` | Proceso en UTC y base en hora de Tucumán; columnas `date` y precisión de día; las sesiones de Prisma en UTC (sin eso, `@prisma/adapter-pg` corría 3 horas cada `timestamptz`) | 6, "Fechas" |
 | `conactor.test.ts` | `conActorEn()` fija actor y motivo solo para la transacción | 2, "Convenciones" |
 | `semilla.test.ts` | La semilla corre con el rol de la app como SISTEMA, pasa los triggers y es idempotente (confirma sus filas). Si otro archivo sembró antes, su "primera corrida" no crea nada | 6, "Desarrollo local" |
-| `semilla-expedientes.test.ts` | Los 30 expedientes ficticios: con la función de alta, repartidos entre plantillas y cementerios, en el primer paso, ficticios e idempotentes | 6, "Desarrollo local" |
-| `semilla-escenarios.test.ts` | Los escenarios de la semilla: cada uno en su paso y estado, lo que ve cada área en cada pestaña de la bandeja (filtrado por los escenarios), etiquetas y semáforo, el panel con números en cada sección, la proyección igual a la reconstrucción desde los movimientos, estados, variedad, personas ficticias e idempotencia. No siembra los 30 (lo controla el archivo de arriba) | 6, "Desarrollo local" |
+| `semilla-expedientes.test.ts` | Los 30 expedientes ficticios: con la función de alta, repartidos entre plantillas y cementerios, en el primer paso, ficticios e idempotentes; 26/10/2026: con la cadena de hash íntegra | 6, "Desarrollo local" |
+| `semilla-escenarios.test.ts` | Los escenarios de la semilla: cada uno en su paso y estado, lo que ve cada área en cada pestaña de la bandeja (filtrado por los escenarios), etiquetas y semáforo, el panel con números en cada sección, la proyección igual a la reconstrucción desde los movimientos, estados, variedad, personas ficticias e idempotencia. 26/10/2026: la cadena de hash de cada escenario íntegra, y el bloque de backfill de la migración `*_cadena_hash` (entre `-- <backfill>` y `-- </backfill>`), corrido tal cual sobre la base sembrada con los hashes borrados, da exactamente los hashes del trigger y deja todos los expedientes íntegros (en una transacción del superusuario que se revierte). No siembra los 30 (lo controla el archivo de arriba) | 6, "Desarrollo local" |
 | `alta.test.ts` | Alta normal e histórica, proyección, movimiento y personas; validaciones; plantilla no publicada; cementerio sin configurar; permisos; numeración sin huecos y concurrente; idempotencia; avisos de duplicados | 2.6, 2.7, 2.13(c), (d) y (f), 3.1 |
 | `edicion.test.ts` | Movimiento `edicion` con antes y después; personas versionadas (baja, reemplazo, alta, contacto); bloqueo optimista; idempotencia; motivo después del primer pase; permisos de 3.2; archivado y anulado; fecha de inicio | 2.7, 2.8, 2.13(b), 3.2 |
 | `busqueda.test.ts` | Normalización TS = base; caja única (texto con acentos, DNI con puntos, CUIL, N° municipal con barra, forma corta, prefijo CEM); filtros de ubicación, anulados, estado y plantilla; máximo 50 | 2.13(g) |
@@ -281,13 +303,16 @@ Cada archivo prueba una garantía de la propuesta (`docs/propuesta-mvp.md`):
 | `plazos.test.ts` | Semana 4: vencimiento con `f_sumar_dias_habiles`, "faltan N", provisorio con el año sin cerrar y definitivo al cerrarlo (auditado), un asueto que corre el vencimiento, semáforo ámbar y rojo con el reloj adelantado, pestaña Plazos, plazo cumplido; ABM de feriados (deshace lo que cambia) | 3.6, 2.9 |
 | `transcripcion.test.ts` | Semana 4: un expediente de 2019 con 5 filas hasta Legal (salteando pasos y con una devolución), validaciones por fila y lote atómico, reintento, tilde con fecha, "Terminar carga histórica"; fuera de las bandejas de trabajo y de los demorados mientras está abierta; otro llevado a concluido y archivado con DESCONOCIDA | 2.13(c) |
 | `panel.test.ts` | Semana 4: demorados, sin confirmar, diferidos, correcciones, cargas históricas, conteos y matriz contra la base (y sus enlaces al buscador), avisos de feriados, filtro por tipo; CSV de Dirección y admin sin contacto, registrado en `auditoria.accesos` | 5, 3.2, decisión 13 |
+| `metricas.test.ts` | Métricas de gestión con fechas conocidas (1999, en una transacción que se deshace, filtradas por una plantilla de prueba): punta a punta, por paso, recepción, flujo y stock, devoluciones, carga, plazo DIM con `f_sumar_dias_habiles`, un feriado que se saltea, un pase revertido que no cuenta y la línea de base con una carga histórica de 1998; el CSV registrado como `exportar`; permisos y período inválido | api-dominio, 20 |
 | `fuentes.test.ts` | Semana 4 (docs/fuentes): titular persona jurídica en el Oeste (alta, Faltan con personería y designación de asamblea, ficha, carátula, búsqueda por CUIT, edición de física a jurídica, rol que no la admite); Jardín sin inspección técnica en conceptos, boleta y carátula, con Conservación; Norte sin Conservación; la nueva concesión sin inspección en ningún cementerio; pase rápido de la bandeja con lo del cementerio | docs/fuentes, 2.5, 2.7 |
 | `pantallas.test.ts` | La lógica de las Server Actions de las pantallas (`src/lib/presentacion/acciones.ts`) con FormData como el del formulario: alta (destino carátula o ficha, doble clic, errores por campo, formulario roto, sin permiso), aviso de duplicados, edición (conflicto de versión, sin cambios, permiso), "Ver datos completos"; hoja del historial (sin contacto, registra `imprimir`) y opciones del buscador | 5, 3.2, decisión 13 |
 | `pantallas-semana4.test.ts` | Las Server Actions de la semana 4 (`src/lib/presentacion/acciones-estados.ts`) con la entrada de los diálogos y la grilla: concluir con "Faltan N", archivar sin caja y con caja, desarchivar con motivo, entrada sin forma; reiniciar (destino `?desde=`, precarga y alta enlazada) y "archivar y abrir vinculado" (falla sin caja sin archivar nada); revertir un pase, nota y corregir su fecha; purgar sin confirmación; la grilla de transcripción (error de una fila en su celda, lote, reintento, terminar la carga); el Route Handler del CSV (`exportar-http.ts`) con Request reales: BOM, acentos, sin contacto, `exportar` en auditoría, 401, 403 y 422 | 5, 3.1, 2.13(a) a (c), 15.7 de api-dominio |
 | `pantallas-flujo.test.ts` | Las Server Actions del flujo (`procesarRecepcion`, `procesarRecepciones`, `procesarSubtarea`, `procesarDocumento`, `procesarPase`, `procesarDevolucion`) con la entrada de los diálogos: versión nueva en cada respuesta, errores por campo, Faltan N, conflicto de versión, lote parcial, entrada sin forma; los Route Handlers de adjuntos (`src/lib/presentacion/adjuntos-http.ts`) con Request reales: subida de PNG y PDF en streaming, headers de la sección 6, descarga, HEIC, más de 10 MB sin Content-Length, sin permiso, versión vieja, sin sesión; lectura con y sin motivo para quien no trabaja el expediente | 5, 6 "Adjuntos", 3.2 a 3.4, decisión 13 |
 | `admin-plantillas.test.ts` | Semana 5: el ciclo de una plantilla (crear, doble clic, guardar con huella y conflicto, validar, publicar con notas, editar v2, publicar con retiro de la v1, expediente en curso con la v1 y "hay v2", auditoría, retirar con motivo, alta rechazada, editar un retirado, descartar); Publicar rechazado por integridad sin cambiar nada (y los errores por ruta en la Server Action); solo el admin; **una v2 de RENOV_CONTADO** en una transacción que se deshace: el expediente en curso sigue con la v1 y el alta nueva toma la v2 | 2.5, 2.13(a), 3.2 |
 | `admin-usuarios-catalogos.test.ts` | Semana 5, en transacciones que se deshacen: alta por CUIL (dígito verificador, área externa, repetido, ya existe, auditada); desactivar (`sesion_version` + 1 y la sesión vieja deja de valer), reactivar, cambiar área o rol, uno mismo, SISTEMA; el último admin activo; áreas (código fijo, en uso, tipo, mensaje legible de un trigger); cementerios (clave de ubicación usada no se borra, renombra ni cambia de tipo; se desactiva; área interna o ya usada); tipos de monumento y de trámite; feriados con cierre y reapertura de 2026, auditados | 2.1 a 2.4, 2.9, 2.13(d), 3.2 |
+| `cadena.test.ts` | 26/10/2026: la cadena de hash se forma sola en alta, pases, recepción, nota, corrección de observación, revertir, devolución y transcripción (cada `hash_anterior` es el hash del anterior; el primero, `f_hash_inicial(numero)`), y el formato documentado en la migración, recalculado en TypeScript, da el mismo hash; lo que manda la app en `hash` se pisa; `f_verificar_cadena` encuentra un campo cambiado, un `hash_anterior` cambiado, un movimiento borrado y una cadena recalculada desde el medio (y no ve el último borrado: para eso está la huella impresa); el CHECK; el hash es el mismo con la sesión en UTC, Tucumán, Tokio o Kiritimati; `verificarIntegridad` (también Dirección, con `verificar_historial` en accesos), `verificarIntegridadTodos` (solo admin), la huella de la carátula y del historial y los tramos de la ficha. Cada alteración, en una transacción del superusuario que se revierte | 2.8, 2.11, 2.13(b), sección 8 (fase 2) |
 | `admin-auditoria.test.ts` | Semana 5, en transacciones que se deshacen: accesos por expediente (también la forma corta), acción (`ver_datos_completos` con su motivo e IP), usuario y fechas; paginado de a 50; cambios con el antes y el después legibles (área por nombre, cierre de año); el Route Handler del CSV (BOM, `;`, campos con `;` entre comillas, `exportar` con `origen: auditoria`, 401, 403, 422) | 2.10, 5 |
+| `avisos.test.ts` | 26/10/2026, en transacciones que se deshacen (con un operador extra activo y otro inactivo por área): un pase avisa "llegó" a los operadores activos del destino y a nadie más (ni quien actuó, ni el inactivo), en la misma transacción (una versión vieja no da pase ni aviso) y sin duplicar con el comando repetido; la devolución avisa "te devolvieron" con el motivo y prioridad alta, sin "llegó"; el pase a la DIM avisa a la custodia, y la generación por tiempo con el reloj adelantado da "plazo por vencer" y después "vencido"; concluir y archivar avisan a Mesa, salvo a quien apagó la preferencia; "sin confirmar" a los 3 días hábiles (no a los 2) al área que lo envió y "demorado" una sola vez, idempotente; con un feriado en el medio, un día hábil más; `generarSiHaceFalta` una vez por día; marcar leído solo los propios, no leído, todos y la lista con filtros; Dirección y el admin sin avisos; la app no cambia otra columna que `leido_en` ni borra, y los CHECKs | api-dominio, 21 |
 
 Si una regla de la base no cumple la propuesta, el test se escribe igual, como
 especificación, con `it.fails` y un comentario `DEFECTO:` que diga qué falta. La

@@ -20,12 +20,16 @@ describe("navegacionPara (sección 5)", () => {
     },
   );
 
-  it("Dirección: Panel · Buscar", () => {
-    expect(etiquetas(usuario("lectura", "DIRECCION"))).toEqual(["Panel", "Buscar"]);
+  it("Dirección: Panel · Métricas · Buscar", () => {
+    expect(etiquetas(usuario("lectura", "DIRECCION"))).toEqual(["Panel", "Métricas", "Buscar"]);
   });
 
-  it("Admin: Panel · Buscar · Administración", () => {
-    expect(etiquetas(usuario("admin", null))).toEqual(["Panel", "Buscar", "Administración"]);
+  it("otro usuario de lectura: Panel · Buscar (sin Métricas)", () => {
+    expect(etiquetas(usuario("lectura", "LEGAL"))).toEqual(["Panel", "Buscar"]);
+  });
+
+  it("Admin: Panel · Métricas · Buscar · Administración", () => {
+    expect(etiquetas(usuario("admin", null))).toEqual(["Panel", "Métricas", "Buscar", "Administración"]);
   });
 
   it("cada ítem del menú es una pantalla que ese usuario puede ver", () => {
@@ -34,6 +38,7 @@ describe("navegacionPara (sección 5)", () => {
       "/expedientes/nuevo": "expedientes_nuevo",
       "/expedientes": "expedientes",
       "/panel": "panel",
+      "/panel/metricas": "metricas",
       "/admin": "admin",
     };
     for (const u of [
@@ -82,6 +87,13 @@ describe("puedeVerPantalla", () => {
     expect(puedeVerPantalla(usuario("admin", null), "admin")).toBe(true);
     expect(puedeVerPantalla(usuario("operador", "MESA_ENTRADAS"), "admin")).toBe(false);
     expect(puedeVerPantalla(usuario("lectura", "DIRECCION"), "admin")).toBe(false);
+  });
+
+  it("Métricas es de Dirección y del admin", () => {
+    expect(puedeVerPantalla(usuario("lectura", "DIRECCION"), "metricas")).toBe(true);
+    expect(puedeVerPantalla(usuario("admin", null), "metricas")).toBe(true);
+    expect(puedeVerPantalla(usuario("operador", "MESA_ENTRADAS"), "metricas")).toBe(false);
+    expect(puedeVerPantalla(usuario("operador", "COMPUTO"), "metricas")).toBe(false);
   });
 
   it("un inactivo no ve nada", () => {

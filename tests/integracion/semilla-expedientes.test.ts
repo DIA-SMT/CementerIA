@@ -3,6 +3,7 @@
 // de alta del dominio y CONFIRMAN sus filas, como semilla.test.ts.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { verificarCadenas } from "@/lib/dominio/expedientes";
 import {
   CANTIDAD_EXPEDIENTES_FICTICIOS,
   comandoFicticio,
@@ -109,6 +110,15 @@ describe("expedientes ficticios de la semilla", () => {
       ["OESTE", "PANTEON"],
       ["OESTE", "PANTEON"],
     ]);
+  });
+
+  it("la cadena de hash de cada uno está íntegra (26/10/2026)", async () => {
+    const resumen = await verificarCadenas(prisma);
+    const numeros = new Set(primera.numeros);
+    expect(resumen.rotos.filter((r) => numeros.has(r.numero))).toEqual([]);
+    for (const e of await expedientesFicticios()) {
+      expect(e.movimientos.every((m) => /^[0-9a-f]{64}$/.test(m.hash ?? ""))).toBe(true);
+    }
   });
 
   it("es idempotente: la segunda corrida no crea nada y devuelve los mismos números", async () => {

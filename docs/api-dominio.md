@@ -1,4 +1,4 @@
-# API del dominio de expedientes (semanas 2 a 5)
+# API del dominio de expedientes (semanas 2 a 5 y el historial del 26/10/2026)
 
 Referencia para quien hace las pantallas. Semana 2: alta (`/expedientes/nuevo`),
 ficha (`/expedientes/[numero]`), edición (`/expedientes/[numero]/editar`),
@@ -14,6 +14,11 @@ plantilla, caducidad vinculada, correcciones, plazo DIM y feriados,
 transcripción histórica, panel y CSV, con sus pantallas en la sección 16.
 Semana 5 (sección 17): la administración (plantillas con su editor, usuarios,
 catálogos con feriados y auditoría), con sus pantallas en la sección 18.
+Actualizado el 26/10/2026 (sección 19): la cadena de hash del historial
+("Verificar integridad", la huella en los imprimibles y la verificación
+nocturna) y la línea de tiempo con filtros y agrupada por paso; y (sección
+20) las métricas de gestión (`/panel/metricas`); y (sección 21) los avisos en
+el sistema (la campana del encabezado y `/avisos`).
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -26,6 +31,8 @@ en el código: esto es el mapa.
 | `@/lib/fechas` | Fechas `YYYY-MM-DD`, hoy en Tucumán, `datetime-local`, formato es-AR |
 | `@/lib/dominio/busqueda` | La columna `busqueda` y la caja única (el servicio la expone como `expedientes.buscar`) |
 | `@/lib/adjuntos/tipos` | Semana 3. `MAXIMO_BYTES_ADJUNTO`, `detectarTipo()` (magic bytes), `esHeic()`. Puro: el navegador lo puede usar para avisar antes de subir |
+| `@/lib/dominio/metricas/servidor` | 26/10/2026. `metricas` (el servicio de las métricas de gestión, ya conectado) y sus tipos. `server-only`. Sección 20 |
+| `@/lib/dominio/avisos/servidor` | 26/10/2026. `avisos` (el servicio de los avisos en el sistema, ya conectado) y sus tipos. `server-only`. Sección 21 |
 | `@/lib/dominio/admin/servidor` | Semana 5. `admin` (el servicio de la administración, ya conectado) y sus tipos. `server-only`. Sección 17 |
 | `@/lib/dominio/plantillas/borrador` | Semana 5. `definicionEditable()` y `definicionInicial()`: la definición de un borrador con la forma del esquema. Puro |
 | `@/lib/adjuntos/almacen` | Semana 3. `AlmacenAdjuntos` (interfaz), `crearAlmacenEnDisco()`, `raizAdjuntos()`, `barrerTemporales()`. Servidor |
@@ -337,13 +344,14 @@ Registra `ver_expediente` en `auditoria.accesos`. Cualquiera la ve. Lo que trae
 | Documentación | `documentacion.direccion[]` y `documentacion.concesionario[]`: `estado` (`pendiente`, `presentado`, `no_corresponde`, `historico`), `exigirAlSalirDe`, `adjunto`, `adjuntos` (ids; `null` si están enmascarados) y `cantidadAdjuntos` |
 | Personas | `personas[]` vigentes (por rol en el orden de la plantilla) y `personasHistoricas[]` (versiones viejas y bajas): `etiquetaRol`, `tipo` (física o jurídica), nombre o `razonSocial`, DNI o `cuit`, `fallecido`, `vinculo`, `esContacto`, `suprimida`, `contacto`. La razón social y el CUIT, como el nombre y el DNI, no se enmascaran |
 | Conceptos | `conceptos[]` con el paso en que se liquidan |
-| Historial | `historial[]` del más viejo al más nuevo (fecha efectiva, secuencia): `fechaEfectiva` + `precisionFecha`, `registradoEn`, `diferido` (> 48 h), `usuario.corto` ("J. Pérez"), áreas y pasos, `motivo`, `observacion`, `fuente`, `cargaHistorica`, `datos`, `corregidoPor`, `personasCreadas` (con `reemplazaA` para mostrar la diferencia entre versiones) |
+| Historial | `historial[]` del más viejo al más nuevo (fecha efectiva, secuencia): `fechaEfectiva` + `precisionFecha`, `registradoEn`, `diferido` (> 48 h), `usuario.corto` ("J. Pérez"), áreas y pasos, `motivo`, `observacion`, `fuente`, `cargaHistorica`, `datos`, `corregidoPor`, `personasCreadas` (con `reemplazaA` para mostrar la diferencia entre versiones). 26/10/2026: `tramos[]`, el historial agrupado por paso con los días hábiles en cada área (19.3) |
 | Permisos | `datosCompletos` y `acciones` (`verDatosCompletos`, `editarIdentificatorios`, `editarContacto`, `completarCamposExtra`, `imprimir`; semana 3: `confirmarRecepcion`, `tildarSubtarea`, `marcarDocumento`, `adjuntar`, `darPase`, `devolver`) |
 | Semana 3 | `enAreaDesdePrecision` y `recibidoEnPrecision` (`dia` o `minuto`); `pase` (`faltan`, `destinos`); `devolucion` (`destinos`, `subtareasReiniciables`); `adjuntos` (vigentes, o `null` enmascarados) y `cantidadAdjuntos`. Ver 12.9 |
 
 Línea de tiempo, como pide 2.13(c): `formatearSegunPrecision(m.fechaEfectiva,
 m.precisionFecha)` · "cargado el `formatearFecha(m.registradoEn)` por
-`m.usuario.corto`" · "fuente: `m.fuente`".
+`m.usuario.corto`" · "fuente: `m.fuente`". Desde el 26/10/2026, filtrada y
+agrupada por paso, y con la fecha de registro solo si es otra (sección 19.4).
 
 "En el área desde" y "Recibido el": `formatearSegunPrecision(ficha.enAreaDesde,
 ficha.enAreaDesdePrecision)` y lo mismo con `recibidoEn`. Un alta con fecha de
@@ -380,6 +388,7 @@ Registra `imprimir` (`detalle.hoja = "caratula"`). Todos pueden imprimir.
   titulares: [{ tipo, apellido, nombres, dni, razonSocial, cuit, fallecido, vinculo }],   // sin teléfono, correo ni domicilio
   solicitantes: [ … ],
   recorrido: [{ orden, clave, nombre, area, custodia, subtareas: [{ clave, nombre, obligatoria }] }], // casilleros (las del cementerio del expediente)
+  integridad: ResultadoIntegridad,         // 26/10/2026: la huella del historial al emitirla (sección 19)
   emitidaEl: "2026-10-20" }
 ```
 
@@ -394,7 +403,10 @@ teléfono, correo ni domicilio:
   ubicacionTexto, padron, fechaInicio, cargaHistorica, paso, areaActual,
   personas: [{ id, etiquetaRol, apellido, nombres, dni, razonSocial, cuit, vigente, suprimida }],  // vigentes e históricas
   camposExtra: [{ clave, etiqueta }],      // para leer "datos_extra.<clave>" en las ediciones
+  subtareas: [{ clave, nombre }], documentos: [{ clave, nombre }],  // 26/10/2026: para nombrar tildes y marcas, como la ficha
   historial: MovimientoFicha[],            // el mismo de la ficha
+  tramos: TramoHistorial[],                // 26/10/2026: agrupado por paso, con días hábiles (19.3)
+  integridad: ResultadoIntegridad,         // 26/10/2026: la huella al emitir (19.2)
   emitidaEl: "2026-10-20" }
 ```
 
@@ -1435,3 +1447,484 @@ Mirar la auditoría no se registra; exportarla sí.
   (Enter o Espacio); ↑ ↓ y Quitar con el nombre del elemento para el lector de
   pantalla, y el foco sigue al elemento movido; los diálogos son `<dialog>`
   nativos (Escape cierra).
+
+## 19. El historial: cadena de hash, filtros y agrupación (26/10/2026)
+
+Dos frentes sobre el historial. **Integridad**: la cadena de hash que la
+propuesta dejaba para la fase 2 (sección 8; Tramita Capital, otro sistema de
+la Dirección, ya tiene sus fojas encadenadas). **Legibilidad**: la línea de
+tiempo de la ficha con filtros y agrupada por paso, con los días hábiles en
+cada área. Sin cambios de reglas de negocio ni de permisos.
+
+### 19.1 La cadena (migración `*_cadena_hash`)
+
+Cada movimiento lleva dos columnas nuevas, `hash` y `hash_anterior` (texto,
+hex en minúsculas de SHA-256; en `schema.prisma` como `String?` para que
+Prisma no las pida al crear, y un CHECK las exige). Las fija el trigger
+`movimientos_sellar`, bajo el mismo `FOR UPDATE` del expediente que ya
+serializaba la secuencia: `hash_anterior` es el `hash` del movimiento
+anterior del expediente (por secuencia) y, en el primero,
+`f_hash_inicial(numero_interno)`; `hash` es `f_hash_movimiento(fila)`. Lo
+que mande la app en esas columnas se pisa. SHA-256 con `sha256()`, nativa de
+PostgreSQL 15: no hace falta pgcrypto ni otra extensión.
+
+| Función | Qué hace |
+|---|---|
+| `f_hash_inicial(numero_interno) → text` | SHA-256 de `cementeria-inicio-v1\|<número interno>`, en hex: el "anterior" del primer movimiento. Ata la cadena al número que figura en el papel |
+| `f_hash_movimiento(m movimientos) → text` | El hash de una fila, sobre una lista **explícita** de campos (no `to_jsonb` de la fila): ver abajo |
+| `f_verificar_cadena(expediente bigint) → (integra, movimientos, hash_final, secuencia_rota, motivo)` | Recorre los movimientos por secuencia y devuelve la primera rotura: `secuencia_faltante` (un movimiento borrado), `hash_anterior_distinto` (no encadena con el anterior), `hash_distinto` (cambió algún campo) o `sin_movimientos`. Solo lee |
+
+**Formato canónico (v1)**, en UTF-8: `cementeria-mov-v1|c1|c2|…|c22`, donde
+cada campo es `-` si es NULL y `<largo>:<valor>` si no (largo en caracteres:
+un texto con `|` o un `-` no es ambiguo). Campos, en orden: `expediente_id`,
+`secuencia`, `tipo`, `fecha_efectiva`, `precision_fecha`, `registrado_en`,
+`usuario_id`, `area_usuario_id`, `paso_origen`, `paso_destino`,
+`area_origen_id`, `area_destino_id`, `estado_anterior`, `estado_nuevo`,
+`observacion`, `motivo`, `datos::text`, `corrige_movimiento_id`,
+`carga_historica` (`true`/`false`), `fuente`, `comando_id`, `hash_anterior`.
+Las fechas, en UTC con microsegundos (`2026-10-26T15:04:05.123000Z`), con
+`AT TIME ZONE 'UTC'` explícito: el hash no depende de la zona de la sesión (la
+app escribe en UTC y psql en hora de Tucumán). `datos::text` es el texto de
+`jsonb`, que PostgreSQL escribe siempre igual para el mismo valor.
+`tests/integracion/cadena.test.ts` lo vuelve a calcular en TypeScript a
+partir de esta descripción: es lo que haría un verificador externo.
+
+**Backfill**: la migración encadena los movimientos que ya existían, por
+expediente y en orden de secuencia, con `movimientos_inmutables`
+deshabilitado **solo** dentro de su transacción (DDL del owner, que queda en
+el log; no hay producción todavía) y vuelto a `ENABLE ALWAYS` al terminar.
+Después agrega el CHECK `movimientos_hash_check` (los dos presentes y hex de
+64).
+
+**Qué detecta y qué no.** Un UPDATE o DELETE hecho por un superusuario
+saltando los triggers deja la cadena rota en el primer movimiento tocado. La
+función de hash es pública y sin clave: quien pueda reescribir el historial
+también puede recalcular la cadena desde ahí, o borrar los últimos
+movimientos. Eso se ve comparando el hash final con una copia fuera de la
+base: la **huella** impresa en la carátula y el historial (los 16 primeros
+caracteres del hash del último movimiento) y, pendiente de la fase 2, el
+export nocturno firmado (HMAC) de las cabezas de cada cadena.
+
+`auditoria.accesos` suma la acción `verificar_historial` (CHECK y
+`ACCIONES_ACCESO` de la auditoría: "Verificó el historial").
+
+### 19.2 El dominio (`@/lib/dominio/expedientes/integridad`)
+
+```ts
+interface ResultadoIntegridad {
+  numero: string; integra: boolean; movimientos: number;
+  hashFinal: string | null;      // el hash guardado del último movimiento
+  huella: string | null;         // sus primeros LARGO_HUELLA (16) caracteres: lo impreso
+  secuenciaRota: number | null; motivo: MotivoRotura | null;
+}
+```
+
+| Función | Permiso | Qué hace |
+|---|---|---|
+| `expedientes.verificarIntegridad(usuario, numero, { ip? })` | El de ver la ficha (`ver_expediente`) | `f_verificar_cadena` del expediente. Registra `verificar_historial` con `detalle: { alcance: "expediente", integra, movimientos, hash_final, secuencia_rota, motivo }`. Una cadena rota es un resultado, no un error. Errores: `no_encontrado` |
+| `expedientes.verificarIntegridadTodos(usuario, { ip? })` | `administrar` (admin) | Todos los expedientes: `ResumenIntegridad` (`expedientes`, `integros`, `movimientos`, `rotos[]`, `verificadoEn`). Registra `verificar_historial` sin expediente, con `alcance: "todos"`, `origen: "admin"` y los rotos (hasta 50) |
+| `verificarCadenas(lector)` | — | Lo mismo sin permisos ni registro (una consulta, fuera de `conActor()`: puede tardar más que su límite) |
+| `verificarIntegridadNocturna(deps)` | — | La del script nocturno: como `verificarIntegridadTodos`, firmada por SISTEMA, con `origen: "nocturna"` |
+
+`datosCaratula()` y `datosHistorial()` suman `integridad: ResultadoIntegridad`
+(la huella al emitir y si la cadena estaba íntegra), y `datosHistorial()`,
+`tramos` (19.3).
+
+**`npm run historial:verificar`** (`scripts/verificar-historial.ts`; en el
+paquete, `scripts/verificar-historial.mjs`, sin tsx): verifica todos los
+expedientes con `DATABASE_URL` y lo registra como SISTEMA. Una línea JSON
+(`historial.verificado`, o `historial.roto` con el número, el movimiento y el
+motivo de cada roto). Sale con 0 si todo está íntegro, 1 si hay alguno roto y
+2 si no pudo verificar. Con `-- --sin-registro` no escribe en la auditoría. En
+producción lo dispara el timer `cementeria-historial` a las 03:30
+(docs/despliegue.md). `npm run db:verificar-restauracion` suma el control
+`cadena`.
+
+### 19.3 Agrupación por paso (`./tramos.ts`)
+
+`ficha.tramos` (y `hoja.tramos` del historial impreso): el historial partido
+en **tramos**, lo que pasó mientras el papel estuvo en un paso y un área.
+
+```ts
+interface TramoHistorial {
+  orden: number;                          // 1, 2, 3…
+  paso: { clave, nombre } | null; area: { codigo, nombre } | null;
+  desde: Date; desdePrecision; hasta: Date | null; hastaPrecision;  // hasta null: sigue ahí
+  actual: boolean;                        // el último, con el expediente activo
+  diasHabiles: number | null;             // f_dias_habiles_entre(desde, hasta u hoy), días de Tucumán
+  movimientos: string[];                  // ids, en el orden de `historial`
+}
+```
+
+Abre un tramo el alta, cada pase y cada devolución, y un cambio de estado que
+lleva el papel a otra área o paso (el regreso del papel, desarchivar). Lo
+revertido no abre tramo (queda tachado en el tramo en que se registró) y vale
+la fecha corregida. El último tramo de un expediente concluido, archivado o
+anulado termina con ese cambio de estado. `agruparEnTramos()` es pura (tests
+en `tramos.test.ts`); `contarDiasHabiles()` hace una sola consulta.
+
+### 19.4 Las pantallas
+
+- **Ficha, bloque Historial** (`historial-filtrable.tsx`, componente de
+  cliente; los movimientos llegan armados del servidor con `ItemMovimiento` y
+  su menú "Corregir"): filtra en el navegador, sin recargar. Atajos **Todo** y
+  **Solo lo importante** (pases y devoluciones, con el alta y las
+  recepciones, y estados) y un botón por tipo (Pases y devoluciones,
+  Subtareas, Documentos, Adjuntos, Ediciones, Estados, Notas, Correcciones,
+  con su cantidad; solo los que hay), todos con `aria-pressed`; **Paso** (un
+  `<select>` con los pasos por los que pasó) y **Agrupar por** Paso (título
+  del tramo, "Del … al … · N días hábiles" o "Desde el … · N días hábiles
+  hasta hoy", y "Está acá" en el actual) o Día. Un historial de más de 15
+  movimientos (`HISTORIAL_LARGO`) abre en "Solo lo importante". "Se ven N de
+  M movimientos" va en una región viva (`aria-live`, sin `role="status"`: el
+  `status` de la ficha es el aviso de la última acción, y las pruebas lo
+  buscan así). Lo filtrado queda en la página con
+  `hidden`: los enlaces "Corrige…" y "Corregido por…" siguen funcionando, y el
+  movimiento al que apunta la dirección (`#mov-…`) se muestra aunque el filtro
+  lo oculte. La lógica pura (categorías, atajos, títulos de tramo, texto de la
+  integridad) está en `@/lib/presentacion/historial`.
+- Cada movimiento sigue con su fecha efectiva (y la original tachada si se
+  corrigió), tipo, área de quien lo cargó, precisión ("fecha sin hora"),
+  fuente, autor, y lo revertido o corregido tachado y enlazado. La fecha de
+  registro aparece cuando no es la misma que se ve como efectiva ("Cargado el
+  … por J. Pérez"); si coincide, "Cargado por J. Pérez".
+- **"Verificar integridad"** (botón en el título del bloque,
+  `verificar-integridad.tsx`; Server Action `verificarIntegridad` →
+  `procesarIntegridad` de `@/lib/presentacion/acciones`): muestra "Historial
+  íntegro: N movimientos." con el hash del último (la huella resaltada), o "La
+  cadena del historial está rota: el movimiento N …", en una región viva
+  (`aria-live`).
+- **Imprimibles**: el historial va agrupado por tramo (títulos `h2`, con los
+  días hábiles) y los dos llevan al pie la **huella** ("Huella del historial:
+  `3fa2b9c01d4e5f67` (hash del movimiento 23, el último registrado al
+  emitir)"; con la cadena rota, el aviso). Los filtros no salen en papel.
+
+## 20. Métricas de gestión (`@/lib/dominio/metricas`, 26/10/2026)
+
+El panel (15.6) dice qué hay que mirar hoy; las métricas dicen cómo viene
+funcionando el circuito: tiempos antes y con el sistema, volumen, carga y
+cuellos de botella. Pantalla `/panel/metricas` (Dirección y admin, permiso
+nuevo `ver_metricas`); dominio en `src/lib/dominio/metricas/`, sin cambios de
+esquema ni de reglas de negocio. Como los demás servicios recibe sus
+dependencias: la app usa `metricas` de `@/lib/dominio/metricas/servidor`; los
+tests, `crearServicioMetricas({ leer, escribir, ahora?, papel? })` (`escribir`
+solo registra la exportación).
+
+| Función | Qué hace |
+|---|---|
+| `metricas(usuario, filtros?)` | `Metricas` (20.3). Los filtros que falten van por defecto. `PermisoDenegado` si no es Dirección ni admin; `ErrorDominio` `validacion` con un período inválido (al revés, en el futuro, de más de 3 años, o más de 26 semanas por semana), con `errores[0].ruta` (`desde`, `hasta`, `agrupar`) |
+| `exportarCsv(usuario, filtros, tabla, { ip? })` | Una tabla como CSV (`;`, CRLF, UTF-8 con BOM, como el del buscador): `{ nombreArchivo: "metricas-<tabla>-AAAA-MM-DD.csv", tipo, contenido, filas }`. Calcula y registra `exportar` en `auditoria.accesos` en la misma transacción (`detalle: { formato, origen: "metricas", tabla, filtros, filas }`). Exige `ver_metricas` y `exportar_csv` |
+
+`tabla` es una de `TABLAS_METRICAS`: `punta-a-punta`, `pasos`, `recepcion`,
+`flujo`, `devoluciones`, `motivos`, `carga`, `dim`, `linea-base` y `papel`
+(`tablaCsv(m, tabla)`, puro, arma encabezados y filas; decimales con coma).
+
+### 20.1 Filtros
+
+`FiltrosMetricas`: `desde`, `hasta` (`YYYY-MM-DD` de Tucumán, inclusive),
+`tipoTramiteId?`, `plantillaCodigo?` (todas sus versiones, como el buscador),
+`cementerioId?`, `historicos` (`excluir` | `incluir`) y `agrupar` (`mes` |
+`semana`). Por defecto: el mes en curso y los 5 anteriores enteros
+(`filtrosPorDefecto(hoy)`), por mes y `historicos: "excluir"`. En la URL
+(`@/lib/presentacion/metricas`): `desde`, `hasta`, `tramite`, `plantilla`,
+`cementerio`, `agrupar=semana`, `historicos=incluir`.
+
+### 20.2 Cómo se mide
+
+Todo sale de `movimientos` y `expedientes`:
+
+- **El recorrido** (`recorrido.ts`, puro): los movimientos de cada expediente
+  **como cuentan hoy** (`movimientosVigentes()` de la reconstrucción: sin los
+  revertidos y con la fecha efectiva corregida), en orden de `secuencia`, con
+  el mismo efecto que les da `reconstruccion.ts`. Arma **estadías** (llegada
+  al paso por alta, pase, devolución, desarchivar o reabrir; salida por pase,
+  devolución, concluir, archivar o anular), la recepción de cada una, el plazo
+  al salir de un paso con plazo, los **eventos** de estado y los intervalos en
+  trámite.
+- **Días hábiles**: `f_dias_habiles_entre(día de la llegada, día de la
+  salida)` de la base (los feriados del plazo DIM y la bandeja; el mismo día
+  es 0), siempre con la fecha efectiva. El cálculo va en dos pasadas: la
+  primera junta todos los pares, la base los responde en una consulta
+  (`unnest`) y la segunda arma las métricas. El vencimiento DIM, con
+  `f_sumar_dias_habiles`.
+- **Con el sistema**: los expedientes dados de alta en el sistema; con
+  `historicos: "incluir"`, también los de carga histórica terminada. Las
+  cargas históricas **abiertas** no se miden nunca (como en el panel).
+- **Antes del sistema (línea de base)**: las estadías que salieron con un
+  movimiento de la transcripción (`carga_historica`) y los expedientes cuya
+  conclusión se transcribió. No se filtran por período (son de antes), sí por
+  trámite, plantilla y cementerio. Una estadía que llegó por la
+  transcripción y salió con el sistema es "mixta" y no entra en la
+  comparación.
+- **Período**: una estadía entra si **salió** en el período; un concluido, si
+  se concluyó en el período; un ingreso, por su fecha de inicio.
+- **Estadísticas** (`estadisticas.ts`, puro): n, **mediana**, promedio con un
+  decimal, **percentil 90 por rango más cercano** (`ordenados[ceil(0,9·n) − 1]`:
+  siempre un caso real) y total. Con menos de `MUESTRA_MINIMA` (10) casos la
+  pantalla dice "muestra chica".
+
+### 20.3 Lo que devuelve (`Metricas`)
+
+| Campo | Qué es |
+|---|---|
+| `resumen` | Ingresados (y `busquedaIngresados`), concluidos, punta a punta con sistema y antes, en trámite hoy (y `busquedaEnTramiteHoy`), demorados hoy, devoluciones / salidas / `tasaDevolucion`, `cuelloMediana` (el paso con mayor mediana; desempata el acumulado) y `cuelloAcumulado`, fichas reemplazadas |
+| `puntaAPunta` | `total`, `porTipo` y `porPlantilla`: `FilaTiempos { conSistema, antes }` (días hábiles de la fecha de inicio a la conclusión) |
+| `pasos` | `FilaPaso` por paso y área (un paso `$CEMENTERIO` da una fila por cementerio): `tiempos`, `superaronAlerta` (`dias_alerta` del paso), `devoluciones` y `tasaDevolucion` (sobre las salidas del paso), `hoy` y `antes` |
+| `recepcion` | Por área interna: `confirmadas` (días hasta "Confirmar recepción", las confirmadas en el período), `implicitas` (se confirmó al operar: no tiene fecha propia y no se promedia) y `sinConfirmarHoy` |
+| `flujo` | Por mes o semana: ingresados, concluidos, archivados, anulados y `stockFinal` (en trámite al cierre, o ahora si el corte es hoy) |
+| `devoluciones` | `rutas` (de qué área y paso a cuál) y `motivos`, agrupados por los atajos del diálogo (`grupoDeMotivo`: el motivo empieza con "Falta firma", "Error en boleta" o "Falta documentación", sin acentos ni mayúsculas; lo demás, "Otros") |
+| `carga` | Por área: `hoy` (y `busquedaHoy`), `promedioPeriodo` (expedientes presentes por día corrido del período), `demoradosHoy` (como el panel) y `tiempos` |
+| `dim` | Los pasos con plazo: cumplido en término (`DIM_PLAN_INICIADO` antes del vencimiento), cumplido vencido, vencido sin cumplir, volvió antes de vencer sin plan, en curso y sin notificación; `demora`: días desde la notificación hasta que el papel volvió de la DIM |
+| `lineaBase` | `puntaAPunta` y `pasos` con `antes` y `conSistema`, `expedientes` (cargas históricas), `minimo` y `muestraChica` |
+| `papel` | `fichasReemplazadas` (altas en el sistema del período), `anotaciones`, `hojasEstimadas`, `acumuladoSistema`, `cargasHistoricas` y `parametros` |
+
+**Enlaces a la búsqueda.** Un número trae `busqueda` (`FiltrosBusqueda`) solo
+si la búsqueda trae **exactamente** esos expedientes: ingresados por fecha de
+inicio (`desde`, `hasta`, anulados incluidos, `historica=0`) y en trámite hoy,
+total y por área. La búsqueda no distingue una carga histórica ya terminada:
+si con `historicos: "excluir"` hay alguna en ese conteo, el número va sin
+enlace. Los tiempos no tienen equivalente.
+
+**Papel** (`papel.ts`). Fichas reemplazadas: un dato. Hojas: una estimación,
+`max(1, ⌈anotaciones ÷ anotacionesPorHoja⌉)` por expediente, con las
+anotaciones de su historial (alta, pases, devoluciones y cambios de estado
+vigentes) y `PARAMETROS_PAPEL.anotacionesPorHoja = 12`, un **supuesto** sin
+medir (falta una ficha real); se cambia ahí o con `papel` en las
+dependencias, y la pantalla muestra la fórmula con el valor que tenga.
+
+### 20.4 La pantalla y el CSV
+
+| Ruta | Qué llama |
+|---|---|
+| `/panel/metricas?desde=&hasta=&tramite=&plantilla=&cementerio=&agrupar=&historicos=` | `metricas` y `opcionesBusqueda`. Resumen con 8 cifras (cada una con su comparación contra la línea de base o su contexto) y las secciones Punta a punta, Por paso y área, Flujo, Recepción, Plazo DIM, Devoluciones, Carga por área, Línea de base y Papel, cada una con su gráfico (docs/diseno.md, "Gráficos"), su tabla y "Exportar CSV". Un período inválido muestra el error. Imprimible |
+| `GET /panel/metricas/exportar?tabla=<tabla>&<los mismos filtros>` | `exportarCsv` (`responderExportacionMetricas` de `@/lib/presentacion/metricas`): 200 `text/csv` attachment, 401 sin sesión, 403 sin permiso, 404 con una tabla que no existe, 422 con un período inválido |
+
+Acceso: el ítem **Métricas** de la barra lateral (Dirección y admin, ícono
+`ChartColumnIncreasing`), el acceso rápido y el botón "Métricas de gestión"
+del panel. Leer las métricas no registra accesos (son agregados, sin datos
+personales); exportarlas sí.
+
+Probado en `src/lib/dominio/metricas/*.test.ts` (cálculos puros con un
+calendario de prueba), `src/lib/presentacion/{graficos,metricas}.test.ts`,
+`tests/integracion/metricas.test.ts` (con fechas conocidas de 1999, un
+feriado, una reversión y una carga histórica de 1998) y
+`tests/e2e/metricas.spec.ts`.
+
+### 20.5 Pendientes
+
+- `anotacionesPorHoja` con una ficha de papel real.
+- La línea de base depende de cuántas fichas se transcriban con su recorrido
+  completo (hasta la conclusión, para el punta a punta).
+- Con la semilla el cálculo tarda unos 120 ms; con años de historia y un
+  período largo, si hace falta, cachear el resultado por día.
+
+## 21. Avisos en el sistema (`@/lib/dominio/avisos`, 26/10/2026)
+
+Avisos dentro de la aplicación: la **campana** del encabezado con el contador
+de no leídos y `/avisos`. Sin correo ni WhatsApp por ahora; el diseño queda
+listo para sumarlos (21.6). Sin cambios de reglas de negocio ni de permisos:
+los avisos se agregan a lo que ya pasa (un pase, una devolución, un plazo que
+se vence), no deciden nada.
+
+| Módulo | Qué tiene |
+|---|---|
+| `@/lib/dominio/avisos/servidor` | `avisos` (el servicio, ya conectado) y todo lo de abajo. `server-only` |
+| `@/lib/dominio/avisos/tipos` | Puro: `TIPOS_AVISO`, `PRIORIDAD_DE`, `ETIQUETA_TIPO_AVISO`, `TIPOS_DESACTIVABLES`, `CANALES_AVISO`, las claves y el texto de cada aviso |
+| `@/lib/dominio/avisos/eventos` | `avisarLlegada()` y `avisarCierre()`: los llama el dominio de expedientes con su `tx` |
+| `@/lib/dominio/avisos/tiempo` | `generarAvisosPorTiempo()`, `generarSiHaceFalta()` y `avisosPorTiempo()` (la regla, pura) |
+| `@/lib/dominio/avisos/consultas` | Lo que ve cada usuario: contador, resumen, lista, marcar, preferencias |
+| `@/lib/presentacion/avisos` | Puro: nombre accesible de la campana, "hace cuánto", tonos, filtros de `/avisos` en la URL |
+
+### 21.1 Qué se avisa y a quién
+
+Destinatarios: los usuarios **activos** con rol **operador** del área que
+corresponde. Nunca el admin ni Dirección (no operan), ni SISTEMA, ni un
+inactivo, ni **quien hizo la acción** (no se avisa a sí mismo).
+
+| Tipo (`tipo`) | Cuándo | A quién | Prioridad |
+|---|---|---|---|
+| `llego` "Llegó un expediente" | Un pase llega a un área | El área de destino; si el paso es externo (la DIM, un cementerio), la custodia | normal |
+| `devuelto` "Te devolvieron un expediente" | Una devolución, con el motivo | El área de destino (externo: la custodia) | **alta** |
+| `plazo_por_vencer` "Plazo DIM por vencer" | Plazo empezado y sin cumplir con 5 días hábiles o menos (`DIAS_PLAZO_POR_VENCER`) | La custodia (Tributario) | normal |
+| `plazo_vencido` "Plazo DIM vencido" | `faltan < 0` | La custodia | **alta** |
+| `sin_confirmar` "Enviado sin confirmar" | `recibido_en` nulo y más de 2 días hábiles en el área (`DIAS_SIN_CONFIRMAR`, como el panel) | El área que lo envió (`area_usuario_id` del pase o la devolución) | normal |
+| `demorado` "Demorado" | `dias_en_area >= dias_alerta` del paso (como la bandeja) | El área responsable | normal |
+| `cerrado` "Concluido o archivado" | Concluir, archivar y archivar sin concluir (también "archivar y abrir vinculado") | Mesa de Entradas; cada usuario lo puede apagar | baja |
+
+- Una devolución genera **solo** `devuelto` (no además `llego`): es la misma
+  llegada, con más información.
+- Desarchivar, reabrir, la recepción, la transcripción histórica y las
+  correcciones no avisan. Un pase revertido conserva su aviso (fue lo que
+  pasó; la ficha muestra la reversión).
+- Los días hábiles los cuenta la base (`f_dias_habiles_entre`,
+  `f_sumar_dias_habiles`): los feriados cuentan. Con la carga histórica
+  abierta, o fuera de los estados activos, no hay avisos por tiempo.
+- **Sin datos personales**: título y texto llevan número, trámite (la
+  plantilla), paso, áreas y, en una devolución, el motivo (recortado a 280
+  caracteres; ya está en el historial y en la bandeja). Nunca titular, DNI ni
+  contacto. El enlace es la ficha (`/expedientes/CEM-…`, ruta relativa: un
+  CHECK lo exige).
+
+### 21.2 Los avisos por evento (en la transacción del movimiento)
+
+`darPase` (pase.ts), `devolver` (devolucion.ts) y `concluir`, `archivar` y
+`archivarSinConcluir` (estados.ts) llaman a `avisarLlegada(tx, …)` o
+`avisarCierre(tx, …)` **con su `tx`**, después de insertar el movimiento y
+actualizar la proyección: si algo falla, se deshacen los dos. No hay pase sin
+aviso ni aviso sin pase, y la pantalla no crea avisos. La idempotencia es la
+de la acción (un comando repetido devuelve lo de la primera vez sin llegar
+acá) y además la clave única: `llego:<movimiento>`, `devuelto:<movimiento>`,
+`cerrado:<movimiento>`, insertadas con `createMany({ skipDuplicates })`.
+
+### 21.3 Los avisos por tiempo
+
+`avisos.generarPorTiempo({ ahora? })` (`generarAvisosPorTiempo`): una
+consulta sobre los expedientes en trabajo (estados activos, sin carga
+histórica abierta) con días en el área, alerta del paso, plazo (`sqlPlazo`,
+el mismo LATERAL de la bandeja y el panel) y el envío que espera
+confirmación; la regla pura (`avisosPorTiempo`) decide; los destinatarios son
+los operadores activos de cada área. Firmada por SISTEMA. **Idempotente**:
+las claves no son por día sino por situación, así que correrla dos veces, o
+todos los días, no repite nada:
+
+| Tipo | Clave |
+|---|---|
+| Plazo | `plazo_por_vencer:<expediente>:<plazo_desde>` y `plazo_vencido:…` (si se vuelve a notificar, es otro plazo) |
+| Sin confirmar | `sin_confirmar:<movimiento del envío>` |
+| Demorado | `demorado:<expediente>:<paso>:<en_area_desde>`: uno por estadía en el paso, no uno por día. Si vuelve al mismo paso después, es otra estadía. Corregir la fecha de la llegada (2.13(b)) cambia la clave: puede quedar un segundo aviso para la misma estadía |
+
+Devuelve `{ dia, creados, porTipo, expedientes }` y anota la corrida del día
+en `avisos_corridas`.
+
+**Cuándo corre** (decidido el 26/10/2026):
+
+1. La **tarea programada**, todos los días a las 6:00 de Tucumán: `npm run
+   avisos:generar` (`scripts/generar-avisos.ts`; en el paquete,
+   `scripts/generar-avisos.mjs`), timer `cementeria-avisos`
+   (docs/despliegue.md). Una línea JSON (`avisos.generados` con lo creado por
+   tipo); sale con 2 si no pudo. `-- --fecha AAAA-MM-DD` genera como si fuera
+   ese día (para probar).
+2. Si ese día no corrió (el servidor estuvo apagado, el timer falló, o en
+   desarrollo), **la primera pantalla que carga un operador** la corre: el
+   layout llama a `avisos.generarSiHaceFalta()` antes de contar los no
+   leídos (la bandeja, que es el inicio de los operadores, pasa por ahí).
+   Barata: si ya corrió, es una lectura por clave primaria de
+   `avisos_corridas`. Acotada: reserva el día con `INSERT … ON CONFLICT DO
+   NOTHING` en la misma transacción (dos cargas a la vez no la corren dos
+   veces), con `statement_timeout` de 10 s; si falla, se registra
+   (`avisos.generacion_en_carga_fallo`) y la pantalla se muestra igual.
+3. La **semilla** la corre al final (21.7).
+
+Una vez por día alcanza: las tres reglas son en días hábiles.
+
+### 21.4 El modelo (migración `20261026180000_avisos`)
+
+| Tabla | Columnas |
+|---|---|
+| `avisos` | `id` (identity ALWAYS), `usuario_id` (destinatario), `tipo`, `prioridad` (`baja`, `normal`, `alta`), `expediente_id`, `movimiento_id` (el pase, la devolución, el cierre o el envío sin confirmar; nulo en plazo y demora), `titulo` (hasta 160), `texto` (hasta 600), `enlace` (ruta relativa), `clave` (única por usuario), `creado_en`, `leido_en` (nulo = no leído) |
+| `avisos_preferencias` | `(usuario_id, tipo, canal)` PK, `activo`, `actualizado_en`. Solo lo que se apartó de lo de siempre: sin fila = activo |
+| `avisos_corridas` | `dia` PK, `corrido_en`, `avisos` (lo creado ese día por la generación) |
+
+Índices: `avisos_no_leidos_idx` (`usuario_id, creado_en DESC` **WHERE
+`leido_en IS NULL`**: el contador del encabezado en cada pantalla),
+`avisos_usuario_id_creado_en_idx` (la lista) y `avisos_usuario_id_clave_key`
+(no duplicar). CHECKs de tipo, prioridad, canal (`sistema`), largos y enlace
+(`^/[A-Za-z0-9]`: nunca `//host` ni un esquema).
+
+**Privilegios de `cementeria_app`**: SELECT e INSERT en las tres; UPDATE
+solo de `avisos.leido_en`, `avisos_preferencias.activo, actualizado_en` y
+`avisos_corridas.corrido_en, avisos`. Sin DELETE. Sin triggers ni auditoría
+propia (un aviso no cambia el expediente).
+
+**Retención**: los avisos **leídos hace más de 90 días** se pueden purgar
+(`DIAS_RETENCION_MINIMA`); los no leídos y los leídos recientes, nunca. Lo
+que pasó está en el historial (`movimientos`), que no se toca. La purga la
+hace el admin del sistema a mano con la credencial de deploy (la app no puede
+borrar): `npm run avisos:purgar` (`scripts/purgar-avisos.ts`, con
+`MIGRATE_DATABASE_URL`) cuenta lo que borraría; `-- --confirmar` borra;
+`-- --dias N` (90 o más) cambia la antigüedad. En el servidor, ver
+docs/despliegue.md, "Avisos".
+
+### 21.5 Lo que ve cada usuario (`avisos`)
+
+Siempre los **propios**: cada consulta y cada UPDATE filtra por el
+`usuario_id` de la sesión; un id de otro no cambia nada. Para quien no recibe
+avisos (`recibeAvisos(usuario)`: operador activo con área) todo da 0 y vacío.
+
+```ts
+interface AvisoVista {
+  id: string; tipo: TipoAviso; prioridad: "baja" | "normal" | "alta";
+  titulo: string; texto: string; enlace: string; numero: string;
+  creadoEn: string; leidoEn: string | null;   // ISO 8601: serializable (va al navegador)
+}
+```
+
+| Función | Qué hace |
+|---|---|
+| `avisos.contarNoLeidos(usuario)` | El número de la campana (índice parcial) |
+| `avisos.resumen(usuario, limite = 8)` | `{ noLeidos, ultimos: AvisoVista[] }`: la campana |
+| `avisos.listar(usuario, { soloNoLeidos?, tipo?, pagina? })` | `/avisos`: `{ filas, total, pagina, paginas, noLeidos }`, de a 25 (`AVISOS_POR_PAGINA`), del más nuevo al más viejo; una página fuera de rango va a la última |
+| `avisos.marcarLeidos(usuario, ids)` / `marcarNoLeidos(usuario, ids)` | Devuelve cuántos cambiaron. Ids como texto; lo que no es un entero positivo se descarta (hasta 200) |
+| `avisos.marcarTodosLeidos(usuario)` | "Marcar todos como leídos" |
+| `avisos.preferencias(usuario)` / `cambiarPreferencia(usuario, tipo, activo)` | Hoy solo `cerrado` (`TIPOS_DESACTIVABLES`); otro tipo devuelve `false`. Rige para los avisos que se creen desde ese momento |
+| `avisos.generarPorTiempo({ ahora? })` / `generarSiHaceFalta()` | 21.3 |
+
+Las pantallas:
+
+| Ruta | Qué llama |
+|---|---|
+| Encabezado (`(app)/layout.tsx`) | `generarSiHaceFalta()` y `resumen()` para los operadores: la campana (`campana-avisos.tsx`, docs/diseno.md, "Campana de avisos") |
+| `GET /api/avisos/resumen` | `resumen()` en JSON (`Cache-Control: private, no-store`; 401 sin sesión). El refresco de la campana: al cambiar de pantalla y cada 60 s con la pestaña visible. **Fuera del matcher de `src/proxy.ts`**: si pasara por el proxy, la pregunta automática renovaría la sesión y los 60 minutos de inactividad no vencerían nunca; la ruta verifica la sesión sin renovarla |
+| `/avisos?estado=no_leidos&tipo=&pagina=` | `listar()` y, para Mesa de Entradas, `preferencias()`. Filtros en la URL (`leerFiltrosAvisos`, `rutaAvisos`) |
+| Server Actions (`(app)/avisos/acciones.ts`) | `accionAbrirAviso(id)` (al abrir un aviso, sin `refresh()`: la campana ya lo muestra leído y sigue una navegación), `accionMarcarTodos()` (con `refresh()`), `accionMarcarAviso(id, leido)` y `accionPreferencia(tipo, form)` (formularios de `/avisos`, con `refresh()`) |
+
+El layout no se vuelve a dibujar en una navegación del lado del cliente
+(Partial Rendering de Next): el contador sale del servidor en cada carga y en
+la respuesta de toda Server Action con `refresh()`, y entre medio lo trae el
+refresco liviano.
+
+### 21.6 Canales (para después)
+
+`avisos` es la bandeja del canal **sistema** y la fuente de verdad. Para sumar
+correo o WhatsApp (como el canal sistema/email/migue de Tramita Capital):
+
+1. el canal en `CANALES_AVISO` y en el CHECK de `avisos_preferencias.canal`;
+2. una tabla de envíos (`aviso_id`, `canal`, `estado`, `intentos`,
+   `enviado_en`, `error`) que llene un proceso aparte (otro timer o una cola)
+   leyendo los avisos nuevos y las preferencias de cada usuario por canal;
+3. el texto corto de cada canal a partir de `titulo`, `texto` y `enlace` (con
+   `APP_URL`), sin datos personales también ahí.
+
+Los generadores (21.2 y 21.3) no cambian: crean la fila en `avisos` y nada
+más. Las preferencias ya tienen el canal en la clave. A diferencia de Tramita
+Capital (una tabla `notificaciones` con una fila por canal, y el envío en el
+mismo request con `after()`), acá el envío por otros canales va aparte y
+fuera de la transacción: un correo que tarda o falla no frena ni deshace un
+pase, y el contador y la clave única quedan del canal sistema.
+
+### 21.7 Semilla y pruebas
+
+La semilla crea los avisos sola: los escenarios mueven los expedientes con
+el dominio (cada pase, devolución y cierre crea los suyos) y al final corre la
+generación por tiempo (`prisma/seed.ts`). Con una base recién reseteada, cada
+área ve sus avisos al entrar (README, "Semilla").
+
+Probado en `src/lib/dominio/avisos/{tipos,tiempo}.test.ts` (claves, textos
+sin datos personales, la regla de cada aviso por tiempo),
+`src/lib/presentacion/avisos.test.ts`, `src/proxy.test.ts` (el refresco fuera
+del matcher), `tests/integracion/avisos.test.ts` (destinatarios correctos de
+cada evento y nadie más, inactivos, custodia en la DIM, plazo por vencer y
+vencido, sin confirmar y demorado una sola vez, idempotencia, feriados, una
+corrida por día, marcar solo los propios, preferencia, privilegios y CHECKs)
+y `tests/e2e/circuito.spec.ts` (Liquidación devuelve a Cómputo, la campana
+de Cómputo dice "1 sin leer", el aviso lleva a la ficha).
+
+### 21.8 Pendientes
+
+- Correo y WhatsApp (21.6).
+- Marcar leídos solos los avisos que dejaron de aplicar (el "sin confirmar"
+  de un expediente que ya se confirmó, el "llegó" de un pase revertido). Hoy
+  quedan hasta que la persona los lee.
+- Un ítem "Avisos" en la barra lateral: hoy se llega por la campana ("Ver
+  todos los avisos"); `navegacion.tsx` y `iconos-modulos.ts` estaban en
+  cambio por las métricas.

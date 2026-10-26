@@ -36,6 +36,7 @@ import { editar } from "./editar";
 import { obtenerFicha, verDatosCompletos } from "./ficha";
 import { contextoAlta, formularioEdicion } from "./formulario";
 import { datosHistorial } from "./historial";
+import { verificarIntegridad, verificarIntegridadTodos } from "./integridad";
 import {
   corregirFecha,
   corregirObservacion,
@@ -290,6 +291,12 @@ export function crearServicioExpedientes(deps: DependenciasExpedientes) {
     quitarFeriado: (usuario: UsuarioPermisos, fecha: string, motivo?: string | null) => quitarFeriado(deps, usuario, fecha, motivo ?? null),
     cerrarAnioFeriados: (usuario: UsuarioPermisos, anio: number, motivo?: string | null) => cerrarAnioFeriados(deps, usuario, anio, motivo ?? null),
     reabrirAnioFeriados: (usuario: UsuarioPermisos, anio: number, motivo: string | null) => reabrirAnioFeriados(deps, usuario, anio, motivo),
+
+    // --- 26/10/2026: integridad del historial (cadena de hash) --------------
+    /** "Verificar integridad" de la ficha; registra `verificar_historial`. */
+    verificarIntegridad: (usuario: UsuarioPermisos, numero: string, opciones?: OpcionesAcceso) => verificarIntegridad(deps, usuario, numero, opciones),
+    /** Todos los expedientes, con resumen (admin); registra `verificar_historial` sin expediente. */
+    verificarIntegridadTodos: (usuario: UsuarioPermisos, opciones?: OpcionesAcceso) => verificarIntegridadTodos(deps, usuario, opciones),
   };
 }
 
@@ -425,6 +432,16 @@ export {
   type ProyeccionFlujo,
 } from "./reconstruccion";
 export type { HojaHistorial, PersonaHistorial } from "./historial";
+export {
+  abreviarHash,
+  LARGO_HUELLA,
+  verificarCadenas,
+  verificarIntegridadNocturna,
+  type MotivoRotura,
+  type ResultadoIntegridad,
+  type ResumenIntegridad,
+} from "./integridad";
+export { agruparEnTramos, type TramoHistorial } from "./tramos";
 export { canonizarNumeroInterno, formatearNumeroInterno, numeroCorto } from "./numero";
 export type { CampoUbicacion, Ubicacion } from "./ubicacion";
 export type {

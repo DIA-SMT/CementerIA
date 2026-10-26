@@ -77,6 +77,9 @@ describe("movimientos: el historial es solo inserción", () => {
         "GRANT cementeria_app TO {rol}",
         "GRANT SET ON PARAMETER session_replication_role TO {rol}",
         "GRANT UPDATE, DELETE, TRUNCATE ON public.movimientos, public.expediente_personas TO {rol}",
+        // 26/10/2026: avisos.movimiento_id también apunta a movimientos, así que
+        // el TRUNCATE … CASCADE la alcanza; sin esto lo frenaría el privilegio.
+        "GRANT TRUNCATE ON public.avisos TO {rol}",
       ]);
     });
     afterAll(async () => borrarRolDePrueba(rol));

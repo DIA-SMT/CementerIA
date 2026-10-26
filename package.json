@@ -21,6 +21,9 @@
     "adjuntos:barrer": "tsx scripts/barrer-adjuntos-tmp.ts",
     "empaquetar": "node scripts/empaquetar.mjs",
     "db:verificar-restauracion": "node scripts/verificar-restauracion.mjs",
+    "historial:verificar": "tsx scripts/verificar-historial.ts",
+    "avisos:generar": "tsx scripts/generar-avisos.ts",
+    "avisos:purgar": "tsx scripts/purgar-avisos.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

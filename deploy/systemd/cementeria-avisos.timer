@@ -1,0 +1,16 @@
+# Dispara cementeria-avisos.service todos los días a las 06:00, antes de que
+# empiece el trabajo: cada área ve sus avisos de plazos, envíos sin confirmar y
+# demoras al entrar. Va en /etc/systemd/system/; se activa con:
+#   systemctl enable --now cementeria-avisos.timer
+
+[Unit]
+Description=CementerIA: avisos por tiempo, todas las mañanas
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 America/Argentina/Tucuman
+# Si el servidor estaba apagado a esa hora, corre al arrancar.
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,60 @@
+# Generación diaria de los avisos por tiempo (migración *_avisos;
+# docs/despliegue.md, sección "Avisos"): plazo DIM por vencer y vencido,
+# enviado sin confirmar y demorado. Idempotente: no repite un aviso que ya
+# existe. Anota la corrida del día en avisos_corridas, así la primera pantalla
+# de un operador no la vuelve a correr. Lo dispara cementeria-avisos.timer. Va
+# en /etc/systemd/system/.
+#
+# Corre la generación compilada a JavaScript (scripts/generar-avisos.mjs, lo
+# arma `npm run empaquetar`): en el servidor no hay tsx. Sale con 2 si no pudo
+# generar; la unidad queda en `systemctl --failed` y el detalle en el journal.
+# Si esto falla, la app la corre igual en la primera carga del día.
+#
+# A mano: systemctl start cementeria-avisos && journalctl -u cementeria-avisos -n 5 -o cat
+
+[Unit]
+Description=CementerIA: avisos por tiempo (plazos DIM, sin confirmar, demorados)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cementeria
+Group=cementeria
+WorkingDirectory=/opt/cementeria/actual
+ExecStart=/usr/bin/node scripts/generar-avisos.mjs
+# Necesita DATABASE_URL (rol cementeria_app, el mismo que la app: lee los
+# expedientes e inserta avisos). Está en el entorno de la app; el script no usa
+# ninguna otra variable de ese archivo.
+EnvironmentFile=/etc/cementeria/cementeria.env
+Environment=NODE_ENV=production
+Environment=TZ=America/Argentina/Tucuman
+SyslogIdentifier=cementeria-avisos
+# Miles de expedientes llevan segundos; más que esto es un cuelgue.
+TimeoutStartSec=15min
+Nice=10
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+# La base puede estar en otra máquina (TCP) o en esta (socket).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

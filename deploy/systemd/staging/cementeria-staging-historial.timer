@@ -1,0 +1,15 @@
+# Dispara cementeria-staging-historial.service una vez por noche. Va en
+# /etc/systemd/system/; se activa con:
+#   systemctl enable --now cementeria-staging-historial.timer
+
+[Unit]
+Description=CementerIA STAGING: verificación nocturna del historial
+
+[Timer]
+OnCalendar=*-*-* 03:45:00 America/Argentina/Tucuman
+# Si el servidor estaba apagado a esa hora, corre al arrancar.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

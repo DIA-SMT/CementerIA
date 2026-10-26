@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import type { Transaccion } from "@/lib/db/crear-cliente";
 import { hoyEnTucuman, type FechaISO } from "@/lib/fechas";
+import { avisarCierre } from "../avisos/eventos";
 import { exigirPermiso, type UsuarioPermisos } from "../permisos";
 import { exigirNumero, registrarAcceso, type OpcionesAcceso } from "./acceso";
 import { numeroCorto } from "./numero";
@@ -196,6 +197,28 @@ async function registrarCambio(ctx: ContextoAccion, usuario: UsuarioPermisos, c:
   return resultadoDe(tx, exp.id, m.id, false, recepcion?.movimientoId ?? null);
 }
 
+/**
+ * "Concluido o archivado" para Mesa de Entradas (informativo; cada usuario lo
+ * puede apagar), en la misma transacción que el movimiento `estado`
+ * (docs/api-dominio.md, 21.2). Solo al concluir y al archivar: desarchivar o
+ * reabrir no avisan.
+ */
+async function conAvisoDeCierre(ctx: ContextoAccion, usuario: UsuarioPermisos, r: ResultadoEstado, sinConcluir: boolean): Promise<ResultadoEstado> {
+  if (r.estado === "concluido" || r.estado === "archivado") {
+    await avisarCierre(ctx.tx, {
+      expedienteId: ctx.exp.id,
+      movimientoId: BigInt(r.movimientoId),
+      actorId: usuario.id,
+      actorAreaId: usuario.area?.id ?? null,
+      estado: r.estado,
+      ubicacionArchivo: r.estado === "archivado" ? r.ubicacionArchivo : null,
+      sinConcluir,
+      ahora: ctx.ahora,
+    });
+  }
+  return r;
+}
+
 function opcionesDe(numero: string, comandoId: string, motivo: string | null, versionVista: number) {
   return {
     numero,
@@ -236,7 +259,7 @@ export async function concluir(
       throw new ErrorDominio("faltan_requisitos", `Faltan ${faltan.length}: ${faltan.map((f) => f.mensaje).join("; ")}`, erroresDeFaltantes(faltan));
     }
     const fecha = await fechaDelCambio(ctx, opciones.fechaEfectiva);
-    return registrarCambio(ctx, usuario, {
+    const r = await registrarCambio(ctx, usuario, {
       estadoNuevo: "concluido",
       motivo: null,
       fecha,
@@ -244,6 +267,7 @@ export async function concluir(
       datos: {},
       proyeccion: { ...plazoParaDb(SIN_PLAZO) },
     });
+    return conAvisoDeCierre(ctx, usuario, r, false);
   });
 }
 
@@ -267,7 +291,7 @@ export async function archivar(
     if (ctx.exp.estado !== "concluido") throw estadoNoAdmite(ctx.exp.estado, "archivarlo como concluido (se archiva sin concluir)");
     exigirPermiso("archivar_concluido", ctx.permisos, usuario);
     const fecha = await fechaDelCambio(ctx, opciones.fechaEfectiva);
-    return registrarCambio(ctx, usuario, {
+    const r = await registrarCambio(ctx, usuario, {
       estadoNuevo: "archivado",
       motivo: null,
       fecha,
@@ -275,6 +299,7 @@ export async function archivar(
       datos: { ubicacion_archivo: ubicacion },
       proyeccion: { estadoPrevio: "concluido", ubicacionArchivo: ubicacion },
     });
+    return conAvisoDeCierre(ctx, usuario, r, false);
   });
 }
 
@@ -300,7 +325,7 @@ async function archivarSinConcluirEn(
   // papel vuelve a la custodia en el mismo movimiento (3.1 y 3.5).
   const externo = actual.tipo === "externa";
   const regreso = externo ? { fecha: fecha.instante.toISOString(), area_id: ctx.exp.areaResponsableId } : null;
-  return registrarCambio(ctx, usuario, {
+  const r = await registrarCambio(ctx, usuario, {
     estadoNuevo: "archivado",
     motivo,
     fecha,
@@ -314,6 +339,7 @@ async function archivarSinConcluirEn(
       ...(regreso ? { areaActual: { connect: { id: regreso.area_id } }, enAreaDesde: fecha.instante, recibidoEn: fecha.instante } : {}),
     },
   });
+  return conAvisoDeCierre(ctx, usuario, r, true);
 }
 
 /**

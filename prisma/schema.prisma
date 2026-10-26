@@ -131,6 +131,8 @@ model Usuario {
   aniosCerrados        FeriadoAnio[]
   cambios              AuditoriaCambio[]
   accesos              AuditoriaAcceso[]
+  avisos               Aviso[]
+  preferenciasAvisos   AvisoPreferencia[]
 
   @@map("usuarios")
   @@schema("public")
@@ -239,6 +241,7 @@ model Expediente {
   personas           ExpedientePersona[]
   movimientos        Movimiento[]
   accesos            AuditoriaAcceso[]
+  avisos             Aviso[]
 
   @@unique([anio, secuencia])
   @@index([numeroMunicipalNorm])
@@ -320,9 +323,9 @@ model ExpedientePersona {
 // ---------------------------------------------------------------------------
 
 /// Inmutable: el trigger movimientos_inmutables rechaza UPDATE, DELETE y
-/// TRUNCATE, y movimientos_sellar fija secuencia, registrado_en y
-/// area_usuario_id, y exige usuario_id = app.usuario_id. Insertar siempre
-/// dentro de conActor().
+/// TRUNCATE, y movimientos_sellar fija secuencia, registrado_en,
+/// area_usuario_id, hash_anterior y hash, y exige usuario_id = app.usuario_id.
+/// Insertar siempre dentro de conActor().
 model Movimiento {
   id                  BigInt   @id @default(autoincrement())
   expedienteId        BigInt   @map("expediente_id")
@@ -353,6 +356,12 @@ model Movimiento {
   fuente              String?
   /// Idempotencia: un comando por acción del usuario.
   comandoId           String   @map("comando_id") @db.Uuid
+  /// Cadena de hash (migración *_cadena_hash): SHA-256 en hex de
+  /// f_hash_movimiento(). Los fija el trigger movimientos_sellar; un CHECK los
+  /// exige (son opcionales acá para que Prisma no los pida al crear).
+  hash                String?
+  /// El hash del movimiento anterior del expediente (el primero: f_hash_inicial(numero_interno)).
+  hashAnterior        String?  @map("hash_anterior")
 
   expediente        Expediente          @relation(fields: [expedienteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   usuario           Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -362,6 +371,7 @@ model Movimiento {
   corrigeMovimiento Movimiento?         @relation("MovimientoCorreccion", fields: [corrigeMovimientoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   correcciones      Movimiento[]        @relation("MovimientoCorreccion")
   personasCreadas   ExpedientePersona[]
+  avisos            Aviso[]
 
   @@unique([expedienteId, secuencia])
   @@unique([expedienteId, comandoId, tipo])
@@ -402,6 +412,85 @@ model FeriadoAnio {
   cerrador Usuario? @relation(fields: [cerradoPor], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@map("feriados_anios")
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// Avisos en el sistema (migración *_avisos, 26/10/2026)
+// ---------------------------------------------------------------------------
+
+/// Un aviso para un usuario (docs/api-dominio.md, sección 21). Es la bandeja
+/// del canal "sistema": la campana del encabezado y /avisos. Los canales que se
+/// sumen después (correo, WhatsApp) mandan copias de estas filas; no las
+/// reemplazan. Sin datos personales del contacto: número, trámite, paso, área
+/// y, en una devolución, el motivo. CHECKs (tipo, prioridad, largos, enlace
+/// relativo) y GRANTs en la migración.
+///
+/// La app inserta y marca leído o no leído (UPDATE solo de `leido_en`); no
+/// borra. Los leídos viejos los purga el script del admin (npm run avisos:purgar).
+model Aviso {
+  id           BigInt    @id @default(autoincrement())
+  /// El destinatario: un operador activo del área que corresponde.
+  usuarioId    Int       @map("usuario_id")
+  /// llego, devuelto, plazo_por_vencer, plazo_vencido, sin_confirmar, demorado o cerrado.
+  tipo         String
+  /// baja, normal o alta (devuelto y plazo vencido).
+  prioridad    String    @default("normal")
+  expedienteId BigInt    @map("expediente_id")
+  /// El pase o la devolución que lo originó, si corresponde.
+  movimientoId BigInt?   @map("movimiento_id")
+  titulo       String
+  texto        String
+  /// Ruta relativa dentro de la app (/expedientes/CEM-…).
+  enlace       String
+  /// Para no duplicar: única por destinatario ("llego:<movimiento>",
+  /// "demorado:<expediente>:<paso>:<llegada>"…).
+  clave        String
+  creadoEn     DateTime  @default(now()) @map("creado_en") @db.Timestamptz
+  /// NULL = no leído.
+  leidoEn      DateTime? @map("leido_en") @db.Timestamptz
+
+  usuario    Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  expediente Expediente  @relation(fields: [expedienteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  movimiento Movimiento? @relation(fields: [movimientoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([usuarioId, clave])
+  /// La lista de /avisos y el panel de la campana.
+  @@index([usuarioId, creadoEn(sort: Desc)], map: "avisos_usuario_id_creado_en_idx")
+  /// "Mis no leídos": el contador del encabezado.
+  @@index([usuarioId, creadoEn(sort: Desc)], map: "avisos_no_leidos_idx", where: raw("leido_en IS NULL"))
+  @@map("avisos")
+  @@schema("public")
+}
+
+/// Preferencias de avisos por usuario, tipo y canal. Solo las filas que se
+/// apartan de lo de siempre (sin fila = activo). Hoy se puede apagar
+/// "Concluido o archivado" en el canal sistema.
+model AvisoPreferencia {
+  usuarioId     Int      @map("usuario_id")
+  tipo          String
+  /// sistema (más adelante: correo, whatsapp).
+  canal         String   @default("sistema")
+  activo        Boolean
+  actualizadoEn DateTime @default(now()) @map("actualizado_en") @db.Timestamptz
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([usuarioId, tipo, canal])
+  @@map("avisos_preferencias")
+  @@schema("public")
+}
+
+/// Un día en que corrió la generación de avisos por tiempo (plazo, sin
+/// confirmar, demorado): la tarea programada o, si no corrió, la primera carga
+/// de un operador.
+model AvisoCorrida {
+  dia       DateTime @id @db.Date
+  corridoEn DateTime @default(now()) @map("corrido_en") @db.Timestamptz
+  /// Avisos creados ese día por la generación (suma de las corridas).
+  avisos    Int      @default(0)
+
+  @@map("avisos_corridas")
   @@schema("public")
 }
 

@@ -44,9 +44,29 @@ test("Mesa de Entradas da de alta una renovación de contado en el Oeste y la ca
   await expect(carátula).toContainText(d.apellido);
   await expect(carátula).toContainText("Cementerio del Oeste");
   await expect(page.getByRole("button", { name: "Imprimir" })).toBeVisible();
+  // 26/10/2026: al pie, la huella de la cadena de hash del historial (16 hex).
+  const huella = /Huella del historial: ([0-9a-f]{16})/.exec((await carátula.textContent()) ?? "")?.[1];
+  expect(huella).toBeTruthy();
 
   // Y la ficha existe, en el primer paso, con la sección normalizada.
   await page.goto(`/expedientes/${numero}`);
   await expect(page.getByRole("heading", { level: 1, name: numero })).toBeVisible();
   await expect(page.getByText("Sección C · Lote")).toBeVisible();
+
+  // "Verificar integridad" recalcula la cadena: íntegra, con la misma huella que el papel.
+  const historial = page.getByRole("region", { name: "Historial" });
+  await historial.getByRole("button", { name: "Verificar integridad" }).click();
+  await expect(historial.getByText("Historial íntegro: 1 movimiento.")).toBeVisible();
+  await expect(historial).toContainText(huella ?? "sin huella");
+
+  // Los filtros del historial filtran sin recargar: botones con aria-pressed.
+  const todo = historial.getByRole("button", { name: "Todo", exact: true });
+  await expect(todo).toHaveAttribute("aria-pressed", "true");
+  const contador = historial.getByText(/único movimiento/);
+  await expect(contador).toHaveText("Se ve el único movimiento.");
+  await historial.getByRole("button", { name: /^Pases y devoluciones/ }).click();
+  await expect(contador).toHaveText("No se ve el único movimiento.");
+  await expect(todo).toHaveAttribute("aria-pressed", "false");
+  await todo.click();
+  await expect(contador).toHaveText("Se ve el único movimiento.");
 });

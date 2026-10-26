@@ -1,5 +1,6 @@
 import type { Expediente } from "@/generated/prisma/client";
 import { fechaParaDb } from "@/lib/fechas";
+import { avisarLlegada } from "../avisos/eventos";
 import { evaluarPermiso, exigirPermiso, type Decision, type UsuarioPermisos } from "../permisos";
 import type { DefinicionPlantilla, PasoPlantilla } from "../plantillas/esquema";
 import { exigirNumero, permisosDelExpediente } from "./acceso";
@@ -278,6 +279,21 @@ export async function darPase(
           areaActual: { select: { id: true, codigo: true, nombre: true } },
           areaResponsable: { select: { id: true, codigo: true, nombre: true } },
         },
+      });
+      // "Llegó un expediente" al área de destino (en un paso externo, a la
+      // custodia), en esta misma transacción: no hay pase sin aviso ni aviso
+      // sin pase (docs/api-dominio.md, 21.2).
+      await avisarLlegada(tx, {
+        tipo: "pase",
+        expedienteId: exp.id,
+        movimientoId: m.id,
+        actorId: usuario.id,
+        actorAreaId: usuario.area?.id ?? null,
+        paso: destino.nombre,
+        areaOrigenId: exp.areaActualId,
+        areaActualId: llegada.areaActualId,
+        areaResponsableId: llegada.areaResponsableId,
+        ahora: ctx.ahora,
       });
       return {
         numero: exp.numeroInterno,

@@ -56,8 +56,18 @@ export async function permisosDelExpediente(
   };
 }
 
-/** Semana 4: `exportar` (CSV del buscador), sin expediente. */
-export type AccionAcceso = "ver_expediente" | "ver_datos_completos" | "imprimir" | "ver_adjunto" | "descargar_adjunto" | "exportar";
+/**
+ * Semana 4: `exportar` (CSV del buscador), sin expediente. 26/10/2026:
+ * `verificar_historial` (la cadena de hash de un expediente, o de todos sin expediente).
+ */
+export type AccionAcceso =
+  | "ver_expediente"
+  | "ver_datos_completos"
+  | "imprimir"
+  | "ver_adjunto"
+  | "descargar_adjunto"
+  | "exportar"
+  | "verificar_historial";
 
 export interface OpcionesAcceso {
   /** IP del cliente (`ipDeSolicitud()` de src/lib/auth/red.ts), para auditoria.accesos. */

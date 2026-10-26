@@ -14,6 +14,12 @@
 // cada área, la DIM, los estados, correcciones), movidos con las funciones del
 // dominio por los usuarios ficticios de cada área.
 //
+// Al final, la generación de avisos por tiempo (plazo DIM, sin confirmar,
+// demorado), como la tarea programada de cada mañana. Los avisos de los pases,
+// devoluciones y cierres de los escenarios ya los creó el dominio en cada
+// acción; los de pasos que el expediente ya dejó quedan leídos
+// (prisma/semilla/avisos.ts). Así cada área ve los suyos al entrar.
+//
 // Es IDEMPOTENTE: crea lo que falta y deja como está lo que ya existe (ver
 // prisma/semilla/sembrar.ts; los expedientes y los escenarios, por sus
 // comando_id fijos). Correrla dos veces no cambia nada.
@@ -24,7 +30,11 @@
 //                     corre con NODE_ENV=production.
 
 import { config as cargarEnv } from "dotenv";
+import { SISTEMA_ID } from "../src/lib/auth/ingreso";
+import { conActorEn } from "../src/lib/db/actor";
 import { crearCliente } from "../src/lib/db/crear-cliente";
+import { generarYAnotar } from "../src/lib/dominio/avisos";
+import { leerAvisosViejos } from "./semilla/avisos";
 import { sembrarEscenarios } from "./semilla/escenarios";
 import { sembrarExpedientes } from "./semilla/expedientes";
 import { sembrar } from "./semilla/sembrar";
@@ -73,6 +83,19 @@ async function main(): Promise<void> {
         escenarios.creados === 0
           ? `Escenarios: ya estaban sus ${escenarios.existentes} expedientes.`
           : `Escenarios: ${escenarios.creados} expedientes creados en ${escenarios.escenarios.length} escenarios (${escenarios.numeros[0]} a ${escenarios.numeros.at(-1)}).`,
+      );
+      // Los "llegó" de pasos que el expediente ya dejó, leídos (prisma/semilla/avisos.ts).
+      const leidos = await leerAvisosViejos(cliente);
+      // Los avisos por tiempo, como la tarea programada (npm run avisos:generar).
+      const generados = await conActorEn(cliente, SISTEMA_ID, "Avisos por tiempo (semilla)", (tx) => generarYAnotar(tx, new Date()), {
+        timeout: 120_000,
+      });
+      const detalle = Object.entries(generados.porTipo)
+        .filter(([, n]) => n > 0)
+        .map(([tipo, n]) => `${tipo} ${n}`)
+        .join(", ");
+      console.log(
+        `Avisos: ${await cliente.aviso.count()} en total (${await cliente.aviso.count({ where: { leidoEn: null } })} sin leer; ${leidos} de pasos ya dejados quedaron leídos); la generación por tiempo creó ${generados.creados}${detalle ? ` (${detalle})` : ""}.`,
       );
     }
   } finally {

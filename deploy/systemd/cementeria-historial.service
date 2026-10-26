@@ -1,0 +1,60 @@
+# Verificación nocturna de la cadena de hash del historial (migración
+# *_cadena_hash; docs/despliegue.md, sección "Verificación del historial").
+# Recalcula con f_verificar_cadena la cadena de todos los expedientes y deja el
+# resumen en auditoria.accesos ('verificar_historial', firmado por SISTEMA).
+# Lo dispara cementeria-historial.timer. Va en /etc/systemd/system/.
+#
+# Corre la verificación compilada a JavaScript (scripts/verificar-historial.mjs,
+# lo arma `npm run empaquetar`): en el servidor no hay tsx. Sale con 1 si hay
+# un expediente con la cadena rota: la unidad queda en `systemctl --failed` y
+# el detalle (número, movimiento y motivo) en el journal.
+#
+# A mano: systemctl start cementeria-historial && journalctl -u cementeria-historial -n 5 -o cat
+
+[Unit]
+Description=CementerIA: verificación nocturna de la cadena de hash del historial
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cementeria
+Group=cementeria
+WorkingDirectory=/opt/cementeria/actual
+ExecStart=/usr/bin/node scripts/verificar-historial.mjs
+# Necesita DATABASE_URL (rol cementeria_app, el mismo que la app: solo lee el
+# historial e inserta en auditoria.accesos). Está en el entorno de la app; el
+# script no usa ninguna otra variable de ese archivo.
+EnvironmentFile=/etc/cementeria/cementeria.env
+Environment=NODE_ENV=production
+Environment=TZ=America/Argentina/Tucuman
+SyslogIdentifier=cementeria-historial
+# Miles de expedientes llevan segundos; más que esto es un cuelgue.
+TimeoutStartSec=30min
+# Que no le saque CPU a la app si alguien la usa a esa hora.
+Nice=10
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+# La base puede estar en otra máquina (TCP) o en esta (socket).
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077

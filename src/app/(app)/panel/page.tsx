@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { ArrowRight, FileText, History, Library, TriangleAlert, Users, type LucideIcon } from "lucide-react";
+import { ArrowRight, ChartColumnIncreasing, FileText, History, Library, TriangleAlert, Users, type LucideIcon } from "lucide-react";
 import { BotonImprimir } from "@/components/boton-imprimir";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
 import { ICONO_PANTALLA } from "@/components/iconos-modulos";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { expedientes, type FilaPanel, type FilaPlazoPanel, type Lista, type MovimientoPanel } from "@/lib/dominio/expedientes/servidor";
-import { navegacionPara, SECCIONES_ADMIN } from "@/lib/dominio/navegacion";
+import { navegacionPara, puedeVerPantalla, SECCIONES_ADMIN } from "@/lib/dominio/navegacion";
 import { formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
 import { rutaFicha } from "@/lib/presentacion/enlaces";
 import { mostrarPlazo } from "@/lib/presentacion/estados";
@@ -29,6 +29,8 @@ export const metadata: Metadata = { title: "Panel" };
  * Arriba va la portada con la marca y los accesos rápidos a los módulos que el
  * rol tiene (los mismos de la barra lateral, más las secciones de
  * Administración para el admin). Todos los números son los del dominio.
+ * Dirección y el admin tienen además "Métricas de gestión" (/panel/metricas):
+ * cómo viene funcionando el circuito, junto al botón de imprimir.
  *
  * Leer el panel no registra accesos (no muestra contacto); abrir una ficha sí
  * (por eso los enlaces van sin prefetch).
@@ -57,7 +59,15 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
             {" · "}sin las cargas históricas abiertas, salvo en su bloque
           </p>
         </div>
-        <BotonImprimir />
+        <div className="flex flex-wrap items-center gap-2">
+          {puedeVerPantalla(usuario, "metricas") ? (
+            <Link href="/panel/metricas" className={`${CLASE_BOTON_SECUNDARIO} print:hidden`}>
+              <ChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
+              Métricas de gestión
+            </Link>
+          ) : null}
+          <BotonImprimir />
+        </div>
       </div>
 
       <Form action="/panel" className="tarjeta flex flex-wrap items-end gap-3 p-4 print:hidden" aria-label="Filtros del panel">
@@ -184,6 +194,7 @@ const ETIQUETA_ACCESO: Record<string, string> = {
   "/bandeja": "Ir a la bandeja",
   "/expedientes/nuevo": "Nuevo expediente",
   "/expedientes": "Buscar expedientes",
+  "/panel/metricas": "Métricas de gestión",
 };
 
 const ICONO_SECCION_ADMIN: Record<string, LucideIcon> = {

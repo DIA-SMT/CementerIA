@@ -10,6 +10,10 @@ const TABLAS_ESPERADAS = [
   "auditoria.accesos",
   "auditoria.cambios",
   "public.areas",
+  // 26/10/2026 (*_avisos): los avisos en el sistema.
+  "public.avisos",
+  "public.avisos_corridas",
+  "public.avisos_preferencias",
   "public.cementerios",
   "public.expediente_personas",
   "public.expedientes",
@@ -23,7 +27,7 @@ const TABLAS_ESPERADAS = [
 ];
 
 describe("humo: la base efímera quedó como en producción", () => {
-  it("aplicó todas las migraciones, tiene las 13 tablas y todas son de cementeria_owner", async () => {
+  it("aplicó todas las migraciones, tiene las 16 tablas y todas son de cementeria_owner", async () => {
     const carpetas = (await readdir(path.join(process.cwd(), "prisma", "migrations"), { withFileTypes: true }))
       .filter((d) => d.isDirectory())
       .map((d) => d.name)

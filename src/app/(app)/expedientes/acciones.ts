@@ -16,6 +16,7 @@ import {
   procesarRecepcion,
   procesarRecepciones,
   procesarSubtarea,
+  procesarIntegridad,
   procesarVerDatos,
   type EntradaDevolucion,
   type EntradaDocumento,
@@ -26,6 +27,7 @@ import {
   type ResultadoDatosCompletos,
   type ResultadoFlujo,
   type ResultadoLote,
+  type ResultadoVerificacion,
 } from "@/lib/presentacion/acciones";
 import {
   procesarCorreccion,
@@ -80,6 +82,12 @@ export async function guardarEdicion(numero: string, _anterior: EstadoFormulario
 export async function verDatosCompletos(numero: string, motivo: string): Promise<ResultadoDatosCompletos> {
   const usuario = await exigirUsuario();
   return procesarVerDatos(expedientes, usuario, String(numero), String(motivo ?? ""), ipDeSolicitud(await headers()));
+}
+
+/** "Verificar integridad" del historial (cadena de hash). No cambia la ficha: no hace falta refresh(). */
+export async function verificarIntegridad(numero: string): Promise<ResultadoVerificacion> {
+  const usuario = await exigirUsuario();
+  return procesarIntegridad(expedientes, usuario, String(numero), ipDeSolicitud(await headers()));
 }
 
 /** Aviso de posibles duplicados mientras se carga el alta o la edición. */

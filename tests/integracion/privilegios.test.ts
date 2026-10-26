@@ -19,6 +19,11 @@ const PRIVILEGIOS_APP: Record<string, string[]> = {
   "auditoria.cambios": [S, I],
   "public._prisma_migrations": [],
   "public.areas": [S, I, U],
+  // 26/10/2026 (*_avisos): UPDATE solo de algunas columnas (leido_en; activo y
+  // actualizado_en; corrido_en y avisos). avisos.test.ts prueba el resto.
+  "public.avisos": [S, I, U],
+  "public.avisos_corridas": [S, I, U],
+  "public.avisos_preferencias": [S, I, U],
   "public.cementerios": [S, I, U],
   "public.expediente_personas": [S, I, U],
   "public.expedientes": [S, I, U],
@@ -78,6 +83,10 @@ describe("privilegios de cementeria_app", () => {
     "public.feriados_anios",
     "auditoria.cambios",
     "auditoria.accesos",
+    // Los avisos los purga el admin con la credencial de deploy (npm run avisos:purgar).
+    "public.avisos",
+    "public.avisos_corridas",
+    "public.avisos_preferencias",
   ];
 
   it.each(SIN_DELETE)("no puede borrar en %s", async (tabla) => {
@@ -210,9 +219,13 @@ describe("dueños", () => {
           // Semana 4: el CHECK del CUIT de una persona jurídica.
           "f_cuit_valido",
           "f_dias_habiles_entre",
+          // 26/10/2026 (*_cadena_hash): la cadena de hash del historial.
+          "f_hash_inicial",
+          "f_hash_movimiento",
           "f_normalizar",
           "f_sumar_dias_habiles",
           "f_unaccent",
+          "f_verificar_cadena",
           "movimientos_inmutables",
           "movimientos_sellar",
           "plantillas_congelar",
@@ -296,6 +309,7 @@ describe("columnas identity", () => {
         { tabla: "auditoria.accesos", identity: "a" },
         { tabla: "auditoria.cambios", identity: "a" },
         { tabla: "public.areas", identity: "d" },
+        { tabla: "public.avisos", identity: "a" },
         { tabla: "public.cementerios", identity: "d" },
         { tabla: "public.expediente_personas", identity: "a" },
         { tabla: "public.expedientes", identity: "a" },
@@ -321,6 +335,13 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["cambios_tabla_registro_id_idx", "", "auditoria.cambios USING btree (tabla, registro_id)"],
     ["areas_codigo_key", UNICO, "public.areas USING btree (codigo)"],
     ["areas_pkey", UNICO, "public.areas USING btree (id)"],
+    // 26/10/2026 (*_avisos): "mis no leídos" (parcial), la lista y no duplicar.
+    ["avisos_corridas_pkey", UNICO, "public.avisos_corridas USING btree (dia)"],
+    ["avisos_no_leidos_idx", "", "public.avisos USING btree (usuario_id, creado_en DESC) WHERE (leido_en IS NULL)"],
+    ["avisos_pkey", UNICO, "public.avisos USING btree (id)"],
+    ["avisos_preferencias_pkey", UNICO, "public.avisos_preferencias USING btree (usuario_id, tipo, canal)"],
+    ["avisos_usuario_id_clave_key", UNICO, "public.avisos USING btree (usuario_id, clave)"],
+    ["avisos_usuario_id_creado_en_idx", "", "public.avisos USING btree (usuario_id, creado_en DESC)"],
     ["cementerios_area_id_key", UNICO, "public.cementerios USING btree (area_id)"],
     ["cementerios_codigo_key", UNICO, "public.cementerios USING btree (codigo)"],
     ["cementerios_pkey", UNICO, "public.cementerios USING btree (id)"],

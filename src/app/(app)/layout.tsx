@@ -2,19 +2,22 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { Inbox, LogOut } from "lucide-react";
 import { exigirUsuario } from "@/lib/auth/sesion";
+import { avisos, recibeAvisos } from "@/lib/dominio/avisos/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
 import { inicioPara, navegacionPara, puedeVerPantalla } from "@/lib/dominio/navegacion";
+import { log, resumenError } from "@/lib/log";
 import { COOKIE_BARRA, leerPreferenciaBarra } from "@/lib/presentacion/barra-lateral";
 import { rutaBandeja } from "@/lib/presentacion/flujo";
 import { CLASE_FOCO } from "@/components/formulario";
 import { BuscadorGlobal } from "./buscador-global";
+import { CampanaAvisos } from "./campana-avisos";
 import { BarraLateral } from "./navegacion";
 
 /**
  * Cáscara de las pantallas con sesión: barra lateral con la marca y la
  * navegación del rol (en tablet y celular, franja con menú colapsable) y
  * encabezado con la búsqueda global (lleva a /expedientes?q=), el contador "Por confirmar"
- * (enlazado a esa pestaña de la bandeja), nombre, área y Salir (sección 5,
+ * (enlazado a esa pestaña de la bandeja), la campana de avisos, nombre, área y Salir (sección 5,
  * "Navegación por rol"). Al imprimir no sale ni la barra ni el encabezado: los
  * imprimibles van solos.
  *
@@ -31,6 +34,15 @@ import { BarraLateral } from "./navegacion";
  * Las Server Actions del flujo llaman a `refresh()`: la respuesta trae también
  * este layout, así que el contador se actualiza al confirmar o dar un pase.
  *
+ * Avisos (26/10/2026): la campana con los no leídos y los últimos avisos, para
+ * quien los recibe (operadores con área). Antes de contarlos, si hoy todavía no
+ * corrió la generación de avisos por tiempo (la tarea programada de las 6:00),
+ * la corre (`generarSiHaceFalta`: si ya corrió, es una lectura por clave
+ * primaria; la bandeja, que es el inicio de los operadores, pasa siempre por
+ * acá). Si falla, se registra y la pantalla se muestra igual. Como el layout no
+ * se vuelve a dibujar al navegar del lado del cliente, la campana además pide
+ * el resumen al cambiar de pantalla y cada 60 s (campana-avisos.tsx).
+ *
  * Este layout NO es la barrera: Next puede renderizar una página sin volver a
  * renderizar su layout (navegación del lado del cliente), así que cada página
  * vuelve a pedir el usuario con exigirPantalla(). Por `cache()` la base se
@@ -42,6 +54,15 @@ export default async function LayoutConSesion({ children }: { children: React.Re
   const area = usuario.area?.nombre ?? (usuario.rol === "admin" ? "Administración del sistema" : "Sin área");
   const conBandeja = puedeVerPantalla(usuario, "bandeja");
   const porConfirmar = conBandeja ? await expedientes.contadorPorConfirmar(usuario) : 0;
+  const conAvisos = recibeAvisos(usuario);
+  if (conAvisos) {
+    try {
+      await avisos.generarSiHaceFalta();
+    } catch (error) {
+      log.error("avisos.generacion_en_carga_fallo", resumenError(error));
+    }
+  }
+  const resumenAvisos = conAvisos ? await avisos.resumen(usuario) : null;
   const preferenciaBarra = leerPreferenciaBarra((await cookies()).get(COOKIE_BARRA)?.value);
 
   // En escritorio el fondo azul sigue debajo de la barra lateral (que es
@@ -55,7 +76,7 @@ export default async function LayoutConSesion({ children }: { children: React.Re
           {/* En el celular, una sola fila: buscador (detrás de un botón), "Por
               confirmar" con su número, el usuario y Salir (solo ícono, con su
               nombre para lectores de pantalla). Desde sm, el buscador abierto. */}
-          <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:gap-x-4 sm:py-2.5 lg:px-8">
+          <div className="relative mx-auto flex w-full max-w-7xl flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:gap-x-4 sm:py-2.5 lg:px-8">
             <BuscadorGlobal />
 
             {conBandeja ? (
@@ -79,7 +100,12 @@ export default async function LayoutConSesion({ children }: { children: React.Re
               </Link>
             ) : null}
 
-            <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+            {/* flex-1 con base 0: así este grupo no salta a otra fila en el celular
+                (con la campana no entraba con un área de nombre largo); el nombre se trunca. */}
+            <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+              {/* La campana: en el celular, solo el ícono y el número; su panel se
+                  abre debajo del encabezado, a todo su ancho (el div de la fila es relative). */}
+              {resumenAvisos ? <CampanaAvisos inicial={resumenAvisos} ahoraServidor={new Date().toISOString()} /> : null}
               <div className="flex min-w-0 items-center gap-2.5 text-right leading-tight">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-texto">

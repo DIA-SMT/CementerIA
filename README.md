@@ -80,6 +80,52 @@ Rediseño visual, primera etapa: tokens de color y tipografía (Inter
 autoalojada), componentes base, ingreso, barra lateral y panel. Tokens, tabla de
 contrastes, marca provisoria y pendientes en [docs/diseno.md](docs/diseno.md).
 
+Historial (26/10/2026; [docs/api-dominio.md](docs/api-dominio.md), sección
+19): la **cadena de hash** que la propuesta dejaba para la fase 2 (migración
+`*_cadena_hash`): cada movimiento guarda el SHA-256 de sus campos y del hash del
+anterior del mismo expediente, lo fija el trigger `movimientos_sellar` y
+`f_verificar_cadena` lo recalcula. La ficha tiene "Verificar integridad", la
+carátula y el historial impresos llevan la huella (16 caracteres del hash del
+último movimiento) y `npm run historial:verificar` verifica todos los
+expedientes (de noche en producción, timer `cementeria-historial`). Y la línea
+de tiempo de la ficha se filtra sin recargar (tipos de movimiento, "Solo lo
+importante", paso) y se agrupa por paso, con los días hábiles en cada área, o
+por día; el historial impreso va agrupado por paso.
+
+Métricas de gestión (26/10/2026; [docs/api-dominio.md](docs/api-dominio.md),
+sección 20): `/panel/metricas`, para Dirección y el admin (permiso
+`ver_metricas`, ítem "Métricas" de la barra lateral y botón en el panel). El
+panel dice qué hay que mirar hoy; esto mide cómo viene el circuito, todo desde
+`movimientos` y `expedientes` con la fecha efectiva y días hábiles de la base:
+tiempo de punta a punta de los concluidos (mediana, promedio y percentil 90,
+por tipo de trámite y plantilla), tiempo por paso y área con el cuello de
+botella, tiempo hasta confirmar la recepción, flujo por mes o semana (ingresados,
+concluidos, archivados, anulados y stock en trámite), devoluciones (tasa por
+paso, de qué área a qué área y motivos agrupados por los atajos), carga por
+área, plazo DIM, la **línea de base** de antes del sistema (con las fichas de
+papel transcriptas, avisando cuando la muestra es chica) y el papel (fichas
+reemplazadas y una estimación de hojas con su supuesto a la vista). Gráficos
+hechos a mano en HTML y CSS, sin librerías, cada uno con su tabla accesible y
+su CSV (`GET /panel/metricas/exportar`, registrado como `exportar`). Por
+defecto, los últimos 6 meses y sin la carga histórica. Sin cambios de esquema.
+
+Avisos en el sistema (26/10/2026; [docs/api-dominio.md](docs/api-dominio.md),
+sección 21; migración `*_avisos`): la **campana** del encabezado con el
+contador de no leídos ("Avisos, 3 sin leer") y un panel con los últimos, y
+`/avisos` con la lista completa, filtros y marcar leído o no leído. Avisan, a
+los operadores activos del área que corresponde (nunca a quien actuó, ni al
+admin ni a Dirección): "Llegó un expediente" (pase; en un paso externo, a la
+custodia), "Te devolvieron un expediente" (con el motivo, prioridad alta),
+"Plazo DIM por vencer" y "vencido" (a Tributario), "Enviado sin confirmar"
+(más de 2 días hábiles, al área que lo envió), "Demorado" (los `dias_alerta`
+del paso, uno por paso) y "Concluido o archivado" (a Mesa de Entradas, que lo
+puede apagar). Los de un pase o una devolución nacen en la misma transacción
+del movimiento; los del tiempo, con `npm run avisos:generar` (timer
+`cementeria-avisos`, 6:00) o, si ese día no corrió, en la primera carga de un
+operador. Sin datos personales. Sin correo ni WhatsApp todavía (el diseño los
+deja listos). La campana se refresca al cambiar de pantalla y cada 60 s con la
+pestaña visible, sin renovar la sesión.
+
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
 tocar código de Next, leer [AGENTS.md](AGENTS.md): Next 16 cambia APIs y
@@ -168,7 +214,10 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run db:seed` | Solo la semilla. Idempotente: crea lo que falta y no toca lo que existe |
 | `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`<ADJUNTOS_DIR>/tmp/`) de más de 24 h (`-- --horas N` para otra antigüedad) |
 | `npm run empaquetar` | Arma el paquete de despliegue (build standalone, migraciones y CLI de Prisma) desde el último commit, en `build/paquetes/`. Ver [docs/despliegue.md](docs/despliegue.md) |
-| `npm run db:verificar-restauracion` | Controla una base restaurada (conteos, dueños, triggers, sha256 de adjuntos). Lo usa `scripts/restaurar-prueba.sh` |
+| `npm run db:verificar-restauracion` | Controla una base restaurada (conteos, dueños, triggers, cadena de hash, sha256 de adjuntos). Lo usa `scripts/restaurar-prueba.sh` |
+| `npm run historial:verificar` | Verifica la cadena de hash del historial de todos los expedientes y lo registra en `auditoria.accesos` como SISTEMA (`-- --sin-registro` para no registrar). Sale con 1 si hay alguno roto |
+| `npm run avisos:generar` | Genera los avisos por tiempo (plazo DIM, sin confirmar, demorado) como SISTEMA. Idempotente; `-- --fecha AAAA-MM-DD` para generar como si fuera ese día |
+| `npm run avisos:purgar` | Cuenta los avisos leídos hace más de 90 días; `-- --confirmar` los borra (`-- --dias N`, 90 o más). Con `MIGRATE_DATABASE_URL`: la app no puede borrar avisos |
 | `npm run db:migrate` | `prisma migrate dev`, para crear una migración nueva |
 | `npm run db:deploy` | `prisma migrate deploy`, como en un despliegue |
 | `node scripts/db-local.mjs reiniciar-datos` | **Borra** el clúster local entero y lo crea de nuevo (por ejemplo, para cambiar la clave del superusuario) |
@@ -180,8 +229,10 @@ docs/                      especificación y documentos de la semana 1
 prisma/
   schema.prisma            tablas, claves e índices (también parciales y GIN)
   migrations/              *_inicial (generada y retocada), *_reglas_base (a mano:
-                           CHECKs, funciones, triggers, GRANTs, usuario SISTEMA) y
-                           *_personas_juridicas (semana 4, a mano)
+                           CHECKs, funciones, triggers, GRANTs, usuario SISTEMA),
+                           *_personas_juridicas (semana 4, a mano), *_cadena_hash
+                           (26/10/2026, a mano: la cadena de hash del historial) y
+                           *_avisos (26/10/2026: avisos, preferencias y corridas)
   seed.ts, semilla/        semilla: áreas, catálogos, cementerios, feriados,
                            usuarios ficticios y las 4 plantillas de la sección 4
 scripts/
@@ -191,6 +242,10 @@ scripts/
   empaquetar.mjs           paquete de despliegue (npm run empaquetar)
   backup.sh, restaurar-prueba.sh, verificar-restauracion.mjs
                            backup nocturno, prueba de restauración y su verificación
+  verificar-historial.ts   la cadena de hash de todos los expedientes (npm run historial:verificar)
+  generar-avisos.ts, purgar-avisos.ts
+                           los avisos por tiempo (npm run avisos:generar) y la purga de los
+                           leídos viejos (npm run avisos:purgar)
 deploy/                    systemd, nginx, modelos de entorno y desplegar.sh (docs/despliegue.md)
 src/
   proxy.ts                 renovación deslizante de la sesión (no autoriza)
@@ -199,7 +254,8 @@ src/
                            en (app)/, las pantallas con sesión; los adjuntos en
                            /adjuntos/[movimientoId], POST /api/expedientes/[numero]/adjuntos y,
                            semana 4, GET /expedientes/exportar (CSV); semana 5, /admin/* y
-                           GET /admin/auditoria/exportar (CSV)
+                           GET /admin/auditoria/exportar (CSV); 26/10/2026, /avisos y
+                           GET /api/avisos/resumen (el refresco de la campana)
   lib/db/                  cliente de Prisma (solo lectura) y conActor() (escrituras)
   lib/auth/                Cidituc, sesión, cookies, ingreso y salida
   lib/dominio/             permisos, navegación, CUIL y plantillas (esquema zod y
@@ -208,8 +264,10 @@ src/
                            zod armados en tiempo de ejecución); semana 3: recepción,
                            subtareas, documentos, adjuntos, pase, devolución,
                            bandejas y flujo.ts (puro); semana 5: admin/ (plantillas,
-                           usuarios, catálogos y auditoría) y plantillas/borrador.ts.
-                           Ver docs/api-dominio.md
+                           usuarios, catálogos y auditoría) y plantillas/borrador.ts;
+                           metricas/ (las métricas de gestión: recorrido, cálculo puro
+                           y consultas); avisos/ (tipos y textos, los de cada evento,
+                           los del tiempo y lo que ve cada usuario). Ver docs/api-dominio.md
   lib/adjuntos/            tipos por magic bytes y el almacén en disco (AlmacenAdjuntos)
   lib/presentacion/        lógica de las pantallas, sin Next: modelo del formulario, parámetros
                            del buscador, URL del QR, enlace wa.me, textos, la lógica de las
@@ -221,7 +279,9 @@ src/
                            (exportar-http.ts) y sus Server Actions (acciones-estados.ts);
                            semana 5: el editor de plantillas (editor-plantilla.ts), la
                            auditoría en la URL (auditoria.ts) y las Server Actions y el CSV
-                           de /admin (acciones-admin.ts)
+                           de /admin (acciones-admin.ts); métricas: filtros, textos y CSV
+                           (metricas.ts) y la escala de los gráficos (graficos.ts); avisos:
+                           la campana, "hace cuánto" y los filtros de /avisos (avisos.ts)
   lib/fechas.ts            fechas YYYY-MM-DD, hoy en Tucumán, datetime-local y formato es-AR
   lib/entorno.ts           variables de entorno validadas con zod
   generated/               cliente de Prisma generado (no se versiona)
@@ -240,6 +300,11 @@ playwright.config.ts       configuración de Playwright (el arnés está en test
   `cementeria_app` (la aplicación, con privilegios mínimos).
 - El historial (`movimientos`) es **solo inserción**, también para el owner y
   con `session_replication_role = replica`: los triggers son `ENABLE ALWAYS`.
+  Desde el 26/10/2026, además, **encadenado**: cada movimiento lleva `hash` y
+  `hash_anterior` (SHA-256, `f_hash_movimiento`, los fija el trigger) y
+  `f_verificar_cadena(expediente_id)` encuentra el primero alterado o borrado.
+  Un superusuario que recalcule la cadena entera solo se ve contra la huella
+  impresa (y, en la fase 2, contra el export firmado).
 - **Toda escritura pasa por `conActor(usuarioId, motivo, async (tx) => …)`**
   (`src/lib/db/transaccion.ts`), que fija el actor de la transacción. En
   movimientos, expedientes, personas y la configuración auditada, la base
@@ -336,6 +401,28 @@ Como **Dirección**, `/panel` tiene números en todas las secciones: por estado,
 la matriz área × trámite, demorados, plazos por vencer y vencidos, sin
 confirmar, diferidos y correcciones del mes, y las 3 cargas históricas de los
 30. Mesa de Entradas ve además en Afuera y Plazos lo de la DIM, como consulta.
+En `/panel/metricas` salen tiempos, flujo, devoluciones (la de Legal y la de
+Cómputo), carga, el plazo DIM y una línea de base chica con los pases
+transcriptos de D2 y D3 (5 cargas históricas, ninguna con la conclusión: el
+punta a punta "antes" queda sin datos).
+
+**Avisos** (la campana): los crea el dominio en cada pase, devolución y
+cierre de los escenarios, y al final la semilla corre la generación por tiempo
+como la tarea de cada mañana. Los "llegó" y "te devolvieron" de un paso que el
+expediente ya dejó quedan leídos (`prisma/semilla/avisos.ts`: los escenarios
+recorren en minutos lo que llevó semanas). En una base recién reseteada son
+145, 55 sin leer:
+
+| Área | Sin leer | Qué |
+|---|---|---|
+| Mesa de Entradas | 30 | 22 demorados (los 30 ficticios llevan más de 2 días hábiles en el primer paso), 4 concluidos o archivados, el devuelto por Cómputo (M3), 2 llegados y 1 sin confirmar (C1) |
+| Cómputo | 5 | 3 llegados, 1 demorado (C3) y 1 sin confirmar (lo que devolvió a Mesa, M3) |
+| Liquidación | 7 | 6 llegados y el devuelto por Legal (L7) |
+| Asesoría Legal | 4 | 3 llegados y 1 demorado (G1) |
+| Administrativo | 5 | 5 llegados |
+| Tributario | 4 | 2 llegados, plazo DIM por vencer (D2) y vencido (D3) |
+
+Dirección y el admin no reciben avisos.
 
 - Los plazos por vencer y vencido necesitan una notificación de hace más de 25
   días hábiles, que el límite de 30 días corridos no admite en un expediente
@@ -427,15 +514,23 @@ lo que necesita, así que corren en paralelo y en cualquier orden. Tarda menos
 de un minuto. Cubren:
 
 - el alta de una renovación de contado en el Oeste desde Mesa de Entradas, con
-  un error de campo antes y la carátula con número y QR;
+  un error de campo antes y la carátula con número, QR y la huella del
+  historial, que "Verificar integridad" muestra igual en la ficha; y los filtros
+  del historial (botones con `aria-pressed`, sin recargar);
 - el circuito de la propuesta, alta → pase → recepción → devolución →
   conclusión, por los 7 pasos y con cada área en su sesión: "Faltan N", Por
   confirmar, tildes, un adjunto PNG, la devolución en rojo con su motivo y el
   reenvío directo, Concluir y Archivar con caja;
+- los avisos: Liquidación devuelve a Cómputo y la campana de Cómputo dice
+  "Avisos, 1 sin leer"; el panel (foco, Escape) muestra el aviso con el motivo
+  y "Prioridad alta", y abrirlo lleva a la ficha y lo deja leído;
 - el conflicto de versión entre dos sesiones del mismo área;
 - la búsqueda por DNI con puntos, por N° interno corto y por apellido sin acento;
 - el contacto enmascarado y "Ver datos completos" con motivo;
 - el panel de Dirección, cuyos números llevan a la búsqueda filtrada;
+- las métricas de gestión: se abren desde el panel y la barra, cada sección
+  con su gráfico y su tabla, un número enlazado a la búsqueda, el CSV, los
+  filtros en la URL, y que los operadores no las ven;
 - un borrador de plantilla con un error de validación en su pestaña, que se
   descarta (no se publica);
 - los diálogos, que se cierran con Escape y devuelven el foco.

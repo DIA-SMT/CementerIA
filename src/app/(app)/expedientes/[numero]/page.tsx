@@ -8,19 +8,21 @@ import { EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
 import { CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_ENLACE } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
-import { ErrorDominio, expedientes, type DocumentoFicha, type Ficha, type PersonaFicha } from "@/lib/dominio/expedientes/servidor";
-import { formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
+import { ErrorDominio, expedientes, type DocumentoFicha, type Ficha, type MovimientoFicha, type PersonaFicha } from "@/lib/dominio/expedientes/servidor";
+import { diaEnTucuman, formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
 import { AVISO_EDITADO } from "@/lib/presentacion/acciones";
 import { enlaceWhatsapp, mensajeWhatsapp, rutaEditar, rutaFicha, rutaImprimir } from "@/lib/presentacion/enlaces";
 import { mostrarPlazo, movimientoCorregible, textoUbicacion, type PlazoMostrado, type SubtareaConocida } from "@/lib/presentacion/estados";
-import { contextoResumen } from "@/lib/presentacion/historial";
+import { categoriaDe, contextoResumen, detalleTramo, tituloTramo, type ContextoResumen } from "@/lib/presentacion/historial";
 import { documentoDePersona, ETIQUETA_DOCUMENTO, ETIQUETA_FORMA_PAGO, etiquetaEstado, nombreCompleto } from "@/lib/presentacion/textos";
-import { LineaDeTiempo } from "../linea-de-tiempo";
+import { claseItemMovimiento, ItemMovimiento } from "../linea-de-tiempo";
 import { BarraEstado } from "./flujo/cambios-estado";
 import { BotonFlujo, ProveedorFlujo } from "./flujo/contexto";
 import { BarraAcciones, BotonesDocumento, BotonesSubtarea, ListaAdjuntos, PanelFaltan } from "./flujo/controles";
 import { MenuCorregir } from "./flujo/correcciones";
 import type { DatosFlujo } from "./flujo/tipos";
+import { HistorialFiltrable, type EntradaHistorial } from "./historial-filtrable";
+import { VerificarIntegridad } from "./verificar-integridad";
 import { VerDatosCompletos } from "./ver-datos-completos";
 
 export async function generateMetadata(props: PageProps<"/expedientes/[numero]">): Promise<Metadata> {
@@ -451,16 +453,49 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           </Bloque>
         </div>
 
-        <Bloque titulo="Historial">
-          <LineaDeTiempo
-            historial={ficha.historial}
-            contexto={resumen}
-            acciones={(m) => (m.correcciones.length > 0 ? <MenuCorregir movimiento={movimientoCorregible(m, subtareasConocidas)} /> : null)}
+        <Bloque titulo="Historial" aside={<VerificarIntegridad numero={ficha.numero} />}>
+          <HistorialFiltrable
+            entradas={entradasHistorial(ficha, resumen, (m) =>
+              m.correcciones.length > 0 ? <MenuCorregir movimiento={movimientoCorregible(m, subtareasConocidas)} /> : null,
+            )}
+            tramos={ficha.tramos.map((t) => ({ orden: t.orden, titulo: tituloTramo(t), detalle: detalleTramo(t), actual: t.actual }))}
+            pasos={pasosDelHistorial(ficha)}
           />
         </Bloque>
       </article>
     </ProveedorFlujo>
   );
+}
+
+/**
+ * Los movimientos de la línea de tiempo, armados acá (con el menú "Corregir"),
+ * con lo que el filtro del navegador necesita saber de cada uno: categoría,
+ * tramo y paso, y día de la fecha efectiva que vale.
+ */
+function entradasHistorial(ficha: Ficha, contexto: ContextoResumen, acciones: (m: MovimientoFicha) => React.ReactNode): EntradaHistorial[] {
+  const porId = new Map(ficha.historial.map((m) => [m.id, m]));
+  const tramoDe = new Map(ficha.tramos.flatMap((t) => t.movimientos.map((id) => [id, t] as const)));
+  return ficha.historial.map((m) => {
+    const tramo = tramoDe.get(m.id);
+    const fecha = m.fechaCorregida?.fechaEfectiva ?? m.fechaEfectiva;
+    return {
+      id: m.id,
+      categoria: categoriaDe(m.tipo),
+      tramo: tramo?.orden ?? 0,
+      paso: tramo?.paso?.clave ?? null,
+      dia: diaEnTucuman(fecha),
+      diaTexto: formatearFecha(fecha),
+      clase: claseItemMovimiento(m),
+      nodo: <ItemMovimiento movimiento={m} porId={porId} contexto={contexto} extra={acciones(m)} />,
+    };
+  });
+}
+
+/** Los pasos por los que pasó, en el orden en que pasó (sin repetir), para el filtro del historial. */
+function pasosDelHistorial(ficha: Ficha): Array<{ clave: string; nombre: string }> {
+  const vistos = new Map<string, string>();
+  for (const t of ficha.tramos) if (t.paso && !vistos.has(t.paso.clave)) vistos.set(t.paso.clave, t.paso.nombre);
+  return [...vistos].map(([clave, nombre]) => ({ clave, nombre }));
 }
 
 function Bloque({ titulo, children, aside }: { titulo: string; children: React.ReactNode; aside?: React.ReactNode }) {

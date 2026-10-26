@@ -157,3 +157,64 @@ test("una renovación recorre los 7 pasos con una devolución, se concluye y se 
 
   for (const s of [computo, liquidacion, legal, administrativo]) await s.context.close();
 });
+
+// Avisos (26/10/2026). Va en este archivo, después del circuito, y no en uno
+// propio: es el único otro que le manda expedientes a Cómputo, y las pruebas de
+// un mismo archivo corren en orden. Así el contador de la campana de Cómputo
+// cuenta solo lo de esta prueba.
+test("avisos: Liquidación devuelve a Cómputo y Cómputo ve la campana con 1 aviso, lo abre y va a la ficha", async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  const motivo = "Error en boleta: falta el concepto de conservación del período";
+
+  // Un expediente nuevo hasta Liquidación.
+  await entrarComo(page, "mesa");
+  const numero = await darDeAlta(page);
+  await darPase(page, "2 de 7: Cómputo: alta");
+  const computo = await nuevaSesion(browser, "computo");
+  await abrirFicha(computo.page, numero);
+  await darPase(computo.page, "3 de 7: Liquidación y boleta");
+
+  // Cómputo deja la campana en cero (la semilla y el pase de Mesa le dejaron avisos).
+  const campana = computo.page.getByRole("button", { name: /^Avisos, / });
+  await campana.click();
+  await expect(campana).toHaveAttribute("aria-expanded", "true");
+  const panel = computo.page.getByRole("region", { name: /^Avisos/ });
+  await expect(panel.getByRole("heading", { level: 2, name: /^Avisos/ })).toBeFocused();
+  await panel.getByRole("button", { name: "Marcar todos como leídos" }).click();
+  await expect(computo.page.getByRole("button", { name: "Avisos, ninguno sin leer" })).toBeVisible();
+  // Escape cierra el panel y devuelve el foco a la campana.
+  await computo.page.keyboard.press("Escape");
+  await expect(campana).toHaveAttribute("aria-expanded", "false");
+  await expect(campana).toBeFocused();
+
+  // Liquidación lo devuelve a Cómputo con el motivo.
+  const liquidacion = await nuevaSesion(browser, "liquidacion");
+  await abrirFicha(liquidacion.page, numero);
+  await confirmarRecepcion(liquidacion.page);
+  await liquidacion.page.getByRole("button", { name: "Devolver", exact: true }).click();
+  const devolver = dialogo(liquidacion.page, "Devolver");
+  await devolver.getByLabel("Devolver al paso").selectOption({ label: "2. Cómputo: alta" });
+  await devolver.getByRole("textbox", { name: "Motivo" }).fill(motivo);
+  await devolver.getByRole("button", { name: "Devolver", exact: true }).click();
+  await expect(devolver).toBeHidden();
+
+  // Cómputo entra a su bandeja: la campana dice 1 sin leer.
+  await computo.page.goto("/bandeja");
+  const conUno = computo.page.getByRole("button", { name: "Avisos, 1 sin leer" });
+  await expect(conUno).toBeVisible();
+  await conUno.click();
+  const aviso = panel.getByRole("link", { name: new RegExp(`Te devolvieron ${numero}`) });
+  await expect(aviso).toContainText(`Liquidación lo devolvió a Cómputo: alta: ${motivo}`);
+  // Prioridad alta: la franja roja y la insignia (el color no va solo).
+  await expect(aviso).toContainText("Prioridad alta");
+
+  // Lo abre: va a la ficha y el aviso queda leído.
+  await aviso.click();
+  await expect(computo.page).toHaveURL(new RegExp(`/expedientes/${numero}$`));
+  await expect(computo.page.getByRole("heading", { level: 1, name: numero })).toBeVisible();
+  await expect(computo.page.getByRole("button", { name: "Avisos, ninguno sin leer" })).toBeVisible();
+  await computo.page.reload();
+  await expect(computo.page.getByRole("button", { name: "Avisos, ninguno sin leer" })).toBeVisible();
+
+  for (const s of [computo, liquidacion]) await s.context.close();
+});

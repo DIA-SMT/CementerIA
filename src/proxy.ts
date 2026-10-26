@@ -59,6 +59,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  * - la subida de adjuntos, POST /api/expedientes/[numero]/adjuntos: el proxy no
  *   tiene que tocar ese cuerpo (hasta 10 MB, en streaming) y la ruta se
  *   autentica sola con getUsuarioActual() (sección 6, "Adjuntos").
+ * - el refresco de la campana, GET /api/avisos/resumen: si pasara por acá, la
+ *   pregunta automática de cada 60 s renovaría la sesión y los 60 minutos de
+ *   inactividad no vencerían nunca. La ruta verifica la sesión sin renovarla.
  *
  * Cada alternativa termina en `/` o fin de ruta (`(?:/|$)`): un prefijo suelto
  * eximiría también /loginx o /dev/loginx. Va como literal porque Next lo analiza
@@ -66,6 +69,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  */
 export const config = {
   matcher: [
-    "/((?!_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
+    "/((?!_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|api/avisos/resumen(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
   ],
 };

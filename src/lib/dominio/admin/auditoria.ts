@@ -30,6 +30,8 @@ export const ACCIONES_ACCESO = [
   "descargar_adjunto",
   "imprimir",
   "exportar",
+  // 26/10/2026: "Verificar integridad" de la ficha y la verificación de todos los expedientes.
+  "verificar_historial",
 ] as const;
 export type AccionAccesoAuditoria = (typeof ACCIONES_ACCESO)[number];
 
@@ -43,6 +45,7 @@ export const ETIQUETA_ACCION_ACCESO: Record<AccionAccesoAuditoria, string> = {
   descargar_adjunto: "Descargó un adjunto",
   imprimir: "Imprimió",
   exportar: "Exportó",
+  verificar_historial: "Verificó el historial",
 };
 
 export const TABLAS_AUDITADAS = Object.keys(ETIQUETA_TABLA);
