@@ -72,6 +72,26 @@ datos AS (
         SELECT format('%s|%s', count(*), count(*) FILTER (WHERE NOT v.integra)) AS v
           FROM public.expedientes e CROSS JOIN LATERAL public.f_verificar_cadena(e.id) v $q$, false, true, '')))[1]::text
     END AS cadena
+),
+almacen AS (
+  -- El bucket de adjuntos de Storage (el despliegue en Vercel; sql/storage.sql).
+  -- Solo si este rol puede leer storage.buckets (postgres sí; cementeria_app no
+  -- ve el esquema storage: preparar.mjs lo controla aparte, como postgres).
+  SELECT n.oid IS NOT NULL AS hay_storage,
+    CASE WHEN c.oid IS NOT NULL AND has_schema_privilege(n.oid, 'USAGE') AND has_table_privilege(c.oid, 'SELECT')
+      THEN (xpath('/row/v/text()', query_to_xml($q$
+        SELECT coalesce(
+          (SELECT format('privado: %s, límite %s bytes, tipos: %s', NOT public, file_size_limit,
+                         array_to_string(ARRAY(SELECT x FROM unnest(allowed_mime_types) x ORDER BY x), ' '))
+                  || CASE WHEN NOT public AND file_size_limit = 10485760
+                           AND ARRAY(SELECT x FROM unnest(allowed_mime_types) x ORDER BY x) = ARRAY['application/pdf', 'image/jpeg', 'image/png']
+                          THEN '|ok' ELSE '|mal' END
+             FROM storage.buckets WHERE id = 'adjuntos'),
+          'no existe el bucket adjuntos (45_storage.sql)|mal') AS v $q$, false, true, '')))[1]::text
+    END AS bucket
+    FROM (SELECT 1) uno
+    LEFT JOIN pg_namespace n ON n.nspname = 'storage'
+    LEFT JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = 'buckets'
 )
 SELECT control, ok, detalle FROM (
   SELECT 1 AS orden, 'conexión' AS control, NULL::boolean AS ok,
@@ -213,5 +233,23 @@ SELECT control, ok, detalle FROM (
          coalesce(format('%s expedientes, %s con la cadena rota', split_part(d.cadena, '|', 1), split_part(d.cadena, '|', 2)),
                   'sin permiso para leer datos con este rol: npm run supabase:verificar')
     FROM datos d
+
+  UNION ALL
+  SELECT 19, 'Storage: bucket adjuntos privado',
+         CASE WHEN a.bucket IS NULL THEN NULL ELSE a.bucket LIKE '%|ok' END,
+         CASE WHEN NOT a.hay_storage THEN 'no hay esquema storage (no es Supabase)'
+              WHEN a.bucket IS NULL THEN 'este rol no ve el esquema storage: lo controla npm run supabase:verificar como postgres'
+              ELSE split_part(a.bucket, '|', 1) END
+    FROM almacen a
+
+  UNION ALL
+  SELECT 20, 'Storage: sin políticas para anon ni authenticated',
+         CASE WHEN NOT a.hay_storage THEN NULL
+              ELSE NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename IN ('objects', 'buckets')) END,
+         CASE WHEN NOT a.hay_storage THEN 'no hay esquema storage (no es Supabase)'
+              ELSE coalesce((SELECT string_agg(format('%s en storage.%s', policyname, tablename), ', ' ORDER BY tablename, policyname)
+                               FROM pg_policies WHERE schemaname = 'storage' AND tablename IN ('objects', 'buckets')),
+                            'ninguna política en storage.objects ni storage.buckets: con RLS, solo la clave secreta del servidor entra') END
+    FROM almacen a
 ) controles
 ORDER BY orden;

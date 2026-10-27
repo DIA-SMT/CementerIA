@@ -23,6 +23,13 @@ import { BYTES_CABECERA } from "./tipos";
  *
  * La app nunca borra un adjunto confirmado, salvo la purga del admin
  * (`borrar()`, semana 4).
+ *
+ * Hay dos implementaciones y se elige con ADJUNTOS_ALMACEN (./config.ts):
+ * `disco` (esta, el servidor municipal) y `supabase` (./supabase.ts, Supabase
+ * Storage, para Vercel). La de Storage suma la subida DIRECTA desde el
+ * navegador (`prepararSubidaDirecta()` e `inspeccionarTemporal()`): en Vercel
+ * el cuerpo de un request no puede pasar de 4,5 MB y un adjunto llega a 10 MB,
+ * así que al subir el archivo no pasa por la app (docs/despliegue-vercel.md).
  */
 
 export interface ArchivoRecibido {
@@ -37,7 +44,16 @@ export interface ArchivoRecibido {
 
 export interface ArchivoAbierto {
   contenido: ReadableStream<Uint8Array>;
-  bytes: number;
+  /** El largo del archivo, o null si el almacén no lo informa (va sin Content-Length). */
+  bytes: number | null;
+}
+
+/** Lo que necesita el navegador para subir el archivo directo al almacén. */
+export interface SubidaDirecta {
+  /** UUID del temporal (`tmp/<id>`) que el navegador va a escribir. */
+  id: string;
+  /** URL firmada para ese único destino: el navegador hace PUT del archivo ahí. */
+  url: string;
 }
 
 export interface AlmacenAdjuntos {
@@ -56,6 +72,20 @@ export interface AlmacenAdjuntos {
    * 25.326, 2.13(b)). No falla si ya no está: una purga repetida no es un error.
    */
   borrar(ruta: string): Promise<void>;
+  /**
+   * Solo los almacenes que aceptan la subida directa del navegador (Supabase
+   * Storage): reserva `tmp/<uuid>` y devuelve la URL firmada para escribirlo.
+   */
+  prepararSubidaDirecta?(): Promise<SubidaDirecta>;
+  /**
+   * Lee en streaming el temporal `tmp/<id>` que subió el navegador y lo mide
+   * como `recibir()`: bytes, sha256 y cabecera. No lo mueve ni lo borra (eso
+   * es `confirmar()` o `descartar()`), salvo que pase de `maxBytes`.
+   *
+   * @throws ArchivoMuyGrande si supera `maxBytes` (y lo borra)
+   * @throws TemporalAusente si no existe (el navegador no llegó a subirlo)
+   */
+  inspeccionarTemporal?(id: string, maxBytes: number): Promise<ArchivoRecibido>;
 }
 
 export class ArchivoMuyGrande extends Error {
@@ -65,14 +95,64 @@ export class ArchivoMuyGrande extends Error {
   }
 }
 
+/** El temporal de una subida directa no está en el almacén. */
+export class TemporalAusente extends Error {
+  constructor() {
+    super("El archivo no llegó al almacenamiento");
+    this.name = "TemporalAusente";
+  }
+}
+
+/** El almacén configurado no acepta la subida directa desde el navegador (es el disco). */
+export class SubidaDirectaNoDisponible extends Error {
+  constructor() {
+    super("Este almacenamiento recibe los adjuntos a través de la app, no directo desde el navegador");
+    this.name = "SubidaDirectaNoDisponible";
+  }
+}
+
+export interface Medidor {
+  /** @throws ArchivoMuyGrande en cuanto se pasa del máximo. */
+  agregar(parte: Uint8Array): void;
+  resultado(id: string): ArchivoRecibido;
+}
+
+/**
+ * Mide un archivo que pasa en pedazos, como `recibir()` del disco: bytes,
+ * sha256 al vuelo y los primeros `BYTES_CABECERA` bytes, con un máximo.
+ */
+export function crearMedidor(maxBytes: number): Medidor {
+  const hash = createHash("sha256");
+  const cabecera = new Uint8Array(BYTES_CABECERA);
+  let enCabecera = 0;
+  let bytes = 0;
+  return {
+    agregar(parte) {
+      bytes += parte.byteLength;
+      if (bytes > maxBytes) throw new ArchivoMuyGrande(maxBytes);
+      if (enCabecera < BYTES_CABECERA) {
+        const inicio = parte.subarray(0, BYTES_CABECERA - enCabecera);
+        cabecera.set(inicio, enCabecera);
+        enCabecera += inicio.byteLength;
+      }
+      hash.update(parte);
+    },
+    resultado(id) {
+      return { id, bytes, sha256: hash.digest("hex"), cabecera: cabecera.slice(0, enCabecera) };
+    },
+  };
+}
+
 /** `AAAA/MM/<uuid>`, con el año y el mes de Tucumán. */
 export function rutaParaAdjunto(ahora: Date, id: string): string {
   const [anio, mes] = diaEnTucuman(ahora).split("-");
   return `${anio}/${mes}/${id}`;
 }
 
-const RE_RUTA = /^\d{4}\/\d{2}\/[0-9a-f-]{36}$/;
-const RE_ID = /^[0-9a-f-]{36}$/;
+/** La ruta de un adjunto confirmado: `AAAA/MM/<uuid>`. */
+export const RE_RUTA = /^\d{4}\/\d{2}\/[0-9a-f-]{36}$/;
+/** El nombre de un temporal: un UUID. */
+export const RE_ID = /^[0-9a-f-]{36}$/;
 
 /**
  * La carpeta de los adjuntos: `ADJUNTOS_DIR` (en producción, obligatoria y

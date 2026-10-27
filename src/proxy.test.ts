@@ -27,6 +27,7 @@ describe("matcher del proxy", () => {
     // Las páginas de avisos sí renuevan la sesión (es actividad de la persona).
     "/avisos",
     "/api/avisos/otra-cosa",
+    "/api/cronx",
     // Un prefijo parecido no alcanza para quedar afuera.
     "/loginx",
     "/dev/loginx",
@@ -51,8 +52,15 @@ describe("matcher del proxy", () => {
     "/api/salud",
     // La subida de adjuntos se autentica sola: el proxy no toca ese cuerpo.
     "/api/expedientes/2026-00012/adjuntos",
+    // La subida directa a Supabase Storage (Vercel): igual.
+    "/api/expedientes/2026-00012/adjuntos/autorizar",
+    "/api/expedientes/2026-00012/adjuntos/confirmar",
     // El refresco automático de la campana no renueva la sesión (se verifica en la ruta).
     "/api/avisos/resumen",
+    // Vercel Cron: sin sesión, con Authorization: Bearer CRON_SECRET.
+    "/api/cron/avisos",
+    "/api/cron/historial",
+    "/api/cron/adjuntos-tmp",
   ])("no corre en %s", (url) => {
     expect(corre(url)).toBe(false);
   });

@@ -94,6 +94,8 @@ export function mensajeRespuestaSubida(status: number): string {
 export interface ArchivoParaSubir {
   contenido: Blob;
   nombre: string;
+  /** El tipo por magic bytes (no el que dice el navegador): la subida directa lo manda como Content-Type. */
+  mime: MimeAdjunto;
 }
 
 /**
@@ -104,7 +106,7 @@ export async function prepararArchivo(archivo: File): Promise<{ ok: true; archiv
   const cabecera = new Uint8Array(await archivo.slice(0, 16).arrayBuffer());
   const revision = revisarArchivo(archivo, cabecera);
   if (!revision.ok) return revision;
-  if (revision.tipo === "application/pdf") return { ok: true, archivo: { contenido: archivo, nombre: archivo.name } };
+  if (revision.tipo === "application/pdf") return { ok: true, archivo: { contenido: archivo, nombre: archivo.name, mime: revision.tipo } };
 
   let resultado: { blob: Blob; reducida: boolean };
   try {
@@ -113,7 +115,10 @@ export async function prepararArchivo(archivo: File): Promise<{ ok: true; archiv
     return { ok: false, mensaje: "No se pudo leer la imagen. Probá con otra foto o con un PDF." };
   }
   const usar = elegirVersion({ bytes: archivo.size }, { bytes: resultado.blob.size }, resultado.reducida);
-  const final = usar === "original" ? { contenido: archivo as Blob, nombre: archivo.name } : { contenido: resultado.blob, nombre: nombreJpeg(archivo.name) };
+  const final: ArchivoParaSubir =
+    usar === "original"
+      ? { contenido: archivo, nombre: archivo.name, mime: revision.tipo }
+      : { contenido: resultado.blob, nombre: nombreJpeg(archivo.name), mime: "image/jpeg" };
   const problema = revisarTamano(final.contenido.size);
   return problema ? { ok: false, mensaje: problema } : { ok: true, archivo: final };
 }

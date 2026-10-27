@@ -45,6 +45,12 @@ export interface DatosFlujo {
     nota: boolean;
     suprimirPersona: boolean;
   };
+  /**
+   * Cómo sube el navegador un adjunto (src/lib/adjuntos/config.ts): `app`, al
+   * Route Handler en streaming (disco); `directa`, a Supabase Storage con una
+   * URL firmada (Vercel).
+   */
+  subidaAdjuntos: "app" | "directa";
   /** Vigentes; null si están enmascarados (quien no trabaja el expediente los pide con motivo). */
   adjuntos: AdjuntoFicha[] | null;
   cantidadAdjuntos: number;

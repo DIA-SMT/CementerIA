@@ -58,6 +58,7 @@ nada a medias. Con psql: `psql -1 -v ON_ERROR_STOP=1 -f <archivo>`.
 | 6 | `30_semilla_produccion.sql` | Áreas, catálogos, cementerios, feriados y las 4 plantillas publicadas (nacen borrador y se publican, como exige `plantillas_congelar`), con el actor SISTEMA | Sí (lo que existe no se toca) |
 | 7 | `.local/35_admin_inicial.sql` | El administrador inicial (`ADMIN_INICIAL_CUIL`) con el hash de su contraseña temporal y `debe_cambiar_clave`. Si ya existe con contraseña, no lo toca; si existe sin, le pone la temporal | Sí |
 | 8 | `40_cierre_api.sql` | Les saca todo a `anon`, `authenticated` y `service_role` sobre las tablas, secuencias y funciones de `public` y `auditoria`, y los privilegios por defecto | Sí |
+| 8b | `45_storage.sql` | El bucket **privado** `adjuntos` de Supabase Storage (10 MB, PDF/JPEG/PNG, sin políticas). Solo lo usa el despliegue en Vercel ([docs/despliegue-vercel.md](../../docs/despliegue-vercel.md)); controles 19 y 20 de `99_verificar.sql` | Sí |
 | 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null) | Sí, las veces que haga falta |
 
 Los archivos que corren como dueño hacen `GRANT cementeria_owner TO postgres`,

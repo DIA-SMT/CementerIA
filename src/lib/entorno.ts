@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { enVercel, problemasAlmacen, tipoDeAlmacen } from "@/lib/adjuntos/config";
 import { log } from "@/lib/log";
 
 /**
@@ -208,6 +209,34 @@ export function entorno(): Entorno {
   return enCache;
 }
 
+/** Largo mínimo de CRON_SECRET (como SESSION_SECRET; Vercel pide 16 o más). */
+const MINIMO_CRON_SECRET = 32;
+
+/**
+ * Lo propio del despliegue que no es parte de `Entorno` (lo leen otros
+ * módulos): CRON_SECRET y DB_POOL_MAX. Nombra variable y regla, nunca el valor.
+ *
+ * - CRON_SECRET: opcional en general (en el servidor municipal las tareas las
+ *   corre systemd), pero en Vercel y en producción es obligatoria: vercel.json
+ *   declara los crons y sin ella sus rutas responden 401 siempre
+ *   (src/lib/cron/autorizacion.ts).
+ * - DB_POOL_MAX: un entero chico (en Vercel, con el Transaction pooler, 3).
+ */
+export function problemasDespliegue(fuente: Readonly<Record<string, string | undefined>>, produccion: boolean): string[] {
+  const problemas: string[] = [];
+  const cron = fuente.CRON_SECRET?.trim();
+  if (cron && cron.length < MINIMO_CRON_SECRET) {
+    problemas.push(`CRON_SECRET: tiene que tener al menos ${MINIMO_CRON_SECRET} caracteres aleatorios`);
+  } else if (!cron && produccion && enVercel(fuente)) {
+    problemas.push("CRON_SECRET: falta (en Vercel, vercel.json declara los crons y Vercel la manda como Authorization: Bearer)");
+  }
+  const pool = fuente.DB_POOL_MAX?.trim();
+  if (pool && !(/^\d+$/.test(pool) && Number(pool) >= 1 && Number(pool) <= 50)) {
+    problemas.push("DB_POOL_MAX: tiene que ser un entero de 1 a 50");
+  }
+  return problemas;
+}
+
 /**
  * Valida la configuración al arrancar y tira si no sirve. La llama
  * validarOTerminar() (src/lib/arranque.ts) desde `register()` de
@@ -219,20 +248,18 @@ export function validarEntornoAlIniciar(fuente: Readonly<Record<string, string |
   if (!fuente.DATABASE_URL?.trim()) {
     throw new EntornoInvalido(["DATABASE_URL: falta (rol cementeria_app)"]);
   }
-  // Los adjuntos van a una carpeta fuera del webroot (sección 6, "Adjuntos").
-  // En desarrollo hay un valor por defecto (./.data/adjuntos); en producción
-  // se exige al arrancar y no en la primera subida.
-  const adjuntos = fuente.ADJUNTOS_DIR?.trim();
-  if (resultado.produccion && !adjuntos) {
-    throw new EntornoInvalido(["ADJUNTOS_DIR: falta (carpeta de los adjuntos, fuera del webroot, por ejemplo /var/lib/cementeria/adjuntos)"]);
-  }
-  // Absoluta en POSIX (`/var/…`) o en Windows (`C:\…`), sin importar node:path:
-  // este módulo también lo lee el proxy.
-  if (resultado.produccion && adjuntos && !/^(\/|[A-Za-z]:[\\/])/.test(adjuntos)) {
-    throw new EntornoInvalido(["ADJUNTOS_DIR: en producción tiene que ser una ruta absoluta"]);
-  }
+  // Los adjuntos: el disco (ADJUNTOS_DIR, en producción obligatoria y
+  // absoluta, fuera del webroot) o Supabase Storage (SUPABASE_URL y
+  // SUPABASE_SECRET_KEY); ver src/lib/adjuntos/config.ts, que no usa
+  // node:path porque este módulo también lo lee el proxy. Se exige al
+  // arrancar y no en la primera subida.
+  const problemas = [...problemasAlmacen(fuente, resultado.produccion), ...problemasDespliegue(fuente, resultado.produccion)];
+  if (problemas.length > 0) throw new EntornoInvalido(problemas);
   log.info("entorno.validado", {
     nodeEnv: resultado.nodeEnv,
+    vercel: enVercel(fuente),
+    almacenAdjuntos: tipoDeAlmacen(fuente),
+    cron: Boolean(fuente.CRON_SECRET?.trim()),
     cidituc: resultado.cidituc.habilitado,
     devLogin: resultado.devLogin.habilitado,
     devLoginListaBlanca: resultado.devLogin.habilitado ? (resultado.devLogin.listaBlanca?.size ?? null) : null,

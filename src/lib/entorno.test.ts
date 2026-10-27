@@ -234,6 +234,36 @@ describe("arranque (src/instrumentation.ts)", () => {
     expect(validarEntornoAlIniciar({ SESSION_SECRET: SECRETO, DATABASE_URL: BASE }).produccion).toBe(false);
   });
 
+  it("con ADJUNTOS_ALMACEN=supabase no pide ADJUNTOS_DIR, pero sí SUPABASE_URL y SUPABASE_SECRET_KEY", () => {
+    const prod = { NODE_ENV: "production", SESSION_SECRET: SECRETO, DATABASE_URL: BASE, ADJUNTOS_ALMACEN: "supabase" };
+    expect(problemasDe(() => validarEntornoAlIniciar(prod))).toEqual([expect.stringMatching(/^SUPABASE_URL: falta/), expect.stringMatching(/^SUPABASE_SECRET_KEY: falta/)]);
+    const completo = { ...prod, SUPABASE_URL: "https://abcdefghijklmnop.supabase.co", SUPABASE_SECRET_KEY: "sb_secret_0123456789abcdef" };
+    expect(validarEntornoAlIniciar(completo).produccion).toBe(true);
+  });
+
+  it("en Vercel (producción): Storage y CRON_SECRET obligatorios; CRON_SECRET corto o DB_POOL_MAX raro, nunca", () => {
+    const vercel = {
+      NODE_ENV: "production",
+      VERCEL: "1",
+      SESSION_SECRET: SECRETO,
+      DATABASE_URL: BASE,
+      ADJUNTOS_ALMACEN: "supabase",
+      SUPABASE_URL: "https://abcdefghijklmnop.supabase.co",
+      SUPABASE_SECRET_KEY: "sb_secret_0123456789abcdef",
+    };
+    expect(problemasDe(() => validarEntornoAlIniciar(vercel))).toEqual([expect.stringMatching(/^CRON_SECRET: falta/)]);
+    expect(validarEntornoAlIniciar({ ...vercel, CRON_SECRET: "c".repeat(40), DB_POOL_MAX: "3" }).produccion).toBe(true);
+    expect(problemasDe(() => validarEntornoAlIniciar({ ...vercel, ADJUNTOS_ALMACEN: "disco", ADJUNTOS_DIR: "/tmp/a", CRON_SECRET: "c".repeat(40) }))).toEqual([
+      expect.stringMatching(/^ADJUNTOS_ALMACEN: en Vercel/),
+    ]);
+    expect(problemasDe(() => validarEntornoAlIniciar({ ...vercel, CRON_SECRET: "corto", DB_POOL_MAX: "0" }))).toEqual([
+      expect.stringMatching(/^CRON_SECRET: tiene que tener/),
+      expect.stringMatching(/^DB_POOL_MAX/),
+    ]);
+    // Fuera de Vercel CRON_SECRET es opcional (las tareas las corre systemd).
+    expect(validarEntornoAlIniciar({ NODE_ENV: "production", SESSION_SECRET: SECRETO, DATABASE_URL: BASE, ADJUNTOS_DIR: "/var/lib/cementeria/adjuntos" }).produccion).toBe(true);
+  });
+
   it("register() termina el proceso en producción con AUTH_DEV_LOGIN definida", async () => {
     // next start atrapa el error de register() y sigue escuchando: por eso
     // register() mismo hace process.exit(1). Acá se simula para no matar el

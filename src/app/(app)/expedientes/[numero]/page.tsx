@@ -7,6 +7,7 @@ import { Aviso } from "@/components/aviso";
 import { EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
 import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_ENLACE } from "@/components/formulario";
+import { modoDeSubida } from "@/lib/adjuntos/config";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio, expedientes, type DocumentoFicha, type Ficha, type MovimientoFicha, type PersonaFicha } from "@/lib/dominio/expedientes/servidor";
@@ -112,6 +113,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
       nota: a.nota.permitido,
       suprimirPersona: a.suprimirPersona.permitido,
     },
+    subidaAdjuntos: modoDeSubida(),
     adjuntos: ficha.adjuntos,
     cantidadAdjuntos: ficha.cantidadAdjuntos,
     estado: ficha.estado,

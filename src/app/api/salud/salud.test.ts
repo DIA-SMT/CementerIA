@@ -42,6 +42,12 @@ describe("versionDelBuild", () => {
     expect(versionDelBuild({ NEXT_DEPLOYMENT_ID: "otro_id" })).toBe("otro_id");
   });
 
+  it("en Vercel, el commit (el id dpl_… no dice qué código corre)", () => {
+    expect(versionDelBuild({ VERCEL_GIT_COMMIT_SHA: "3d7e88b0123456789" })).toBe("vercel-3d7e88b");
+    expect(versionDelBuild({ VERCEL_GIT_COMMIT_SHA: "3d7e88b0123456789", NEXT_DEPLOYMENT_ID: "dpl_AbC" })).toBe("vercel-3d7e88b");
+    expect(versionDelBuild({ VERCEL_GIT_COMMIT_SHA: "3d7e88b0123456789", NEXT_DEPLOYMENT_ID: "0_1_0-abc1234" })).toBe("0.1.0-abc1234");
+  });
+
   it("fuera de un paquete dice desarrollo", () => {
     expect(versionDelBuild({})).toBe("desarrollo");
     expect(versionDelBuild({ NEXT_DEPLOYMENT_ID: " " })).toBe("desarrollo");

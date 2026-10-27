@@ -15,7 +15,7 @@
 // Versionados (sin secretos ni datos personales):
 //   00_roles.sql, 01_extensiones.sql, 02_prisma_migrations.sql,
 //   20_migracion_<nombre>.sql (una por migración), 30_semilla_produccion.sql,
-//   40_cierre_api.sql, 99_verificar.sql
+//   40_cierre_api.sql, 45_storage.sql (el bucket privado de adjuntos), 99_verificar.sql
 // En supabase/sql/.local/ (ignorado por git), solo si .env.supabase.local
 // tiene SUPABASE_ADMIN_URL (y ADMIN_INICIAL_CUIL para el admin):
 //   05_claves.sql (ALTER ROLE … PASSWORD con verificadores SCRAM: las claves
@@ -431,6 +431,15 @@ export async function generar() {
   for (const m of migraciones) versionados.set(`20_migracion_${m.nombre}.sql`, archivoMigracion(m));
   versionados.set("30_semilla_produccion.sql", archivoSemilla(volcado, huellaSemilla()));
   versionados.set("40_cierre_api.sql", archivoCierre());
+  versionados.set(
+    "45_storage.sql",
+    archivoSimple(
+      "Bucket PRIVADO de adjuntos en Supabase Storage (solo para el despliegue en Vercel). Idempotente.",
+      "storage.sql",
+      "-- Lo usa la app con ADJUNTOS_ALMACEN=supabase (docs/despliegue-vercel.md). En el\n" +
+        "-- servidor municipal los adjuntos van al disco y este bucket queda vacío.",
+    ),
+  );
   versionados.set("99_verificar.sql", archivoVerificar());
   return { versionados, volcado };
 }

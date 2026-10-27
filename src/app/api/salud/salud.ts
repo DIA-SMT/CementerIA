@@ -26,6 +26,10 @@ export interface RespuestaSalud {
  */
 export function versionDelBuild(fuente: Readonly<Record<string, string | undefined>> = process.env): string {
   const id = fuente.NEXT_DEPLOYMENT_ID?.trim();
+  // En Vercel no hay paquete: el id del despliegue (dpl_…) no dice qué código
+  // corre, el commit sí (VERCEL_GIT_COMMIT_SHA, variable de sistema de Vercel).
+  const commit = fuente.VERCEL_GIT_COMMIT_SHA?.trim();
+  if (commit && (!id || id.startsWith("dpl_"))) return `vercel-${commit.slice(0, 7)}`;
   if (!id) return "desarrollo";
   return id.replace(/^(\d+)_(\d+)_(\d+)-/, "$1.$2.$3-");
 }

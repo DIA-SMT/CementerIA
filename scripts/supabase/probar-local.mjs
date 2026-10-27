@@ -202,7 +202,7 @@ async function probarArchivos(sim) {
     ok(filas99.length > 0 && mal99.length === 0, "99_verificar.sql con el rol postgres: nada en falso", `${filas99.filter((f) => f.ok).length} en verde, ${filas99.filter((f) => f.ok === null).length} informativos o sin permiso${mal99.length ? `; mal: ${mal99.map((f) => f.control).join(", ")}` : ""}`);
 
     // Idempotentes: otra vez, sin error.
-    for (const n of ["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql", "30_semilla_produccion.sql", "40_cierre_api.sql", "99_verificar.sql"]) {
+    for (const n of ["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql", "30_semilla_produccion.sql", "40_cierre_api.sql", "45_storage.sql", "99_verificar.sql"]) {
       try {
         await admin.query(readFileSync(path.join(SALIDA, n), "utf8"));
         ok(true, `${n} corrido dos veces: sin error`);
@@ -287,6 +287,10 @@ const CONSULTAS_ESTADO = {
                 JOIN pg_sequences s ON s.schemaname = 'public' AND s.sequencename = t.tabla || '_id_seq'
                ORDER BY 1`,
   auditoria: `SELECT tabla, operacion, motivo, count(*) AS n FROM auditoria.cambios GROUP BY 1, 2, 3 ORDER BY 1, 2, 3`,
+  // El bucket de adjuntos (45_storage.sql) y que no haya políticas en storage.
+  storage: `SELECT id, name, public, file_size_limit, allowed_mime_types,
+                   (SELECT count(*) FROM pg_policies WHERE schemaname = 'storage') AS politicas
+              FROM storage.buckets ORDER BY id`,
 };
 
 async function estado(sim) {

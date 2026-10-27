@@ -1,4 +1,13 @@
-import { ArchivoMuyGrande, rutaParaAdjunto, type AlmacenAdjuntos, type ArchivoRecibido } from "@/lib/adjuntos/almacen";
+import {
+  ArchivoMuyGrande,
+  RE_ID,
+  rutaParaAdjunto,
+  SubidaDirectaNoDisponible,
+  TemporalAusente,
+  type AlmacenAdjuntos,
+  type ArchivoRecibido,
+  type SubidaDirecta,
+} from "@/lib/adjuntos/almacen";
 import { detectarTipo, esHeic, limpiarNombreArchivo, MAXIMO_BYTES_ADJUNTO, type MimeAdjunto } from "@/lib/adjuntos/tipos";
 import { log, resumenError } from "@/lib/log";
 import { evaluarPermiso, exigirPermiso, PermisoDenegado, type UsuarioPermisos } from "../permisos";
@@ -6,7 +15,7 @@ import { exigirNumero, permisosDelExpediente, registrarAcceso, type OpcionesAcce
 import { validarComando } from "./alta";
 import { definicionDelExpediente } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
-import { ErrorDominio, errorValidacion, estadoNoAdmite, exigirMotivo, limpiarMotivo, noEncontrado } from "./errores";
+import { ErrorDominio, errorValidacion, estadoNoAdmite, exigirMotivo, limpiarMotivo, MENSAJE_CONFLICTO_VERSION, noEncontrado } from "./errores";
 import type { ItemsExpediente } from "./items";
 import { leerItems } from "./items";
 import { ejecutarAccion, idItem, recepcionImplicita } from "./operacion";
@@ -34,6 +43,19 @@ import { ejecutarAccion, idItem, recepcionImplicita } from "./operacion";
  *    se borra el temporal.
  *
  * Adjuntar no marca el documento como presentado: eso es `marcarDocumento`.
+ *
+ * **Subida directa** (almacén de Supabase Storage, despliegue en Vercel: el
+ * cuerpo de una función no puede pasar de 4,5 MB). En dos llamadas:
+ *
+ * - `autorizarSubidaAdjunto`: el paso 1 de arriba (y la versión), y una URL
+ *   firmada de subida hacia `tmp/<uuid>`. El navegador sube el archivo ahí.
+ * - `confirmarSubidaAdjunto`: otra vez el paso 1 (pudo cambiar algo entre las
+ *   dos llamadas), el temporal leído en streaming desde el almacén (tamaño y
+ *   sha256) y de ahí en adelante, los pasos 3 a 5 tal cual. Si algo falla,
+ *   borra el temporal.
+ *
+ * Los permisos, la versión, el comando y el movimiento son los mismos en los
+ * dos caminos: comparten `controlesPrevios` y `registrarArchivo`.
  *
  * **Lectura** (`leerAdjunto`): la llama el Route Handler
  * `/adjuntos/[movimientoId]` (`?descargar=1` para bajarlo). Exige ver los
@@ -134,7 +156,7 @@ export async function subirAdjunto(
   const almacen = exigirAlmacen(deps);
   const ahora = deps.ahora?.() ?? new Date();
   const nombre = limpiarNombreArchivo(metadatos.nombre);
-  const documento = metadatos.documento === null || metadatos.documento.trim() === "" ? null : metadatos.documento.trim();
+  const documento = limpiarDocumento(metadatos.documento);
 
   // 1. Lo que se puede saber sin leer el cuerpo.
   let previo: ResultadoAdjunto | null;
@@ -159,18 +181,54 @@ export async function subirAdjunto(
     }
     throw error;
   }
+  return registrarArchivo(deps, almacen, usuario, numero, archivo, { nombre, documento, ahora }, versionVista, comandoId);
+}
+
+/**
+ * El tipo de un archivo recibido por sus magic bytes, o el error para el
+ * usuario (vacío, HEIC u otro tipo). Pura.
+ */
+export function revisarRecibido(archivo: Pick<ArchivoRecibido, "bytes" | "cabecera">): { ok: true; mime: MimeAdjunto } | { ok: false; error: ErrorDominio } {
   const tipo = detectarTipo(archivo.cabecera);
-  if (archivo.bytes === 0 || tipo === null) {
+  if (archivo.bytes > 0 && tipo !== null) return { ok: true, mime: tipo.mime };
+  const mensaje = archivo.bytes === 0 ? "El archivo está vacío" : esHeic(archivo.cabecera) ? "Subilo como JPG" : "Solo se admiten PDF, JPG o PNG";
+  return { ok: false, error: new ErrorDominio("adjunto_invalido", mensaje, [{ ruta: "archivo", mensaje }]) };
+}
+
+/**
+ * Pasos 3 a 5, con el archivo ya en `tmp/` (por cualquiera de los dos
+ * caminos): el tipo, el movimiento y, con el commit hecho, el traslado a
+ * `AAAA/MM/<uuid>`. Si algo falla antes del commit, borra el temporal.
+ */
+async function registrarArchivo(
+  deps: DependenciasExpedientes,
+  almacen: AlmacenAdjuntos,
+  usuario: UsuarioPermisos,
+  numero: string,
+  archivo: ArchivoRecibido,
+  m: { nombre: string; documento: string | null; ahora: Date },
+  versionVista: number,
+  comandoId: string,
+): Promise<ResultadoAdjunto> {
+  // 3. El tipo.
+  const revision = revisarRecibido(archivo);
+  if (!revision.ok) {
     await almacen.descartar(archivo);
-    const mensaje = archivo.bytes === 0 ? "El archivo está vacío" : esHeic(archivo.cabecera) ? "Subilo como JPG" : "Solo se admiten PDF, JPG o PNG";
-    throw new ErrorDominio("adjunto_invalido", mensaje, [{ ruta: "archivo", mensaje }]);
+    throw revision.error;
   }
-  const ruta = rutaParaAdjunto(ahora, archivo.id);
+  const ruta = rutaParaAdjunto(m.ahora, archivo.id);
 
   // 4. El movimiento.
   let resultado: ResultadoAdjunto;
   try {
-    resultado = await registrarAdjunto(deps, usuario, numero, { archivo, mime: tipo.mime, nombre, documento, ruta }, versionVista, comandoId);
+    resultado = await registrarAdjunto(
+      deps,
+      usuario,
+      numero,
+      { archivo, mime: revision.mime, nombre: m.nombre, documento: m.documento, ruta },
+      versionVista,
+      comandoId,
+    );
   } catch (error) {
     await almacen.descartar(archivo);
     throw error;
@@ -186,11 +244,119 @@ export async function subirAdjunto(
     await almacen.confirmar(archivo, ruta);
   } catch (error) {
     // El movimiento ya está y el archivo quedó en tmp/: hay que moverlo a mano
-    // antes del barrido de 24 h. Es un problema del disco, no del usuario.
+    // antes del barrido de 24 h. Es un problema del almacén, no del usuario.
     log.error("adjunto.confirmar_fallo", { movimiento: resultado.movimientoId, temporal: archivo.id, ruta, ...resumenError(error) });
     throw error;
   }
   return resultado;
+}
+
+// ---------------------------------------------------------------------------
+// Subida directa (Supabase Storage)
+// ---------------------------------------------------------------------------
+
+export type AutorizacionSubida =
+  /** El comando ya se usó: lo de entonces, como en `subirAdjunto`. */
+  | { tipo: "repetido"; resultado: ResultadoAdjunto }
+  /** El navegador sube el archivo a `subida.url` y después llama a `confirmarSubidaAdjunto` con `subida.id`. */
+  | { tipo: "subir"; subida: SubidaDirecta };
+
+function noDisponible(): ErrorDominio {
+  return new ErrorDominio("validacion", "Este servidor recibe los adjuntos por la app: recargá la página y probá de nuevo.");
+}
+
+/**
+ * Primera mitad de la subida directa: los mismos controles que `subirAdjunto`
+ * antes de leer el cuerpo, más la versión (para no subir 10 MB que el
+ * movimiento va a rechazar), y la URL firmada hacia `tmp/<uuid>`.
+ *
+ * @throws PermisoDenegado
+ * @throws ErrorDominio `no_encontrado`, `conflicto_version`, `estado_no_admite`, `validacion`
+ */
+export async function autorizarSubidaAdjunto(
+  deps: DependenciasExpedientes,
+  usuario: UsuarioPermisos,
+  numero: string,
+  metadatos: Pick<MetadatosAdjunto, "documento">,
+  versionVista: number,
+  comandoId: string,
+): Promise<AutorizacionSubida> {
+  const almacen = exigirAlmacen(deps);
+  if (!almacen.prepararSubidaDirecta) throw noDisponible();
+  const documento = limpiarDocumento(metadatos.documento);
+  const previo = await controlesPrevios(deps, usuario, numero, comandoId, documento, versionVista);
+  if (previo) return { tipo: "repetido", resultado: previo };
+  try {
+    return { tipo: "subir", subida: await almacen.prepararSubidaDirecta() };
+  } catch (error) {
+    if (error instanceof SubidaDirectaNoDisponible) throw noDisponible();
+    throw error;
+  }
+}
+
+/**
+ * Segunda mitad: el navegador ya subió el archivo a `tmp/<idTemporal>`. Se
+ * vuelven a hacer los controles (pudo cambiar algo entre las dos llamadas),
+ * se lee el temporal desde el almacén (tamaño máximo, sha256 y magic bytes:
+ * lo que dice el navegador no cuenta) y sigue igual que `subirAdjunto`.
+ * Cualquier error borra el temporal.
+ *
+ * @param idTemporal el UUID que devolvió `autorizarSubidaAdjunto` (la capa
+ *   HTTP lo recibe firmado: ver src/lib/adjuntos/ticket.ts).
+ * @throws PermisoDenegado
+ * @throws ErrorDominio como `subirAdjunto`, y `validacion` si el archivo no llegó
+ */
+export async function confirmarSubidaAdjunto(
+  deps: DependenciasExpedientes,
+  usuario: UsuarioPermisos,
+  numero: string,
+  idTemporal: string,
+  metadatos: MetadatosAdjunto,
+  versionVista: number,
+  comandoId: string,
+): Promise<ResultadoAdjunto> {
+  const almacen = exigirAlmacen(deps);
+  if (!almacen.inspeccionarTemporal) throw noDisponible();
+  if (!RE_ID.test(idTemporal)) throw new ErrorDominio("validacion", "La subida no es válida: volvé a elegir el archivo.");
+  const ahora = deps.ahora?.() ?? new Date();
+  const nombre = limpiarNombreArchivo(metadatos.nombre);
+  const documento = limpiarDocumento(metadatos.documento);
+  // Para borrar el temporal ante cualquier error, antes de saber cuánto mide.
+  const pendiente: ArchivoRecibido = { id: idTemporal, bytes: 0, sha256: "", cabecera: new Uint8Array(0) };
+
+  let previo: ResultadoAdjunto | null;
+  try {
+    previo = await controlesPrevios(deps, usuario, numero, comandoId, documento);
+  } catch (error) {
+    await almacen.descartar(pendiente).catch(() => undefined);
+    throw error;
+  }
+  if (previo) {
+    // El comando ya se registró (un reintento): el archivo que vale es el de entonces.
+    await almacen.descartar(pendiente).catch(() => undefined);
+    return previo;
+  }
+
+  let archivo: ArchivoRecibido;
+  try {
+    archivo = await almacen.inspeccionarTemporal(idTemporal, MAXIMO_BYTES_ADJUNTO);
+  } catch (error) {
+    if (error instanceof ArchivoMuyGrande) {
+      // inspeccionarTemporal ya lo borró.
+      throw new ErrorDominio("adjunto_muy_grande", "El archivo supera los 10 MB", [{ ruta: "archivo", mensaje: "Máximo 10 MB" }]);
+    }
+    if (error instanceof TemporalAusente) {
+      throw new ErrorDominio("validacion", "El archivo no llegó al almacenamiento: probá subirlo de nuevo.", [{ ruta: "archivo", mensaje: "No llegó" }]);
+    }
+    if (error instanceof SubidaDirectaNoDisponible) throw noDisponible();
+    await almacen.descartar(pendiente).catch(() => undefined);
+    throw error;
+  }
+  return registrarArchivo(deps, almacen, usuario, numero, archivo, { nombre, documento, ahora }, versionVista, comandoId);
+}
+
+function limpiarDocumento(documento: string | null): string | null {
+  return documento === null || documento.trim() === "" ? null : documento.trim();
 }
 
 async function controlesPrevios(
@@ -199,6 +365,8 @@ async function controlesPrevios(
   numero: string,
   comandoId: string,
   documento: string | null,
+  /** Solo la autorización de la subida directa: la versión también se mira antes. */
+  versionVista?: number,
 ): Promise<ResultadoAdjunto | null> {
   const comando = validarComando(comandoId);
   const numeroInterno = exigirNumero(numero);
@@ -216,6 +384,8 @@ async function controlesPrevios(
   exigirPermiso("adjuntar", await permisosDelExpediente(deps.leer, exp), usuario);
   const def = await definicionDelExpediente(deps.leer, exp, exp.plantilla);
   validarDocumento(def.documentos, documento);
+  // El mismo error que daría el movimiento (operacion.ts), antes de subir nada.
+  if (versionVista !== undefined && exp.version !== versionVista) throw new ErrorDominio("conflicto_version", MENSAJE_CONFLICTO_VERSION);
   return null;
 }
 
@@ -316,7 +486,8 @@ export interface AdjuntoLeido {
   movimientoId: string;
   nombre: string;
   mime: string;
-  bytes: number;
+  /** El largo que informa el almacén (va como Content-Length), o null si no lo informa. */
+  bytes: number | null;
   sha256: string;
   /** `inline` para el visor de la ficha; `attachment` para la descarga. */
   disposicion: "inline" | "attachment";

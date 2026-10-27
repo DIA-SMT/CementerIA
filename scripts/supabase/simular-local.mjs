@@ -18,6 +18,9 @@
 //     postgres con él;
 //   * USAGE sobre public para los roles de la API y los privilegios por defecto
 //     que Supabase les da sobre lo que crean postgres y supabase_admin en public;
+//   * el esquema storage (storage.buckets y storage.objects con RLS, de
+//     supabase_storage_admin, con privilegios por defecto para postgres): lo
+//     justo para aplicar y verificar 45_storage.sql;
 //   * la base en UTC;
 //   * TLS obligatorio (hostssl) con un certificado de servidor firmado por una
 //     CA propia, generada para la prueba con openssl (el equivalente a
@@ -27,7 +30,8 @@
 // sirve para probar que preparar.mjs las mueve a public.
 //
 // Lo que NO imita: Supavisor (el pooler: usuarios rol.<ref>, modo transacción),
-// supautils, la versión (Supabase usa 15 o 17; acá 15) ni los servicios.
+// supautils, la versión (Supabase usa 15 o 17; acá 15) ni los servicios (la API
+// de Storage la imitan los tests con un servidor falso: tests/stubs/storage-falso.ts).
 //
 // --env-salida escribe un .env con SUPABASE_ADMIN_URL, ADMIN_INICIAL_CUIL
 // (ficticio) y DATABASE_CA_FILE, listo para `preparar.mjs --env <archivo>`.
@@ -131,6 +135,49 @@ function sqlDeFabrica(verificadorPostgres) {
     ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
     ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
     ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+
+    -- Storage, lo que importa para 45_storage.sql: el esquema storage de
+    -- supabase_admin con privilegios por defecto para postgres y los roles de la
+    -- API, storage.buckets y storage.objects con RLS y sin políticas, de
+    -- supabase_storage_admin (como las migraciones de supabase/storage y
+    -- supabase/postgres). Las columnas, las de buckets que usa la app.
+    CREATE ROLE supabase_storage_admin LOGIN NOINHERIT;
+    CREATE SCHEMA storage AUTHORIZATION supabase_admin;
+    GRANT USAGE ON SCHEMA storage TO postgres, anon, authenticated, service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+    CREATE TABLE storage.buckets (
+      id text PRIMARY KEY,
+      name text NOT NULL,
+      owner uuid,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now(),
+      public boolean DEFAULT false,
+      avif_autodetection boolean DEFAULT false,
+      file_size_limit bigint,
+      allowed_mime_types text[],
+      owner_id text
+    );
+    CREATE UNIQUE INDEX bname ON storage.buckets (name);
+    CREATE TABLE storage.objects (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      bucket_id text REFERENCES storage.buckets (id),
+      name text,
+      owner uuid,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now(),
+      last_accessed_at timestamptz DEFAULT now(),
+      metadata jsonb,
+      version text,
+      owner_id text
+    );
+    CREATE UNIQUE INDEX bucketid_objname ON storage.objects (bucket_id, name);
+    ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+    GRANT ALL PRIVILEGES ON SCHEMA storage TO supabase_storage_admin;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA storage TO supabase_storage_admin;
+    ALTER TABLE storage.buckets OWNER TO supabase_storage_admin;
+    ALTER TABLE storage.objects OWNER TO supabase_storage_admin;
   `;
 }
 

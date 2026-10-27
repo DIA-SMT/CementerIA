@@ -58,7 +58,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  * - /api/salud, que consultan nginx y el monitoreo sin cookie;
  * - la subida de adjuntos, POST /api/expedientes/[numero]/adjuntos: el proxy no
  *   tiene que tocar ese cuerpo (hasta 10 MB, en streaming) y la ruta se
- *   autentica sola con getUsuarioActual() (sección 6, "Adjuntos").
+ *   autentica sola con getUsuarioActual() (sección 6, "Adjuntos"). Lo mismo
+ *   …/adjuntos/autorizar y …/adjuntos/confirmar (la subida directa a Supabase
+ *   Storage, en Vercel), que el mismo prefijo deja afuera.
+ * - las tareas programadas de Vercel Cron, /api/cron/*: no hay sesión (llama
+ *   Vercel) y cada ruta exige Authorization: Bearer CRON_SECRET
+ *   (src/lib/cron/autorizacion.ts).
  * - el refresco de la campana, GET /api/avisos/resumen: si pasara por acá, la
  *   pregunta automática de cada 60 s renovaría la sesión y los 60 minutos de
  *   inactividad no vencerían nunca. La ruta verifica la sesión sin renovarla.
@@ -69,6 +74,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  */
 export const config = {
   matcher: [
-    "/((?!_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|api/avisos/resumen(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
+    "/((?!_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|api/avisos/resumen(?:/|$)|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
   ],
 };

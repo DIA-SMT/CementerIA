@@ -137,6 +137,16 @@ de Supabase verificando el host (`DATABASE_CA_FILE`), RLS en todas las tablas
 con política solo para la app (migración `*_rls_defensa`) y un simulador local
 de Supabase para probar todo sin el proyecto real (`npm run supabase:probar`).
 
+Despliegue en **Vercel** (decisión del 27/10/2026;
+[docs/despliegue-vercel.md](docs/despliegue-vercel.md)): región `gru1` junto a
+la base, adjuntos en un bucket privado de Supabase Storage
+(`ADJUNTOS_ALMACEN=supabase`; el navegador sube directo con una URL firmada y
+la app verifica tamaño, magic bytes y sha256 antes de registrar; la lectura
+sigue pasando por la app en streaming), tareas programadas con Vercel Cron
+(`/api/cron/*`, con `CRON_SECRET`) y los encabezados de seguridad desde
+`next.config.ts`. El despliegue en el servidor municipal (nginx, systemd,
+disco) sigue igual: se elige por configuración.
+
 Recorridos guiados (27/10/2026; [docs/diseno.md](docs/diseno.md), sección
 "Recorridos guiados"): para el piloto, cada pantalla tiene un recorrido corto
 (de 4 a 8 pasos) que resalta cada parte y la explica en lenguaje de mostrador,
@@ -242,7 +252,7 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run db:local:detener` | Lo detiene |
 | `npm run db:reset` | Base vacía, migraciones (`prisma migrate deploy`) y semilla |
 | `npm run db:seed` | Solo la semilla. Idempotente: crea lo que falta y no toca lo que existe |
-| `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`<ADJUNTOS_DIR>/tmp/`) de más de 24 h (`-- --horas N` para otra antigüedad) |
+| `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`tmp/` del almacén: `<ADJUNTOS_DIR>/tmp/` o Supabase Storage) de más de 24 h (`-- --horas N` para otra antigüedad) |
 | `npm run empaquetar` | Arma el paquete de despliegue (build standalone, migraciones y CLI de Prisma) desde el último commit, en `build/paquetes/`. Ver [docs/despliegue.md](docs/despliegue.md) |
 | `npm run db:verificar-restauracion` | Controla una base restaurada (conteos, dueños, triggers, cadena de hash, sha256 de adjuntos). Lo usa `scripts/restaurar-prueba.sh` |
 | `npm run historial:verificar` | Verifica la cadena de hash del historial de todos los expedientes y lo registra en `auditoria.accesos` como SISTEMA (`-- --sin-registro` para no registrar). Sale con 1 si hay alguno roto |
@@ -657,6 +667,10 @@ Documentadas una por una en [.env.example](.env.example).
 | `CIDITUC_API_URL` | Backend contra el que se valida el token; https en producción |
 | `CIDITUC_CA_PEM` | Opcional: certificado intermedio que reemplaza al embebido |
 | `ADJUNTOS_DIR` | Carpeta de los adjuntos, fuera del webroot. Obligatoria y absoluta en producción; en desarrollo, `./.data/adjuntos` |
+| `ADJUNTOS_ALMACEN` | `disco` (por defecto, `ADJUNTOS_DIR`) o `supabase` (Supabase Storage, bucket privado `adjuntos`: Vercel) |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Con `ADJUNTOS_ALMACEN=supabase`: el origen del proyecto y la clave **secreta** del servidor (`sb_secret_…`, solo en `apikey`; nunca llega al navegador) |
+| `CRON_SECRET` | Vercel Cron: `Authorization: Bearer` de `/api/cron/*` (32 caracteres o más; obligatoria en Vercel) |
+| `ENCABEZADOS_SEGURIDAD` | `app` (en el build): los encabezados de seguridad desde Next fuera de Vercel, para un hosting sin nginx |
 
 ## Documentos
 
@@ -673,6 +687,9 @@ Documentadas una por una en [.env.example](.env.example).
   (servidor, base y roles, entorno, nginx, systemd, paquete, actualizaciones,
   rollback, backups, prueba de restauración y checklist), para Sistemas y el
   equipo. La sección 18 es la base en Supabase.
+- [docs/despliegue-vercel.md](docs/despliegue-vercel.md): el despliegue en
+  Vercel paso a paso (proyecto, región, variables, bucket de Storage,
+  dominio, crons y verificación).
 - [supabase/sql/README.md](supabase/sql/README.md): la base de Supabase a mano,
   desde el SQL Editor del panel.
 - [docs/taller-plantillas.md](docs/taller-plantillas.md): guía del taller de

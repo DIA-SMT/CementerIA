@@ -7,7 +7,8 @@
 //
 // Corre con `npm run avisos:generar` (en desarrollo, contra DATABASE_URL de
 // .env.local). En producción la dispara el timer `cementeria-avisos` todos los
-// días a las 6:00 (deploy/systemd/, docs/despliegue.md).
+// días a las 6:00 (deploy/systemd/, docs/despliegue.md). En Vercel, lo mismo lo
+// corre GET /api/cron/avisos (src/lib/tareas/programadas.ts, docs/despliegue-vercel.md).
 //
 // Escribe una línea JSON (como el barrido de adjuntos y la verificación del
 // historial). Sale con 0 si generó (aunque no haya creado ninguno) y con 2 si
@@ -18,11 +19,9 @@
 //                        (para probar; en producción no se usa)
 
 import { config as cargarEnv } from "dotenv";
-import { SISTEMA_ID } from "../src/lib/auth/ingreso";
-import { conActorEn } from "../src/lib/db/actor";
 import { crearCliente } from "../src/lib/db/crear-cliente";
-import { generarYAnotar } from "../src/lib/dominio/avisos";
 import { esFechaValida, inicioDelDiaEnTucuman } from "../src/lib/fechas";
+import { tareaAvisos } from "../src/lib/tareas/programadas";
 
 cargarEnv({ path: ".env.local", quiet: true });
 
@@ -44,18 +43,8 @@ async function main(): Promise<number> {
   const ahora = ahoraDe(process.argv);
   const cliente = crearCliente();
   try {
-    const inicio = Date.now();
-    // Como SISTEMA, con más tiempo que una acción de la app: recorre todos los expedientes en trabajo.
-    const r = await conActorEn(cliente, SISTEMA_ID, "Avisos por tiempo (tarea programada)", (tx) => generarYAnotar(tx, ahora), {
-      timeout: 120_000,
-    });
-    log("info", "avisos.generados", {
-      dia: r.dia,
-      expedientes: r.expedientes,
-      creados: r.creados,
-      por_tipo: Object.fromEntries(Object.entries(r.porTipo).filter(([, n]) => n > 0)),
-      duracion_ms: Date.now() - inicio,
-    });
+    const r = await tareaAvisos(cliente, ahora);
+    log("info", "avisos.generados", { dia: r.dia, expedientes: r.expedientes, creados: r.creados, por_tipo: r.porTipo, duracion_ms: r.duracionMs });
     return 0;
   } finally {
     await cliente.$disconnect();

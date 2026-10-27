@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ServicioExpedientes } from "@/lib/dominio/expedientes";
 import { ErrorDominio } from "@/lib/dominio/expedientes/errores";
 import { PermisoDenegado, type UsuarioPermisos } from "@/lib/dominio/permisos";
-import { disposicion, HEADERS_SEGUROS, responderLectura, responderSubida, statusDeError } from "./adjuntos-http";
+import { firmarTicket, verificarTicket } from "@/lib/adjuntos/ticket";
+import { disposicion, HEADERS_SEGUROS, responderAutorizacion, responderConfirmacion, responderLectura, responderSubida, statusDeError } from "./adjuntos-http";
 
 // Lo que no necesita base: el contrato HTTP. Con la base real, en
 // tests/integracion/adjuntos-http.test.ts.
@@ -153,5 +154,69 @@ describe("GET de lectura", () => {
         throw new Error("disco");
       }),
     ).rejects.toThrow("disco");
+  });
+});
+
+describe("subida directa (Supabase Storage): autorizar y confirmar", () => {
+  const SECRETO = "secreto-de-prueba-que-tiene-mas-de-32-caracteres";
+  const base = "http://localhost:3000/api/expedientes/CEM-2026-00001/adjuntos";
+  const ID = "0b0e7c6e-5a1f-4e43-9a43-0e7d2b6f1c11";
+  const COMANDO = "6f1c9a43-0e7d-4e43-9a43-0b0e7c6e5a1f";
+  const post = (ruta: string, cuerpo: unknown, headers: HeadersInit = {}) =>
+    new Request(`${base}/${ruta}`, { method: "POST", body: typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo), headers });
+  const resultado = { numero: "CEM-2026-00001", version: 4, repetido: false, movimientoId: "99", documento: null, nombre: "a.pdf", mime: "application/pdf", bytes: 1, sha256: "x", recepcionImplicita: false };
+
+  it("autorizar: URL firmada y un ticket atado al usuario, expediente y comando; o lo de antes si el comando ya se usó", async () => {
+    const autorizarSubidaAdjunto = vi.fn(async () => ({ tipo: "subir" as const, subida: { id: ID, url: "https://x.supabase.co/storage/v1/object/upload/sign/adjuntos/tmp/x?token=t" } }));
+    const r = await responderAutorizacion(servicio({ autorizarSubidaAdjunto }), usuario, "CEM-2026-00001", post("autorizar", { documento: "DNI", version: 3, comando: COMANDO, bytes: 9_000_000 }), SECRETO);
+    expect(r.status).toBe(200);
+    const cuerpo = (await r.json()) as { ok: boolean; subida: { url: string; ticket: string } };
+    expect(cuerpo.subida.url).toMatch(/token=t$/);
+    expect(verificarTicket(SECRETO, cuerpo.subida.ticket, { usuarioId: usuario.id, numero: "CEM-2026-00001", comando: COMANDO })).toEqual({ ok: true, id: ID });
+    expect(autorizarSubidaAdjunto.mock.calls[0]).toEqual([usuario, "CEM-2026-00001", { documento: "DNI" }, 3, COMANDO]);
+
+    const repetido = vi.fn(async () => ({ tipo: "repetido" as const, resultado: { ...resultado, repetido: true } }));
+    const r2 = await responderAutorizacion(servicio({ autorizarSubidaAdjunto: repetido }), usuario, "CEM-2026-00001", post("autorizar", { version: 3, comando: COMANDO }), SECRETO);
+    expect(await r2.json()).toMatchObject({ ok: true, repetido: true, movimientoId: "99" });
+  });
+
+  it("autorizar: sin sesión 401, otro origen 403, JSON roto 400, más de 10 MB declarados 413, sin versión 422; sin llamar al dominio", async () => {
+    const autorizarSubidaAdjunto = vi.fn();
+    const s = servicio({ autorizarSubidaAdjunto });
+    expect((await responderAutorizacion(s, null, "N", post("autorizar", {}), SECRETO)).status).toBe(401);
+    expect((await responderAutorizacion(s, usuario, "N", post("autorizar", {}, { origin: "https://otro.example", host: "localhost:3000" }), SECRETO)).status).toBe(403);
+    expect((await responderAutorizacion(s, usuario, "N", post("autorizar", "{no es json"), SECRETO)).status).toBe(400);
+    expect((await responderAutorizacion(s, usuario, "N", post("autorizar", { version: 3, comando: COMANDO, bytes: 11 * 1024 * 1024 }), SECRETO)).status).toBe(413);
+    expect((await responderAutorizacion(s, usuario, "N", post("autorizar", { comando: COMANDO }), SECRETO)).status).toBe(422);
+    expect(autorizarSubidaAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("confirmar: con un ticket válido pasa el id del temporal; con uno ajeno 403 y vencido 422, sin llamar al dominio", async () => {
+    const confirmarSubidaAdjunto = vi.fn(async () => resultado);
+    const s = servicio({ confirmarSubidaAdjunto });
+    const ticket = firmarTicket(SECRETO, { usuarioId: usuario.id, numero: "CEM-2026-00001", comando: COMANDO }, ID);
+    const ok = await responderConfirmacion(s, usuario, "CEM-2026-00001", post("confirmar", { ticket, nombre: "a.pdf", documento: null, version: 3, comando: COMANDO }), SECRETO);
+    expect(ok.status).toBe(201);
+    expect(await ok.json()).toMatchObject({ ok: true, movimientoId: "99" });
+    expect(confirmarSubidaAdjunto.mock.calls[0]).toEqual([usuario, "CEM-2026-00001", ID, { nombre: "a.pdf", documento: null }, 3, COMANDO]);
+
+    confirmarSubidaAdjunto.mockClear();
+    const otroUsuario = { ...usuario, id: 8 };
+    expect((await responderConfirmacion(s, otroUsuario, "CEM-2026-00001", post("confirmar", { ticket, version: 3, comando: COMANDO }), SECRETO)).status).toBe(403);
+    expect((await responderConfirmacion(s, usuario, "CEM-2026-00002", post("confirmar", { ticket, version: 3, comando: COMANDO }), SECRETO)).status).toBe(403);
+    const vencido = firmarTicket(SECRETO, { usuarioId: usuario.id, numero: "CEM-2026-00001", comando: COMANDO }, ID, Date.now() - 3 * 60 * 60 * 1000);
+    expect((await responderConfirmacion(s, usuario, "CEM-2026-00001", post("confirmar", { ticket: vencido, version: 3, comando: COMANDO }), SECRETO)).status).toBe(422);
+    expect(confirmarSubidaAdjunto).not.toHaveBeenCalled();
+  });
+
+  it("confirmar: los errores del dominio con su status (magic bytes 415, tamaño 413)", async () => {
+    const ticket = firmarTicket(SECRETO, { usuarioId: usuario.id, numero: "N", comando: COMANDO }, ID);
+    for (const [codigo, status] of [["adjunto_invalido", 415], ["adjunto_muy_grande", 413], ["conflicto_version", 409]] as const) {
+      const confirmarSubidaAdjunto = vi.fn(async () => {
+        throw new ErrorDominio(codigo, "x");
+      });
+      const r = await responderConfirmacion(servicio({ confirmarSubidaAdjunto }), usuario, "N", post("confirmar", { ticket, version: 3, comando: COMANDO }), SECRETO);
+      expect(r.status).toBe(status);
+    }
   });
 });

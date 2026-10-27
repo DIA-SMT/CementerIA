@@ -20,7 +20,8 @@
 //      el archivo de entorno como DATABASE_URL y MIGRATE_DATABASE_URL;
 //   c. unaccent y pg_trgm en public (sql/extensiones.sql);
 //   d. `prisma migrate deploy` con el rol de deploy;
-//   e. cierre de la API de Supabase (sql/cierre-api-*.sql);
+//   e. cierre de la API de Supabase (sql/cierre-api-*.sql) y el bucket privado
+//      de adjuntos de Storage (sql/storage.sql: para el despliegue en Vercel);
 //   f. semilla de producción: --sin-ficticios y el admin de ADMIN_INICIAL_CUIL,
 //      con una contraseña TEMPORAL (login propio) que la semilla imprime una vez
 //      y escribe en supabase/sql/.local/clave-admin-inicial.txt (o en
@@ -265,6 +266,8 @@ async function cerrarApi(cfg, admin) {
   await admin.query(leerFuente("cierre-api-postgres.sql"));
   bien("anon, authenticated y service_role: sin privilegios sobre tablas, secuencias y funciones de public y auditoria, ni por defecto");
   aviso("Falta lo del panel: apagar la Data API (Settings → API → Data API). Ver docs/despliegue.md.");
+  await admin.query(leerFuente("storage.sql"));
+  bien("bucket de Storage adjuntos: privado, 10 MB, PDF/JPEG/PNG, sin políticas (lo usa el despliegue en Vercel)");
 }
 
 async function sembrar(cfg, clavesCambiadas) {
@@ -360,6 +363,32 @@ export async function verificar(cfg, { mostrar = true } = {}) {
     }
   } finally {
     await admin.end();
+  }
+
+  // El bucket de adjuntos (Storage), como postgres: cementeria_app no ve el esquema storage.
+  {
+    const admin3 = await conectarConReintentos(cfg.urls.admin, { ca: cfg.ca, aplicacion: "cementeria-verificar" }, { intentos: 2 });
+    try {
+      const hay = (await admin3.query("SELECT to_regclass('storage.buckets') IS NOT NULL AS hay")).rows[0].hay;
+      if (!hay) {
+        controles.push({ control: "Storage: bucket adjuntos (como postgres)", ok: false, detalle: "no está storage.buckets" });
+      } else {
+        const b = (
+          await admin3.query(
+            `SELECT public, file_size_limit::text AS limite, (SELECT array_agg(x ORDER BY x) FROM unnest(allowed_mime_types) x) AS tipos
+               FROM storage.buckets WHERE id = 'adjuntos'`,
+          )
+        ).rows[0];
+        const tipos = (b?.tipos ?? []).join(" ");
+        controles.push({
+          control: "Storage: bucket adjuntos (como postgres)",
+          ok: Boolean(b) && b.public === false && b.limite === "10485760" && tipos === "application/pdf image/jpeg image/png",
+          detalle: b ? `privado: ${!b.public}, límite ${b.limite} bytes, tipos: ${tipos}` : "no existe el bucket adjuntos",
+        });
+      }
+    } finally {
+      await admin3.end();
+    }
   }
 
   // Alta de prueba que se deshace (cadena de hash) y la verificación nocturna.

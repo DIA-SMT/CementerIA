@@ -8,6 +8,7 @@ import { atributosCampo, Campo, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CL
 import type { EstadoError } from "@/lib/presentacion/errores";
 import { formatearBytes, nuevoComandoId } from "@/lib/presentacion/flujo";
 import { ACCEPT_ADJUNTO, mensajeRespuestaSubida, prepararArchivo } from "@/lib/presentacion/imagen";
+import { subirDirecto, type RespuestaSubida } from "@/lib/presentacion/subida-directa";
 import { dialogoDeVuelta, useFlujo } from "./estado";
 
 /**
@@ -16,6 +17,11 @@ import { dialogoDeVuelta, useFlujo } from "./estado";
  * como JPEG 0,8 antes de subir. La subida es un `fetch` al Route Handler
  * `POST /api/expedientes/[numero]/adjuntos` con el archivo como cuerpo (no
  * pasa por una Server Action: su límite es 1 MB y no hace streaming).
+ *
+ * Con el almacén de Supabase Storage (`datos.subidaAdjuntos === "directa"`,
+ * el despliegue en Vercel) la pantalla es la misma y solo cambia el
+ * transporte: autorizar, subir directo a Storage y confirmar
+ * (src/lib/presentacion/subida-directa.ts).
  */
 
 /** La URL de subida con los metadatos en la query (el cuerpo es el archivo). */
@@ -51,18 +57,25 @@ export function DialogoAdjuntar({ documento, volverA }: { documento: string | nu
     if (!preparado.ok) return fallar(preparado.mensaje);
 
     setEtapa("subiendo");
-    let respuesta: Response;
-    try {
-      respuesta = await fetch(rutaSubida(datos.numero, { nombre: preparado.archivo.nombre, documento, version, comando: comandoId }), {
-        method: "POST",
-        body: preparado.archivo.contenido,
-        headers: { "Content-Type": preparado.archivo.contenido.type || "application/octet-stream" },
-      });
-    } catch {
-      return fallar("No se pudo conectar con el servidor. Revisá la conexión y probá de nuevo.", "red");
+    let cuerpo: RespuestaSubida;
+    if (datos.subidaAdjuntos === "directa") {
+      // Supabase Storage (Vercel): autorizar, subir directo y confirmar.
+      cuerpo = await subirDirecto(datos.numero, preparado.archivo, { documento, version, comando: comandoId });
+    } else {
+      let respuesta: Response;
+      try {
+        respuesta = await fetch(rutaSubida(datos.numero, { nombre: preparado.archivo.nombre, documento, version, comando: comandoId }), {
+          method: "POST",
+          body: preparado.archivo.contenido,
+          headers: { "Content-Type": preparado.archivo.contenido.type || "application/octet-stream" },
+        });
+      } catch {
+        return fallar("No se pudo conectar con el servidor. Revisá la conexión y probá de nuevo.", "red");
+      }
+      const json = (await respuesta.json().catch(() => null)) as RespuestaSubida | null;
+      if (!json || typeof json !== "object" || !("ok" in json)) return fallar(mensajeRespuestaSubida(respuesta.status), String(respuesta.status));
+      cuerpo = json;
     }
-    const cuerpo = (await respuesta.json().catch(() => null)) as ({ ok: true; version: number; nombre: string } | EstadoError) | null;
-    if (!cuerpo || typeof cuerpo !== "object" || !("ok" in cuerpo)) return fallar(mensajeRespuestaSubida(respuesta.status), String(respuesta.status));
     if (!cuerpo.ok) {
       setError(cuerpo);
       setEtapa("elegir");

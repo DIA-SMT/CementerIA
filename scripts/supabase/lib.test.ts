@@ -158,6 +158,7 @@ describe("supabase/sql/ al día (sin base; la comparación completa es npm run s
     for (const [archivo, fuente] of [
       ["00_roles.sql", "roles.sql"],
       ["01_extensiones.sql", "extensiones.sql"],
+      ["45_storage.sql", "storage.sql"],
       ["99_verificar.sql", "verificar.sql"],
     ]) {
       expect(readFileSync(path.join(SALIDA, archivo), "utf8")).toContain(leerFuente(fuente).trimEnd());

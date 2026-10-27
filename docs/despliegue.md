@@ -10,6 +10,13 @@
 > **La base del MVP va en Supabase** (decisión del 27/10/2026): ver la
 > [sección 18](#18-base-en-supabase). Las secciones 4, 12 y 13 describen la base
 > en el servidor municipal que preveía la propuesta.
+>
+> **La app se despliega en Vercel** (decisión del 27/10/2026), con los
+> adjuntos en Supabase Storage y las tareas en Vercel Cron: ver
+> [docs/despliegue-vercel.md](despliegue-vercel.md). Este runbook (nginx,
+> systemd, disco) sigue valiendo para el servidor municipal: las dos variantes
+> salen del mismo código y se eligen por configuración (`ADJUNTOS_ALMACEN`,
+> `VERCEL`).
 
 Cada paso dice quién lo hace: **[S]** Sistemas, **[D]** Dirección de IA.
 Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
@@ -36,6 +43,8 @@ Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
 16. [Staging](#16-staging)
 17. [Probar el paquete en local](#17-probar-el-paquete-en-local)
 18. [Base en Supabase](#18-base-en-supabase)
+
+Despliegue en Vercel: [docs/despliegue-vercel.md](despliegue-vercel.md).
 
 ---
 
@@ -893,7 +902,10 @@ Supabase publica el esquema `public` por HTTP (PostgREST) con los roles
 apagar "Enable Data API"** (si la versión del panel no tiene el interruptor,
 sacar `public` de "Exposed schemas" y no dejar ningún esquema expuesto). Las
 claves `anon` y `service_role` del panel **no se usan ni se copian a ningún
-lado**. Tampoco se usan Auth, Storage ni Realtime de Supabase.
+lado**. Tampoco se usan Auth ni Realtime de Supabase. Storage, solo en el
+despliegue en Vercel: un bucket privado `adjuntos` sin políticas, al que entra
+solo la clave secreta del servidor (`45_storage.sql`;
+[docs/despliegue-vercel.md](despliegue-vercel.md)).
 
 Esa es la primera barrera; las otras dos las pone la preparación (18.4):
 `anon`, `authenticated` y `service_role` sin ningún privilegio sobre las
@@ -923,7 +935,7 @@ pasos manuales en SQL. Hace, en orden:
 | b | Crea `cementeria_owner` (NOLOGIN), `cementeria_deploy` (LOGIN, NOINHERIT, miembro del owner, `SET role = cementeria_owner`) y `cementeria_app` (LOGIN), con claves aleatorias de 32 bytes que se mandan como **verificador SCRAM** (la clave no viaja ni queda en el log de la base). Guarda `DATABASE_URL` y `MIGRATE_DATABASE_URL` (usuario `rol.<ref>`, como exige Supavisor) en `.env.supabase.local`. **Nunca las imprime** | `scripts/supabase/sql/roles.sql` |
 | c | Base `postgres` (en Supabase no hay CREATE DATABASE): CONNECT para app y deploy, CREATE para el owner; zona horaria por rol; `unaccent` y `pg_trgm` en `public` (las mueve si estaban en `extensions`) | `sql/roles.sql`, `sql/extensiones.sql` |
 | d | `prisma migrate deploy` con `cementeria_deploy` (entra como owner: todo queda a su nombre) | `prisma/migrations` |
-| e | Cierre de la API: REVOKE de todo a `anon`, `authenticated` y `service_role` sobre tablas, secuencias y funciones de `public` y `auditoria`, y `ALTER DEFAULT PRIVILEGES` del owner para lo que se cree después | `sql/cierre-api-*.sql` |
+| e | Cierre de la API: REVOKE de todo a `anon`, `authenticated` y `service_role` sobre tablas, secuencias y funciones de `public` y `auditoria`, y `ALTER DEFAULT PRIVILEGES` del owner para lo que se cree después; y el bucket **privado** `adjuntos` de Storage (10 MB, PDF/JPEG/PNG, sin políticas), que usa solo el despliegue en Vercel | `sql/cierre-api-*.sql`, `sql/storage.sql` |
 | f | Semilla de **producción**: `--sin-ficticios` (áreas, catálogos, cementerios, plantillas publicadas, feriados) y el admin de `ADMIN_INICIAL_CUIL`, con una **contraseña temporal** (login propio) que la semilla imprime una vez y deja en `supabase/sql/.local/clave-admin-inicial.txt` (no se versiona). Si el admin ya existía con contraseña, no se toca. Ningún dato ficticio | `prisma/seed.ts` |
 | g | Verificación **como `cementeria_app`**: triggers ENABLE ALWAYS, dueños, que la app no pueda UPDATE/DELETE/TRUNCATE del historial (también con un intento real), que `anon` y `authenticated` no lean ninguna tabla (intento real), privilegios por defecto, RLS, extensiones (`f_normalizar('GONZÁLEZ…')`), zona de la sesión UTC, sin usuarios ficticios, un **alta de prueba con la cadena de hash que se deshace** (no deja datos ni huecos de numeración) y `historial:verificar`. Termina con un resumen sin secretos | `sql/verificar.sql`, `scripts/supabase/probar-alta.ts` |
 

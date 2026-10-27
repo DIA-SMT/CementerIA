@@ -18,7 +18,14 @@
  */
 
 import { buscarExpedientes, type EntradaBusqueda } from "../busqueda";
-import { leerAdjunto, subirAdjunto, type MetadatosAdjunto, type OpcionesLecturaAdjunto } from "./adjuntos";
+import {
+  autorizarSubidaAdjunto,
+  confirmarSubidaAdjunto,
+  leerAdjunto,
+  subirAdjunto,
+  type MetadatosAdjunto,
+  type OpcionesLecturaAdjunto,
+} from "./adjuntos";
 import { bandeja, contadoresBandeja, contadorPorConfirmar, type PestanaBandeja } from "./bandejas";
 import { devolver, type OpcionesDevolucion } from "./devolucion";
 import { marcarDocumento, type EstadoMarcable, type OpcionesDocumento } from "./documentos";
@@ -152,6 +159,18 @@ export function crearServicioExpedientes(deps: DependenciasExpedientes) {
       versionVista: number,
       comandoId: string,
     ) => subirAdjunto(deps, usuario, numero, contenido, metadatos, versionVista, comandoId),
+    /** Subida directa, 1.ª mitad (`POST …/adjuntos/autorizar`): controles y URL firmada hacia tmp/. */
+    autorizarSubidaAdjunto: (usuario: UsuarioPermisos, numero: string, metadatos: Pick<MetadatosAdjunto, "documento">, versionVista: number, comandoId: string) =>
+      autorizarSubidaAdjunto(deps, usuario, numero, metadatos, versionVista, comandoId),
+    /** Subida directa, 2.ª mitad (`POST …/adjuntos/confirmar`): lee el temporal del almacén y registra el movimiento. */
+    confirmarSubidaAdjunto: (
+      usuario: UsuarioPermisos,
+      numero: string,
+      idTemporal: string,
+      metadatos: MetadatosAdjunto,
+      versionVista: number,
+      comandoId: string,
+    ) => confirmarSubidaAdjunto(deps, usuario, numero, idTemporal, metadatos, versionVista, comandoId),
     /** Visor y descarga (Route Handler `/adjuntos/[movimientoId]`); registra el acceso. */
     leerAdjunto: (usuario: UsuarioPermisos, movimientoId: string, opciones?: OpcionesLecturaAdjunto) =>
       leerAdjunto(deps, usuario, movimientoId, opciones),
@@ -335,7 +354,7 @@ export {
   type PersonaValidada,
   type ValorCampoExtra,
 } from "./esquemas";
-export type { AdjuntoLeido, MetadatosAdjunto, OpcionesLecturaAdjunto, ResultadoAdjunto } from "./adjuntos";
+export type { AdjuntoLeido, AutorizacionSubida, MetadatosAdjunto, OpcionesLecturaAdjunto, ResultadoAdjunto } from "./adjuntos";
 export {
   MAXIMO_FILAS_BANDEJA,
   PESTANAS_BANDEJA,

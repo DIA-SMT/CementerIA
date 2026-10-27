@@ -51,13 +51,18 @@ export function leerCaDeBase(entorno: Entorno = process.env, cwd: string = proce
   const ruta = entorno.DATABASE_CA_FILE?.trim();
   if (!ruta) return null;
   const archivo = path.resolve(cwd, ruta);
-  if (!existsSync(archivo)) {
+  // turbopackIgnore: la ruta es de configuración (en el servidor,
+  // /etc/cementeria/…; en Vercel no se usa: va DATABASE_CA_PEM). Sin el
+  // comentario, Turbopack rastrea el proyecto ENTERO hacia el paquete de cada
+  // función (aviso "Dynamic filesystem access causes tracing of the whole
+  // project"), lo que en Vercel arriesga el límite de tamaño.
+  if (!existsSync(/*turbopackIgnore: true*/ archivo)) {
     throw new Error(
       `DATABASE_CA_FILE apunta a ${archivo}, que no existe. Es el certificado raíz de Supabase ` +
         "(Settings → Database → SSL Configuration → Download certificate); ver docs/despliegue.md, \"Base en Supabase\".",
     );
   }
-  const contenido = readFileSync(archivo, "utf8");
+  const contenido = readFileSync(/*turbopackIgnore: true*/ archivo, "utf8");
   exigirPem(contenido, `DATABASE_CA_FILE (${archivo})`);
   return { pem: contenido, origen: "DATABASE_CA_FILE", archivo };
 }

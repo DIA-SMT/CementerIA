@@ -751,6 +751,38 @@ desarrollo. **Barrido** de temporales de más de 24 h: `npm run adjuntos:barrer`
 (`scripts/barrer-adjuntos-tmp.ts`, opción `--horas N`), o
 `barrerTemporales(almacen, ahora, horas)` desde otro script.
 
+**Supabase Storage** (27/10/2026, despliegue en Vercel;
+[docs/despliegue-vercel.md](despliegue-vercel.md)): con
+`ADJUNTOS_ALMACEN=supabase` el almacén es `crearAlmacenSupabase()`
+(`@/lib/adjuntos/supabase`, bucket privado `adjuntos`) con la misma interfaz
+(`tmp/<uuid>` → `AAAA/MM/<uuid>`, purga, retiro, barrido) más dos métodos para
+la **subida directa** del navegador, porque en Vercel una función no recibe
+más de 4,5 MB:
+
+```ts
+// POST /api/expedientes/[numero]/adjuntos/autorizar  { documento, version, comando, bytes }
+expedientes.autorizarSubidaAdjunto(usuario, numero, { documento }, versionVista, comandoId)
+// → { tipo: "subir", subida: { id, url } }        url firmada de subida hacia tmp/<id>
+// → { tipo: "repetido", resultado: ResultadoAdjunto }   el comando ya se usó
+// La capa HTTP responde { ok, subida: { url, ticket } } (ticket HMAC: usuario, expediente, comando, id; 2 h).
+
+// El navegador: PUT <url> con el archivo (Content-Type por magic bytes).
+
+// POST /api/expedientes/[numero]/adjuntos/confirmar  { ticket, nombre, documento, version, comando }
+expedientes.confirmarSubidaAdjunto(usuario, numero, idTemporal, { nombre, documento }, versionVista, comandoId)
+// → ResultadoAdjunto, como subirAdjunto
+```
+
+`autorizarSubidaAdjunto` hace el paso 1 y además compara la versión (el mismo
+`conflicto_version` que daría el movimiento). `confirmarSubidaAdjunto` vuelve a
+hacer el paso 1, lee el temporal desde Storage en streaming (más de 10 MB:
+`adjunto_muy_grande`; si no está: `validacion`, "El archivo no llegó…") y
+sigue con los pasos 3 a 5 tal cual; cualquier error borra el temporal. Con el
+disco las dos responden `validacion` ("…recibe los adjuntos por la app"). La
+pantalla elige el transporte con `DatosFlujo.subidaAdjuntos` (`"app"` o
+`"directa"`, `modoDeSubida()` de `@/lib/adjuntos/config`). `leerAdjunto`
+devuelve `bytes: null` si el almacén no informa el largo (sin Content-Length).
+
 ### 12.6 Pase y "Faltan N"
 
 `expedientes.validarPase(usuario, numero): Promise<ValidacionPase>` (no escribe ni registra accesos)
@@ -1542,7 +1574,8 @@ expedientes con `DATABASE_URL` y lo registra como SISTEMA. Una línea JSON
 motivo de cada roto). Sale con 0 si todo está íntegro, 1 si hay alguno roto y
 2 si no pudo verificar. Con `-- --sin-registro` no escribe en la auditoría. En
 producción lo dispara el timer `cementeria-historial` a las 03:30
-(docs/despliegue.md). `npm run db:verificar-restauracion` suma el control
+(docs/despliegue.md); en Vercel, `GET /api/cron/historial` (Vercel Cron, 06:30
+UTC, con `CRON_SECRET`; 500 si hay alguno roto; docs/despliegue-vercel.md). `npm run db:verificar-restauracion` suma el control
 `cadena`.
 
 ### 19.3 Agrupación por paso (`./tramos.ts`)
@@ -1806,7 +1839,9 @@ en `avisos_corridas`.
 1. La **tarea programada**, todos los días a las 6:00 de Tucumán: `npm run
    avisos:generar` (`scripts/generar-avisos.ts`; en el paquete,
    `scripts/generar-avisos.mjs`), timer `cementeria-avisos`
-   (docs/despliegue.md). Una línea JSON (`avisos.generados` con lo creado por
+   (docs/despliegue.md); en Vercel, `GET /api/cron/avisos` (Vercel Cron, 09:00
+   UTC; docs/despliegue-vercel.md). Las dos llaman a `tareaAvisos()` de
+   `@/lib/tareas/programadas`. Una línea JSON (`avisos.generados` con lo creado por
    tipo); sale con 2 si no pudo. `-- --fecha AAAA-MM-DD` genera como si fuera
    ese día (para probar).
 2. Si ese día no corrió (el servidor estuvo apagado, el timer falló, o en
