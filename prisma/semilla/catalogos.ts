@@ -35,4 +35,8 @@ export const TIPOS_TRAMITE: readonly CodigoNombre[] = [
   { codigo: "RENOVACION", nombre: "Renovación de concesión" },
   { codigo: "RENOVACION_SPT", nombre: "Renovación sin perjuicio de tercero" },
   { codigo: "NUEVA_CONCESION", nombre: "Nueva concesión" },
+  // Procedimiento de inhumación de la Dirección (docs/fuentes, 27/10/2026): sus
+  // dos plantillas (pago en la Dirección o en la empresa fúnebre) suman juntas.
+  // Va al final para no correr los ids de los demás en una base ya sembrada.
+  { codigo: "INHUMACION", nombre: "Inhumación" },
 ];

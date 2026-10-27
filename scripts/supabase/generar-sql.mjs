@@ -15,7 +15,9 @@
 // Versionados (sin secretos ni datos personales):
 //   00_roles.sql, 01_extensiones.sql, 02_prisma_migrations.sql,
 //   20_migracion_<nombre>.sql (una por migración), 30_semilla_produccion.sql,
-//   40_cierre_api.sql, 45_storage.sql (el bucket privado de adjuntos), 99_verificar.sql
+//   31_inhumacion.sql (lo que la semilla agregó después, para una base que ya
+//   tiene la anterior: ver INCREMENTALES), 40_cierre_api.sql, 45_storage.sql
+//   (el bucket privado de adjuntos), 99_verificar.sql
 // En supabase/sql/.local/ (ignorado por git), solo si .env.supabase.local
 // tiene SUPABASE_ADMIN_URL (y ADMIN_INICIAL_CUIL para el admin):
 //   05_claves.sql (ALTER ROLE … PASSWORD con verificadores SCRAM: las claves
@@ -173,7 +175,7 @@ function literalJson(valor) {
  * La semilla de producción volcada del simulador.
  * @param {{ tablas: { tabla: string, columnas: { nombre: string, identidad: string }[], filas: object[], clave: string[] }[], motivo: string }} volcado
  */
-function archivoSemilla(volcado, huella) {
+export function archivoSemilla(volcado, huella) {
   const partes = [
     "-- Que estén las migraciones (SISTEMA, id 1, lo inserta reglas_base).",
     "DO $$",
@@ -237,6 +239,148 @@ function archivoSemilla(volcado, huella) {
     ) +
     "\n" +
     comoOwner(partes.join("\n")) +
+    "\n"
+  );
+}
+
+/**
+ * Lo que la semilla agregó después de que el paquete se aplicó en Supabase, en
+ * un archivo aparte para una base que YA tiene una semilla anterior. Volver a
+ * correr 30_semilla_produccion.sql ahí no es seguro: inserta con los ids de
+ * una base vacía y `ON CONFLICT DO NOTHING` (sin clave), así que si el admin ya
+ * creó un tipo de trámite o una plantilla con ese id, la fila nueva se saltea
+ * en silencio, la plantilla queda apuntando a otro tipo de trámite y el UPDATE
+ * de la publicación puede publicar un borrador del admin. Estos archivos
+ * buscan por CÓDIGO y dejan que la base ponga los ids.
+ *
+ * Cada uno nombra los tipos de trámite y las plantillas que agrega; el
+ * contenido sale del mismo volcado que el 30, así que dicen lo mismo.
+ */
+export const INCREMENTALES = [
+  {
+    archivo: "31_inhumacion.sql",
+    titulo: "Inhumación (27/10/2026): el tipo de trámite INHUMACION y sus dos plantillas publicadas.",
+    tiposTramite: ["INHUMACION"],
+    plantillas: ["INHUMACION_DIRECCION", "INHUMACION_EMPRESA"],
+  },
+];
+
+/**
+ * Un archivo incremental de la semilla (ver INCREMENTALES). Idempotente: un
+ * tipo de trámite que ya existe (por código) se reusa, y una plantilla cuyo
+ * código ya existe (en cualquier versión o estado) no se toca. Al final
+ * controla que cada plantilla tenga una versión publicada: si no, falla y no
+ * deja nada.
+ */
+function archivoIncremental(volcado, inc) {
+  const tabla = (nombre) => {
+    const t = volcado.tablas.find((x) => x.tabla === nombre);
+    if (!t) throw new Error(`El volcado no tiene la tabla ${nombre}`);
+    return t;
+  };
+  const tipos = tabla("tipos_tramite");
+  const plantillas = tabla("plantillas");
+  // Sin los ids: los pone la base (y no confunden a quien lea el archivo).
+  const sinIds = (f, ...otras) => Object.fromEntries(Object.entries(f).filter(([k]) => k !== "id" && !otras.includes(k)));
+  const filasTipo = inc.tiposTramite.map((codigo) => {
+    const f = tipos.filas.find((x) => x.codigo === codigo);
+    if (!f) throw new Error(`${inc.archivo}: la semilla no tiene el tipo de trámite ${codigo}`);
+    return sinIds(f);
+  });
+  const codigoTipo = new Map(tipos.filas.map((f) => [f.id, f.codigo]));
+  const filasPlantilla = inc.plantillas.map((codigo) => {
+    const f = plantillas.filas.find((x) => x.codigo === codigo);
+    if (!f) throw new Error(`${inc.archivo}: la semilla no tiene la plantilla ${codigo}`);
+    // El tipo de trámite va por código: en la base de destino su id puede ser otro.
+    return { ...sinIds(f, "tipo_tramite_id"), tipo_tramite: codigoTipo.get(f.tipo_tramite_id) };
+  });
+  const lista = (codigos) => codigos.map((c) => `'${c}'`).join(", ");
+
+  const colsTipo = tipos.columnas.filter((c) => !c.identidad).map((c) => c.nombre);
+  const colsPlantilla = plantillas.columnas.filter((c) => !c.identidad).map((c) => c.nombre);
+  const valorPlantilla = (c) =>
+    c === "tipo_tramite_id" ? "v_tipo" : c === "estado" ? "'borrador'" : c === "publicado_por" ? "NULL" : `d."${c}"`;
+
+  const cuerpo = [
+    "-- Que estén las migraciones y la semilla anterior (30_semilla_produccion.sql).",
+    "DO $$",
+    "BEGIN",
+    "  IF NOT EXISTS (SELECT FROM public.usuarios WHERE id = 1 AND apellido = 'SISTEMA') THEN",
+    "    RAISE EXCEPTION 'No está el usuario SISTEMA: aplicá antes las migraciones (20_migracion_*.sql)';",
+    "  END IF;",
+    "  IF NOT EXISTS (SELECT FROM public.areas) OR NOT EXISTS (SELECT FROM public.cementerios) THEN",
+    "    RAISE EXCEPTION 'No están las áreas ni los cementerios: aplicá antes 30_semilla_produccion.sql';",
+    "  END IF;",
+    "END",
+    "$$;",
+    "",
+    "-- El actor, como conActor(): SISTEMA y el motivo de la semilla.",
+    `SELECT set_config('app.usuario_id', '1', true), set_config('app.motivo', '${volcado.motivo.replaceAll("'", "''")}', true);`,
+    "",
+    `-- tipos_tramite: ${filasTipo.length} fila(s), por código (si ya existe, se reusa).`,
+    `INSERT INTO public.tipos_tramite (${colsTipo.map((c) => `"${c}"`).join(", ")})`,
+    `SELECT ${colsTipo.map((c) => `d."${c}"`).join(", ")}`,
+    `  FROM jsonb_populate_recordset(NULL::public.tipos_tramite, ${literalJson(filasTipo)}) AS d`,
+    "ON CONFLICT (codigo) DO NOTHING;",
+    "",
+    `-- plantillas: ${filasPlantilla.length}. Cada una nace borrador y se publica con un UPDATE de esa`,
+    "-- misma fila (plantillas_congelar); si el código ya existe, no se toca.",
+    "DO $incremental$",
+    "DECLARE",
+    "  f jsonb;",
+    "  v_tipo smallint;",
+    "  v_id integer;",
+    "BEGIN",
+    `  FOR f IN SELECT x FROM jsonb_array_elements(${literalJson(filasPlantilla)}) AS x LOOP`,
+    "    IF EXISTS (SELECT FROM public.plantillas WHERE codigo = f ->> 'codigo') THEN",
+    "      RAISE NOTICE 'La plantilla % ya existe: no se toca.', f ->> 'codigo';",
+    "      CONTINUE;",
+    "    END IF;",
+    "    SELECT id INTO v_tipo FROM public.tipos_tramite WHERE codigo = f ->> 'tipo_tramite';",
+    "    IF v_tipo IS NULL THEN",
+    "      RAISE EXCEPTION 'No existe el tipo de trámite %', f ->> 'tipo_tramite';",
+    "    END IF;",
+    `    INSERT INTO public.plantillas (${colsPlantilla.map((c) => `"${c}"`).join(", ")})`,
+    `    SELECT ${colsPlantilla.map(valorPlantilla).join(", ")}`,
+    "      FROM jsonb_populate_record(NULL::public.plantillas, f) AS d",
+    "    RETURNING id INTO v_id;",
+    "    UPDATE public.plantillas",
+    "       SET estado = f ->> 'estado', publicado_por = (f ->> 'publicado_por')::integer, publicado_en = now()",
+    "     WHERE id = v_id AND f ->> 'estado' <> 'borrador';",
+    "  END LOOP;",
+    "END",
+    "$incremental$;",
+    "",
+    "-- Control: cada plantilla tiene una versión publicada (si no, nada de este archivo queda).",
+    "DO $$",
+    "DECLARE",
+    "  faltan text;",
+    "BEGIN",
+    "  SELECT string_agg(c, ', ') INTO faltan",
+    `    FROM unnest(ARRAY[${lista(inc.plantillas)}]) AS c`,
+    "   WHERE NOT EXISTS (SELECT FROM public.plantillas p WHERE p.codigo = c AND p.estado = 'publicada');",
+    "  IF faltan IS NOT NULL THEN",
+    "    RAISE EXCEPTION 'Quedaron sin versión publicada: % (¿ya existían como borrador o retiradas? Revisalas en /admin/plantillas)', faltan;",
+    "  END IF;",
+    "END",
+    "$$;",
+  ].join("\n");
+
+  return (
+    encabezado(
+      inc.titulo,
+      [
+        "-- Para una base de Supabase que YA tiene aplicada una semilla anterior: agrega",
+        `-- solo esto (tipos de trámite: ${inc.tiposTramite.join(", ")}; plantillas: ${inc.plantillas.join(", ")}),`,
+        "-- buscando por código y dejando que la base ponga los ids. No hace falta volver a",
+        "-- correr 30_semilla_produccion.sql (y no conviene: inserta con ids fijos). En una",
+        "-- base nueva, después del 30 no hace nada (el 30 ya trae todo).",
+        "-- Idempotente: lo que ya existe (por código) no se toca. Mismo contenido que el 30",
+        "-- (el mismo volcado de prisma/semilla).",
+      ].join("\n"),
+    ) +
+    "\n" +
+    comoOwner(cuerpo) +
     "\n"
   );
 }
@@ -430,6 +574,7 @@ export async function generar() {
   );
   for (const m of migraciones) versionados.set(`20_migracion_${m.nombre}.sql`, archivoMigracion(m));
   versionados.set("30_semilla_produccion.sql", archivoSemilla(volcado, huellaSemilla()));
+  for (const inc of INCREMENTALES) versionados.set(inc.archivo, archivoIncremental(volcado, inc));
   versionados.set("40_cierre_api.sql", archivoCierre());
   versionados.set(
     "45_storage.sql",

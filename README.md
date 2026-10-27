@@ -164,6 +164,20 @@ ofrecerlos. Componente propio (`src/components/recorrido/`, motor puro en
 `src/lib/presentacion/recorridos/`), sin dependencias nuevas ni cambios en la
 base.
 
+Inhumación (27/10/2026; [docs/fuentes/README.md](docs/fuentes/README.md),
+"Procedimiento de inhumación"): el procedimiento que pasó la Dirección, cargado
+como datos, sin código de dominio ni migraciones. Un tipo de trámite nuevo,
+**Inhumación**, con dos plantillas publicadas (v1, "Carga inicial, a validar"):
+**INHUMACION_DIRECCION** (Mesa de Entradas, Liquidación con la boleta, que
+lleva la apertura solo en Jardín, el cementerio y "Conocimiento y archivo" en
+Mesa) e **INHUMACION_EMPRESA** (paga la empresa fúnebre: Mesa verifica e informa
+el horario, el cementerio y "Conocimiento y archivo"). Lo que el modelo no puede
+decir (una vía de pago "la paga la empresa fúnebre", la fecha de defunción
+obligatoria) y las preguntas para la Dirección están en
+[docs/taller-plantillas.md](docs/taller-plantillas.md), plantillas E y F. En
+Supabase: `supabase/sql/31_inhumacion.sql` ([supabase/sql/README.md](supabase/sql/README.md),
+"La semilla cambió").
+
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
 tocar código de Next, leer [AGENTS.md](AGENTS.md): Next 16 cambia APIs y
@@ -279,7 +293,8 @@ prisma/
                            (26/10/2026, a mano: la cadena de hash del historial) y
                            *_avisos (26/10/2026: avisos, preferencias y corridas)
   seed.ts, semilla/        semilla: áreas, catálogos, cementerios, feriados,
-                           usuarios ficticios y las 4 plantillas de la sección 4
+                           usuarios ficticios, las 4 plantillas de la sección 4 y
+                           las 2 de inhumación (27/10/2026)
 scripts/
   db-local.mjs, lib/       PostgreSQL local con embedded-postgres
   db-init.sql              roles, bases y extensiones de DESARROLLO (owner con CREATEDB)
@@ -392,8 +407,9 @@ playwright.config.ts       configuración de Playwright (el arnés está en test
 `npm run db:seed` (y el final de `npm run db:reset`) carga, con el rol de la app
 y firmado por el usuario técnico SISTEMA: 11 áreas, 3 cementerios con su
 nomenclatura (Oeste: sección A a H; Jardín: romanos; Norte: provisoria) y sus
-tipos de monumento, tipos de monumento y de trámite, feriados 2026 y 2027
-(años sin cerrar), las 4 plantillas publicadas como v1, el admin de
+tipos de monumento, tipos de monumento y de trámite (con Inhumación, desde el
+27/10/2026), feriados 2026 y 2027 (años sin cerrar), las 6 plantillas
+publicadas como v1 (las 4 de la carga inicial y las 2 de inhumación), el admin de
 `ADMIN_INICIAL_CUIL` y un usuario ficticio por área. Los datos están en
 `prisma/semilla/`, con las marcas [I] y [C] de la propuesta.
 
@@ -406,7 +422,7 @@ Oeste) y 3 históricos. Quedan en el primer paso. Cada uno tiene un `comando_id`
 que una segunda corrida no los duplica.
 
 Después de los 30 carga los **escenarios** (`prisma/semilla/escenarios.ts`):
-34 expedientes ficticios más (`CEM-2026-00031` a `00064` en una base recién
+37 expedientes ficticios más (`CEM-2026-00031` a `00067` en una base recién
 reseteada) repartidos por todo el circuito, para que cada bandeja y el panel
 tengan algo. Se crean y se mueven solo con las funciones del dominio (alta,
 recepción, tildes, documentos, pases, devoluciones, estados, correcciones,
@@ -454,6 +470,9 @@ base recién reseteada):
 | Mesa de Entradas | X1 · 00061 | Archivado sin concluir desde el cementerio, con motivo, regreso del papel y caja |
 | Mesa de Entradas | Y1 · 00062 | Anulado con motivo (alta duplicada) |
 | Mesa de Entradas | R1 · 00063 → 00064 | Reiniciado desde Liquidación como plan de pagos: el anterior anulado y el nuevo en Mesa, enlazados |
+| Liquidación | I1 · 00065 | Inhumación con pago en la Dirección (Jardín): boleta emitida con la apertura, esperando el pago; demorada (alerta al día hábil) |
+| Mesa de Entradas | I2 · 00066 | Inhumación con pago en la empresa fúnebre (Oeste): horario informado, en el cementerio (Afuera) con los comprobantes presentados |
+| Mesa de Entradas | I3 · 00067 | Inhumación con pago en la Dirección (Norte) que volvió del cementerio: en "Conocimiento y archivo", falta tildar el conocimiento para concluir y archivar |
 
 Como **Dirección**, `/panel` tiene números en todas las secciones: por estado,
 la matriz área × trámite, demorados, plazos por vencer y vencidos, sin
@@ -468,14 +487,15 @@ punta a punta "antes" queda sin datos).
 cierre de los escenarios, y al final la semilla corre la generación por tiempo
 como la tarea de cada mañana. Los "llegó" y "te devolvieron" de un paso que el
 expediente ya dejó quedan leídos (`prisma/semilla/avisos.ts`: los escenarios
-recorren en minutos lo que llevó semanas). En una base recién reseteada son
-145, 55 sin leer:
+recorren en minutos lo que llevó semanas). En una base recién reseteada el
+27/10/2026 eran 153, 61 sin leer (los demorados de Mesa dependen del día en que
+corre la semilla):
 
 | Área | Sin leer | Qué |
 |---|---|---|
-| Mesa de Entradas | 30 | 22 demorados (los 30 ficticios llevan más de 2 días hábiles en el primer paso), 4 concluidos o archivados, el devuelto por Cómputo (M3), 2 llegados y 1 sin confirmar (C1) |
+| Mesa de Entradas | 34 | 26 demorados (los 30 ficticios que llevan más de 2 días hábiles en el primer paso, M3 y el nuevo de R1), 4 concluidos o archivados, el devuelto por Cómputo (M3), 2 llegados y 1 sin confirmar (C1) |
 | Cómputo | 5 | 3 llegados, 1 demorado (C3) y 1 sin confirmar (lo que devolvió a Mesa, M3) |
-| Liquidación | 7 | 6 llegados y el devuelto por Legal (L7) |
+| Liquidación | 9 | 7 llegados, el devuelto por Legal (L7) y 1 demorado (la inhumación I1) |
 | Asesoría Legal | 4 | 3 llegados y 1 demorado (G1) |
 | Administrativo | 5 | 5 llegados |
 | Tributario | 4 | 2 llegados, plazo DIM por vencer (D2) y vencido (D3) |
@@ -487,8 +507,8 @@ Dirección y el admin no reciben avisos.
   normal: D2 y D3 son "iniciados antes del sistema", transcriptos de la ficha
   de papel con la notificación y su fecha, y con la carga histórica terminada.
 - No hay escenario de "archivar y abrir vinculado" (caducidad): la plantilla de
-  caducidad todavía no existe (docs/api-dominio.md, 15.2) y ninguna de las 4
-  sirve para abrir el expediente vinculado.
+  caducidad todavía no existe (docs/api-dominio.md, 15.2) y ninguna de las de
+  la semilla sirve para abrir el expediente vinculado.
 - Cómputo, Liquidación, Legal y Administrativo no custodian pasos externos:
   su pestaña Afuera queda vacía.
 - Si la semilla se corta a la mitad, la siguiente corrida del mismo día

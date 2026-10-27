@@ -23,7 +23,7 @@ levantado (`npm run db:local` ni `npm run dev`).
 1. Levanta un PostgreSQL 15 efímero en `%TEMP%/cementeria-e2e-XXXX` y un
    puerto libre, con roles, migraciones y extensiones. Es el mismo módulo que
    la batería de integración (`tests/integracion/base-efimera.ts`).
-2. Carga la semilla (`prisma/seed.ts`): áreas, cementerios, las 4 plantillas,
+2. Carga la semilla (`prisma/seed.ts`): áreas, cementerios, las 6 plantillas,
    el admin ficticio (`20000000001`), un usuario ficticio por área, los 30
    expedientes ficticios y los escenarios (`prisma/semilla/escenarios.ts`:
    expedientes en cada bandeja, la DIM y los estados; sus adjuntos van a la

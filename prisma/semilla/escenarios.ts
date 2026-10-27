@@ -174,7 +174,7 @@ function fisica(e: number, k: number, rol: string, extra: Partial<PersonaEntrada
 
 const VINCULOS = ["hija", "hijo", "cónyuge", "nieto", "apoderada", "sobrina"];
 
-function personasDe(e: number, tipo: Personas, difuntos: number): PersonaEntrada[] {
+function personasDe(e: number, tipo: Personas, difuntos: number, fechaDefuncion: FechaISO = "2026-08-30"): PersonaEntrada[] {
   const vinculo = VINCULOS[e % VINCULOS.length];
   let personas: PersonaEntrada[];
   switch (tipo) {
@@ -201,7 +201,7 @@ function personasDe(e: number, tipo: Personas, difuntos: number): PersonaEntrada
       break;
   }
   for (let i = 0; i < difuntos; i++) {
-    personas.push(fisica(e, 2 + i, "difunto", { fallecido: true, fechaDefuncion: "2026-08-30" }));
+    personas.push(fisica(e, 2 + i, "difunto", { fallecido: true, fechaDefuncion }));
   }
   return personas;
 }
@@ -229,6 +229,8 @@ function textoDe(clave: string, e: number): string | null {
       return `Res. ${1250 + e}/2026`;
     case "ADM_TIT_CONF":
       return `Título ${5200 + e}`;
+    case "MESA_HORARIO":
+      return `Día hábil siguiente, ${8 + (e % 4)}:30 h (informado por teléfono)`;
     default:
       return null;
   }
@@ -302,6 +304,8 @@ interface Alta {
   inicio: number;
   personas: Personas;
   difuntos?: number;
+  /** Días hábiles atrás de la fecha de defunción (por defecto, una fija de agosto). */
+  defuncion?: number;
   /** Documentos de Mesa que NO se reciben en el alta (se marcan después). */
   sinDocumentos?: readonly string[];
   observaciones?: string;
@@ -409,7 +413,7 @@ export class Guion {
       ubicacion: ubicacionDe(e, a.cementerio),
       padron: `PE-${String(e).padStart(4, "0")}`,
       numeroMunicipal: e % 2 === 0 ? `${2000 + e}/${inicio.slice(0, 4)}` : null,
-      personas: personasDe(e, a.personas, a.difuntos ?? 0),
+      personas: personasDe(e, a.personas, a.difuntos ?? 0, a.defuncion === undefined ? undefined : this.c.calendario.atras(a.defuncion)),
       datosExtra: nueva ? { resolucion_caducidad: `Res. ficticia ${600 + e}/2025`, expediente_caducidad: `EF-${700 + e}/2024` } : {},
       documentosRecibidos: [],
       observaciones: a.observaciones ?? null,
@@ -1034,6 +1038,46 @@ export const ESCENARIOS: readonly Escenario[] = [
       );
       await nuevo.tildar("MESA_CARATULA", 3);
       return [nuevo.numero];
+    },
+  },
+
+  // --- Inhumación (27/10/2026) ------------------------------------------------------
+  // Después de R1 (y de su reinicio) para no cambiar la numeración de los de
+  // arriba en una base ya sembrada. Las inhumaciones se hacen en uno o dos días:
+  // la defunción es de pocos días antes y los días de alerta son cortos.
+  {
+    clave: "I1",
+    entrarComo: "LIQUIDACION",
+    descripcion:
+      "Inhumación con pago en la Dirección (Jardín): boleta emitida con la apertura, esperando el pago; demorada (alerta al día hábil)",
+    guion: async (g) => {
+      await g.alta({ plantilla: "INHUMACION_DIRECCION", cementerio: "JARDIN_NORTE", monumento: "SEPULTURA", inicio: 3, personas: "titular", difuntos: 1, defuncion: 4 });
+      await g.avanzar(3, 2);
+      await g.tildar("LIQ_DEBITOS", 2);
+      await g.tildar("LIQ_BOLETA_JARDIN", 2);
+    },
+  },
+  {
+    clave: "I2",
+    entrarComo: "MESA_ENTRADAS",
+    descripcion:
+      "Inhumación con pago en la empresa fúnebre (Oeste, sotanito): horario informado al cementerio, en el cementerio (Afuera) con los comprobantes presentados",
+    guion: async (g) => {
+      await g.alta({ plantilla: "INHUMACION_EMPRESA", cementerio: "OESTE", monumento: "SOTANITO", inicio: 1, personas: "solicitante", difuntos: 1, defuncion: 2 });
+      await g.avanzar(1);
+      await g.tildar("CEM_COMPROBANTES", 0);
+    },
+  },
+  {
+    clave: "I3",
+    entrarComo: "MESA_ENTRADAS",
+    descripcion:
+      "Inhumación con pago en la Dirección (Norte, capilla) que el cementerio ya hizo y devolvió: en Conocimiento y archivo, falta tildar el conocimiento para concluir y archivar",
+    guion: async (g) => {
+      await g.alta({ plantilla: "INHUMACION_DIRECCION", cementerio: "NORTE", monumento: "CAPILLA", inicio: 5, personas: "titular", difuntos: 1, defuncion: 6 });
+      await g.recorrer([[5, 4], [3]]);
+      await g.tildar("CEM_REALIZADA", 2);
+      await g.avanzar(1);
     },
   },
 ];

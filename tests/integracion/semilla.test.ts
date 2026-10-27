@@ -59,7 +59,7 @@ describe("semilla", () => {
         feriados: FERIADOS.length,
         feriadosAnios: ANIOS_FERIADOS.length,
         usuarios: USUARIOS_FICTICIOS.length + 1,
-        plantillas: 4,
+        plantillas: PLANTILLAS.length,
       },
       avisos: [],
       claveAdminInicial: null,
@@ -89,7 +89,7 @@ describe("semilla", () => {
       "SELECT codigo FROM public.tipos_tramite WHERE codigo = ANY($1) AND activo ORDER BY id",
       [TIPOS_TRAMITE.map((t) => t.codigo)],
     );
-    expect(tramites.map((t) => t.codigo)).toEqual(["RENOVACION", "RENOVACION_SPT", "NUEVA_CONCESION"]);
+    expect(tramites.map((t) => t.codigo)).toEqual(["RENOVACION", "RENOVACION_SPT", "NUEVA_CONCESION", "INHUMACION"]);
   });
 
   it("cementerios: en su área externa, con nomenclatura y tipos de monumento que existen", async () => {
@@ -187,7 +187,7 @@ describe("semilla", () => {
     expect(filas.some((f) => f.tipo_area === "externa")).toBe(false);
   });
 
-  it("las 4 plantillas quedaron publicadas como v1, por SISTEMA, y pasan la validación de Publicar", async () => {
+  it("las 6 plantillas (las 4 de la carga inicial y las 2 de inhumación) quedaron publicadas como v1, por SISTEMA, y pasan la validación de Publicar", async () => {
     const filas = await prisma.plantilla.findMany({
       where: { codigo: { in: CODIGOS_PLANTILLAS } },
       include: { tipoTramite: true },
@@ -210,7 +210,7 @@ describe("semilla", () => {
         version: 1,
         estado: "publicada",
         tipo: p.tipoTramite,
-        notas: NOTAS_CARGA_INICIAL,
+        notas: p.notasCambio ?? NOTAS_CARGA_INICIAL,
         creadoPor: SISTEMA,
         publicadoPor: SISTEMA,
         publicada: true,

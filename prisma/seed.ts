@@ -2,7 +2,8 @@
 //
 // Carga, como SISTEMA y con el rol de la app (DATABASE_URL): áreas,
 // cementerios con nomenclatura provisoria, tipos de monumento y de trámite,
-// feriados 2026-2027 (años sin cerrar), las 4 plantillas publicadas como v1, el
+// feriados 2026-2027 (años sin cerrar), las 6 plantillas publicadas como v1 (las
+// 4 de la carga inicial y, desde el 27/10/2026, las 2 de inhumación), el
 // admin inicial (ADMIN_INICIAL_CUIL) y un usuario ficticio por área. Datos en
 // prisma/semilla/; el porqué de cada uno, ahí.
 //

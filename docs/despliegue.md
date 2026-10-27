@@ -1158,8 +1158,11 @@ Mientras no haya dictamen: solo datos ficticios (staging o pruebas).
   CA de prueba). En uno corre preparar.mjs dos veces (idempotencia) con las
   extensiones ya habilitadas en `extensions`; en el otro aplica
   `supabase/sql/` en orden como el SQL Editor; prueba que con otra CA o con
-  otro host no se conecta nada; y compara los dos resultados. Menos de un
-  minuto.
+  otro host no se conecta nada; y compara los dos resultados. Un tercero
+  (27/10/2026) tiene la semilla anterior y un tipo de trámite y un borrador
+  "del admin": ahí el 30 nuevo entero no sirve y el incremental
+  (`31_inhumacion.sql`) agrega solo lo nuevo, igual que en el segundo. Unos
+  minutos.
 - `npm run supabase:simular -- iniciar --dir <carpeta> --env-salida <archivo>`
   deja un simulador corriendo para probar a mano
   (`npm run supabase:preparar -- --env <archivo>`, la app con esa
@@ -1199,6 +1202,12 @@ SQL Editor ni a un archivo versionado. Según el camino:
 (cambió la huella; no agrega filas nuevas), `.local/35_admin_inicial.sql`,
 `40_cierre_api.sql` y `99_verificar.sql` (el control 16 ahora cuenta admins
 activos **con contraseña**). O `npm run supabase:preparar`.
+
+**La inhumación (27/10/2026)**, en una base que ya está andando: solo
+`31_inhumacion.sql` (el tipo de trámite y las dos plantillas, por código) y
+`npm run supabase:verificar` (control 21: "6 de 6 publicadas"). No volver a
+correr el 30 en una base en uso: ver supabase/sql/README.md, "La semilla
+cambió". O `npm run supabase:preparar`, que crea lo que falta.
 
 **Primer ingreso.**
 

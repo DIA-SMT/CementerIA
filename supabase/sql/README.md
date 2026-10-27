@@ -42,7 +42,8 @@ día y que aplicarlos dé lo mismo que preparar.mjs.
 ## Orden exacto
 
 El de los números, mezclando las dos carpetas: 00, 01, 02, .local/05, 20_*, 30,
-.local/35, 40, 99.
+31, .local/35, 40, 45, 99. En una base nueva, el 31 no hace nada (el 30 ya trae
+todo), pero se puede correr igual.
 
 Cada archivo se pega **entero** en el SQL Editor y se ejecuta **de una sola
 vez** (Run): todo el archivo es una única transacción, y si algo falla no queda
@@ -55,11 +56,12 @@ nada a medias. Con psql: `psql -1 -v ON_ERROR_STOP=1 -f <archivo>`.
 | 3 | `02_prisma_migrations.sql` | La tabla de control de Prisma, a nombre del owner | Sí |
 | 4 | `.local/05_claves.sql` | Las contraseñas (verificadores SCRAM) | Sí (pone la misma clave) |
 | 5 | `20_migracion_<nombre>.sql`, **todas, en orden de nombre** | Cada migración de `prisma/migrations` tal cual, como `cementeria_owner`, y su fila en `_prisma_migrations` con el checksum de Prisma | **No**: si ya está aplicada, se niega y no cambia nada |
-| 6 | `30_semilla_produccion.sql` | Áreas, catálogos, cementerios, feriados y las 4 plantillas publicadas (nacen borrador y se publican, como exige `plantillas_congelar`), con el actor SISTEMA | Sí (lo que existe no se toca) |
+| 6 | `30_semilla_produccion.sql` | Áreas, catálogos, cementerios, feriados y las 6 plantillas publicadas (las 4 de la carga inicial y las 2 de inhumación; nacen borrador y se publican, como exige `plantillas_congelar`), con el actor SISTEMA y los ids de una base vacía | Sí, sobre una base que tiene solo lo de la semilla. **No** sobre una base en uso: ver "La semilla cambió" |
+| 6b | `31_inhumacion.sql` | Solo lo que la semilla agregó el 27/10/2026: el tipo de trámite `INHUMACION` y las plantillas `INHUMACION_DIRECCION` e `INHUMACION_EMPRESA`, publicadas. Busca por código y deja que la base ponga los ids; al final controla que las dos queden publicadas (si no, falla y no deja nada) | Sí (lo que existe, por código, no se toca) |
 | 7 | `.local/35_admin_inicial.sql` | El administrador inicial (`ADMIN_INICIAL_CUIL`) con el hash de su contraseña temporal y `debe_cambiar_clave`. Si ya existe con contraseña, no lo toca; si existe sin, le pone la temporal | Sí |
 | 8 | `40_cierre_api.sql` | Les saca todo a `anon`, `authenticated` y `service_role` sobre las tablas, secuencias y funciones de `public` y `auditoria`, y los privilegios por defecto | Sí |
 | 8b | `45_storage.sql` | El bucket **privado** `adjuntos` de Supabase Storage (10 MB, PDF/JPEG/PNG, sin políticas). Solo lo usa el despliegue en Vercel ([docs/despliegue-vercel.md](../../docs/despliegue-vercel.md)); controles 19 y 20 de `99_verificar.sql` | Sí |
-| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null) | Sí, las veces que haga falta |
+| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; como los otros que leen datos, con `postgres` sale en null y lo hace `npm run supabase:verificar` | Sí, las veces que haga falta |
 
 Los archivos que corren como dueño hacen `GRANT cementeria_owner TO postgres`,
 `SET LOCAL ROLE cementeria_owner` y, al final, `REVOKE`: `postgres` no queda
@@ -97,8 +99,48 @@ propio):
 - a mano: `npm run supabase:sql` (genera `20_migracion_<nueva>.sql` sola; los
   demás archivos no cambian salvo que cambie la semilla), y en el SQL Editor se
   corre **solo** ese archivo nuevo, después `40_cierre_api.sql` (idempotente) y
-  `99_verificar.sql`. Si la semilla cambió, también `30_semilla_produccion.sql`
-  (agrega lo que falta; lo existente no se toca).
+  `99_verificar.sql`. Si la semilla cambió, ver la sección siguiente.
+
+## La semilla cambió (tipos de trámite o plantillas nuevas)
+
+`30_semilla_produccion.sql` es la semilla **entera** con los ids de una base
+vacía (`INSERT … ON CONFLICT DO NOTHING` sin clave). Es idempotente y, sobre
+una base que tiene **solo** la semilla anterior, agrega lo nuevo sin duplicar
+(probado: paquete del 27/10/2026 a la mañana, después el 30 nuevo, dos veces).
+Pero en una base **en uso** no es seguro:
+
+- si el admin creó un tipo de trámite o una plantilla (aunque sea un borrador),
+  ocupan los ids que el 30 nuevo usa: la fila nueva se saltea en silencio, una
+  plantilla puede quedar con el tipo de trámite de otra y el UPDATE de la
+  publicación intenta publicar **el borrador del admin** (si ya tiene notas de
+  cambio, lo publica; si no, el archivo falla por `plantillas_publicacion_check`
+  y no cambia nada);
+- si los ids ya difieren (por ejemplo, después de aplicar el incremental en una
+  base con los números corridos), el 30 falla (y no cambia nada).
+
+Por eso lo nuevo de la semilla va además en un archivo **incremental**
+(`31_…`, `32_…`), que busca por código, deja que la base ponga los ids, no
+toca lo que ya existe y controla que las plantillas queden publicadas.
+`npm run supabase:probar` lo prueba sobre una base con la semilla anterior y un
+tipo de trámite y un borrador del admin (simulador C). Con conexión desde la
+máquina, `npm run supabase:preparar` hace lo mismo con la semilla en TS (crea
+lo que falta, por código).
+
+### La inhumación (27/10/2026): qué correr en Supabase
+
+En la base de Supabase que ya está andando (con todo hasta el login propio y la
+semilla anterior, las 4 plantillas), en el SQL Editor y en este orden:
+
+1. `31_inhumacion.sql`: el tipo de trámite y las dos plantillas, publicadas.
+2. `99_verificar.sql` (opcional desde el panel: el control 21 sale en null con
+   `postgres`). Mejor, desde la máquina: `npm run supabase:verificar`, que lo
+   corre como `cementeria_app` y tiene que dar "6 de 6 publicadas".
+
+No hace falta volver a correr `30_semilla_produccion.sql` (y no conviene, por
+lo de arriba), ni `40_cierre_api.sql` (no hay tablas ni funciones nuevas), ni
+ninguna migración: no hay migración nueva. La app no se redespliega por esto:
+las plantillas son datos y aparecen en "Nuevo expediente" al recargar. En una
+base vacía, el orden completo de arriba (el 30 ya las trae y el 31 no hace nada).
 
 Si la migración nueva crea tablas, tiene que habilitarles RLS y crear la
 política de `cementeria_app` (ver la migración `*_rls_defensa`):

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DefinicionPlantilla, FiltroCementerios } from "../../../src/lib/dominio/plantillas/esquema";
+import { resolverPorCementerio } from "../../../src/lib/dominio/plantillas/resolver";
 import { validarPublicacion } from "../../../src/lib/dominio/plantillas/validar";
 import { AREAS } from "../areas";
 import { TIPOS_MONUMENTO } from "../catalogos";
@@ -91,6 +92,17 @@ const RESOLUCION_Y_TITULO =
   "ADM_RESOLUCION ADMINISTRATIVO 15: *ADM_RES_CONF *ADM_RES_FIRMA *ADM_PROTOCOLO[t?] *ADM_TIT_CONF[t?] *ADM_TIT_FIRMA";
 const COMPUTO_FINAL = "COMPUTO_FINAL COMPUTO 5: *COMP_FINAL";
 const ENTREGA = "ADM_ENTREGA ADMINISTRATIVO 30: *ADM_ENTREGADO[f]";
+// Inhumación: los cuatro monumentos del procedimiento (sin panteón, a confirmar).
+const MONUMENTOS_INHUMACION = ["SOTANITO", "CAPILLA", "MAUSOLEO", "SEPULTURA"];
+const PERSONAS_INHUMACION = ["titular 1..1 no", "difunto 1..1 si", "solicitante 0..1 no vinculo"];
+const DOCUMENTOS_INHUMACION = [
+  "CONST_COMPUTOS direccion MESA no",
+  "ESTADO_CUENTA direccion MESA no",
+  "DNI concesionario MESA no",
+  "CONST_INHUMAR concesionario MESA no",
+];
+const MESA_INHUMACION = "MESA MESA_ENTRADAS 1: *MESA_CARATULA *MESA_CONCESION_VIGENTE *MESA_CONSERVACION";
+const CONOCIMIENTO = "CONOCIMIENTO MESA_ENTRADAS 5: *DIR_CONOCIMIENTO";
 
 const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: ReturnType<typeof resumir> }> = {
   // 4(a)
@@ -220,6 +232,54 @@ const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: 
       ],
     },
   },
+  // Inhumación (procedimiento de la Dirección, docs/fuentes, 27/10/2026), (A):
+  // paga en la Dirección. Todo se junta en Mesa; la apertura, solo en Jardín.
+  INHUMACION_DIRECCION: {
+    nombre: "Inhumación, pago en la Dirección",
+    tipoTramite: "INHUMACION",
+    resumen: {
+      forma_pago: "no_aplica",
+      tipos_monumento: MONUMENTOS_INHUMACION,
+      ubicacion_obligatoria: true,
+      requiere_contacto: true,
+      personas: PERSONAS_INHUMACION,
+      campos_extra: [],
+      documentos: [...DOCUMENTOS_INHUMACION, "COMPROBANTE_PAGO concesionario LIQUIDACION sugerido"],
+      conceptos: [
+        "DERECHO_OFICINA boleta LIQUIDACION",
+        "APERTURA boleta LIQUIDACION @JARDIN_NORTE",
+        "INHUMACION boleta LIQUIDACION",
+        "CONDUCCION boleta LIQUIDACION",
+      ],
+      pasos: [
+        MESA_INHUMACION,
+        "LIQUIDACION LIQUIDACION 1: *LIQ_DEBITOS *LIQ_BOLETA[t?]@-JARDIN_NORTE *LIQ_BOLETA_JARDIN[t?]@JARDIN_NORTE *LIQ_PAGO[f]",
+        "CEMENTERIO $CEMENTERIO 2 custodia:MESA_ENTRADAS: *CEM_REALIZADA[f] *CEM_DEVUELTO",
+        CONOCIMIENTO,
+      ],
+    },
+  },
+  // (B): paga la empresa fúnebre. Sin Liquidación ni conceptos (no hay vía para
+  // "los paga la empresa": van en las instrucciones).
+  INHUMACION_EMPRESA: {
+    nombre: "Inhumación, pago en la empresa fúnebre",
+    tipoTramite: "INHUMACION",
+    resumen: {
+      forma_pago: "no_aplica",
+      tipos_monumento: MONUMENTOS_INHUMACION,
+      ubicacion_obligatoria: true,
+      requiere_contacto: true,
+      personas: PERSONAS_INHUMACION,
+      campos_extra: [],
+      documentos: [...DOCUMENTOS_INHUMACION, "COMPROBANTES_EMPRESA concesionario CEMENTERIO sugerido opcional"],
+      conceptos: [],
+      pasos: [
+        `${MESA_INHUMACION} *MESA_HORARIO[t]`,
+        "CEMENTERIO $CEMENTERIO 2 custodia:MESA_ENTRADAS: *CEM_COMPROBANTES *CEM_REALIZADA[f] *CEM_INFORMADO",
+        CONOCIMIENTO,
+      ],
+    },
+  },
 };
 
 const CATALOGOS = {
@@ -229,7 +289,7 @@ const CATALOGOS = {
 };
 
 describe("plantillas de la semilla (sección 4)", () => {
-  it("son las 4, con códigos únicos", () => {
+  it("son las 4 de la carga inicial y las 2 de inhumación, con códigos únicos", () => {
     expect(PLANTILLAS.map((p) => p.codigo)).toEqual(Object.keys(ESPERADAS));
   });
 
@@ -277,6 +337,15 @@ const NOMBRES_SUBTAREA: Record<string, string> = {
   CEM_CONOCIMIENTO: "El cementerio tomó conocimiento",
   CEM_REGISTRADO: "Trámite registrado en el cementerio",
   CEM_INHUMACION: "Inhumación informada",
+  // Inhumación.
+  MESA_CONCESION_VIGENTE: "Concesión vigente verificada en Cómputos",
+  MESA_CONSERVACION: "Conservación de los últimos 5 años verificada en el estado de cuenta",
+  MESA_HORARIO: "Horario de la inhumación informado al cementerio",
+  CEM_REALIZADA: "Inhumación realizada",
+  CEM_DEVUELTO: "Expediente devuelto a la Dirección",
+  CEM_COMPROBANTES: "Comprobantes de la empresa fúnebre presentados en el cementerio",
+  CEM_INFORMADO: "Informado a la Dirección",
+  DIR_CONOCIMIENTO: "La Dirección tomó conocimiento de la inhumación",
 };
 
 const NOMBRES_DOCUMENTO: Record<string, string> = {
@@ -298,6 +367,13 @@ const NOMBRES_DOCUMENTO: Record<string, string> = {
   CONSERVACION: "Conservación abonada de los últimos 5 años (surge del estado de cuenta)",
   PERSONERIA: "Personería jurídica de la asociación o sociedad",
   DESIGNACION_ASAMBLEA: "Acta de asamblea con la designación de autoridades",
+  COMPROBANTES_EMPRESA: "Comprobantes de pago de la empresa fúnebre",
+};
+
+// Inhumación: la constancia y el estado de cuenta dicen qué se verifica con ellos.
+const DOCUMENTOS_PROPIOS_INHUMACION = {
+  CONST_COMPUTOS: "Constancia de Cómputos (datos personales y catastrales, concesión vigente)",
+  ESTADO_CUENTA: "Estado de cuenta (Conservación de los últimos 5 años)",
 };
 
 /** Lo que cambia en cada plantilla respecto de los nombres comunes. */
@@ -315,6 +391,15 @@ const NOMBRES_PROPIOS: Record<string, { subtareas?: Record<string, string>; docu
   RENOV_SPT_CONTADO: {},
   // 4(d): cinco conceptos en una boleta.
   NUEVA_CONC_CONTADO: { subtareas: { LIQ_BOLETA: "Boleta emitida con los 5 conceptos" } },
+  // La boleta de la inhumación: con apertura solo en Jardín.
+  INHUMACION_DIRECCION: {
+    subtareas: {
+      LIQ_BOLETA: "Boleta emitida: oficina, inhumación y conducción",
+      LIQ_BOLETA_JARDIN: "Boleta emitida: oficina, apertura, inhumación y conducción",
+    },
+    documentos: { ...DOCUMENTOS_PROPIOS_INHUMACION, COMPROBANTE_PAGO: "Copia del comprobante de pago de la boleta" },
+  },
+  INHUMACION_EMPRESA: { documentos: DOCUMENTOS_PROPIOS_INHUMACION },
 };
 
 describe("plantillas de la semilla: nombres (sección 4)", () => {
@@ -335,6 +420,8 @@ describe("plantillas de la semilla: nombres (sección 4)", () => {
       RENOV_PLAN: "Boleta emitida: derecho de oficina",
       RENOV_SPT_CONTADO: "Boleta emitida: oficina y arrendamiento",
       NUEVA_CONC_CONTADO: null,
+      INHUMACION_DIRECCION: "Boleta emitida: oficina, apertura, inhumación y conducción",
+      INHUMACION_EMPRESA: null,
     });
   });
 
@@ -347,6 +434,49 @@ describe("plantillas de la semilla: nombres (sección 4)", () => {
       RENOV_PLAN: "Boleta emitida: oficina e inspección técnica",
       RENOV_SPT_CONTADO: "Boleta emitida: oficina, inspección técnica y arrendamiento",
       NUEVA_CONC_CONTADO: "Boleta emitida con los 5 conceptos",
+      INHUMACION_DIRECCION: "Boleta emitida: oficina, inhumación y conducción",
+      INHUMACION_EMPRESA: undefined,
     });
+  });
+});
+
+describe("plantillas de inhumación (procedimiento de la Dirección, docs/fuentes)", () => {
+  const plantilla = (codigo: string) => {
+    const p = PLANTILLAS.find((x) => x.codigo === codigo);
+    if (!p) throw new Error(`No está la plantilla ${codigo}`);
+    return p.definicion;
+  };
+  const conceptos = (codigo: string, cementerio: string) => resolverPorCementerio(plantilla(codigo), cementerio).conceptos.map((c) => c.clave);
+
+  it("pago en la Dirección: la apertura se cobra solo en Jardín, y la boleta lo dice", () => {
+    expect(conceptos("INHUMACION_DIRECCION", "JARDIN_NORTE")).toEqual(["DERECHO_OFICINA", "APERTURA", "INHUMACION", "CONDUCCION"]);
+    for (const cementerio of ["OESTE", "NORTE"]) {
+      expect(conceptos("INHUMACION_DIRECCION", cementerio), cementerio).toEqual(["DERECHO_OFICINA", "INHUMACION", "CONDUCCION"]);
+    }
+    const boleta = (cementerio: string) =>
+      resolverPorCementerio(plantilla("INHUMACION_DIRECCION"), cementerio)
+        .pasos.find((p) => p.clave === "LIQUIDACION")
+        ?.subtareas.filter((s) => s.clave.startsWith("LIQ_BOLETA"))
+        .map((s) => s.nombre);
+    expect(boleta("JARDIN_NORTE")).toEqual(["Boleta emitida: oficina, apertura, inhumación y conducción"]);
+    expect(boleta("OESTE")).toEqual(["Boleta emitida: oficina, inhumación y conducción"]);
+  });
+
+  it("pago en la empresa fúnebre: sin conceptos ni Liquidación; los cuatro conceptos quedan dichos en las instrucciones", () => {
+    const def = plantilla("INHUMACION_EMPRESA");
+    expect(def.conceptos).toEqual([]);
+    expect(def.pasos.map((p) => p.area)).not.toContain("LIQUIDACION");
+    for (const clave of ["MESA", "CEMENTERIO"]) {
+      const instrucciones = def.pasos.find((p) => p.clave === clave)?.instrucciones ?? "";
+      for (const c of ["derecho de oficina", "apertura (solo en el Cementerio Jardín)", "inhumación", "conducción"]) expect(instrucciones, clave).toContain(c);
+    }
+  });
+
+  it("las dos: el cementerio lo sigue Mesa de Entradas, que toma conocimiento y archiva", () => {
+    for (const codigo of ["INHUMACION_DIRECCION", "INHUMACION_EMPRESA"]) {
+      const pasos = plantilla(codigo).pasos;
+      expect(pasos.find((p) => p.clave === "CEMENTERIO")).toMatchObject({ area: "$CEMENTERIO", custodia: "MESA_ENTRADAS" });
+      expect(pasos.at(-1)).toMatchObject({ clave: "CONOCIMIENTO", area: "MESA_ENTRADAS", custodia: null });
+    }
   });
 });

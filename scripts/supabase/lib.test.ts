@@ -6,10 +6,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { PLANTILLAS } from "../../prisma/semilla/plantillas";
+import { TIPOS_TRAMITE } from "../../prisma/semilla/catalogos";
 import { USUARIOS_FICTICIOS } from "../../prisma/semilla/usuarios";
 import { hashearClave, PARAMETROS_ACTUALES, RE_CLAVE_TEMPORAL, verificarClave } from "../../src/lib/auth/clave";
 import { cuilValido as cuilValidoApp, digitoVerificadorCuil } from "../../src/lib/dominio/cuil";
-import { SALIDA, huellaSemilla } from "./generar-sql.mjs";
+import { INCREMENTALES, SALIDA, huellaSemilla } from "./generar-sql.mjs";
 import {
   RAIZ,
   analizarUrlAdmin,
@@ -168,6 +170,26 @@ describe("supabase/sql/ al día (sin base; la comparación completa es npm run s
   it("verificar.sql busca los mismos CUIL ficticios que la semilla de desarrollo", () => {
     const enSql = [...leerFuente("verificar.sql").matchAll(/'(\d{11})'/g)].map((m) => m[1]).sort();
     expect(enSql).toEqual(USUARIOS_FICTICIOS.map((u) => u.cuil).sort());
+  });
+
+  it("verificar.sql controla las mismas plantillas que la semilla", () => {
+    const sql = leerFuente("verificar.sql");
+    const lista = /unnest\(ARRAY\[([^\]]*)\]\) AS c\(codigo\)/.exec(sql)?.[1] ?? "";
+    expect([...lista.matchAll(/'([A-Z_]+)'/g)].map((m) => m[1])).toEqual(PLANTILLAS.map((p) => p.codigo));
+    expect(sql).toContain(`%s de ${PLANTILLAS.length} publicadas`);
+  });
+
+  it("cada archivo incremental agrega lo que la semilla tiene, por código y sin ids", () => {
+    for (const inc of INCREMENTALES) {
+      const texto = readFileSync(path.join(SALIDA, inc.archivo), "utf8");
+      for (const codigo of inc.tiposTramite) expect(TIPOS_TRAMITE.map((t) => t.codigo)).toContain(codigo);
+      for (const codigo of inc.plantillas) {
+        expect(PLANTILLAS.map((p) => p.codigo)).toContain(codigo);
+        expect(texto).toContain(`"codigo":"${codigo}"`);
+      }
+      expect(texto).toContain("ON CONFLICT (codigo) DO NOTHING");
+      expect(texto).not.toMatch(/OVERRIDING SYSTEM VALUE|setval/);
+    }
   });
 
   it("los archivos .local/ no se versionan", () => {

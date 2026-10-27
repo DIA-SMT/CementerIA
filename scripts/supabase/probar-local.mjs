@@ -17,6 +17,12 @@
 //    generados como los de .local/; después `prisma migrate deploy` no tiene
 //    que aplicar nada, y la verificación completa en verde. Los idempotentes se
 //    corren dos veces; una migración repetida se niega sin cambiar nada.
+// 4b. Simulador C: una base con la semilla ANTERIOR (el 30 sin lo de los
+//    archivos incrementales, como 31_inhumacion.sql) y con lo que pudo haber
+//    creado el admin desde entonces (un tipo de trámite y un borrador que
+//    ocupan los ids que la semilla nueva usaría). Ahí, el 30 nuevo entero NO
+//    sirve (se ve y se deshace) y el incremental agrega solo lo nuevo, por
+//    código, igual que en B, sin tocar lo del admin; corrido dos veces, igual.
 // 5. A y B son equivalentes: roles, dueños, ACL, triggers, políticas, RLS,
 //    privilegios por defecto, extensiones, _prisma_migrations (definición y
 //    checksums, que tienen que ser los que calcula Prisma), filas de la semilla
@@ -29,7 +35,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import pg from "pg";
-import { archivoAdmin, generar, SALIDA } from "./generar-sql.mjs";
+import { archivoAdmin, archivoSemilla, generar, INCREMENTALES, SALIDA } from "./generar-sql.mjs";
 import {
   CLI_PRISMA,
   RAIZ,
@@ -202,7 +208,7 @@ async function probarArchivos(sim) {
     ok(filas99.length > 0 && mal99.length === 0, "99_verificar.sql con el rol postgres: nada en falso", `${filas99.filter((f) => f.ok).length} en verde, ${filas99.filter((f) => f.ok === null).length} informativos o sin permiso${mal99.length ? `; mal: ${mal99.map((f) => f.control).join(", ")}` : ""}`);
 
     // Idempotentes: otra vez, sin error.
-    for (const n of ["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql", "30_semilla_produccion.sql", "40_cierre_api.sql", "45_storage.sql", "99_verificar.sql"]) {
+    for (const n of ["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql", "30_semilla_produccion.sql", ...INCREMENTALES.map((i) => i.archivo), "40_cierre_api.sql", "45_storage.sql", "99_verificar.sql"]) {
       try {
         await admin.query(readFileSync(path.join(SALIDA, n), "utf8"));
         ok(true, `${n} corrido dos veces: sin error`);
@@ -250,6 +256,135 @@ async function probarArchivos(sim) {
   for (const c of mal) console.log(`    ✗ ${c.control}: ${c.detalle}`);
   ok(mal.length === 0, "verificación completa (como cementeria_app) sobre lo aplicado a mano", `${controles.filter((c) => c.ok).length} en verde`);
   await comprobarAdmin(sim, temporal, "B (los archivos)");
+  return { volcado, versionados };
+}
+
+// ---------------------------------------------------------------------------
+// 4b. Actualización de una base con la semilla anterior
+// ---------------------------------------------------------------------------
+
+/** Lo que agregan los incrementales, comparable entre bases (sin ids ni fechas). */
+const CONSULTA_NUEVO = `
+  SELECT jsonb_build_object('tipo', t.codigo, 'tipo_nombre', t.nombre, 'codigo', p.codigo, 'version', p.version, 'nombre', p.nombre,
+                            'estado', p.estado, 'definicion', p.definicion, 'notas', p.notas_cambio, 'creado_por', p.creado_por,
+                            'publicado_por', p.publicado_por, 'publicada', p.publicado_en IS NOT NULL)::text AS f
+    FROM public.plantillas p JOIN public.tipos_tramite t ON t.id = p.tipo_tramite_id
+   WHERE p.codigo = ANY($1) ORDER BY p.codigo, p.version`;
+
+async function probarActualizacion(sim, simB, volcado, versionados) {
+  const nuevosTipos = new Set(INCREMENTALES.flatMap((i) => i.tiposTramite));
+  const nuevasPlantillas = INCREMENTALES.flatMap((i) => i.plantillas);
+  const tablaVolcado = (nombre) => volcado.tablas.find((t) => t.tabla === nombre);
+  // La semilla anterior: el mismo volcado sin lo de los incrementales.
+  const anterior = {
+    ...volcado,
+    tablas: volcado.tablas.map((t) =>
+      t.tabla === "tipos_tramite"
+        ? { ...t, filas: t.filas.filter((f) => !nuevosTipos.has(f.codigo)) }
+        : t.tabla === "plantillas"
+          ? { ...t, filas: t.filas.filter((f) => !nuevasPlantillas.includes(f.codigo)) }
+          : t,
+    ),
+  };
+  const tiposAntes = anterior.tablas.find((t) => t.tabla === "tipos_tramite").filas.length;
+  const plantillasAntes = anterior.tablas.find((t) => t.tabla === "plantillas").filas.length;
+
+  const admin = clientePg(sim.urlAdmin, { ca: { pem: readFileSync(sim.ca, "utf8") } });
+  await admin.connect();
+  try {
+    for (const n of [...versionados.keys()].filter((x) => /^(00|01|02|20)_/.test(x)).sort()) await admin.query(versionados.get(n));
+    await admin.query(archivoSemilla(anterior, "semilla anterior (prueba)"));
+    ok(true, `C: la base con la semilla anterior (${tiposAntes} tipos de trámite, ${plantillasAntes} plantillas)`);
+
+    // Lo que pudo haber hecho el admin: un tipo de trámite y un borrador, que
+    // toman los próximos ids (los que la semilla nueva les da a lo nuevo).
+    await conSuper(sim, async (c) => {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('app.usuario_id', '1', true), set_config('app.motivo', 'Prueba: lo que haría el admin', true)");
+      const tipo = (await c.query("INSERT INTO public.tipos_tramite (codigo, nombre) VALUES ('PRUEBA_ADMIN', 'Trámite del admin (prueba)') RETURNING id")).rows[0].id;
+      await c.query(
+        "INSERT INTO public.plantillas (codigo, version, tipo_tramite_id, nombre, definicion, creado_por) VALUES ('PRUEBA_ADMIN', 1, $1, 'Borrador del admin (prueba)', '{}'::jsonb, 1)",
+        [tipo],
+      );
+      await c.query("COMMIT");
+    });
+    const ids = await conSuper(sim, async (c) => ({
+      tipo: (await c.query("SELECT id FROM public.tipos_tramite WHERE codigo = 'PRUEBA_ADMIN'")).rows[0].id,
+      plantilla: (await c.query("SELECT id FROM public.plantillas WHERE codigo = 'PRUEBA_ADMIN'")).rows[0].id,
+    }));
+    ok(
+      tablaVolcado("tipos_tramite").filas.some((f) => nuevosTipos.has(f.codigo) && f.id === ids.tipo) &&
+        tablaVolcado("plantillas").filas.some((f) => nuevasPlantillas.includes(f.codigo) && f.id === ids.plantilla),
+      "C: lo del admin ocupa los ids que la semilla nueva les da a lo nuevo",
+      `tipo ${ids.tipo}, plantilla ${ids.plantilla}`,
+    );
+
+    // El 30 nuevo, entero, sobre esa base: se mira lo que deja y se deshace.
+    await admin.query("BEGIN");
+    try {
+      await admin.query(versionados.get("30_semilla_produccion.sql"));
+      const f = (
+        await admin.query(
+          `SELECT (SELECT count(*) FROM public.tipos_tramite WHERE codigo = ANY($1))::int AS tipos,
+                  (SELECT count(*) FROM public.plantillas p JOIN public.tipos_tramite t ON t.id = p.tipo_tramite_id
+                    WHERE p.codigo = ANY($2) AND p.estado = 'publicada' AND t.codigo = ANY($1))::int AS bien,
+                  (SELECT estado FROM public.plantillas WHERE codigo = 'PRUEBA_ADMIN') AS borrador_admin`,
+          [[...nuevosTipos], nuevasPlantillas],
+        )
+      ).rows[0];
+      ok(
+        f.tipos < nuevosTipos.size || f.bien < nuevasPlantillas.length || f.borrador_admin !== "borrador",
+        "C: el 30 nuevo entero sobre una base con datos del admin NO sirve (por eso el incremental)",
+        `tipos nuevos ${f.tipos}/${nuevosTipos.size}, plantillas nuevas bien publicadas ${f.bien}/${nuevasPlantillas.length}, borrador del admin: ${f.borrador_admin}`,
+      );
+    } catch (e) {
+      ok(true, "C: el 30 nuevo entero sobre una base con datos del admin NO sirve (falla)", e.message.slice(0, 120));
+    } finally {
+      await admin.query("ROLLBACK");
+    }
+
+    for (const inc of INCREMENTALES) {
+      for (const vuelta of [1, 2]) {
+        try {
+          await admin.query(versionados.get(inc.archivo));
+          ok(true, `C: ${inc.archivo} (vuelta ${vuelta}) se aplica`);
+        } catch (e) {
+          ok(false, `C: ${inc.archivo} (vuelta ${vuelta}) se aplica`, redactar(e.message, secretos));
+        }
+      }
+    }
+    const enC = await conSuper(sim, async (c) => (await c.query(CONSULTA_NUEVO, [nuevasPlantillas])).rows.map((r) => r.f));
+    const enB = await conSuper(simB, async (c) => (await c.query(CONSULTA_NUEVO, [nuevasPlantillas])).rows.map((r) => r.f));
+    ok(
+      enC.length === nuevasPlantillas.length && JSON.stringify(enC) === JSON.stringify(enB),
+      "C: lo nuevo quedó igual que en B (tipo de trámite, plantillas publicadas, definición y notas)",
+      `${enC.length} plantilla(s)`,
+    );
+    const delAdmin = await conSuper(sim, async (c) =>
+      (await c.query("SELECT p.estado, t.codigo AS tipo FROM public.plantillas p JOIN public.tipos_tramite t ON t.id = p.tipo_tramite_id WHERE p.codigo = 'PRUEBA_ADMIN'")).rows,
+    );
+    ok(JSON.stringify(delAdmin) === JSON.stringify([{ estado: "borrador", tipo: "PRUEBA_ADMIN" }]), "C: lo del admin quedó como estaba (su borrador sigue borrador)");
+    const auditoria = await conSuper(sim, async (c) =>
+      (
+        await c.query(
+          "SELECT tabla, operacion, count(*)::int AS n FROM auditoria.cambios WHERE motivo = $1 AND tabla IN ('tipos_tramite', 'plantillas') GROUP BY 1, 2 ORDER BY 1, 2",
+          [volcado.motivo],
+        )
+      ).rows,
+    );
+    const esperada = [
+      { tabla: "plantillas", operacion: "I", n: plantillasAntes + nuevasPlantillas.length },
+      { tabla: "plantillas", operacion: "U", n: plantillasAntes + nuevasPlantillas.length },
+      { tabla: "tipos_tramite", operacion: "I", n: tiposAntes + nuevosTipos.size },
+    ];
+    ok(
+      JSON.stringify(auditoria) === JSON.stringify(esperada),
+      "C: la auditoría tiene un alta por fila nueva y una publicación por plantilla, firmadas como la semilla",
+      JSON.stringify(auditoria),
+    );
+  } finally {
+    await admin.end();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -333,6 +468,7 @@ async function main() {
   const simA = await levantarSimulador({ tls: true, extensionesEnExtensions: true });
   secretos.push(...simA.secretos);
   let simB;
+  let simC;
   try {
     simB = await levantarSimulador({ tls: true });
     secretos.push(...simB.secretos);
@@ -345,7 +481,12 @@ async function main() {
     await probarTls(simA, cfg);
 
     titulo("3 y 4. supabase/sql/ en orden, como el SQL Editor (simulador B)");
-    await probarArchivos(simB);
+    const { volcado, versionados } = await probarArchivos(simB);
+
+    titulo("4b. Una base con la semilla anterior: el incremental (simulador C)");
+    simC = await levantarSimulador({ tls: true });
+    secretos.push(...simC.secretos);
+    await probarActualizacion(simC, simB, volcado, versionados);
 
     titulo("5. Lo que dejan preparar.mjs (A) y los archivos (B)");
     const checksums = (await listarMigraciones()).map((m) => [m.nombre, m.checksum]);
@@ -362,6 +503,7 @@ async function main() {
   } finally {
     await simA.limpiar().catch(() => undefined);
     await simB?.limpiar().catch(() => undefined);
+    await simC?.limpiar().catch(() => undefined);
   }
   console.log(`\n${fallas.length ? `✗ ${fallas.length} FALLA(S): ${fallas.join("; ")}` : "✓ Todo en verde."}`);
   return fallas.length ? 1 : 0;

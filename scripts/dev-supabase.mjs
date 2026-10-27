@@ -27,8 +27,17 @@ function salir(mensaje) {
 if (!existsSync(ARCHIVO)) salir("No existe .env.supabase.local. Ver docs/despliegue.md, sección Base en Supabase.");
 const env = parse(readFileSync(ARCHIVO));
 
-const url = env.DATABASE_URL?.trim();
-if (!url) salir("Falta DATABASE_URL en .env.supabase.local: corré npm run supabase:sql o npm run supabase:preparar.");
+const urlArchivo = env.DATABASE_URL?.trim();
+if (!urlArchivo) salir("Falta DATABASE_URL en .env.supabase.local: corré npm run supabase:sql o npm run supabase:preparar.");
+// Por el Transaction pooler (6543), como en Vercel: el Session pooler (5432)
+// reserva una conexión fija por cliente, y entre next dev (que puede tener
+// varios clientes de Prisma vivos) y las funciones de Vercel se agotan los
+// lugares del pooler ("max clients reached in session mode"). Con --sesion se
+// fuerza el 5432.
+const transaccion = !process.argv.includes("--sesion");
+const destino = new URL(urlArchivo);
+if (transaccion && destino.port === "5432") destino.port = "6543";
+const url = destino.toString();
 if (!decodeURIComponent(new URL(url).username).startsWith("cementeria_app.")) {
   // La app nunca entra como postgres ni como deploy: perdería la protección por
   // permisos del historial.
@@ -43,10 +52,12 @@ if (!existsSync(path.resolve(RAIZ, ca))) {
   );
 }
 
-const argumentos = process.argv.slice(2);
+const argumentos = process.argv.slice(2).filter((a) => a !== "--sesion");
 const puerto = argumentos.includes("--port") ? [] : ["--port", "3005"];
 
-console.log("» next dev contra Supabase (rol cementeria_app, TLS con la CA de Supabase, sin login simulado)");
+console.log(
+  `» next dev contra Supabase (rol cementeria_app por el ${transaccion ? "Transaction pooler, 6543" : "Session pooler, 5432"}, TLS con la CA de Supabase, sin login simulado)`,
+);
 const hijo = spawn(process.execPath, [path.join(RAIZ, "node_modules", "next", "dist", "bin", "next"), "dev", ...puerto, ...argumentos], {
   cwd: RAIZ,
   stdio: "inherit",
@@ -54,6 +65,7 @@ const hijo = spawn(process.execPath, [path.join(RAIZ, "node_modules", "next", "d
     ...process.env,
     DATABASE_URL: url,
     DATABASE_CA_FILE: ca,
+    DB_POOL_MAX: process.env.DB_POOL_MAX ?? "3",
     AUTH_DEV_LOGIN: "0",
     AUTH_DEV_LOGIN_STAGING: "",
   },

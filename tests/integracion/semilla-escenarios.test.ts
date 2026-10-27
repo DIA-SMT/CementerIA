@@ -77,19 +77,23 @@ const ESPERADO: Record<string, { paso: string; estado: string; area: string; res
   X1: { paso: "CEMENTERIO", estado: "archivado", area: "MESA_ENTRADAS", responsable: "MESA_ENTRADAS" },
   Y1: { paso: "MESA", estado: "anulado", area: "MESA_ENTRADAS" },
   R1: { paso: "LIQUIDACION", estado: "anulado", area: "LIQUIDACION" },
+  // Inhumación (27/10/2026).
+  I1: { paso: "LIQUIDACION", estado: "en_tramite", area: "LIQUIDACION", recibido: true },
+  I2: { paso: "CEMENTERIO", estado: "en_tramite", area: "CEM_OESTE", responsable: "MESA_ENTRADAS", recibido: true },
+  I3: { paso: "CONOCIMIENTO", estado: "en_tramite", area: "MESA_ENTRADAS", recibido: true },
 };
 
 /** Lo que cada área ve de los escenarios en cada pestaña de su bandeja. */
 const BANDEJAS: Record<Exclude<CodigoUsuario, "DIRECCION" | "ADMIN">, Partial<Record<PestanaBandeja, string[]>>> = {
   MESA_ENTRADAS: {
     por_confirmar: ["M3"],
-    en_mi_area: ["M3", "R1+"],
-    afuera: ["M1", "M2", "D1", "D2", "D3"],
+    en_mi_area: ["M3", "R1+", "I3"],
+    afuera: ["M1", "M2", "D1", "D2", "D3", "I2"],
     plazos: ["D1", "D2", "D3"],
     carga_historica: [],
   },
   COMPUTO: { por_confirmar: ["C1", "C2"], en_mi_area: ["C1", "C2", "C3", "C4"], afuera: [], plazos: [] },
-  LIQUIDACION: { por_confirmar: ["L1", "L2"], en_mi_area: ["L1", "L2", "L3", "L4", "L5", "L6", "L7"], afuera: [], plazos: [] },
+  LIQUIDACION: { por_confirmar: ["L1", "L2"], en_mi_area: ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "I1"], afuera: [], plazos: [] },
   LEGAL: { por_confirmar: ["G3"], en_mi_area: ["G1", "G2", "G3"], afuera: [], plazos: [] },
   ADMINISTRATIVO: { por_confirmar: ["A5"], en_mi_area: ["A1", "A2", "A3", "A4", "A5"], afuera: [], plazos: [] },
   TRIBUTARIO: { por_confirmar: ["T1"], en_mi_area: ["T1", "T2"], afuera: ["D1", "D2", "D3"], plazos: ["D1", "D2", "D3"] },
@@ -157,6 +161,8 @@ describe("escenarios de la semilla de desarrollo", () => {
     expect((await fila(liquidacion, "en_mi_area", "L3")).paseRapido).toBeNull();
     expect((await fila(computo, "en_mi_area", "C3")).demorado).toBe(true);
     expect((await fila(legal, "en_mi_area", "G1")).demorado).toBe(true);
+    // La inhumación: alerta al día hábil en Liquidación.
+    expect((await fila(liquidacion, "en_mi_area", "I1")).demorado).toBe(true);
     expect((await fila(mesa, "por_confirmar", "M3")).etiquetas.map((x) => x.tipo)).toEqual(expect.arrayContaining(["devuelto", "sin_confirmar"]));
     const semaforo = async (clave: string) => {
       const p = (await fila(tributario, "plazos", clave)).etiquetas.find((x) => x.tipo === "plazo");
@@ -179,7 +185,7 @@ describe("escenarios de la semilla de desarrollo", () => {
     for (const a of ["MESA_ENTRADAS", "COMPUTO", "LIQUIDACION", "LEGAL", "ADMINISTRATIVO", "TRIBUTARIO", "DIM"]) expect(areasConCeldas).toContain(a);
     // "Contiene" y no "es igual": la base de integración es compartida y, según
     // el orden de los archivos, otros tests ya crearon tipos de trámite de prueba.
-    expect(p.matriz.tipos.map((t) => t.codigo)).toEqual(expect.arrayContaining(["NUEVA_CONCESION", "RENOVACION", "RENOVACION_SPT"]));
+    expect(p.matriz.tipos.map((t) => t.codigo)).toEqual(expect.arrayContaining(["NUEVA_CONCESION", "RENOVACION", "RENOVACION_SPT", "INHUMACION"]));
   });
 
   it("la proyección de cada expediente coincide con la reconstrucción desde sus movimientos", async () => {
@@ -254,7 +260,9 @@ describe("escenarios de la semilla de desarrollo", () => {
       include: { cementerio: { select: { codigo: true } }, plantilla: { select: { codigo: true } }, personas: true, movimientos: true },
     });
     expect(new Set(lista.map((e) => e.cementerio.codigo))).toEqual(new Set(["OESTE", "NORTE", "JARDIN_NORTE"]));
-    expect(new Set(lista.map((e) => e.plantilla.codigo))).toEqual(new Set(["RENOV_CONTADO", "RENOV_PLAN", "RENOV_SPT_CONTADO", "NUEVA_CONC_CONTADO"]));
+    expect(new Set(lista.map((e) => e.plantilla.codigo))).toEqual(
+      new Set(["RENOV_CONTADO", "RENOV_PLAN", "RENOV_SPT_CONTADO", "NUEVA_CONC_CONTADO", "INHUMACION_DIRECCION", "INHUMACION_EMPRESA"]),
+    );
     const juridicas = lista.filter((e) => e.personas.some((p) => p.tipoPersona === "juridica"));
     expect(juridicas.length).toBeGreaterThanOrEqual(1);
     for (const e of juridicas) expect([e.cementerio.codigo, e.tipoMonumento]).toEqual(["OESTE", "PANTEON"]);

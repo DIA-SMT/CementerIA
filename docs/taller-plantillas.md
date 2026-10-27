@@ -5,6 +5,8 @@
 > Todos los ejemplos son inventados.
 >
 > **Actualizado el 20/10/2026 según docs/fuentes** (los procedimientos escaneados de la Dirección y lo que informó por WhatsApp; resumen en `docs/fuentes/README.md`). Se sacaron las preguntas que esas fuentes ya responden: en su lugar queda la respuesta, marcada **Respondida por las fuentes**, para confirmarla de un vistazo. Las que siguen abiertas quedan como estaban, y las nuevas están en la Parte 9. Las plantillas ya tienen aplicadas esas respuestas.
+>
+> **Actualizado el 27/10/2026:** la Dirección pasó el procedimiento de inhumación (`docs/fuentes/procedimiento-inhumacion.docx`). Se cargaron dos plantillas nuevas, **E** (pago en la Dirección) y **F** (pago en la empresa fúnebre), al final de la Parte 2, con sus preguntas (E-1 a E-9 y F-1 a F-4) y sus días de alerta en la Parte 6.
 
 **Fecha:** ____ / ____ / 2026  **Lugar:** ________________________________________
 
@@ -77,7 +79,7 @@ Si algo de lo acordado hoy cambia más adelante, se publica una versión nueva d
 
 ---
 
-## Parte 2. Las cuatro plantillas
+## Parte 2. Las plantillas (A a D, y la inhumación, E y F)
 
 ### Plantilla A. Renovación de concesión, pago de contado
 
@@ -493,6 +495,165 @@ Correcciones a los pasos 5 a 8: ____________________________________________
 
 ---
 
+### Plantillas E y F. Inhumación (agregadas el 27/10/2026)
+
+Salen del procedimiento de inhumación que pasó la Dirección el 27/10/2026 (`docs/fuentes/procedimiento-inhumacion.docx`; resumen en `docs/fuentes/README.md`). El procedimiento tiene dos circuitos, según dónde se paga, y por eso hay dos plantillas del mismo trámite, **Inhumación**:
+- **E. Inhumación, pago en la Dirección:** Mesa de Entradas, Liquidación, cementerio y el regreso a la Dirección "para conocimiento y archivo".
+- **F. Inhumación, pago en la empresa fúnebre:** Mesa de Entradas verifica e informa el horario, el cementerio recibe los comprobantes de la empresa e inhuma, y avisa a la Dirección.
+
+Lo que vale para las dos:
+- **Monumentos:** sotanito, capilla, mausoleo y sepultura (procedimiento). En Jardín, solo sepultura: lo resuelve el cementerio.
+- **Personas:**
+  - el titular de la concesión, vivo, que queda como contacto si no hay solicitante;
+  - el difunto a inhumar, uno, con su fecha de defunción;
+  - un solicitante, si lo hay (un familiar, alguien de la empresa fúnebre), con su vínculo.
+
+  La herramienta no puede exigir la fecha de defunción: se carga en el alta, pero no frena nada.
+- **Forma de pago:** "no corresponde" [C] (E-1).
+- **Días de alerta** cortos, porque la inhumación se hace en uno o dos días: se validan en la Parte 6 [I].
+
+**E-1 [C] Forma de pago.** En E se paga de contado con la boleta y en F paga la empresa. Las dos quedaron como "no corresponde" (no se elige contado ni plan de pagos).
+- ¿Puede haber un plan de pagos para una inhumación? ☐ No ☐ Sí: ______________________
+
+**E-2 [C] ¿El concesionario puede ser el propio difunto?** (por ejemplo, se inhuma al titular en su propio sotanito)
+- ☐ No: el titular es siempre una persona viva
+- ☐ Sí. En ese caso, ¿quién hace el trámite? ☐ Un familiar, como solicitante ☐ Otro: ______________________
+
+**E-3 [C] Panteones.** El procedimiento nombra sotanito, capilla, mausoleo y sepultura, y no el panteón.
+- ¿Una inhumación en un panteón sigue este mismo trámite? ☐ Sí ☐ No, es otro: ______________________
+- Si una asociación es la titular del panteón, ¿qué presenta? ☐ Personería y designación de asamblea, como en la renovación ☐ Otra cosa: ______________________
+
+---
+
+#### Plantilla E. Inhumación, pago en la Dirección
+
+**En pocas palabras.** Son 4 pasos. El trámite termina cuando la Dirección toma conocimiento de la inhumación y archiva el expediente.
+
+- **Qué se cobra**, en la boleta de Liquidación: derecho de oficina, apertura (**solo en el Cementerio Jardín**), inhumación y conducción.
+
+**Paso 1. Mesa de Entradas** (alerta propuesta: 1 día hábil)
+
+Tareas a tildar:
+- (obligatoria) Carátula impresa y agregada al expediente [I] (vale lo respondido en A-2)
+- (obligatoria) Concesión vigente verificada en Cómputos
+- (obligatoria) Conservación de los últimos 5 años verificada en el estado de cuenta
+
+Documentos que tienen que estar antes de pasar:
+- Constancia de Cómputos (la provee la Dirección)
+- Estado de cuenta (lo provee la Dirección)
+- Fotocopia del DNI (la trae el concesionario)
+- Constancia para inhumar (la trae el concesionario)
+
+**E-4 [I] Documentos.**
+- ¿Se exigen todos al salir de Mesa de Entradas? ☐ Sí ☐ No: ______________________
+- ¿Se escanea alguno? ☐ No ☐ Sí: ______________________
+- ¿La constancia para inhumar la emite la Dirección o la trae el concesionario? ☐ La trae ☐ La emite la Dirección
+
+**E-5 [C] Conservación en el Norte.** El procedimiento de inhumación pide verificar los últimos 5 años en los tres cementerios (en la renovación, solo en el Oeste y en Jardín). ¿Vale también en el Norte? ☐ Sí ☐ No
+
+**E-6 [C] Concesión vencida.** Si la concesión está vencida, ¿qué pasa? ☐ No se inicia ☐ Se inicia igual con un acta compromiso (procedimientos, casos especiales) ☐ Otro: ______________________
+
+---
+
+**Paso 2. Liquidación y Tasas** (alerta propuesta: 1 día hábil)
+
+Tareas a tildar:
+- (obligatoria) Liquidación practicada y débitos generados
+- (obligatoria) Boleta emitida por oficina, inhumación y conducción. **En Jardín:** boleta emitida por oficina, apertura, inhumación y conducción. Se puede anotar el N° de boleta, que es optativo [I].
+- (obligatoria) Pago verificado (Rapipago, Pago Fácil o Banco Macro), con la fecha de pago
+
+Documento que tiene que estar antes de pasar:
+- Copia del comprobante de pago (se puede adjuntar)
+
+**E-7 [C] La apertura.** ¿Se cobra solo en Jardín, como dice el procedimiento? ☐ Sí ☐ No, también en: ______________________
+
+---
+
+**Paso 3. Cementerio: el expediente está afuera** (alerta propuesta: 2 días hábiles)
+
+Es el cementerio del expediente: Oeste, Norte o Jardín. El cementerio no usa la herramienta: lo sigue **Mesa de Entradas** [C], como en la nueva concesión.
+
+Tareas a tildar:
+- (obligatoria) Inhumación realizada, con la fecha
+- (obligatoria) Expediente devuelto a la Dirección
+
+**E-8 [C] Custodia del paso del cementerio.** Mientras el expediente está en el cementerio:
+- ¿Qué área lo sigue? ☐ Mesa de Entradas ☐ Otra: ______________________
+- ¿El papel viaja al cementerio? ☐ Sí ☐ No, va una nota o una copia: ______________________
+- ¿Quién recibe el papel cuando vuelve? ______________________
+
+---
+
+**Paso 4. Conocimiento y archivo** (último paso; alerta propuesta: 5 días hábiles)
+
+El procedimiento dice que el cementerio devuelve el expediente "a la Dirección para conocimiento y archivo". En la herramienta, Dirección no recibe expedientes (sus usuarios solo consultan), así que propusimos que este paso sea de **Mesa de Entradas** [C].
+
+Tarea a tildar:
+- (obligatoria) La Dirección tomó conocimiento de la inhumación
+
+Después, Mesa de Entradas concluye el expediente y lo archiva con su caja.
+
+**E-9 [C] ¿Quién toma conocimiento y archiva?**
+- ☐ Mesa de Entradas (propuesto) ☐ Administrativo ☐ Otra área: ______________________
+- ¿Hace falta que alguien de la Dirección firme o vise algo antes del archivo? ☐ No ☐ Sí: ______________________
+- ¿Se archiva en la Dirección o en el cementerio? ______________________
+
+Correcciones a la plantilla E: ____________________________________________
+
+---
+
+#### Plantilla F. Inhumación, pago en la empresa fúnebre
+
+**En pocas palabras.** Son 3 pasos y no pasa por Liquidación: según el plan de sepelio, la empresa fúnebre paga todos los conceptos (derecho de oficina, apertura en Jardín, inhumación y conducción) y presenta los comprobantes en el cementerio.
+
+- **Qué se cobra:** nada en la Dirección. Los cuatro conceptos quedan escritos en las instrucciones de los pasos, porque la herramienta solo sabe registrar conceptos "en la boleta de Liquidación" o "por plan de pagos ante la DIM" (F-4).
+
+**Paso 1. Mesa de Entradas** (alerta propuesta: 1 día hábil)
+
+Tareas a tildar: las tres de E (carátula, concesión vigente y Conservación), y además:
+- (obligatoria) Horario de la inhumación informado al cementerio, anotando el día y la hora [I: el texto es obligatorio]
+
+Documentos que tienen que estar antes de pasar: los mismos cuatro de E.
+
+**F-1 [C] El horario.**
+- ¿Quién le informa el horario al cementerio, y cómo (teléfono, nota, WhatsApp)? ______________________
+- ¿Se anota en el expediente? ☐ Sí ☐ No
+
+---
+
+**Paso 2. Cementerio: el expediente está afuera** (alerta propuesta: 2 días hábiles)
+
+Lo sigue **Mesa de Entradas** [C] (E-8).
+
+Tareas a tildar:
+- (obligatoria) Comprobantes de la empresa fúnebre presentados en el cementerio
+- (obligatoria) Inhumación realizada, con la fecha
+- (obligatoria) Informado a la Dirección
+
+Documento (no obligatorio, se puede adjuntar): comprobantes de pago de la empresa fúnebre [I].
+
+**F-2 [C] ¿El expediente de papel va al cementerio** o se queda en Mesa de Entradas hasta que el cementerio informa?
+- ☐ Va al cementerio ☐ Se queda en Mesa de Entradas ☐ Otro: ______________________
+
+**F-3 [I] Los comprobantes de la empresa.** ¿La Dirección recibe una copia para el expediente?
+- ☐ No, solo los ve el cementerio ☐ Sí, y tienen que estar para seguir ☐ Sí, pero no frenan el trámite (como está)
+
+**F-4 [C] Cómo se registra el pago de la empresa fúnebre.** Hoy la herramienta no puede marcar un concepto como "lo paga la empresa fúnebre". Opciones:
+- ☐ Como está: los conceptos solo se nombran en las instrucciones, sin registrarlos
+- ☐ Registrarlos como si fueran de la boleta (la ficha diría "boleta", aunque no la emita la Dirección)
+- ☐ Agregar a la herramienta la forma "la paga la empresa fúnebre" (requiere programación)
+- ¿Puede pasar que la empresa pague solo una parte y el resto lo pague el concesionario en la Dirección? ☐ No ☐ Sí. En ese caso, ¿qué se hace? ______________________
+
+---
+
+**Paso 3. Conocimiento y archivo** (último paso; alerta propuesta: 5 días hábiles)
+
+Igual que el paso 4 de E: lo hace **Mesa de Entradas** [C] (E-9), y después se concluye y se archiva.
+
+Correcciones a la plantilla F: ____________________________________________
+
+---
+
 ## Parte 3. Datos del expediente (pregunta 5)
 
 **E-1** ¿Cómo es el número de expediente municipal?
@@ -642,8 +803,18 @@ Todos los valores propuestos son suposiciones [I]. Anoten cuántos días hábile
 | D | 7 | Cómputo: final | Cómputo | 5 | |
 | D | 8 | Entrega | Administrativo | 30 | |
 
+| E | 1 | Mesa de Entradas | Mesa de Entradas | 1 | |
+| E | 2 | Liquidación y Tasas | Liquidación | 1 | |
+| E | 3 | Cementerio (afuera) | Lo sigue Mesa de Entradas [C] | 2 | |
+| E | 4 | Conocimiento y archivo | Mesa de Entradas [C] | 5 | |
+| F | 1 | Mesa de Entradas | Mesa de Entradas | 1 | |
+| F | 2 | Cementerio (afuera) | Lo sigue Mesa de Entradas [C] | 2 | |
+| F | 3 | Conocimiento y archivo | Mesa de Entradas [C] | 5 | |
+
 **DA-1** ¿Las plantillas A y C llevan los mismos días?
 - ☐ Sí ☐ No (anotar en la fila que corresponda)
+
+**DA-2 [I]** Inhumación (E y F): ¿cuánto tarda hoy, del inicio en Mesa de Entradas a la inhumación? ________ días. ¿Y hasta que el expediente vuelve del cementerio? ________ días.
 
 ---
 
@@ -677,7 +848,7 @@ El pedido original se cortó en "traslado de restos,". Los procedimientos listan
 | Transferencia y renovación | ☐ Sí ☐ No | |
 | Caducidad | ☐ Sí ☐ No | |
 | Cinerario común | ☐ Sí ☐ No | |
-| Inhumación | ☐ Sí ☐ No | |
+| Inhumación (cargada el 27/10/2026: plantillas E y F) | ☐ Sí ☐ No | |
 | Exhumación | ☐ Sí ☐ No | |
 | Traslado de restos | ☐ Sí ☐ No | |
 | Concesión (los procedimientos la listan aparte de la nueva concesión) | ☐ Sí ☐ No | |
@@ -772,7 +943,9 @@ Hay una copia por trámite (T-1 a T-7). Cada hoja tiene estas partes:
 
 ### T-5. Inhumación y exhumación
 
-**Lo que prevemos.**
+**La inhumación ya está cargada** (27/10/2026, plantillas E y F de la Parte 2, según el procedimiento de la Dirección): queda relevar la exhumación.
+
+**Lo que prevemos** para la exhumación.
 - Un difunto con su fecha de defunción, y el acta de defunción como documento que no se escanea.
 - Se cobran apertura, inhumación o exhumación, y conducción.
 - Un paso en el cementerio con la tarea "Realizada", con fecha.
@@ -912,3 +1085,17 @@ Referencias a `docs/propuesta-mvp.md`. Las claves son las de la definición de c
 | N-4 | 2.2; 2.13(d) | `cementerios.campos_ubicacion` |
 | N-5 | 7 | `excepto_cementerios` de INSPECCION_TECNICA en las plantillas nuevas |
 | T-0 a T-7 | 7; 4, taller 7; pregunta 1 | Plantillas nuevas, que carga el admin desde la semana 2 |
+| E-1 | Inhumación (docs/fuentes, 27/10/2026) | `forma_pago` de INHUMACION_DIRECCION e INHUMACION_EMPRESA (hoy `no_aplica`) |
+| E-2 | Inhumación | `personas` titular: `fallecido` (`opcional` si puede ser el difunto) y el solicitante como contacto |
+| E-3 | Inhumación | `tipos_monumento` (agregar PANTEON) y, si hay asociaciones, `admite_juridica` del titular y PERSONERIA y DESIGNACION_ASAMBLEA con `solo_si_juridica` |
+| E-4 | Inhumación | `exigir_al_salir_de`, `adjunto` y `origen` de CONST_COMPUTOS, ESTADO_CUENTA, DNI y CONST_INHUMAR |
+| E-5 | Inhumación | `solo_cementerios` de la subtarea MESA_CONSERVACION (hoy en los tres) |
+| E-6 | Inhumación; procedimientos, acta compromiso | Subtarea MESA_CONCESION_VIGENTE; posible plantilla o documento del acta compromiso |
+| E-7 | Inhumación | `solo_cementerios` del concepto APERTURA y nombres de LIQ_BOLETA y LIQ_BOLETA_JARDIN |
+| E-8 | Inhumación; pregunta 8 | `custodia` e instrucciones del paso CEMENTERIO de las dos plantillas |
+| E-9 | Inhumación | `area` del paso CONOCIMIENTO (y su subtarea DIR_CONOCIMIENTO) |
+| F-1 | Inhumación | `dato` y `dato_obligatorio` de MESA_HORARIO |
+| F-2 | Inhumación; pregunta 8 | Paso CEMENTERIO de INHUMACION_EMPRESA (si el papel no viaja, otro paso de Mesa) |
+| F-3 | Inhumación | Documento COMPROBANTES_EMPRESA: `obligatorio`, `exigir_al_salir_de` y `adjunto` |
+| F-4 | Inhumación | `conceptos` de INHUMACION_EMPRESA: hoy vacíos (no hay `via` "empresa fúnebre"; agregarla es un cambio del esquema `VIAS_CONCEPTO`) |
+| DA-2 | Inhumación | `dias_alerta` de los pasos de E y F |

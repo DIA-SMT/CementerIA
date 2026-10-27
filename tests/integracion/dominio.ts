@@ -1,7 +1,7 @@
 // Ayudas para los tests del dominio de expedientes (semanas 2 a 4).
 //
 // A diferencia de escenario.ts, estos tests usan la semilla real (áreas con sus
-// códigos, las 4 plantillas, los usuarios ficticios por área): las reglas de
+// códigos, las plantillas, los usuarios ficticios por área): las reglas de
 // permisos miran el código de área (MESA_ENTRADAS, COMPUTO…) y las plantillas
 // apuntan a esas áreas. `asegurarSemilla()` la corre (es idempotente), así que
 // el orden de los archivos no importa. Lo que se crea con el dominio se

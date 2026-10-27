@@ -249,7 +249,7 @@ async function sembrarPlantillas(tx: Transaccion, avisos: string[]): Promise<num
         nombre: p.nombre,
         estado: "borrador",
         definicion: comoJson(r.definicion),
-        notasCambio: NOTAS_CARGA_INICIAL,
+        notasCambio: p.notasCambio ?? NOTAS_CARGA_INICIAL,
         creadoPor: SISTEMA,
       },
     });

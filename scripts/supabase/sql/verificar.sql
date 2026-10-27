@@ -67,6 +67,20 @@ datos AS (
          WHERE cuil IN ('27000000022', '20000000036', '27000000049', '20000000052',
                         '27000000065', '20000000079', '27000000081') $q$, false, true, '')))[1]::text
     END AS ficticios,
+    CASE WHEN has_table_privilege('public.plantillas', 'SELECT')
+      THEN (xpath('/row/v/text()', query_to_xml($q$
+        -- Las plantillas de prisma/semilla/plantillas (scripts/supabase/lib.test.ts
+        -- controla que sean las mismas): las 4 de la carga inicial y las 2 de
+        -- inhumación (31_inhumacion.sql en una base que ya tenía la semilla anterior).
+        SELECT format('%s|%s|%s', count(*) FILTER (WHERE publicada),
+                      coalesce(string_agg(codigo, ', ' ORDER BY codigo) FILTER (WHERE NOT existe), '-'),
+                      coalesce(string_agg(codigo, ', ' ORDER BY codigo) FILTER (WHERE existe AND NOT publicada), '-')) AS v
+          FROM (SELECT c.codigo,
+                       EXISTS (SELECT 1 FROM public.plantillas p WHERE p.codigo = c.codigo) AS existe,
+                       EXISTS (SELECT 1 FROM public.plantillas p WHERE p.codigo = c.codigo AND p.estado = 'publicada') AS publicada
+                  FROM unnest(ARRAY['RENOV_CONTADO', 'RENOV_PLAN', 'RENOV_SPT_CONTADO', 'NUEVA_CONC_CONTADO',
+                                    'INHUMACION_DIRECCION', 'INHUMACION_EMPRESA']) AS c(codigo)) s $q$, false, true, '')))[1]::text
+    END AS plantillas_semilla,
     CASE WHEN has_table_privilege('public.expedientes', 'SELECT') AND has_table_privilege('public.movimientos', 'SELECT')
       THEN (xpath('/row/v/text()', query_to_xml($q$
         SELECT format('%s|%s', count(*), count(*) FILTER (WHERE NOT v.integra)) AS v
@@ -251,5 +265,20 @@ SELECT control, ok, detalle FROM (
                                FROM pg_policies WHERE schemaname = 'storage' AND tablename IN ('objects', 'buckets')),
                             'ninguna política en storage.objects ni storage.buckets: con RLS, solo la clave secreta del servidor entra') END
     FROM almacen a
+
+  UNION ALL
+  -- Mal si falta alguna (no se aplicó 31_inhumacion.sql); informativo si existe
+  -- pero sin versión publicada (el admin la retiró: es su decisión).
+  SELECT 21, 'plantillas de la semilla publicadas',
+         CASE WHEN d.plantillas_semilla IS NULL THEN NULL
+              WHEN split_part(d.plantillas_semilla, '|', 2) <> '-' THEN false
+              WHEN split_part(d.plantillas_semilla, '|', 3) <> '-' THEN NULL
+              ELSE true END,
+         CASE WHEN d.plantillas_semilla IS NULL THEN 'sin permiso para leer datos con este rol: npm run supabase:verificar'
+              ELSE format('%s de 6 publicadas; no existen: %s; sin versión publicada: %s',
+                          split_part(d.plantillas_semilla, '|', 1), split_part(d.plantillas_semilla, '|', 2),
+                          split_part(d.plantillas_semilla, '|', 3))
+                   || CASE WHEN split_part(d.plantillas_semilla, '|', 2) <> '-' THEN ' (¿falta aplicar 31_inhumacion.sql?)' ELSE '' END END
+    FROM datos d
 ) controles
 ORDER BY orden;
