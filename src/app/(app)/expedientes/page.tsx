@@ -8,6 +8,7 @@ import { EncabezadoPagina } from "@/components/encabezado-pagina";
 import { EstadoVacio } from "@/components/estado-vacio";
 import { EtiquetaEstado } from "@/components/etiquetas";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio, expedientes, type ResultadoBusqueda } from "@/lib/dominio/expedientes/servidor";
 import { ESTADOS_EXPEDIENTE, puede } from "@/lib/dominio/permisos";
@@ -55,6 +56,7 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
 
   return (
     <section aria-labelledby="titulo-pantalla" className="space-y-5">
+      <PantallaConRecorrido id="busqueda" />
       <EncabezadoPagina
         titulo="Buscar expedientes"
         antetitulo="Expedientes"
@@ -62,14 +64,14 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
           <>
             {exportar ? (
               // Un <a> y no un Link: es una descarga (no se navega ni se precarga, y cada clic queda registrado).
-              <a href={rutaExportarDesde(parametros)} download className={CLASE_BOTON_SECUNDARIO}>
+              <a href={rutaExportarDesde(parametros)} download data-recorrido="busqueda-exportar" className={CLASE_BOTON_SECUNDARIO}>
                 <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
                 Exportar CSV
                 <span className="sr-only"> con los filtros de esta búsqueda (queda registrado)</span>
               </a>
             ) : null}
             {puede("alta", null, usuario) ? (
-              <Link href="/expedientes/nuevo" className={CLASE_BOTON_PRIMARIO}>
+              <Link href="/expedientes/nuevo" data-recorrido="busqueda-nuevo" className={CLASE_BOTON_PRIMARIO}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Nuevo
               </Link>
@@ -79,7 +81,7 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
       />
 
       <Form action="/expedientes" role="search" aria-label="Buscar expedientes" className="tarjeta space-y-4 p-4 sm:p-5">
-        <div>
+        <div data-recorrido="busqueda-caja">
           <label htmlFor="busqueda-q" className="mb-1.5 block text-sm font-medium text-texto">
             N° interno o municipal, padrón, DNI, CUIT, apellido o razón social
           </label>
@@ -111,6 +113,7 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
 
         <details open={filtrosPuestos > 0} className="group border-t border-borde pt-3">
           <summary
+            data-recorrido="busqueda-filtros"
             className={`inline-flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-control px-1 text-sm font-semibold text-texto transition-colors duration-150 hover:text-primario-oscuro [&::-webkit-details-marker]:hidden ${CLASE_FOCO}`}
           >
             <ChevronRight className="h-4 w-4 transition-transform duration-150 group-open:rotate-90" aria-hidden="true" />
@@ -217,7 +220,7 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
 
       {resultado ? (
         <div className="space-y-3">
-          <p className="text-sm font-medium text-texto" aria-live="polite">
+          <p className="text-sm font-medium text-texto" aria-live="polite" data-recorrido="busqueda-resultados">
             {resultado.consulta.tipo === "numero_interno"
               ? `No existe el expediente ${resultado.consulta.numero}.`
               : !conCriterio
@@ -252,7 +255,11 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
                       <th scope="col">Trámite</th>
                       <th scope="col">Paso y área</th>
                       <th scope="col">Estado</th>
-                      {numerica ? <th scope="col">Coincide por</th> : null}
+                      {numerica ? (
+                        <th scope="col" data-recorrido="busqueda-coincide">
+                          Coincide por
+                        </th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -351,7 +358,9 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
                       ) : null}
                       {numerica ? (
                         <>
-                          <dt className="text-texto-secundario">Coincide por</dt>
+                          <dt className="text-texto-secundario" data-recorrido="busqueda-coincide">
+                            Coincide por
+                          </dt>
                           <dd className="min-w-0">
                             <Coincidencias resultado={r} />
                           </dd>

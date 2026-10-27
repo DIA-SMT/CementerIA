@@ -17,7 +17,8 @@ export default defineConfig({
   },
   test: {
     // prisma/: los datos de la semilla se testean junto a ellos (sin base).
-    include: ["src/**/*.test.ts", "prisma/**/*.test.ts"],
+    // scripts/: lo que no necesita base de los scripts (scripts/supabase/).
+    include: ["src/**/*.test.ts", "prisma/**/*.test.ts", "scripts/**/*.test.ts"],
     environment: "node",
     // El servidor corre con TZ de Tucumán, pero el código no puede depender de
     // eso (sección 6, "Fechas"): los tests corren en UTC para que se note.

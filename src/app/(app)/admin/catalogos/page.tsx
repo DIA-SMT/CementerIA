@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { clasePestana } from "@/components/pestanas";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
@@ -54,16 +55,18 @@ export default async function PaginaCatalogos(props: PageProps<"/admin/catalogos
 
   return (
     <section aria-labelledby="titulo-catalogos" className="space-y-4">
+      <PantallaConRecorrido id="admin-catalogos" />
       <h1 id="titulo-catalogos" className="text-2xl font-semibold tracking-tight text-texto">
         Catálogos
       </h1>
-      <nav aria-label="Catálogos">
+      <nav aria-label="Catálogos" data-recorrido="catalogos-pestanas">
         <ul className="flex flex-wrap gap-1 border-b border-borde">
           {PESTANAS.map((p) => (
             <li key={p.id}>
               <Link
                 href={`/admin/catalogos?pestana=${p.id}`}
                 aria-current={p.id === pestana ? "page" : undefined}
+                data-recorrido={`catalogos-pestana-${p.id}`}
                 className={clasePestana(p.id === pestana)}
               >
                 {p.etiqueta}
@@ -73,33 +76,36 @@ export default async function PaginaCatalogos(props: PageProps<"/admin/catalogos
         </ul>
       </nav>
 
-      {pestana === "areas" ? <PestanaAreas areas={catalogos.areas} /> : null}
-      {pestana === "cementerios" ? (
-        <PestanaCementerios
-          cementerios={catalogos.cementerios}
-          areasExternas={catalogos.areas.filter((a) => a.tipo === "externa").map((a) => ({ id: a.id, nombre: a.nombre, activa: a.activa, cementerio: a.cementerio }))}
-          tiposMonumento={catalogos.tiposMonumento.map((t) => ({ codigo: t.codigo, nombre: t.nombre, activo: t.activo }))}
-        />
-      ) : null}
-      {pestana === "monumentos" ? (
-        <PestanaSimple
-          catalogo="tipo_monumento"
-          titulo="Tipos de monumento"
-          descripcion="Cada cementerio habilita los suyos (pestaña Cementerios). Desactivar uno lo saca del alta en todos."
-          ayudaCodigo="Mayúsculas y _ (ej. NICHO)"
-          filas={catalogos.tiposMonumento.map((t) => ({ id: t.id, codigo: t.codigo, nombre: t.nombre, activo: t.activo, uso: [t.cementerios.length > 0 ? `Habilitado en ${t.cementerios.join(", ")}` : "Ningún cementerio lo habilita", `${t.expedientes} expedientes`].join(" · ") }))}
-        />
-      ) : null}
-      {pestana === "tramites" ? (
-        <PestanaSimple
-          catalogo="tipo_tramite"
-          titulo="Tipos de trámite"
-          descripcion="Agrupan las plantillas (todas las versiones de un código son del mismo tipo). Desactivar uno no retira sus plantillas: eso se hace en Plantillas."
-          ayudaCodigo="Mayúsculas, números y _ (ej. TRANSFERENCIA)"
-          filas={catalogos.tiposTramite.map((t) => ({ id: t.id, codigo: t.codigo, nombre: t.nombre, activo: t.activo, uso: t.plantillas.length > 0 ? `Plantillas: ${t.plantillas.join(", ")}` : "Sin plantillas" }))}
-        />
-      ) : null}
-      {pestana === "feriados" && feriados ? <PestanaFeriados {...feriados} /> : null}
+      {/* La pestaña abierta (el recorrido guiado la resalta como "catalogos-contenido"). */}
+      <div data-recorrido="catalogos-contenido">
+        {pestana === "areas" ? <PestanaAreas areas={catalogos.areas} /> : null}
+        {pestana === "cementerios" ? (
+          <PestanaCementerios
+            cementerios={catalogos.cementerios}
+            areasExternas={catalogos.areas.filter((a) => a.tipo === "externa").map((a) => ({ id: a.id, nombre: a.nombre, activa: a.activa, cementerio: a.cementerio }))}
+            tiposMonumento={catalogos.tiposMonumento.map((t) => ({ codigo: t.codigo, nombre: t.nombre, activo: t.activo }))}
+          />
+        ) : null}
+        {pestana === "monumentos" ? (
+          <PestanaSimple
+            catalogo="tipo_monumento"
+            titulo="Tipos de monumento"
+            descripcion="Cada cementerio habilita los suyos (pestaña Cementerios). Desactivar uno lo saca del alta en todos."
+            ayudaCodigo="Mayúsculas y _ (ej. NICHO)"
+            filas={catalogos.tiposMonumento.map((t) => ({ id: t.id, codigo: t.codigo, nombre: t.nombre, activo: t.activo, uso: [t.cementerios.length > 0 ? `Habilitado en ${t.cementerios.join(", ")}` : "Ningún cementerio lo habilita", `${t.expedientes} expedientes`].join(" · ") }))}
+          />
+        ) : null}
+        {pestana === "tramites" ? (
+          <PestanaSimple
+            catalogo="tipo_tramite"
+            titulo="Tipos de trámite"
+            descripcion="Agrupan las plantillas (todas las versiones de un código son del mismo tipo). Desactivar uno no retira sus plantillas: eso se hace en Plantillas."
+            ayudaCodigo="Mayúsculas, números y _ (ej. TRANSFERENCIA)"
+            filas={catalogos.tiposTramite.map((t) => ({ id: t.id, codigo: t.codigo, nombre: t.nombre, activo: t.activo, uso: t.plantillas.length > 0 ? `Plantillas: ${t.plantillas.join(", ")}` : "Sin plantillas" }))}
+          />
+        ) : null}
+        {pestana === "feriados" && feriados ? <PestanaFeriados {...feriados} /> : null}
+      </div>
     </section>
   );
 }

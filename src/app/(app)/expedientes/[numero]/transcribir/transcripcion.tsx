@@ -103,8 +103,9 @@ interface PropsSeccion {
 }
 
 function Seccion({ id, titulo, descripcion, children }: { id: string; titulo: string; descripcion?: React.ReactNode; children: React.ReactNode }) {
+  // El ancla del recorrido guiado sale del id: "titulo-grilla" → "transcripcion-grilla".
   return (
-    <section aria-labelledby={id} className="tarjeta px-4 pb-4 pt-3.5 sm:px-5">
+    <section aria-labelledby={id} data-recorrido={id.replace(/^titulo-/, "transcripcion-")} className="tarjeta px-4 pb-4 pt-3.5 sm:px-5">
       <h2 id={id} className="titulo-seccion border-b border-borde pb-2.5">
         {titulo}
       </h2>

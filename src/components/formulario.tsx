@@ -179,15 +179,18 @@ export function Seccion({
   titulo,
   descripcion,
   numero,
+  recorrido,
   children,
 }: {
   titulo: string;
   descripcion?: React.ReactNode;
   numero?: number;
+  /** El ancla del paso del recorrido guiado que resalta este bloque (`data-recorrido`). */
+  recorrido?: string;
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="tarjeta min-w-0 px-4 pb-5 pt-3.5 sm:px-5">
+    <fieldset data-recorrido={recorrido} className="tarjeta min-w-0 px-4 pb-5 pt-3.5 sm:px-5">
       <legend className="float-left mb-4 flex w-full items-center gap-2.5 border-b border-borde pb-3 text-base font-semibold text-texto">
         {numero !== undefined ? (
           <span

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { formatearCuit } from "@/lib/dominio/cuil";
@@ -10,10 +11,12 @@ export const metadata: Metadata = { title: "Usuarios" };
 const ROL_TEXTO: Record<string, string> = { admin: "Administrador", operador: "Operador", lectura: "Lectura" };
 
 /**
- * `/admin/usuarios` (sección 5): CUIL, nombre, área, rol, activo y último
- * ingreso; alta por CUIL, cambiar área o rol, desactivar (corta la sesión en
- * el request siguiente) y reactivar. Las reglas (último admin, uno mismo,
- * área interna) son del dominio; los diálogos están en ./usuarios.tsx.
+ * `/admin/usuarios` (sección 5): CUIL, nombre, área, rol, estado (con el de
+ * la contraseña: temporal, sin contraseña, bloqueado) y último ingreso; alta
+ * por CUIL (con contraseña temporal), cambiar área o rol, desactivar (corta la
+ * sesión en el request siguiente), reactivar, blanquear la contraseña y
+ * desbloquear. Las reglas (último admin, uno mismo, área interna) son del
+ * dominio; los diálogos están en ./usuarios.tsx.
  */
 export default async function PaginaUsuarios() {
   const usuario = await exigirPantalla("admin");
@@ -22,6 +25,7 @@ export default async function PaginaUsuarios() {
 
   return (
     <section aria-labelledby="titulo-usuarios" className="space-y-4">
+      <PantallaConRecorrido id="admin-usuarios" />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 id="titulo-usuarios" className="text-2xl font-semibold tracking-tight text-texto">
           Usuarios
@@ -29,10 +33,10 @@ export default async function PaginaUsuarios() {
         <BotonAltaUsuario areas={areas} />
       </div>
       <p className="text-sm text-texto-secundario">
-        {activos} activos de {usuarios.length} · {adminsActivos === 1 ? "1 administrador activo" : `${adminsActivos} administradores activos`}. Entran con Cidituc: el
-        nombre y el correo se actualizan en cada ingreso.
+        {activos} activos de {usuarios.length} · {adminsActivos === 1 ? "1 administrador activo" : `${adminsActivos} administradores activos`}. Ingresan con su
+        CUIL (o su correo) y su contraseña. La contraseña temporal del alta o de un blanqueo se muestra una sola vez.
       </p>
-      <div className="tarjeta relative @container overflow-x-auto">
+      <div className="tarjeta relative @container overflow-x-auto" data-recorrido="usuarios-tabla">
         <table className="tabla-datos tabla-apilable-amplia">
           <caption className="sr-only">Usuarios dados de alta</caption>
           <thead>
@@ -41,7 +45,9 @@ export default async function PaginaUsuarios() {
               <th scope="col" className="font-medium">Nombre</th>
               <th scope="col" className="font-medium">Área</th>
               <th scope="col" className="font-medium">Rol</th>
-              <th scope="col" className="font-medium">Estado</th>
+              <th scope="col" className="font-medium" data-recorrido="usuarios-estado">
+                Estado
+              </th>
               <th scope="col" className="font-medium">Último ingreso</th>
               <th scope="col" className="font-medium">
                 <span className="sr-only">Acciones</span>
@@ -58,11 +64,29 @@ export default async function PaginaUsuarios() {
                 </th>
                 <td data-etiqueta="Área">{u.area?.nombre ?? <span className="text-texto-secundario">Sin área</span>}</td>
                 <td data-etiqueta="Rol">{ROL_TEXTO[u.rol] ?? u.rol}</td>
-                <td data-etiqueta="Estado">{u.activo ? "Activo" : "Inactivo"}</td>
+                <td data-etiqueta="Estado">
+                  {u.activo ? "Activo" : "Inactivo"}
+                  {u.bloqueadoHasta ? (
+                    <span className="mt-0.5 block text-xs font-medium text-advertencia">Bloqueado hasta {formatearFechaHora(u.bloqueadoHasta)}</span>
+                  ) : null}
+                  {!u.conClave ? (
+                    <span className="mt-0.5 block text-xs text-texto-secundario">Sin contraseña</span>
+                  ) : u.debeCambiarClave ? (
+                    <span className="mt-0.5 block text-xs text-texto-secundario">Contraseña temporal</span>
+                  ) : null}
+                </td>
                 <td data-etiqueta="Último ingreso" className="whitespace-nowrap">{u.ultimoIngreso ? formatearFechaHora(u.ultimoIngreso) : <span className="text-texto-secundario">Nunca</span>}</td>
                 <td>
                   <AccionesUsuario
-                    usuario={{ id: u.id, nombre: `${u.nombre} ${u.apellido}`, cuil: u.cuil, areaId: u.area?.id ?? null, rol: u.rol, activo: u.activo }}
+                    usuario={{
+                      id: u.id,
+                      nombre: `${u.nombre} ${u.apellido}`,
+                      cuil: u.cuil,
+                      areaId: u.area?.id ?? null,
+                      rol: u.rol,
+                      activo: u.activo,
+                      bloqueado: u.bloqueadoHasta !== null,
+                    }}
                     esUnoMismo={u.id === usuario.id}
                     areas={areas}
                   />

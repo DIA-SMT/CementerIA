@@ -147,14 +147,14 @@ describe("auditar_cambio: catálogos", () => {
 });
 
 describe("auditar_cambio: usuarios", () => {
-  it("registra el alta con id, cuil, área, rol y activo, sin nombre ni email", async () => {
+  it("registra el alta con id, cuil, área, rol, activo y debe_cambiar_clave, sin nombre, email ni contraseña", async () => {
     await conAdmin(async (c, admin) => {
       const area = await crearArea(c);
       const id = await crearUsuario(c, { area_id: area, rol: "lectura" });
       const [alta] = await cambios(c, "usuarios", id);
       expect(alta.operacion).toBe("I");
       expect(alta.usuario_id).toBe(admin);
-      expect(Object.keys(alta.despues ?? {}).sort()).toEqual(["activo", "area_id", "cuil", "id", "rol"]);
+      expect(Object.keys(alta.despues ?? {}).sort()).toEqual(["activo", "area_id", "cuil", "debe_cambiar_clave", "id", "rol"]);
       expect(alta.despues).toMatchObject({ id, area_id: area, rol: "lectura", activo: true });
     });
   });
@@ -164,6 +164,8 @@ describe("auditar_cambio: usuarios", () => {
     ["el rol", "rol = $2", async () => "admin"],
     ["la baja", "activo = $2", async () => false],
     ["el CUIL", "cuil = $2", async () => cuilFicticio()],
+    // Login propio (27/10/2026): un blanqueo (no → sí) o el primer cambio (sí → no).
+    ["la contraseña temporal", "debe_cambiar_clave = $2", async () => true],
   ];
 
   it.each(CAMBIOS_DE_ACCESO)("registra el cambio de %s", async (_que, asignacion, valor) => {
@@ -172,7 +174,7 @@ describe("auditar_cambio: usuarios", () => {
       await c.query(`UPDATE public.usuarios SET ${asignacion} WHERE id = $1`, [id, await valor(c)]);
       const filas = await cambios(c, "usuarios", id);
       expect(filas.map((f) => f.operacion)).toEqual(["I", "U"]);
-      expect(Object.keys(filas[1].antes ?? {}).sort()).toEqual(["activo", "area_id", "cuil", "id", "rol"]);
+      expect(Object.keys(filas[1].antes ?? {}).sort()).toEqual(["activo", "area_id", "cuil", "debe_cambiar_clave", "id", "rol"]);
       expect(filas[1].antes).not.toEqual(filas[1].despues);
     });
   });
@@ -184,11 +186,32 @@ describe("auditar_cambio: usuarios", () => {
     ["cidituc_id", "cidituc_id = 'ficticio-123'"],
     ["sesion_version (salida)", "sesion_version = sesion_version + 1"],
     ["el rol, sin cambiarlo", "rol = rol"],
+    // Login propio: el hash (rehecho al ingresar), los fallos y el bloqueo.
+    ["clave_hash", "clave_hash = 'scrypt$1024$8$1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'"],
+    ["intentos_fallidos", "intentos_fallidos = intentos_fallidos + 1"],
+    ["bloqueado_hasta", "bloqueado_hasta = now() + interval '15 minutes', intentos_fallidos = 0"],
   ])("el login no deja filas: %s", async (_que, asignacion) => {
     await conAdmin(async (c) => {
       const id = await crearUsuario(c, { area_id: await crearArea(c) });
       await c.query(`UPDATE public.usuarios SET ${asignacion} WHERE id = $1`, [id]);
       expect((await cambios(c, "usuarios", id)).map((f) => f.operacion)).toEqual(["I"]);
+    });
+  });
+
+  it("un blanqueo deja la fila de debe_cambiar_clave, pero nunca el hash ni el contador", async () => {
+    await conAdmin(async (c) => {
+      const id = await crearUsuario(c, { area_id: await crearArea(c) });
+      const hash = "scrypt$1024$8$1$QUFBQUFBQUFBQUFBQUFBQUFB$QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJC";
+      await c.query("UPDATE public.usuarios SET clave_hash = $2, debe_cambiar_clave = true, intentos_fallidos = 3 WHERE id = $1", [id, hash]);
+      const [, blanqueo] = await cambios(c, "usuarios", id);
+      expect(blanqueo.antes).toMatchObject({ debe_cambiar_clave: false });
+      expect(blanqueo.despues).toMatchObject({ debe_cambiar_clave: true });
+      for (const lado of [blanqueo.antes, blanqueo.despues]) {
+        expect(lado).not.toHaveProperty("clave_hash");
+        expect(lado).not.toHaveProperty("intentos_fallidos");
+      }
+      const todo = await c.query("SELECT count(*)::int AS n FROM auditoria.cambios WHERE antes::text LIKE '%scrypt%' OR despues::text LIKE '%scrypt%'");
+      expect(todo.rows[0].n).toBe(0);
     });
   });
 

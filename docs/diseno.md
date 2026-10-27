@@ -13,7 +13,9 @@ validaciones, nombres de campos ni textos que usen las pruebas.
 Criterio: institucional, sobrio y claro, con densidad de trabajo
 administrativo. La referencia fue el moodboard del paquete visual (no se copia
 como mockup: solo los módulos que existen, sin logo inventado y sin campos de
-usuario y contraseña, porque el ingreso es solo con Cidituc).
+usuario y contraseña, porque el ingreso era solo con Cidituc; desde el
+27/10/2026 el ingreso es con usuario y contraseña propios: ver "Ingreso con
+usuario y contraseña").
 
 ## Tokens
 
@@ -244,6 +246,8 @@ La barra lateral, el ingreso, `/sin-acceso` y `/dev/login` lo toman de ahí.
   texto. Solo "Ingresar con Cidituc", los mensajes de `?error=`, el aviso de
   salida, el login simulado donde corresponde y el aviso de uso interno y Ley
   25.326. `/sin-acceso` y `/dev/login` con la misma marca y tarjetas.
+  (Desde el 27/10/2026, el formulario propio: ver "Ingreso con usuario y
+  contraseña".)
 - **Cáscara (`src/app/(app)/layout.tsx` y `navegacion.tsx`)**: barra lateral
   azul institucional en escritorio (desde la etapa responsive, desplegable a
   una franja de íconos: ver "Barra lateral desplegable y responsive"; sticky, con íconos y el ítem activo con
@@ -622,6 +626,206 @@ sección 21.
   Paginado de a 25 con Anterior y Siguiente. Mesa de Entradas tiene además
   "Preferencias" (la casilla de "Concluido o archivado").
 
+## Ingreso con usuario y contraseña (27/10/2026)
+
+El ingreso con Cidituc quedó en pausa; `/login` conserva la foto, el panel, la
+marca y el aviso de la Ley 25.326, y en la tarjeta "Ingresar" pone el
+formulario (`src/app/login/formulario-ingreso.tsx`):
+
+- **CUIL o correo** (`autocomplete="username"`, con la ayuda "con o sin
+  guiones") y **Contraseña** (`current-password`) con un botón **Mostrar /
+  Ocultar** dentro del campo, a la derecha (`aria-pressed`, `aria-controls` y
+  "la contraseña" para lectores de pantalla). Botón primario "Ingresar" a todo
+  el ancho, de 44 px, como el de Cidituc.
+- El error es un solo aviso rojo (`role="alert"`) arriba de los campos, con el
+  mismo texto para cualquier rechazo; los dos campos quedan `aria-invalid` y
+  describen el error; el CUIL se conserva, la contraseña se borra y recibe el
+  foco.
+- Debajo, en gris, el bloqueo (5 intentos, 15 minutos) y a quién pedir un
+  blanqueo. El botón de Cidituc (solo con `CIDITUC_HABILITADO=1`) va debajo,
+  secundario, separado por "o"; el login simulado, al pie, como antes.
+- La foto es un componente compartido (`src/components/foto-ingreso.tsx`).
+
+`/cambiar-clave` usa el mismo diseño (foto y panel): título "Cambiar
+contraseña" con el nombre, un aviso ámbar "Tu contraseña es temporal" cuando es
+obligatorio, los tres campos con `Campo` (la nueva describe las reglas con
+`aria-describedby`), la casilla "Mostrar las contraseñas", las reglas en un
+recuadro gris y, al pie, "Volver sin cambiarla" (si no es obligatorio) y
+"Salir". En el encabezado de la app, un botón de ícono con la llave
+("Cambiar contraseña" para lectores de pantalla) junto a Salir.
+
+En `/admin/usuarios`, la contraseña temporal se muestra en un diálogo propio:
+aviso ámbar "Copiala ahora: no se vuelve a mostrar", la contraseña grande en
+monoespaciada (`select-all`), "Copiar" (con el resultado en `role="status"`)
+y "Listo, ya la copié". La columna Estado suma "Contraseña temporal", "Sin
+contraseña" y "Bloqueado hasta …" (en ámbar); las acciones, "Blanquear
+contraseña" y, si está bloqueado, "Desbloquear".
+
+`login-1440.png` (en Capturas) se regeneró con el formulario.
+
+## Recorridos guiados (27/10/2026)
+
+Para el piloto: personas de cada área que usan el sistema por primera vez.
+Cada pantalla tiene un recorrido corto que resalta cada parte y la explica en
+lenguaje de mostrador. Componente propio, sin dependencias (nada de driver.js,
+shepherd, intro.js ni react-joyride), sin cambios en la base y sin tokens
+nuevos.
+
+### Cómo se ve y cómo se usa
+
+- **Nunca se abre solo.** La primera vez que alguien entra a una pantalla
+  aparece una **invitación**: una tarjeta chica abajo a la derecha (en el
+  celular, abajo y a lo ancho, con 12 px de margen), con "¿Querés un recorrido
+  de esta pantalla?", el nombre de la pantalla y **Empezar** (compacto
+  primario), **Ahora no** (compacto) y **No volver a mostrar** (enlace). Es un
+  `aside` (región complementaria) al final de la página: no es un diálogo, no
+  toma el foco, no bloquea y no anuncia nada. Mientras está, `globals.css`
+  reserva 12 rem al pie de `main` y en el `scroll-padding-bottom` (WCAG
+  2.4.11: lo que se lleva a la vista o recibe el foco queda por encima de la
+  tarjeta); en el alta, la tarjeta se apoya arriba de la barra de acciones fija
+  (mide su alto con un `ResizeObserver`) y el espacio va antes de la barra.
+  Borde `info-borde`, ícono `Compass` en un círculo `superficie-azul`.
+- La **bienvenida** general (el menú y cómo contraerlo, el buscador, "Por
+  confirmar", la campana y el "?") se ofrece **una sola vez**, en la primera
+  pantalla después del primer ingreso, con "Empezar" y "Ahora no" (cualquier
+  respuesta la cierra). Una sola invitación por vista: si se contestó la
+  bienvenida (o se abrió un recorrido con el "?"), la siguiente espera a la
+  próxima pantalla.
+- El botón **"?"** (`CircleHelp`, 40 × 40 como los demás del encabezado,
+  nombre accesible "Recorrido de esta pantalla" y `title`) está siempre, a la
+  izquierda de la campana; en el celular, en la misma fila del encabezado
+  compacto. Abre el recorrido de la pantalla a la vista (en una pantalla sin
+  recorrido propio, como la edición o un imprimible, la bienvenida). En
+  `/cambiar-clave` (fuera de la cáscara) va junto al título de la tarjeta y la
+  invitación va en el flujo de la página, debajo de la tarjeta.
+- **El recorrido**: una capa transparente tapa la página (no deja hacer clic;
+  un clic devuelve el foco al globo); el elemento del paso queda **recortado**
+  sobre un velo `institucional` al 45 % (la sombra de 200vmax del recorte) con
+  un anillo blanco de 3 px y otro `primario` de 2 px (4,73:1 contra el blanco).
+  El **globo** (22 rem, `rounded-panel`, `shadow-elevada`) va debajo del
+  elemento, o arriba, a la derecha o a la izquierda, según el lugar; con un
+  elemento más alto que la ventana (una sección entera) se resalta su parte de
+  arriba y el globo va al pie. Un paso sin elemento (la presentación de la
+  bienvenida) vela toda la página y centra el globo. En el **celular** (menos
+  de 40 rem) el globo es una **hoja inferior** a lo ancho (`rounded-t-panel`,
+  con el margen seguro de abajo) y el elemento se lleva por encima de ella.
+- **Contenido del globo**: el nombre de la pantalla y "Paso N de M"
+  (`texto-secundario`, 5,62:1), una barra de avance decorativa (`primario` sobre
+  `fondo`), el título (h2, 16 px semibold) y el texto (14 px, `texto`); al pie,
+  "Salir del recorrido" (enlace), "Anterior" (compacto, desde el paso 2) y
+  "Siguiente" / "Terminar" (compacto primario). En el último paso, además,
+  "Reiniciar los recorridos de todas las pantallas".
+- **Teclado y lector de pantalla**: el globo es `role="dialog"` con
+  `aria-modal="true"`, `aria-labelledby` (el título) y `aria-describedby` (el
+  texto), y mientras dura el resto de la página queda `inert` (el lector de
+  pantalla no sale del globo aunque no respete `aria-modal`; al salir se le
+  saca antes de devolver el foco). Al abrirse el foco entra al globo; Tab y Mayús+Tab dan la vuelta
+  adentro; → y Enter (fuera de un botón) avanzan, ← retrocede, Escape sale (en
+  captura: no cierra otra cosa). Cada paso nuevo se anuncia en una región
+  `aria-live="polite"` ("Paso 2 de 6. Título. Texto"). Al terminar o salir, el
+  foco vuelve al botón que lo abrió (el "?") o, si ya no está (el "Empezar" de
+  la invitación), al elemento resaltado si se puede enfocar, o al "?".
+- **Movimiento**: el recorte se desliza (200 ms) de un elemento al otro; la
+  página se desplaza hasta el elemento sin animación (un desplazamiento suave
+  interrumpido al pasar pasos rápido dejaba el elemento fuera de lugar). Con
+  `prefers-reduced-motion` la regla global deja las transiciones en 0,01 ms. Se reubica al
+  desplazarse (también dentro de contenedores), al cambiar el tamaño y si el
+  globo cambia de alto (sin estado de React: escribe la posición en el estilo).
+- **Impresión**: la invitación, el "?" y el recorrido llevan `print:hidden`, y
+  la reserva de lugar de la invitación es solo `@media screen`.
+
+### Qué se recuerda
+
+En el navegador (`localStorage`), nunca en la base: clave
+`cementeria:recorrido:<id del usuario>:<pantalla>:v<versión>` con `visto`
+(empezó el recorrido, desde la invitación o desde el "?"), `descartado` ("No
+volver a mostrar") o `pospuesto:AAAA-MM-DD` ("Ahora no": vuelve a invitar otro
+día). Todo envuelto en `try/catch`: si no hay almacenamiento (modo privado
+estricto, bloqueado por política) funciona igual y vuelve a invitar. Es por
+usuario: en una computadora compartida del mostrador, cada uno tiene lo suyo.
+**Versionado**: al cambiar el contenido de un recorrido se sube su `version`
+y, como la clave la incluye, se vuelve a invitar a todos en esa pantalla.
+**"Reiniciar los recorridos"** (en `/avisos`, para todos los roles, y en el
+último paso de cada recorrido) borra las claves de ese usuario: cada pantalla y
+la bienvenida vuelven a invitar.
+
+### Por rol
+
+Cada paso apunta a un elemento con un atributo estable,
+`data-recorrido="<ancla>"`. Al empezar, el motor arma la lista de pasos: un
+paso cuyo elemento **no existe o no se ve** (`display: none`, dentro de un
+`<details>` cerrado, de 0 × 0) se saltea solo, así "Dar pase" no aparece para
+Dirección, la barra lateral no aparece en el celular (aparece el botón "Menú")
+ni "Plazos" para quien no tiene expedientes en la DIM. Con varias anclas
+(`ancla: ["bandeja-lote", "bandeja-confirmar", …]`) usa la primera que se ve
+(la bandeja tiene tabla y tarjetas: solo una se ve en cada ancho). Los textos
+pueden cambiar por perfil: `mesa` (Mesa de Entradas; si no tiene texto propio
+usa el de `operador`), `operador`, `direccion` (el rol de lectura) y `admin`,
+con `todos` como comodín; un perfil sin texto no ve el paso.
+
+| Recorrido (`id`) | Pantalla | Pasos | Para quién |
+|---|---|---|---|
+| `bienvenida` | La primera, una vez (y el "?" donde no hay otro) | 7 | Todos (Por confirmar y avisos, solo operadores) |
+| `bandeja` | `/bandeja` | 8 | Operadores (Plazos: Tributario y Mesa; Carga histórica: Mesa) |
+| `ficha` | `/expedientes/[numero]` | 8 | Todos (Qué falta y Dar pase según el permiso) |
+| `expediente-nuevo` | `/expedientes/nuevo`, primer paso | 4 | Mesa y admin |
+| `expediente-formulario` | `/expedientes/nuevo`, formulario | 6 | Mesa y admin |
+| `busqueda` | `/expedientes` | 6 | Todos (Exportar y Nuevo según el permiso) |
+| `transcripcion` | `/expedientes/[numero]/transcribir` | 6 | Mesa |
+| `panel` | `/panel` | 7 | Todos |
+| `metricas` | `/panel/metricas` | 5 | Dirección y admin |
+| `avisos` | `/avisos` (con la campana) | 6 | Operadores; Preferencias, Mesa; Dirección y admin ven solo "Reiniciar" |
+| `cambiar-clave` | `/cambiar-clave` | 5 | Todos |
+| `admin-inicio` | `/admin` | 4 | Admin |
+| `admin-plantillas` | `/admin/plantillas` | 4 | Admin |
+| `admin-editor` | `/admin/plantillas/[codigo]/v/[version]` | 6 | Admin |
+| `admin-usuarios` | `/admin/usuarios` | 5 | Admin |
+| `admin-catalogos` | `/admin/catalogos` | 4 | Admin |
+| `admin-auditoria` | `/admin/auditoria` | 4 | Admin |
+
+### Archivos
+
+- `src/lib/presentacion/recorridos/motor.ts`: lo puro (perfiles, textos por
+  perfil, qué pasos se muestran, lo recordado, la invitación). Con tests.
+- `src/lib/presentacion/recorridos/contenido.ts`: los recorridos. Con tests
+  (de 4 a 8 pasos, ids únicos, anclas válidas, textos por rol).
+- `src/components/recorrido/`: `proveedor.tsx` (`ProveedorRecorridos`, en la
+  cáscara y en `/cambiar-clave`, y `PantallaConRecorrido`, la marca de cada
+  página), `invitacion.tsx`, `globo.tsx` (el recorrido en curso),
+  `botones.tsx` (el "?" y "Reiniciar los recorridos"), `estado.ts` (pantalla a
+  la vista y almacén, para `useSyncExternalStore`: en el servidor no se invita,
+  sin diferencias de hidratación) y `dom.ts` (buscar el ancla, si se ve).
+
+### Cómo agregar un paso o un recorrido
+
+**Un paso** en una pantalla que ya tiene recorrido:
+
+1. Poner `data-recorrido="<pantalla>-<cosa>"` en el elemento (un nombre
+   simple: minúsculas, números, `-` y `_`). Que sea el elemento que se ve: no
+   uno `sr-only` ni uno dentro de un `<details>` cerrado. Si el elemento está
+   en una tabla y en sus tarjetas (bandeja, búsqueda), ponerlo en los dos: se
+   toma el que se ve. Componentes que ya lo aceptan: `Seccion` y el `Bloque` de
+   la ficha (`recorrido="…"`).
+2. Agregar el paso en `contenido.ts`, en su lugar: `id` único, `ancla`,
+   `titulo` y `texto` (uno para todos o `{ operador, mesa, direccion, admin,
+   todos }`). Corto: título de hasta 60 caracteres, texto de hasta 280 (lo
+   controla el test), en castellano llano, sin jerga técnica.
+3. **Subir la `version`** del recorrido, para que se vuelva a invitar.
+4. `npm test` (el contenido tiene sus reglas: de 4 a 8 pasos).
+
+**Un recorrido** para una pantalla nueva:
+
+1. Escribirlo en `contenido.ts` (de 4 a 8 pasos, `version: 1`) y sumarlo a
+   `RECORRIDOS` con su id.
+2. En la página, `<PantallaConRecorrido id="<id>" />` (de
+   `@/components/recorrido/proveedor`; no dibuja nada). Si la página cambia de
+   etapa en la misma ruta (como el alta), el id puede depender de la etapa.
+3. Las anclas en los elementos, como arriba.
+4. Si la pantalla está fuera de la cáscara, envolverla en
+   `<ProveedorRecorridos usuarioId perfil bienvenida={false} invitacionEnLinea>`
+   y poner el `<BotonRecorrido />` y `<InvitacionRecorrido enLinea />` donde
+   correspondan (como `/cambiar-clave`).
+
 ## Capturas
 
 En `docs/capturas/rediseno/` (base efímera con la semilla y `next start`, como
@@ -633,7 +837,8 @@ en su lugar.
 En el repositorio se versionan solo cuatro de referencia, en 1440 (en la etapa
 responsive se regeneraron `panel-direccion-1440.png`, `ficha-1440.png` y
 `nuevo-formulario-error-1440.png`, por la barra lateral nueva; el ingreso no
-cambió):
+cambió; el 27/10/2026 se regeneró `login-1440.png` con el formulario del login
+propio):
 `login-1440.png`, `panel-direccion-1440.png`, `nuevo-formulario-error-1440.png`
 y `ficha-1440.png`. Las demás pesan unos 16 MB, están en `.gitignore` y se
 regeneran con el arnés de e2e cuando hacen falta.
@@ -656,6 +861,7 @@ regeneran con el arnés de e2e cuando hacen falta.
 | Etapa responsive: búsqueda, panel y ficha en 1280 | `busqueda-resultados-1280.png`, `panel-direccion-1280.png`, `ficha-1280.png` |
 | Etapa responsive: globo de la barra contraída (foco con teclado) | `barra-colapsada-globo-1280.png` |
 | Métricas de gestión, como Dirección (página completa) | `metricas-direccion-{1440,1280,390}.png` |
+| Recorridos guiados (27/10/2026; 1280 × 720 y 390 × 844, Mesa de Entradas) | `recorrido-invitacion-*` (la bienvenida ofrecida), `recorrido-bandeja-*` y `recorrido-bandeja-dias-*` (en curso), `recorrido-ficha-*` ("Dar pase o devolver" en 1280, "Qué falta para avanzar" en 390) y `recorrido-ficha-historial-*`, `recorrido-bienvenida-1280.png` y `recorrido-bienvenida-contraer-1280.png` (Cómputo) |
 
 Las de la primera etapa siguen ahí (las de `bandeja-mesa-*` se reemplazaron
 por `bandeja-pestanas-*`, y `ficha-*` por las nuevas). En las capturas de
@@ -677,3 +883,8 @@ página completa del formulario la barra de acciones se ve en su lugar, al pie.
   rediseño).
 - **Banda de Administración**: usa el velo de la portada; si se cambia la foto
   o el velo, volver a medir el texto blanco.
+- **Recorridos guiados**: revisar los textos con las áreas en el piloto (subir
+  la `version` de lo que cambie). En el celular, con el "?" en la fila del
+  encabezado, el nombre de un operador con campana queda en una o dos letras
+  (ya estaba truncado). La edición de un expediente y los imprimibles no tienen
+  recorrido propio (el "?" muestra la bienvenida).

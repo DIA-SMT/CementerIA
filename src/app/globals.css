@@ -223,6 +223,39 @@ html:has(.barra-acciones) {
 }
 
 /*
+ * Invitación a un recorrido guiado (src/components/recorrido/invitacion.tsx,
+ * docs/diseno.md "Recorridos guiados"): mientras la tarjeta flota abajo a la
+ * derecha, se reserva su lugar. El contenido tiene espacio de más al pie para
+ * desplazarse por encima de la tarjeta, y el scroll-padding hace que el campo
+ * con foco (al tabular) o lo que se lleva a la vista quede arriba de ella (WCAG
+ * 2.4.11). Con la barra de acciones fija (alta), la tarjeta se apoya sobre la
+ * barra y el espacio va antes de la barra. Solo en pantalla: en el papel no hay
+ * tarjeta.
+ */
+@media screen {
+  html:has([data-invitacion-recorrido]) {
+    scroll-padding-bottom: 12rem;
+  }
+  html:has([data-invitacion-recorrido]):has(.barra-acciones) {
+    scroll-padding-bottom: 18rem;
+  }
+  html:has([data-invitacion-recorrido]) main:not(:has(.barra-acciones)) {
+    padding-bottom: 12rem;
+  }
+  html:has([data-invitacion-recorrido]) .barra-acciones {
+    margin-top: 11rem;
+  }
+}
+
+/* Recorrido en curso en el celular: el globo es una hoja inferior. Lugar de
+   más al pie para que lo último de la página pueda subir por encima de ella. */
+@media screen and (width < 40rem) {
+  html:has([data-recorrido-activo]) main {
+    padding-bottom: 60vh;
+  }
+}
+
+/*
  * Tabla apilable (docs/diseno.md, "Tablas y tarjetas"): cuando el contenedor
  * (con `@container`) es angosto, cada fila pasa a ser un bloque, como una
  * tarjeta, y cada celda muestra su rótulo (`data-etiqueta`) a la izquierda. Un

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Check, EyeOff, FileClock, MessageCircle, Pencil, Printer, ShieldX, Square, SquareCheck } from "lucide-react";
 import { Aviso } from "@/components/aviso";
 import { EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_ENLACE } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
@@ -123,6 +124,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
   return (
     <ProveedorFlujo datos={flujo}>
       <article aria-labelledby="titulo-ficha" className="space-y-5">
+        <PantallaConRecorrido id="ficha" />
         {aviso === AVISO_EDITADO ? (
           <Aviso tono="exito" role="status">
             <p>Cambios guardados.</p>
@@ -131,7 +133,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
 
         <header className="tarjeta overflow-hidden">
           {/* Número, estado y situaciones: el h1 y la etiqueta de estado van en el mismo contenedor. */}
-          <div className="border-b border-borde px-4 pb-3.5 pt-4 sm:px-5">
+          <div data-recorrido="ficha-cabecera" className="border-b border-borde px-4 pb-3.5 pt-4 sm:px-5">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-texto-secundario">
               Expediente · {ficha.tipoTramite.nombre}
             </p>
@@ -147,7 +149,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
             </div>
           </div>
 
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 py-4 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
+          <dl data-recorrido="ficha-paso-area" className="grid grid-cols-1 gap-x-6 gap-y-3 px-4 py-4 text-sm sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
             <Dato titulo="Paso actual" destacado>
               {ficha.paso.orden} de {ficha.paso.total}: {ficha.paso.nombre}
             </Dato>
@@ -224,7 +226,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
               ) : null}
               {a.imprimir.permitido ? (
                 <>
-                  <Link href={rutaImprimir(ficha.numero, "caratula")} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+                  <Link href={rutaImprimir(ficha.numero, "caratula")} prefetch={false} data-recorrido="ficha-imprimir" className={CLASE_BOTON_COMPACTO}>
                     <Printer className="h-3.5 w-3.5" aria-hidden="true" />
                     Imprimir carátula
                   </Link>
@@ -284,7 +286,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           ) : null}
         </Bloque>
 
-        <Bloque titulo="Recorrido">
+        <Bloque titulo="Recorrido" recorrido="ficha-recorrido">
           {/* El recorrido de la plantilla como línea de pasos: cumplidos en verde, el actual destacado en azul, los pendientes en gris. */}
           <ol>
             {ficha.recorrido.map((p, i) => {
@@ -368,7 +370,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           ) : null}
         </Bloque>
 
-        <Bloque titulo="Documentación">
+        <Bloque titulo="Documentación" recorrido="ficha-documentacion">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <ListaDocumentos titulo="Dirección" documentos={ficha.documentacion.direccion} />
             <ListaDocumentos titulo="Concesionario" documentos={ficha.documentacion.concesionario} />
@@ -453,7 +455,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
           </Bloque>
         </div>
 
-        <Bloque titulo="Historial" aside={<VerificarIntegridad numero={ficha.numero} />}>
+        <Bloque titulo="Historial" recorrido="ficha-historial" aside={<VerificarIntegridad numero={ficha.numero} />}>
           <HistorialFiltrable
             entradas={entradasHistorial(ficha, resumen, (m) =>
               m.correcciones.length > 0 ? <MenuCorregir movimiento={movimientoCorregible(m, subtareasConocidas)} /> : null,
@@ -498,10 +500,11 @@ function pasosDelHistorial(ficha: Ficha): Array<{ clave: string; nombre: string 
   return [...vistos].map(([clave, nombre]) => ({ clave, nombre }));
 }
 
-function Bloque({ titulo, children, aside }: { titulo: string; children: React.ReactNode; aside?: React.ReactNode }) {
+/** Un bloque de la ficha. `recorrido`: el ancla del paso del recorrido guiado que lo resalta (data-recorrido). */
+function Bloque({ titulo, children, aside, recorrido }: { titulo: string; children: React.ReactNode; aside?: React.ReactNode; recorrido?: string }) {
   const id = `bloque-${titulo.toLowerCase().normalize("NFD").replace(/[^a-z]+/g, "-")}`;
   return (
-    <section aria-labelledby={id} className="tarjeta px-4 pb-4 pt-3.5 sm:px-5">
+    <section aria-labelledby={id} data-recorrido={recorrido} className="tarjeta px-4 pb-4 pt-3.5 sm:px-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-borde pb-2.5">
         <h2 id={id} className="titulo-seccion">
           {titulo}

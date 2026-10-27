@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CLASE_ENLACE } from "@/components/formulario";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { formatearFecha } from "@/lib/fechas";
@@ -24,7 +25,8 @@ export default async function PaginaPlantillas() {
 
   return (
     <section aria-labelledby="titulo-plantillas" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <PantallaConRecorrido id="admin-plantillas" />
+      <div className="flex flex-wrap items-center justify-between gap-2" data-recorrido="plantillas-encabezado">
         <h1 id="titulo-plantillas" className="text-2xl font-semibold tracking-tight text-texto">
           Plantillas de trámite
         </h1>
@@ -35,7 +37,7 @@ export default async function PaginaPlantillas() {
         los expedientes en curso siguen con la suya.
       </p>
 
-      <div className="tarjeta relative @container overflow-x-auto">
+      <div className="tarjeta relative @container overflow-x-auto" data-recorrido="plantillas-tabla">
         <table className="tabla-datos tabla-apilable">
           <caption className="sr-only">Plantillas por código</caption>
           <thead>

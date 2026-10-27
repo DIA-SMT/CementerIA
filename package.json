@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:supabase": "node scripts/dev-supabase.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -24,6 +25,11 @@
     "historial:verificar": "tsx scripts/verificar-historial.ts",
     "avisos:generar": "tsx scripts/generar-avisos.ts",
     "avisos:purgar": "tsx scripts/purgar-avisos.ts",
+    "supabase:preparar": "node scripts/supabase/preparar.mjs",
+    "supabase:verificar": "node scripts/supabase/preparar.mjs --solo-verificar",
+    "supabase:sql": "node scripts/supabase/generar-sql.mjs",
+    "supabase:simular": "node scripts/supabase/simular-local.mjs",
+    "supabase:probar": "node scripts/supabase/probar-local.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

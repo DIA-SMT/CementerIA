@@ -54,7 +54,7 @@ export function BarraAcciones() {
   }
   if (botones.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Acciones del paso">
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Acciones del paso" data-recorrido="ficha-acciones-paso">
       {botones}
     </div>
   );
@@ -70,7 +70,7 @@ export function PanelFaltan() {
   const items = final ? itemsFaltan(datos.concluir.faltan, datos.permisos, datos.rutaEditar) : faltantesDe(datos);
   const abrirItem = (d: DialogoFlujo) => abrir(d);
   return (
-    <section aria-labelledby="titulo-faltan" className={`rounded-tarjeta border p-4 shadow-tarjeta sm:px-5 ${items.length > 0 ? "border-advertencia-borde bg-advertencia-fondo" : "border-exito-borde bg-exito-fondo"}`}>
+    <section aria-labelledby="titulo-faltan" data-recorrido="ficha-faltan" className={`rounded-tarjeta border p-4 shadow-tarjeta sm:px-5 ${items.length > 0 ? "border-advertencia-borde bg-advertencia-fondo" : "border-exito-borde bg-exito-fondo"}`}>
       <h2 id="titulo-faltan" className={`titulo-seccion mb-2 flex items-center gap-2 ${items.length > 0 ? "text-advertencia" : "text-exito"}`}>
         <ListChecks className="h-5 w-5" aria-hidden="true" />
         {final ? "Qué falta para concluir" : "Qué falta para avanzar"}

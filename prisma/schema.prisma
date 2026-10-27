@@ -123,6 +123,17 @@ model Usuario {
   creadoEn      DateTime  @default(now()) @map("creado_en") @db.Timestamptz
   actualizadoEn DateTime  @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
 
+  // Login propio (27/10/2026, migración *_login_propio). El hash nunca sale del
+  // servidor ni se audita: src/lib/auth/clave.ts.
+  /// `scrypt$N$r$p$<sal>$<hash>`; NULL = sin contraseña (no ingresa por el formulario).
+  claveHash        String?   @map("clave_hash")
+  /// Contraseña temporal (alta, blanqueo, admin inicial): al ingresar solo puede cambiarla.
+  debeCambiarClave Boolean   @default(false) @map("debe_cambiar_clave")
+  claveCambiadaEn  DateTime? @map("clave_cambiada_en") @db.Timestamptz
+  /// Fallos seguidos; al quinto, `bloqueadoHasta` = ahora + 15 min y vuelve a 0.
+  intentosFallidos Int       @default(0) @map("intentos_fallidos") @db.SmallInt
+  bloqueadoHasta   DateTime? @map("bloqueado_hasta") @db.Timestamptz
+
   area                 Area?             @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   plantillasCreadas    Plantilla[]       @relation("PlantillaCreadaPor")
   plantillasPublicadas Plantilla[]       @relation("PlantillaPublicadaPor")

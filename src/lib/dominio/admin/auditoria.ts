@@ -32,6 +32,12 @@ export const ACCIONES_ACCESO = [
   "exportar",
   // 26/10/2026: "Verificar integridad" de la ficha y la verificación de todos los expedientes.
   "verificar_historial",
+  // 27/10/2026, login propio: cinco fallos seguidos (el usuario bloqueado), y lo que hace un admin
+  // (el usuario afectado va en el detalle) o el propio usuario con la contraseña.
+  "bloqueo",
+  "desbloqueo",
+  "cambio_clave",
+  "blanqueo_clave",
 ] as const;
 export type AccionAccesoAuditoria = (typeof ACCIONES_ACCESO)[number];
 
@@ -46,6 +52,10 @@ export const ETIQUETA_ACCION_ACCESO: Record<AccionAccesoAuditoria, string> = {
   imprimir: "Imprimió",
   exportar: "Exportó",
   verificar_historial: "Verificó el historial",
+  bloqueo: "Bloqueo por intentos fallidos",
+  desbloqueo: "Desbloqueó un usuario",
+  cambio_clave: "Cambió su contraseña",
+  blanqueo_clave: "Blanqueó una contraseña",
 };
 
 export const TABLAS_AUDITADAS = Object.keys(ETIQUETA_TABLA);

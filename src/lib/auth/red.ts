@@ -67,3 +67,26 @@ export function mismoOrigen(headers: Headers): boolean {
     return false;
   }
 }
+
+/**
+ * Para los formularios del login propio (Server Actions de /login y
+ * /cambiar-clave), además de lo que ya controla Next: ¿el envío salió de una
+ * página de este mismo sitio?
+ *
+ * Next 16 compara `Origin` con `Host` o con X-Forwarded-Host
+ * (node_modules/next/dist/docs/01-app/02-guides/server-actions.md, "Security"),
+ * y deja pasar con un aviso un POST SIN `Origin`
+ * (…/next-config-js/serverActions.md). Detrás de nginx X-Forwarded-Host lo
+ * puede escribir el cliente (ver hostnameDeSolicitud()). Acá:
+ *   - `Origin`, si viene, contra `Host` solo (mismoOrigen());
+ *   - `Sec-Fetch-Site`, si viene, tiene que ser `same-origin`: `same-site`
+ *     sería otra app municipal bajo *.smt.gob.ar y `cross-site` cualquier otra.
+ * Un formulario plantado en otro sitio (un "login CSRF", que deja a la víctima
+ * trabajando con la cuenta de otro) lleva siempre alguno de los dos en un
+ * navegador actual.
+ */
+export function envioDelMismoSitio(headers: Headers): boolean {
+  if (!mismoOrigen(headers)) return false;
+  const sitio = headers.get("sec-fetch-site");
+  return sitio === null || sitio === "same-origin" || sitio === "none";
+}

@@ -273,7 +273,8 @@ describe("triggers (2.11)", () => {
     ["plantillas", "plantillas_congelar", "BEFORE INSERT OR DELETE OR UPDATE ON public.plantillas FOR EACH ROW EXECUTE FUNCTION plantillas_congelar()"],
     ["tipos_monumento", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.tipos_monumento FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["tipos_tramite", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.tipos_tramite FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
-    ["usuarios", "auditar_cambio", "AFTER INSERT OR UPDATE OF cuil, area_id, rol, activo ON public.usuarios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id', 'id,cuil,area_id,rol,activo')"],
+    // Login propio (27/10/2026): también debe_cambiar_clave; nunca el hash.
+    ["usuarios", "auditar_cambio", "AFTER INSERT OR UPDATE OF cuil, area_id, rol, activo, debe_cambiar_clave ON public.usuarios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id', 'id,cuil,area_id,rol,activo,debe_cambiar_clave')"],
     ["usuarios", "usuarios_area_interna", "BEFORE INSERT OR UPDATE OF area_id ON public.usuarios FOR EACH ROW EXECUTE FUNCTION usuarios_area_interna()"],
   ];
 

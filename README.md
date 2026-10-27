@@ -126,6 +126,34 @@ operador. Sin datos personales. Sin correo ni WhatsApp todavía (el diseño los
 deja listos). La campana se refresca al cambiar de pantalla y cada 60 s con la
 pestaña visible, sin renovar la sesión.
 
+Base en **Supabase** (decisión del 27/10/2026; [docs/despliegue.md](docs/despliegue.md),
+sección 18): `npm run supabase:preparar` deja lista la base del proyecto con un
+solo comando (roles, extensiones, migraciones, cierre de la API pública de
+Supabase, semilla de producción y verificación), leyendo la conexión de
+administración de `.env.supabase.local` ([.env.supabase.ejemplo](.env.supabase.ejemplo)).
+Lo mismo, como archivos SQL para el SQL Editor del panel, en
+[supabase/sql/](supabase/sql/README.md) (`npm run supabase:sql`). TLS con la CA
+de Supabase verificando el host (`DATABASE_CA_FILE`), RLS en todas las tablas
+con política solo para la app (migración `*_rls_defensa`) y un simulador local
+de Supabase para probar todo sin el proyecto real (`npm run supabase:probar`).
+
+Recorridos guiados (27/10/2026; [docs/diseno.md](docs/diseno.md), sección
+"Recorridos guiados"): para el piloto, cada pantalla tiene un recorrido corto
+(de 4 a 8 pasos) que resalta cada parte y la explica en lenguaje de mostrador,
+según el rol (Mesa de Entradas, las demás áreas, Dirección, el admin): la
+bandeja, la ficha, el alta (primer paso y formulario), la búsqueda, la
+transcripción, el panel, las métricas, los avisos, cambiar la contraseña y las
+pantallas de administración, más una **bienvenida** general que se ofrece una
+sola vez al primer ingreso. Nunca se abre solo: la primera vez que se entra a
+una pantalla aparece una invitación chica abajo a la derecha (Empezar · Ahora
+no · No volver a mostrar) que no tapa ni toma el foco, y el botón **"?"**
+("Recorrido de esta pantalla") del encabezado lo abre cuando se quiera. Lo
+contestado queda en el navegador (localStorage, por usuario, pantalla y
+versión del recorrido); en `/avisos`, "Reiniciar los recorridos" vuelve a
+ofrecerlos. Componente propio (`src/components/recorrido/`, motor puro en
+`src/lib/presentacion/recorridos/`), sin dependencias nuevas ni cambios en la
+base.
+
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
 tocar código de Next, leer [AGENTS.md](AGENTS.md): Next 16 cambia APIs y
@@ -189,10 +217,12 @@ Solo datos ficticios en desarrollo y staging.
    npm run dev
    ```
 
-   Abrir <http://localhost:3000>: sin sesión lleva a `/login`, que ofrece el
-   **login simulado** (`/dev/login`). Ahí se entra como cualquier usuario de la
-   semilla: los operadores van a `/bandeja`; Dirección y el administrador, a
-   `/panel`.
+   Abrir <http://localhost:3000>: sin sesión lleva a `/login`. Ahí se entra
+   con el **CUIL** (con o sin guiones) o el correo y la **contraseña de
+   desarrollo** de todos los usuarios de la semilla, `cementeria-local-2026`
+   (ver "Ingreso", más abajo), o por el **login simulado** (`/dev/login`,
+   enlace al pie), que entra como cualquier usuario sin contraseña. Los
+   operadores van a `/bandeja`; Dirección y el administrador, a `/panel`.
 
 7. **Al terminar**, detener la base: `npm run db:local:detener`.
 
@@ -204,7 +234,7 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run build` / `npm start` | Build de producción y servidor de producción, para probar en local. Con `output: 'standalone'`, `next start` avisa que no es lo que corre en el servidor: allá va `node server.js` del paquete (`npm run empaquetar`) |
 | `npm run lint` | ESLint (incluye la regla que prohíbe escribir fuera de `conActor()`) |
 | `npm run typecheck` | `next typegen` y `tsc --noEmit` (sin typegen no existen los tipos globales de rutas, como `LayoutProps`) |
-| `npm test` | Tests unitarios (Vitest): `src/**/*.test.ts` y `prisma/**/*.test.ts` |
+| `npm test` | Tests unitarios (Vitest): `src/**/*.test.ts`, `prisma/**/*.test.ts` y `scripts/**/*.test.ts` |
 | `npm run test:integracion` | Tests contra un PostgreSQL 15 efímero (ver abajo) |
 | `npm run test:e2e` | Pruebas de punta a punta con Playwright contra la app (`next build` + `next start`) y un PostgreSQL efímero (ver abajo) |
 | `npm run db:local` | Crea (la primera vez) y arranca el PostgreSQL local, y corre `scripts/db-init.sql`. Idempotente |
@@ -218,6 +248,11 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run historial:verificar` | Verifica la cadena de hash del historial de todos los expedientes y lo registra en `auditoria.accesos` como SISTEMA (`-- --sin-registro` para no registrar). Sale con 1 si hay alguno roto |
 | `npm run avisos:generar` | Genera los avisos por tiempo (plazo DIM, sin confirmar, demorado) como SISTEMA. Idempotente; `-- --fecha AAAA-MM-DD` para generar como si fuera ese día |
 | `npm run avisos:purgar` | Cuenta los avisos leídos hace más de 90 días; `-- --confirmar` los borra (`-- --dias N`, 90 o más). Con `MIGRATE_DATABASE_URL`: la app no puede borrar avisos |
+| `npm run supabase:preparar` | Prepara la base de Supabase de punta a punta (roles con claves aleatorias, extensiones, migraciones, cierre de la API, semilla de producción y verificación). Idempotente. Lee `.env.supabase.local`; `-- --rotar-claves`, `-- --app-pooler transaccion`, `-- --env <archivo>`. Ver [docs/despliegue.md](docs/despliegue.md), sección 18 |
+| `npm run supabase:verificar` | Solo la verificación final de la base de Supabase, como `cementeria_app` |
+| `npm run supabase:sql` | Genera `supabase/sql/` (lo mismo, en archivos para el SQL Editor; ver su README) y, con `.env.supabase.local`, las claves y el admin en `supabase/sql/.local/`. `-- --verificar` controla que estén al día |
+| `npm run supabase:simular` | Simulador local de Supabase (`iniciar --dir <carpeta> --env-salida <archivo>` / `detener --dir <carpeta> --borrar`) |
+| `npm run supabase:probar` | Prueba de punta a punta contra simuladores: preparar dos veces, TLS, los archivos de `supabase/sql/` en orden y que los dos caminos den lo mismo |
 | `npm run db:migrate` | `prisma migrate dev`, para crear una migración nueva |
 | `npm run db:deploy` | `prisma migrate deploy`, como en un despliegue |
 | `node scripts/db-local.mjs reiniciar-datos` | **Borra** el clúster local entero y lo crea de nuevo (por ejemplo, para cambiar la clave del superusuario) |
@@ -250,14 +285,15 @@ deploy/                    systemd, nginx, modelos de entorno y desplegar.sh (do
 src/
   proxy.ts                 renovación deslizante de la sesión (no autoriza)
   instrumentation.ts       valida el entorno al arrancar (lib/arranque.ts)
-  app/                     rutas: /login, /auth/*, /dev/login, /sin-acceso y,
+  app/                     rutas: /login, /cambiar-clave, /auth/*, /dev/login, /sin-acceso y,
                            en (app)/, las pantallas con sesión; los adjuntos en
                            /adjuntos/[movimientoId], POST /api/expedientes/[numero]/adjuntos y,
                            semana 4, GET /expedientes/exportar (CSV); semana 5, /admin/* y
                            GET /admin/auditoria/exportar (CSV); 26/10/2026, /avisos y
                            GET /api/avisos/resumen (el refresco de la campana)
   lib/db/                  cliente de Prisma (solo lectura) y conActor() (escrituras)
-  lib/auth/                Cidituc, sesión, cookies, ingreso y salida
+  lib/auth/                login propio (clave.ts, ingreso-clave.ts, límites), Cidituc
+                           (en pausa), sesión, cookies, ingreso y salida
   lib/dominio/             permisos, navegación, CUIL y plantillas (esquema zod y
                            validación de "Publicar"); búsqueda (busqueda.ts) y
                            expedientes/ (alta, edición, ficha, carátula, esquemas
@@ -281,7 +317,13 @@ src/
                            auditoría en la URL (auditoria.ts) y las Server Actions y el CSV
                            de /admin (acciones-admin.ts); métricas: filtros, textos y CSV
                            (metricas.ts) y la escala de los gráficos (graficos.ts); avisos:
-                           la campana, "hace cuánto" y los filtros de /avisos (avisos.ts)
+                           la campana, "hace cuánto" y los filtros de /avisos (avisos.ts);
+                           recorridos/: los recorridos guiados (contenido.ts, uno por
+                           pantalla) y su motor puro (pasos según el rol y lo que se ve,
+                           lo recordado en localStorage)
+  components/              piezas compartidas de la interfaz (formulario, diálogo, avisos…)
+                           y recorrido/: el motor de los recorridos guiados en el navegador
+                           (proveedor, invitación, globo y el botón "?")
   lib/fechas.ts            fechas YYYY-MM-DD, hoy en Tucumán, datetime-local y formato es-AR
   lib/entorno.ts           variables de entorno validadas con zod
   generated/               cliente de Prisma generado (no se versiona)
@@ -315,10 +357,16 @@ playwright.config.ts       configuración de Playwright (el arnés está en test
   corría 3 horas cada `timestamptz`. psql y los scripts siguen viendo la hora
   de Tucumán (`ALTER DATABASE … SET timezone`), y los triggers usan
   `AT TIME ZONE` explícito.
+- RLS en todas las tablas (migración `*_rls_defensa`, 27/10/2026), con una sola
+  política, para `cementeria_app`: defensa extra para Supabase (si a `anon` o
+  `authenticated` les quedara un GRANT, no verían nada). El owner no queda
+  filtrado.
 - Para cambiar el esquema: editar `prisma/schema.prisma`,
   `npx prisma migrate dev --create-only`, revisar el SQL generado (que no borre
-  nada escrito a mano), agregarle los GRANTs de cada tabla nueva y aplicar con
-  `npm run db:migrate`. Control de deriva (también para CI):
+  nada escrito a mano), agregarle los GRANTs de cada tabla nueva **y su RLS con
+  la política de `cementeria_app`** (`tests/integracion/rls.test.ts` lo exige) y
+  aplicar con `npm run db:migrate`. Después, `npm run supabase:sql` para
+  regenerar `supabase/sql/` (`npm test` avisa si quedó desactualizado). Control de deriva (también para CI):
 
   ```bash
   npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code
@@ -444,17 +492,55 @@ Dirección y el admin no reciben avisos.
 - Las plantillas de la semilla se actualizaron el 20/10/2026 según docs/fuentes
   editando la v1 (todavía no hay producción); sus notas de cambio lo dicen.
 - En producción corre con `npm run db:seed -- --sin-ficticios` (sin usuarios,
-  expedientes ficticios ni escenarios) y exige `ADMIN_INICIAL_CUIL`.
+  expedientes ficticios ni escenarios) y exige `ADMIN_INICIAL_CUIL`. Ahí el
+  admin inicial nace con una contraseña temporal que se imprime una sola vez
+  (ver "Ingreso").
+- Con ficticios, todos los usuarios de la semilla tienen la contraseña de
+  desarrollo `cementeria-local-2026` (`CLAVE_DESARROLLO` de
+  `prisma/semilla/usuarios.ts`).
 
 ## Ingreso
 
-- **Desarrollo:** con `AUTH_DEV_LOGIN=1` (en `.env.development.local`),
+**Desde el 27/10/2026 se entra con usuario y contraseña propios; el ingreso
+con Cidituc está en pausa** (su código sigue, detrás de `CIDITUC_HABILITADO`).
+Detalle técnico: [docs/api-dominio.md](docs/api-dominio.md), sección 22.
+
+- **Formulario de `/login`:** CUIL (con o sin guiones) o correo, y contraseña
+  (con "Mostrar"). Ante cualquier rechazo el mensaje es el mismo, "CUIL, correo
+  o contraseña incorrectos": no dice si el usuario existe. Cinco fallos
+  seguidos bloquean al usuario 15 minutos (lo puede desbloquear un admin), y
+  hay además un tope de 30 fallos cada 15 minutos por IP, en la memoria del
+  proceso (por instancia). Las contraseñas se guardan con scrypt
+  (`src/lib/auth/clave.ts`); nunca en texto, ni en la auditoría ni en los logs.
+- **Contraseña temporal:** la del alta de un usuario, la de un blanqueo y la
+  del admin inicial. Se muestra una sola vez; al ingresar con ella, la única
+  pantalla disponible es `/cambiar-clave` (y Salir). La propia se cambia
+  cuando se quiere desde la llave del encabezado. Política: 12 caracteres o
+  más, no el CUIL ni el apellido, no una clave común; se muestra en la pantalla.
+- **Desarrollo:** la semilla (`npm run db:reset` o `npm run db:seed`) les pone a
+  todos sus usuarios (los siete ficticios y el admin de desarrollo,
+  `20000000001`) la contraseña **`cementeria-local-2026`**, sin cambio
+  obligatorio. Es solo local y pública (está acá): la semilla de producción no
+  crea ficticios y la política de contraseñas la rechaza. Por ejemplo, Mesa de
+  Entradas: CUIL `27-00000002-2` y esa contraseña. Para ver el cambio
+  obligatorio, dar de alta un usuario desde `/admin/usuarios` (o blanquearle
+  la contraseña a uno) y entrar con la temporal.
+- **Producción:** `npm run db:seed -- --sin-ficticios` con `ADMIN_INICIAL_CUIL`
+  crea al admin inicial con una contraseña temporal, que imprime **una sola
+  vez** en la consola de quien la corre y escribe en
+  `.local/clave-admin-inicial.txt` (o `ADMIN_INICIAL_CLAVE_ARCHIVO`; no se
+  versiona). Con el paquete SQL de Supabase, la temporal queda solo en
+  `supabase/sql/.local/clave-admin-inicial.txt` (docs/despliegue.md, 18.12).
+  El admin entra con su CUIL y esa contraseña, la cambia y da de alta al resto
+  desde `/admin/usuarios` (cada alta muestra la temporal una vez). No hay
+  correo: las temporales se entregan en mano.
+- **Login simulado:** con `AUTH_DEV_LOGIN=1` (en `.env.development.local`),
   `/dev/login` deja entrar como cualquier usuario activo de la semilla. En
   producción esa ruta responde 404, y el servidor **no arranca** si
   `AUTH_DEV_LOGIN` está definida (`src/lib/arranque.ts` termina el proceso).
 - **Staging sin clave en el derivador:** `AUTH_DEV_LOGIN_STAGING` con una lista
   blanca de CUILs y `APP_URL` https con "staging" en el host.
-- **Cidituc:** `CIDITUC_HABILITADO=1` y `CIDITUC_API_URL`. El botón "Ingresar
+- **Cidituc (en pausa):** `CIDITUC_HABILITADO=1` y `CIDITUC_API_URL`. El botón "Ingresar
   con Cidituc" va a `GET /auth/ingresar`, que deja el `state` en una cookie y
   manda al derivador; el derivador vuelve a `/auth/callback`, que valida el
   token contra `/usuarios/authStatusIA` (empleados) y busca al usuario por CUIL.
@@ -510,7 +596,9 @@ expedientes ficticios, hace `next build` y arranca `next start` en un puerto
 libre con `NODE_ENV=test` (así Next no lee `.env.local`, y el login simulado se
 habilita sin tocar la regla de producción) y lo apaga y borra todo al
 terminar. Cada prueba entra por `/dev/login` con el usuario de su área y crea
-lo que necesita, así que corren en paralelo y en cualquier orden. Tarda menos
+lo que necesita, así que corren en paralelo y en cualquier orden (la de
+`login.spec.ts` entra por el formulario real: un usuario nuevo con su
+contraseña temporal, el cambio obligatorio y la bandeja). Tarda menos
 de un minuto. Cubren:
 
 - el alta de una renovación de contado en el Oeste desde Mesa de Entradas, con
@@ -533,7 +621,13 @@ de un minuto. Cubren:
   filtros en la URL, y que los operadores no las ven;
 - un borrador de plantilla con un error de validación en su pestaña, que se
   descarta (no se publica);
-- los diálogos, que se cierran con Escape y devuelven el foco.
+- los diálogos, que se cierran con Escape y devuelven el foco;
+- los recorridos guiados: el de la bandeja se abre con el "?", se navega con
+  el teclado (flechas, Enter, Tab sin salir del globo) y Escape devuelve el
+  foco; el de la ficha saltea "Dar pase" para Dirección; la invitación aparece
+  la primera vez, no bloquea y respeta "Ahora no" (vuelve al día siguiente) y
+  "No volver a mostrar"; "Reiniciar los recorridos"; y en el celular el globo
+  es una hoja inferior.
 
 `E2E_SIN_BUILD=1` reusa el build de `.next` para iterar sobre una prueba.
 Trazas y capturas de las que fallan en `test-results/` y el reporte en
@@ -551,11 +645,14 @@ Documentadas una por una en [.env.example](.env.example).
 | `SHADOW_DATABASE_URL` | Shadow database de `prisma migrate dev` y `migrate diff` |
 | `DB_LOCAL_CLAVE_SUPERUSUARIO` | Superusuario del clúster local (solo `db-local.mjs`) |
 | `DB_POOL_MAX` | Opcional: conexiones del pool (5 por defecto) |
+| `DATABASE_CA_FILE`, `DATABASE_CA_PEM` | Base en Supabase: el certificado raíz de Supabase (ruta o contenido), para TLS verificado en la app, la semilla, los scripts y la CLI de Prisma. Con un host de Supabase es obligatorio |
+| `SUPABASE_ADMIN_URL` | Solo en `.env.supabase.local`: la conexión de administración (rol `postgres`, Session pooler) para `npm run supabase:preparar`. La app nunca la usa |
 | `SESSION_SECRET` | Firma de la cookie de sesión; 32 caracteres o más |
 | `AUTH_DEV_LOGIN` | `1` habilita `/dev/login`. Solo en `.env.development.local` |
 | `AUTH_DEV_LOGIN_STAGING`, `APP_URL` | Staging: lista blanca de CUILs para `/dev/login` y su URL https. `APP_URL` es además la base del QR de la carátula (sin ella, el host del request) |
 | `ADMIN_INICIAL_CUIL` | CUIL del primer administrador que crea la semilla |
-| `CIDITUC_HABILITADO` | `1` muestra el botón de Cidituc; `0` mientras el derivador no tenga la clave |
+| `ADMIN_INICIAL_CLAVE_ARCHIVO` | Opcional: dónde deja la semilla de producción la contraseña temporal del admin inicial (por defecto `.local/clave-admin-inicial.txt`) |
+| `CIDITUC_HABILITADO` | `1` muestra el botón de Cidituc debajo del formulario; `0` (el ingreso con Cidituc está en pausa desde el 27/10/2026) |
 | `CIDITUC_DERIVADOR_URL`, `CIDITUC_CLAVE` | Origen del derivador y clave de esta instancia (`cementeria` o `cementeria-staging`) |
 | `CIDITUC_API_URL` | Backend contra el que se valida el token; https en producción |
 | `CIDITUC_CA_PEM` | Opcional: certificado intermedio que reemplaza al embebido |
@@ -575,7 +672,9 @@ Documentadas una por una en [.env.example](.env.example).
 - [docs/despliegue.md](docs/despliegue.md): runbook de staging y producción
   (servidor, base y roles, entorno, nginx, systemd, paquete, actualizaciones,
   rollback, backups, prueba de restauración y checklist), para Sistemas y el
-  equipo.
+  equipo. La sección 18 es la base en Supabase.
+- [supabase/sql/README.md](supabase/sql/README.md): la base de Supabase a mano,
+  desde el SQL Editor del panel.
 - [docs/taller-plantillas.md](docs/taller-plantillas.md): guía del taller de
   validación de plantillas con la Dirección de Cementerios.
 - [tests/integracion/README.md](tests/integracion/README.md): la batería de

@@ -8,6 +8,7 @@ import { exigirPantalla } from "@/lib/auth/sesion";
 import { AREA_MESA_ENTRADAS } from "@/lib/dominio/permisos";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
 import { ETIQUETA_PESTANA, leerPestana, PESTANAS, pestanaPorDefecto, pestanasVisibles, rutaBandeja } from "@/lib/presentacion/flujo";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { TablaBandeja } from "./tabla-bandeja";
 
 export const metadata: Metadata = { title: "Bandeja" };
@@ -32,10 +33,12 @@ export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
 
   return (
     <section aria-labelledby="titulo-bandeja" className="space-y-4">
+      <PantallaConRecorrido id="bandeja" />
       <EncabezadoPagina id="titulo-bandeja" titulo="Bandeja" antetitulo={usuario.area?.nombre} />
 
       <nav
         aria-label="Pestañas de la bandeja"
+        data-recorrido="bandeja-pestanas"
         className="relative -mx-4 overflow-x-auto px-4 [mask-image:linear-gradient(to_right,black_85%,transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 sm:[mask-image:none]"
       >
         <ul className="flex min-w-max gap-1 border-b border-borde">
@@ -47,6 +50,7 @@ export default async function PaginaBandeja(props: PageProps<"/bandeja">) {
                 <Link
                   href={rutaBandeja(p)}
                   aria-current={actual ? "page" : undefined}
+                  data-recorrido={`bandeja-pestana-${p}`}
                   className={clasePestana(actual)}
                 >
                   {ETIQUETA_PESTANA[p]}

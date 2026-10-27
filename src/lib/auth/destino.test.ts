@@ -29,6 +29,7 @@ describe("destinoSeguro", () => {
     ["el login simulado", "/dev/login"],
     ["una API", "/api/expedientes/1/adjuntos"],
     ["sin acceso", "/sin-acceso"],
+    ["el cambio de contraseña (daría una vuelta en círculo)", "/cambiar-clave"],
     ["demasiado larga", `/expedientes?q=${"a".repeat(600)}`],
   ])("rechaza %s", (_caso, valor) => {
     expect(destinoSeguro(valor)).toBeNull();

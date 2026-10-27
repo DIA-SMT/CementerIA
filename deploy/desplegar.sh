@@ -136,12 +136,21 @@ if [[ $migrar -eq 1 ]]; then
   MIGRATE_DATABASE_URL=$(printf '%s\n%s' "$url_app" "$clave" | node -e '
     const [app, clave] = require("fs").readFileSync(0, "utf8").split("\n");
     const u = new URL(app);
-    u.username = "cementeria_deploy";
+    // Supabase (docs/despliegue.md, "Base en Supabase"): por el pooler el usuario
+    // es <rol>.<ref> y las migraciones van por el Session pooler (5432), nunca
+    // por el Transaction pooler (6543).
+    const ref = decodeURIComponent(u.username).split(".").slice(1).join(".");
+    u.username = ref ? "cementeria_deploy." + ref : "cementeria_deploy";
+    if (/\.pooler\.supabase\.com$/i.test(u.hostname) && u.port === "6543") u.port = "5432";
     u.password = encodeURIComponent(clave);
     process.stdout.write(u.toString());
   ')
   unset clave
   export MIGRATE_DATABASE_URL
+  # Supabase: el certificado raíz para que el motor de migraciones verifique al
+  # servidor (deploy/prisma.config.mjs). Tiene que poder leerlo nobody (0644).
+  ca_db=$(grep -E '^DATABASE_CA_FILE=' "$entorno" | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')
+  if [[ -n "$ca_db" ]]; then export DATABASE_CA_FILE="$ca_db"; fi
   info "prisma migrate deploy"
   # Como `nobody`: ni root ni el usuario del servicio corren la CLI con la
   # credencial de deploy. Lee el paquete (es legible por todos) y nada más.
@@ -149,7 +158,7 @@ if [[ $migrar -eq 1 ]]; then
   (cd "$nueva" && runuser -u nobody -- \
     env HOME=/tmp CHECKPOINT_DISABLE=1 PRISMA_HIDE_UPDATE_MESSAGE=1 \
     node node_modules/prisma/build/index.js migrate deploy)
-  unset MIGRATE_DATABASE_URL
+  unset MIGRATE_DATABASE_URL DATABASE_CA_FILE
 else
   info "sin migraciones (--sin-migraciones)"
 fi

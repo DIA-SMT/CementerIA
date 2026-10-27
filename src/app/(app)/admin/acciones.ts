@@ -1,7 +1,9 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirUsuario } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
@@ -25,6 +27,7 @@ import {
   type EntradaUsuarioAdmin,
   type ResultadoAdmin,
   type ResultadoGuardadoPantalla,
+  type ResultadoUsuarioAdmin,
   type ResultadoValidacion,
 } from "@/lib/presentacion/acciones-admin";
 import type { EstadoError } from "@/lib/presentacion/errores";
@@ -91,9 +94,10 @@ export async function accionRetirar(datos: EntradaRetirarPlantilla): Promise<Res
   return conRefresco(await procesarRetirar(admin, usuario, datos));
 }
 
-export async function accionUsuario(datos: EntradaUsuarioAdmin): Promise<ResultadoAdmin> {
+/** Alta, área o rol, desactivar, reactivar, blanquear la contraseña y desbloquear. */
+export async function accionUsuario(datos: EntradaUsuarioAdmin): Promise<ResultadoUsuarioAdmin> {
   const usuario = await exigirUsuario();
-  return conRefresco(await procesarUsuario(admin, usuario, datos));
+  return conRefresco(await procesarUsuario(admin, usuario, datos, { ip: ipDeSolicitud(await headers()) }));
 }
 
 export async function accionCatalogo(datos: EntradaCatalogoAdmin): Promise<ResultadoAdmin> {

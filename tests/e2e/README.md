@@ -86,6 +86,17 @@ cierran desde el Administrador de tareas y se borra la carpeta.
 
 ## Cómo escribir una prueba
 
+**La invitación a los recorridos guiados.** Cada prueba arranca con el
+localStorage vacío, así que en cada pantalla aparece la tarjeta "¿Es tu primera
+vez en CementerIA?" o "¿Querés un recorrido de esta pantalla?" abajo a la
+derecha (un `complementary`, no un `dialog`). No toma el foco, no bloquea y
+el recorrido nunca se abre solo, así que las pruebas no tienen que cerrarla:
+mientras está, la página reserva lugar al pie y en el `scroll-padding`
+(`globals.css`) y Playwright lleva a la vista lo que tiene que tocar por encima
+de ella. Sus botones ("Empezar", "Ahora no", "No volver a mostrar") no
+coinciden con los nombres que usan las pruebas; si una prueba nueva los
+necesitara, que los busque dentro de la invitación.
+
 Archivo `tests/e2e/<tema>.spec.ts`. Reglas:
 
 - **Selectores por rol y texto accesible** (`getByRole`, `getByLabel`), nunca
@@ -135,4 +146,6 @@ Ayudas en `ayudas.ts`:
 | `panel.spec.ts` | Como Dirección: el conteo "En trámite" lleva a la búsqueda con ese estado y la celda Mesa de Entradas × Renovación de la matriz, a la búsqueda con el área y el tipo de trámite (con el expediente que creó la prueba entre los resultados) |
 | `metricas.spec.ts` | Métricas de gestión: se abren desde el panel y quedan marcadas en la barra; las secciones con su gráfico (texto alternativo) y su tabla; "En trámite hoy" lleva a la búsqueda; el CSV de una tabla baja; los filtros (por semana, con la carga histórica) quedan en la URL; un alta nueva suma en el flujo del mes; un operador no ve el ítem, es redirigido y el CSV le da 403 |
 | `admin.spec.ts` | El admin crea un borrador de plantilla con código único, "Validar" muestra el error en la pestaña Pasos (con su contador) y el enlace del error lleva a ella; "Descartar borrador…" con confirmación lo borra. No publica nada |
+| `login.spec.ts` | 27/10/2026, login propio, por el formulario real de `/login` (no `/dev/login`): el admin da de alta un usuario y ve su contraseña temporal una vez; la persona entra con ella en otro contexto, queda obligada a cambiarla (`/bandeja` la devuelve a `/cambiar-clave`), una clave común se rechaza junto al campo, la cambia y llega a su bandeja; después la temporal ya no entra y la nueva sí. Y un usuario de la semilla entra con la contraseña de desarrollo, mientras que una incorrecta y un CUIL inexistente dan el mismo mensaje y "Mostrar" cambia el tipo del campo |
+| `recorridos.spec.ts` | 27/10/2026, recorridos guiados: el de la bandeja se abre con "Recorrido de esta pantalla" (el "?"), el globo es un diálogo modal con el foco adentro, → / ← / Enter cambian de paso (anunciado en `aria-live`), Tab no sale del globo y Escape (o "Terminar") devuelve el foco al "?"; el de la ficha, como Dirección, no tiene el paso de "Dar pase"; la invitación aparece la primera vez sin tomar el foco ni bloquear la pantalla, "Ahora no" la pospone hasta el día siguiente (`page.clock`) y "No volver a mostrar" no vuelve; "Empezar" y "Reiniciar los recorridos" (en `/avisos`); y en 390 px el "?" está en el encabezado de una fila y el globo es una hoja inferior |
 | `accesibilidad.spec.ts` | Los diálogos de la ficha ("Faltan N", tildar, documento, nota) y "Nueva plantilla" reciben el foco al abrirse, se cierran con Escape y devuelven el foco al botón que los abrió |

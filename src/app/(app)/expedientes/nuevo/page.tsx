@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { ArrowRight, Check, FileText, MapPin, RotateCcw } from "lucide-react";
 import { Aviso } from "@/components/aviso";
 import { EncabezadoPagina } from "@/components/encabezado-pagina";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE, Seccion } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
@@ -97,6 +98,8 @@ export default async function PaginaNuevoExpediente(props: PageProps<"/expedient
 
   return (
     <section aria-labelledby="titulo-pantalla" className="space-y-5">
+      {/* El recorrido guiado cambia con el paso del alta: el primero y el formulario. */}
+      <PantallaConRecorrido id={enPrimerPaso ? "expediente-nuevo" : "expediente-formulario"} />
       <EncabezadoPagina
         titulo="Nuevo expediente"
         antetitulo="Expedientes"
@@ -154,7 +157,7 @@ export default async function PaginaNuevoExpediente(props: PageProps<"/expedient
           >
             {precarga ? <input type="hidden" name="desde" value={precarga.desde.numero} /> : null}
             <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-              <div>
+              <div data-recorrido="nuevo-tramite">
                 <label htmlFor="plantilla" className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-texto">
                   <FileText className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
                   Tipo de trámite y plantilla
@@ -178,7 +181,7 @@ export default async function PaginaNuevoExpediente(props: PageProps<"/expedient
                 </select>
               </div>
               {precarga ? (
-                <div>
+                <div data-recorrido="nuevo-cementerio">
                   <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-texto">
                     <MapPin className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
                     Cementerio
@@ -186,7 +189,7 @@ export default async function PaginaNuevoExpediente(props: PageProps<"/expedient
                   <p className="flex min-h-10 items-center rounded-control border border-borde bg-fondo px-3 text-sm text-texto">{cementerioPrecarga?.nombre ?? "—"}</p>
                 </div>
               ) : (
-                <div>
+                <div data-recorrido="nuevo-cementerio">
                   <label htmlFor="cementerio" className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-texto">
                     <MapPin className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
                     Cementerio
@@ -212,7 +215,7 @@ export default async function PaginaNuevoExpediente(props: PageProps<"/expedient
               </Aviso>
             ) : null}
             <div className="flex flex-wrap items-center gap-3 border-t border-borde pt-4">
-              <button type="submit" className={CLASE_BOTON_PRIMARIO}>
+              <button type="submit" data-recorrido="nuevo-continuar" className={CLASE_BOTON_PRIMARIO}>
                 Continuar
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -264,7 +267,7 @@ export default async function PaginaNuevoExpediente(props: PageProps<"/expedient
 function PasosAlta({ actual }: { actual: 1 | 2 }) {
   const pasos = ["Trámite y cementerio", "Datos del expediente"];
   return (
-    <ol aria-label="Pasos del alta" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+    <ol aria-label="Pasos del alta" data-recorrido="nuevo-pasos" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
       {pasos.map((nombre, i) => {
         const n = i + 1;
         const hecho = n < actual;

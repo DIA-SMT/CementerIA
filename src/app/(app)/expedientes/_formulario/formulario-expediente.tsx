@@ -310,7 +310,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </Aviso>
       ) : null}
 
-      <Seccion numero={numeroDe("tramite")} titulo="Información del trámite">
+      <Seccion numero={numeroDe("tramite")} titulo="Información del trámite" recorrido="form-tramite">
         <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <DatoTramite icono={FileText} titulo="Tipo de trámite" valor={props.plantilla.tipoTramite} />
           <DatoTramite icono={Layers} titulo="Plantilla" valor={`${props.plantilla.nombre} · v${props.plantilla.version}`} />
@@ -352,7 +352,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         ) : null}
       </Seccion>
 
-      <Seccion numero={numeroDe("monumento")} titulo="Monumento y ubicación">
+      <Seccion numero={numeroDe("monumento")} titulo="Monumento y ubicación" recorrido="form-monumento">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Campo ruta="tipoMonumento" etiqueta="Tipo de monumento" obligatorio errores={err("tipoMonumento")}>
             <select
@@ -448,7 +448,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </div>
       </Seccion>
 
-      <Seccion numero={numeroDe("personas")} titulo="Personas" descripcion={def.requiere_contacto ? "Marcá qué persona es el contacto: tiene que tener teléfono o correo." : undefined}>
+      <Seccion numero={numeroDe("personas")} titulo="Personas" recorrido="form-personas" descripcion={def.requiere_contacto ? "Marcá qué persona es el contacto: tiene que tener teléfono o correo." : undefined}>
         <div id={idDeCampo("personas")} tabIndex={-1}>
           <MensajeError ruta="personas" errores={err("personas")} />
         </div>
@@ -470,7 +470,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
       </Seccion>
 
       {def.campos_extra.length > 0 ? (
-        <Seccion numero={numeroDe("extras")} titulo="Datos del trámite" descripcion="Ninguno es obligatorio en el alta; los marcados se piden para avanzar.">
+        <Seccion numero={numeroDe("extras")} titulo="Datos del trámite" recorrido="form-extras" descripcion="Ninguno es obligatorio en el alta; los marcados se piden para avanzar.">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {def.campos_extra.map((c) => {
               const ruta = `datosExtra.${c.clave}`;
@@ -511,6 +511,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         <Seccion
           numero={numeroDe("documentos")}
           titulo="Documentación recibida con el alta"
+          recorrido="form-documentos"
           descripcion="Marcá lo que se entrega hoy en el mostrador. Lo demás queda pendiente."
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -651,7 +652,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
           El primer botón de envío es "Guardar e imprimir carátula": Enter en un
           campo envía con ese, como antes. */}
       <div className="barra-acciones sticky bottom-0 z-10 -mx-4 border-t border-borde bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgb(15_47_93/0.06)] backdrop-blur-sm lg:-mx-8 lg:px-8 print:hidden">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3" data-recorrido="form-guardar">
           {alta ? (
             <>
               <button type="submit" value="caratula" disabled={pendiente} className={CLASE_BOTON_PRIMARIO}>

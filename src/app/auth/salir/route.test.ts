@@ -10,7 +10,7 @@ const simulado = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth/sesion", () => ({
-  usuarioDesdeToken: async (token: string | undefined) => (token ? simulado.usuario : null),
+  sesionDesdeToken: async (token: string | undefined) => (token ? simulado.usuario : null),
   dependenciasIngreso: {},
 }));
 

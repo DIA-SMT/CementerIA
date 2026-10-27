@@ -62,6 +62,7 @@ describe("semilla", () => {
         plantillas: 4,
       },
       avisos: [],
+      claveAdminInicial: null,
     });
   });
 
@@ -285,6 +286,7 @@ describe("semilla", () => {
           plantillas: 0,
         },
         avisos: [],
+        claveAdminInicial: null,
       });
       expect(await contar()).toBe(antes);
     });

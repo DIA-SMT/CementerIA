@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CircleAlert } from "lucide-react";
 import { EtiquetaEstado } from "@/components/etiquetas";
 import { CLASE_FOCO } from "@/components/formulario";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio, expedientes, type Ficha } from "@/lib/dominio/expedientes/servidor";
@@ -73,7 +74,8 @@ export default async function PaginaTranscribir(props: PageProps<"/expedientes/[
 
   return (
     <section aria-labelledby="titulo-pantalla" className="space-y-5">
-      <header className="tarjeta px-4 py-4 sm:px-5">
+      <PantallaConRecorrido id="transcripcion" />
+      <header data-recorrido="transcripcion-cabecera" className="tarjeta px-4 py-4 sm:px-5">
         <Link
           href={rutaFicha(ficha.numero)}
           prefetch={false}

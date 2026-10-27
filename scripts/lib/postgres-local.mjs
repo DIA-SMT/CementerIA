@@ -81,9 +81,11 @@ export function colaDelLog(archivo, lineas = 25) {
 
 /**
  * Crea un clúster nuevo en `datos`.
- * @param {{ datos: string, puerto: number, claveSuperusuario: string, log: string }} o
+ * @param {{ datos: string, puerto: number, claveSuperusuario: string, log: string, superusuario?: string }} o
+ *   `superusuario`: el nombre del superusuario (por defecto `postgres`; el
+ *   simulador de Supabase usa `supabase_admin`, como Supabase).
  */
-export async function crearCluster({ datos, puerto, claveSuperusuario, log }) {
+export async function crearCluster({ datos, puerto, claveSuperusuario, log, superusuario = SUPERUSUARIO }) {
   const { initdb } = await binarios();
   await mkdir(path.dirname(datos), { recursive: true });
   // initdb lee la clave de un archivo; se borra apenas termina.
@@ -94,7 +96,7 @@ export async function crearCluster({ datos, puerto, claveSuperusuario, log }) {
       initdb,
       [
         `--pgdata=${datos}`,
-        `--username=${SUPERUSUARIO}`,
+        `--username=${superusuario}`,
         `--pwfile=${archivoClave}`,
         "--auth=scram-sha-256",
         "--encoding=UTF8",

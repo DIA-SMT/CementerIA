@@ -1,6 +1,7 @@
 import path from "node:path";
 import { config as cargarEnv } from "dotenv";
 import { defineConfig } from "prisma/config";
+import { urlParaPrisma } from "./src/lib/db/tls";
 
 // Next lee .env.local solo; la CLI de Prisma corre afuera y hay que decírselo.
 // dotenv no pisa variables ya definidas: el arnés de integración le pasa a
@@ -50,7 +51,11 @@ export default defineConfig({
   ...(urlMigraciones
     ? {
         datasource: {
-          url: urlMigraciones,
+          // Con DATABASE_CA_FILE o DATABASE_CA_PEM (Supabase), la URL lleva el
+          // TLS con esa CA para el motor de migraciones (src/lib/db/tls.ts). Solo
+          // en los comandos que se conectan: `generate` no tiene por qué leer
+          // el certificado.
+          url: seConecta ? urlParaPrisma(urlMigraciones) : urlMigraciones,
           ...(urlShadow ? { shadowDatabaseUrl: urlShadow } : {}),
         },
       }

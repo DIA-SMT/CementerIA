@@ -5,6 +5,8 @@ import { BellOff, Check, ChevronLeft, ChevronRight, CheckCheck, Mail, MailOpen }
 import { EncabezadoPagina } from "@/components/encabezado-pagina";
 import { EstadoVacio } from "@/components/estado-vacio";
 import { IconoAviso } from "@/components/icono-aviso";
+import { ReiniciarRecorridos } from "@/components/recorrido/botones";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import {
   CLASE_BOTON_COMPACTO,
   CLASE_BOTON_SECUNDARIO,
@@ -37,6 +39,9 @@ function clasePastilla(actual: boolean): string {
  * (abrirlo lo marca leído) y se puede marcar como leído o no leído. Mesa de
  * Entradas puede apagar "Concluido o archivado". Para quien no recibe avisos
  * (Dirección, el admin) la pantalla lo dice: la campana no les aparece.
+ *
+ * Al pie, para todos, "Recorridos guiados" con "Reiniciar los recorridos"
+ * (vuelve a ofrecer el recorrido de cada pantalla; docs/diseno.md).
  */
 export default async function PaginaAvisos(props: PageProps<"/avisos">) {
   const usuario = await exigirUsuario();
@@ -46,10 +51,12 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
   if (!recibeAvisos(usuario)) {
     return (
       <section aria-labelledby="titulo-avisos" className="space-y-4">
+        <PantallaConRecorrido id="avisos" />
         <EncabezadoPagina id="titulo-avisos" titulo="Avisos" />
         <EstadoVacio icono={BellOff} titulo="Los avisos son para las áreas que trabajan los expedientes.">
           <p>Dirección y la administración siguen el circuito desde el panel.</p>
         </EstadoVacio>
+        <TarjetaRecorridos />
       </section>
     );
   }
@@ -61,6 +68,7 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
 
   return (
     <section aria-labelledby="titulo-avisos" className="space-y-4">
+      <PantallaConRecorrido id="avisos" />
       <EncabezadoPagina
         id="titulo-avisos"
         titulo="Avisos"
@@ -68,7 +76,7 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
         descripcion={lista.noLeidos === 0 ? "No tenés avisos sin leer." : lista.noLeidos === 1 ? "Tenés 1 aviso sin leer." : `Tenés ${lista.noLeidos} avisos sin leer.`}
         acciones={
           lista.noLeidos > 0 ? (
-            <form action={accionMarcarTodosDesdePagina}>
+            <form action={accionMarcarTodosDesdePagina} data-recorrido="avisos-marcar-todos">
               <button type="submit" className={CLASE_BOTON_SECUNDARIO}>
                 <CheckCheck className="h-4 w-4" aria-hidden="true" />
                 Marcar todos como leídos
@@ -79,7 +87,7 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
       />
 
       {/* Filtros: leídos o no (enlaces) y el tipo (formulario GET, sin JavaScript). */}
-      <div className="tarjeta flex flex-wrap items-end gap-x-6 gap-y-3 px-4 py-3">
+      <div className="tarjeta flex flex-wrap items-end gap-x-6 gap-y-3 px-4 py-3" data-recorrido="avisos-filtros">
         <nav aria-label="Mostrar">
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-texto-secundario">Mostrar</p>
           <ul className="flex gap-2">
@@ -137,7 +145,7 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
       </p>
 
       {lista.filas.length > 0 ? (
-        <ul aria-label="Avisos" className="tarjeta divide-y divide-borde overflow-hidden">
+        <ul aria-label="Avisos" data-recorrido="avisos-lista" className="tarjeta divide-y divide-borde overflow-hidden">
           {lista.filas.map((a) => {
             const noLeido = a.leidoEn === null;
             const alta = a.prioridad === "alta";
@@ -204,7 +212,7 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
       ) : null}
 
       {preferencias.length > 0 ? (
-        <section aria-labelledby="titulo-preferencias" className="tarjeta space-y-3 px-4 py-4">
+        <section aria-labelledby="titulo-preferencias" data-recorrido="avisos-preferencias" className="tarjeta space-y-3 px-4 py-4">
           <h2 id="titulo-preferencias" className="titulo-seccion">
             Preferencias
           </h2>
@@ -226,6 +234,26 @@ export default async function PaginaAvisos(props: PageProps<"/avisos">) {
           ))}
         </section>
       ) : null}
+
+      <TarjetaRecorridos />
+    </section>
+  );
+}
+
+/** "Recorridos guiados": volver a ofrecer el recorrido de cada pantalla (lo recordado está en este navegador). */
+function TarjetaRecorridos() {
+  return (
+    <section aria-labelledby="titulo-recorridos" data-recorrido="avisos-recorridos" className="tarjeta space-y-3 px-4 py-4 print:hidden">
+      <div className="space-y-1">
+        <h2 id="titulo-recorridos" className="titulo-seccion">
+          Recorridos guiados
+        </h2>
+        <p className="text-sm text-texto-secundario">
+          Cada pantalla ofrece una vez un recorrido corto que muestra para qué sirve cada parte; después queda en el botón de ayuda del encabezado. Si querés que
+          te los vuelvan a ofrecer, reinicialos (se guarda en esta computadora).
+        </p>
+      </div>
+      <ReiniciarRecorridos />
     </section>
   );
 }

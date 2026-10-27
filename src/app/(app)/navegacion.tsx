@@ -111,6 +111,7 @@ export function BarraLateral({
         <button
           ref={boton}
           type="button"
+          data-recorrido="menu-celular"
           aria-expanded={abierto}
           aria-controls={idMenu}
           onClick={() => setAbiertoEn(abierto ? null : ruta)}
@@ -132,6 +133,7 @@ export function BarraLateral({
         </p>
         <button
           type="button"
+          data-recorrido="barra-contraer"
           aria-expanded={!colapsada}
           aria-controls={idBarra}
           onClick={alternarBarra}
@@ -147,6 +149,7 @@ export function BarraLateral({
       <nav
         id={idMenu}
         aria-label="Principal"
+        data-recorrido="barra-modulos"
         className={`${abierto ? "block" : "hidden"} border-t border-white/10 px-3 pb-4 pt-3 lg:block lg:flex-1 lg:overflow-y-auto lg:border-t-0 lg:pt-0 barra-colapsada:overflow-visible`}
       >
         <p className="px-3 pb-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-institucional-texto lg:hidden" aria-hidden="true">

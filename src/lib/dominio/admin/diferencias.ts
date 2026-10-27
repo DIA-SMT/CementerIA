@@ -6,7 +6,8 @@ import { formatearFechaHora } from "@/lib/fechas";
  * palabras. Puro: lo usan la pantalla y el CSV.
  *
  * El trigger `auditar_cambio` guarda la fila entera (`to_jsonb`) antes y
- * después; en usuarios, solo id, cuil, área, rol y activo. Acá se comparan las
+ * después; en usuarios, solo id, cuil, área, rol, activo y debe_cambiar_clave
+ * (nunca el hash de la contraseña). Acá se comparan las
  * columnas una por una y se muestran las que cambiaron. La definición de una
  * plantilla es grande: se resume en cantidades (pasos, subtareas, documentos…)
  * en vez de volcar el JSON.
@@ -55,6 +56,7 @@ const ETIQUETA_COLUMNA: Record<string, string> = {
   cerrado: "Cerrado",
   cerrado_por: "Cerrado por",
   cerrado_en: "Cerrado el",
+  debe_cambiar_clave: "Debe cambiar la contraseña",
 };
 
 /** Columnas que no dicen nada al leer el cambio (la clave, que ya está en "Registro"). */

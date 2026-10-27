@@ -112,6 +112,7 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
 
       {lote ? (
         <div
+          data-recorrido="bandeja-lote"
           className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-tarjeta border px-4 py-2.5 transition-colors duration-150 ${
             elegidos.length > 0 ? "border-info-borde bg-info-fondo" : "border-borde bg-white"
           }`}
@@ -176,7 +177,9 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                   <th scope="col">Titular</th>
                   <th scope="col">Trámite</th>
                   <th scope="col">Paso</th>
-                  <th scope="col">En el área</th>
+                  <th scope="col" data-recorrido="bandeja-dias">
+                    En el área
+                  </th>
                   {conVencimiento ? <th scope="col">Vencimiento</th> : null}
                   <th scope="col">Etiquetas</th>
                   <th scope="col" className="pl-2">
@@ -190,7 +193,7 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                   // Franja a la izquierda de la primera celda: rojo si volvió devuelto o venció el plazo.
                   const franja = senal ? "shadow-[inset_4px_0_0_var(--color-error)]" : "";
                   return (
-                    <tr key={f.numero} className={senal === "devuelto" ? "bg-error-fondo" : senal === "vencido" ? "bg-error-fondo/60" : undefined}>
+                    <tr key={f.numero} data-recorrido={senal === "devuelto" ? "bandeja-devuelto" : undefined} className={senal === "devuelto" ? "bg-error-fondo" : senal === "vencido" ? "bg-error-fondo/60" : undefined}>
                       {lote ? (
                         <td className={franja}>
                           {f.puedeConfirmar ? <CasillaFila fila={f} elegida={elegidos.includes(f.numero)} onCambiar={elegir} /> : null}
@@ -267,6 +270,7 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
               return (
                 <li
                   key={f.numero}
+                  data-recorrido={senal === "devuelto" ? "bandeja-devuelto" : undefined}
                   className={`tarjeta flex flex-col gap-3 p-4 ${
                     senal === "devuelto"
                       ? "border-error-borde bg-error-fondo shadow-[inset_4px_0_0_var(--color-error)]"
@@ -305,7 +309,9 @@ export function TablaBandeja({ pestana, filas }: { pestana: PestanaBandeja; fila
                       {f.paso.nombre}
                       {f.areaActual.externa ? <span className="block text-xs text-texto-secundario">En {f.areaActual.nombre}</span> : null}
                     </dd>
-                    <dt className="text-texto-secundario">En el área</dt>
+                    <dt className="text-texto-secundario" data-recorrido="bandeja-dias">
+                      En el área
+                    </dt>
                     <dd className="min-w-0">
                       <EnElArea fila={f} />
                     </dd>
@@ -393,7 +399,10 @@ function CasillaFila({
 function EnElArea({ fila: f }: { fila: FilaBandeja }) {
   return (
     <>
-      <span className={f.demorado ? "inline-flex items-start gap-1 font-semibold text-error" : "text-texto"}>
+      <span
+        data-recorrido={f.demorado ? "bandeja-demorado" : undefined}
+        className={f.demorado ? "inline-flex items-start gap-1 font-semibold text-error" : "text-texto"}
+      >
         {f.demorado ? <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
         <span>
           <span className="whitespace-nowrap">{textoDias(f.diasEnArea)}</span>
@@ -472,12 +481,19 @@ function Acciones({
   return (
     <div className={className}>
       {f.puedeConfirmar ? (
-        <button type="button" onClick={() => onConfirmar(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO_PRIMARIO}>
+        <button type="button" data-recorrido="bandeja-confirmar" onClick={() => onConfirmar(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO_PRIMARIO}>
           Confirmar<span className="sr-only"> la recepción de {f.numero}</span>
         </button>
       ) : null}
       {f.paseRapido ? (
-        <button type="button" aria-haspopup="dialog" onClick={() => onPaseRapido(f)} disabled={pendiente} className={CLASE_BOTON_COMPACTO}>
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          data-recorrido="bandeja-pase-rapido"
+          onClick={() => onPaseRapido(f)}
+          disabled={pendiente}
+          className={CLASE_BOTON_COMPACTO}
+        >
           <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
           Dar pase rápido<span className="sr-only"> de {f.numero}</span>
         </button>
@@ -488,7 +504,7 @@ function Acciones({
           Transcribir<span className="sr-only"> {f.numero}</span>
         </Link>
       ) : null}
-      <Link href={rutaFicha(f.numero)} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+      <Link href={rutaFicha(f.numero)} prefetch={false} data-recorrido="bandeja-abrir" className={CLASE_BOTON_COMPACTO}>
         Abrir<span className="sr-only"> {f.numero}</span>
       </Link>
     </div>

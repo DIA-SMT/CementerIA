@@ -28,7 +28,7 @@ import {
   validarBorrador,
   type ContenidoBorrador,
 } from "./plantillas";
-import { altaUsuario, cambiarAccesoUsuario, desactivarUsuario, listarUsuarios, reactivarUsuario } from "./usuarios";
+import { altaUsuario, blanquearClave, cambiarAccesoUsuario, desactivarUsuario, desbloquearUsuario, listarUsuarios, reactivarUsuario } from "./usuarios";
 
 export function crearServicioAdmin(deps: DependenciasAdmin) {
   return {
@@ -52,6 +52,10 @@ export function crearServicioAdmin(deps: DependenciasAdmin) {
     cambiarAccesoUsuario: (usuario: UsuarioPermisos, id: number, entrada: unknown, motivo?: string | null) => cambiarAccesoUsuario(deps, usuario, id, entrada, motivo ?? null),
     desactivarUsuario: (usuario: UsuarioPermisos, id: number, motivo?: string | null) => desactivarUsuario(deps, usuario, id, motivo ?? null),
     reactivarUsuario: (usuario: UsuarioPermisos, id: number, motivo?: string | null) => reactivarUsuario(deps, usuario, id, motivo ?? null),
+    // Login propio (27/10/2026): la temporal se devuelve una sola vez.
+    blanquearClave: (usuario: UsuarioPermisos, id: number, motivo: string | null, opciones?: { ip?: string | null }) => blanquearClave(deps, usuario, id, motivo, opciones),
+    desbloquearUsuario: (usuario: UsuarioPermisos, id: number, motivo?: string | null, opciones?: { ip?: string | null }) =>
+      desbloquearUsuario(deps, usuario, id, motivo ?? null, opciones),
 
     // --- Catálogos (2.1 a 2.3, 2.13(d)) -----------------------------------------
     listarCatalogos: (usuario: UsuarioPermisos) => listarCatalogos(deps, usuario),

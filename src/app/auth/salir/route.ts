@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cookieSegura, nombreCookie, opcionesBorrado } from "@/lib/auth/cookies";
 import { cerrarSesion } from "@/lib/auth/ingreso";
 import { ipDeSolicitud, mismoOrigen } from "@/lib/auth/red";
-import { dependenciasIngreso, usuarioDesdeToken } from "@/lib/auth/sesion";
+import { dependenciasIngreso, sesionDesdeToken } from "@/lib/auth/sesion";
 import { COOKIE_SESION, COOKIE_SIN_ACCESO } from "@/lib/auth/sesion-token";
 import { entorno } from "@/lib/entorno";
 import { log, resumenError } from "@/lib/log";
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (token) {
     try {
-      const usuario = await usuarioDesdeToken(token);
+      const usuario = await sesionDesdeToken(token);
       if (usuario) {
         await cerrarSesion(dependenciasIngreso, usuario.id, usuario.sesionVersion, ipDeSolicitud(request.headers));
         log.info("salida.ok", { usuarioId: usuario.id });

@@ -19,7 +19,7 @@ const findUnique = vi.fn();
 vi.mock("@/lib/db/cliente", () => ({ prisma: { usuario: { findUnique } } }));
 vi.mock("@/lib/db/transaccion", () => ({ conActor: vi.fn() }));
 
-const { exigirPantalla, exigirUsuario, getUsuarioActual } = await import("./sesion");
+const { exigirPantalla, exigirUsuario, getSesionActual, getUsuarioActual } = await import("./sesion");
 const { COOKIE_SESION, emitirSesion } = await import("./sesion-token");
 const { usuarioDeSesion } = await import("./usuario");
 
@@ -35,6 +35,7 @@ function fila(cambios: Partial<Fila> = {}): Fila {
     rol: "operador",
     activo: true,
     sesionVersion: 3,
+    debeCambiarClave: false,
     area: { id: 2, codigo: "COMPUTO", nombre: "Cómputo" },
     ...cambios,
   };
@@ -83,6 +84,7 @@ describe("getUsuarioActual", () => {
       activo: true,
       sesionVersion: 3,
       area: { id: 2, codigo: "COMPUTO", nombre: "Cómputo" },
+      debeCambiarClave: false,
     });
     expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 42 } }));
   });
@@ -109,6 +111,13 @@ describe("getUsuarioActual", () => {
     await conSesion();
     findUnique.mockResolvedValue(null);
     expect(await getUsuarioActual()).toBeNull();
+  });
+
+  it("con una contraseña temporal sin cambiar no hay usuario para la app; la sesión sí existe (para /cambiar-clave)", async () => {
+    await conSesion();
+    findUnique.mockResolvedValue(fila({ debeCambiarClave: true }));
+    expect(await getUsuarioActual()).toBeNull();
+    expect(await getSesionActual()).toMatchObject({ id: 42, debeCambiarClave: true });
   });
 });
 
@@ -137,6 +146,13 @@ describe("exigirUsuario y exigirPantalla", () => {
     await conSesion();
     findUnique.mockResolvedValue(fila({ activo: false }));
     expect(await destinoDe(exigirUsuario())).toBe("/login?error=sesion_invalida");
+  });
+
+  it("con una contraseña temporal, cualquier pantalla y acción manda a /cambiar-clave", async () => {
+    await conSesion();
+    findUnique.mockResolvedValue(fila({ debeCambiarClave: true }));
+    expect(await destinoDe(exigirUsuario())).toBe("/cambiar-clave");
+    expect(await destinoDe(exigirPantalla("bandeja"))).toBe("/cambiar-clave");
   });
 
   it("deja pasar a quien la pantalla le corresponde", async () => {

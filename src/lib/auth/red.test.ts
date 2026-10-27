@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cookieSegura, opcionesBorrado, opcionesCookie } from "./cookies";
 import { textoDeError } from "./errores";
-import { hostnameDeSolicitud, ipDeSolicitud, mismoOrigen } from "./red";
+import { envioDelMismoSitio, hostnameDeSolicitud, ipDeSolicitud, mismoOrigen } from "./red";
 
 describe("ipDeSolicitud", () => {
   it("prefiere X-Real-IP, que nginx pisa", () => {
@@ -103,5 +103,22 @@ describe("textoDeError", () => {
     expect(textoDeError("toString")).toBeNull();
     expect(textoDeError(undefined)).toBeNull();
     expect(textoDeError("token_invalido")).toMatch(/Cidituc/);
+  });
+});
+
+describe("envioDelMismoSitio (formularios del login propio)", () => {
+  const HOST = "cementeria.ejemplo.invalid";
+  it("acepta el envío desde una página propia", () => {
+    expect(envioDelMismoSitio(new Headers({ host: HOST, origin: `https://${HOST}`, "sec-fetch-site": "same-origin" }))).toBe(true);
+    // Un cliente que no es un navegador no manda ninguno de los dos.
+    expect(envioDelMismoSitio(new Headers({ host: HOST }))).toBe(true);
+  });
+
+  it("rechaza un formulario plantado en otro sitio (login CSRF), aunque X-Forwarded-Host diga lo contrario", () => {
+    expect(envioDelMismoSitio(new Headers({ host: HOST, origin: "https://otro.sitio" }))).toBe(false);
+    expect(envioDelMismoSitio(new Headers({ host: HOST, origin: "https://otro.sitio", "x-forwarded-host": "otro.sitio" }))).toBe(false);
+    expect(envioDelMismoSitio(new Headers({ host: HOST, "sec-fetch-site": "cross-site" }))).toBe(false);
+    // Otra app bajo el mismo dominio municipal.
+    expect(envioDelMismoSitio(new Headers({ host: HOST, "sec-fetch-site": "same-site" }))).toBe(false);
   });
 });

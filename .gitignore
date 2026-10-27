@@ -31,8 +31,11 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# .env* cubre también .env.supabase.local (la conexión de administración de
+# Supabase y las URLs con claves que genera npm run supabase:preparar).
 .env*
 !.env.example
+!.env.supabase.ejemplo
 
 # vercel
 .vercel
@@ -43,6 +46,10 @@ next-env.d.ts
 
 # Cliente de Prisma: lo regenera el postinstall (prisma generate)
 /src/generated/
+
+# Archivos SQL con secretos o datos personales que genera npm run supabase:sql
+# (claves de los roles como verificadores SCRAM, CUIL del admin inicial)
+/supabase/sql/.local/
 
 # Base local y adjuntos de desarrollo
 /.local/

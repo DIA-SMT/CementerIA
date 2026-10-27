@@ -1,6 +1,8 @@
 # CementerIA: propuesta final del MVP de seguimiento de expedientes de la Dirección de Cementerios
 
 > **Estado:** borrador para confirmar, 19/10/2026. Dirección de Inteligencia Artificial (SMT).
+>
+> **Actualizado el 27/10/2026: el ingreso pasa a usuario y contraseña propios; Cidituc en pausa.** Se entra con CUIL (o correo) y contraseña (scrypt, bloqueo por intentos, contraseña temporal en el alta y en los blanqueos, cambio obligatorio). La sesión, la autorización y los permisos no cambian. El código de Cidituc sigue, apagado con `CIDITUC_HABILITADO=0`, listo para reactivarse. Donde este documento dice que el login es Cidituc, vale esta nota. Detalle: docs/api-dominio.md, sección 22.
 > Se escribió sin el PDF de procedimientos y con el pedido cortado en "traslado de restos,". Lo que es inferencia lleva la marca [I] y lo que hay que confirmar con la Dirección de Cementerios, la marca [C].
 
 ## Resumen ejecutivo
@@ -11,7 +13,7 @@
 - **Fechas:** cada movimiento tiene fecha efectiva y fecha de registro, con precisión y fuente. Así se cargan expedientes de años anteriores y pases demorados sin falsear la auditoría.
 - **Flujo:** el pase va siempre al paso siguiente de la plantilla. La devolución exige motivo, destilda lo que hay que rehacer y después permite reenviar directo al área que devolvió. La recepción se confirma con un clic y no bloquea. La DIM y los cementerios son áreas externas sin usuarios, y las opera un área de custodia definida en cada paso.
 - **Datos personales:** el contacto completo y los adjuntos los ve quien trabaja el expediente. El resto los ve enmascarados y puede abrirlos dando un motivo, que queda registrado. Las personas se guardan versionadas, así que los datos de un tercero cargados por error se pueden suprimir.
-- **Stack:** Next.js 16.4.2 creado con `create-next-app`, React 19, Prisma 7.9 con `@prisma/adapter-pg` (la configuración de DiarioDigital), PostgreSQL 15. SubastaCementerio no sirve de scaffold porque usa Supabase y no Prisma. El login es Cidituc con el endpoint de empleados. Se despliega en servidores municipales, como DIM360.
+- **Stack:** Next.js 16.4.2 creado con `create-next-app`, React 19, Prisma 7.9 con `@prisma/adapter-pg` (la configuración de DiarioDigital), PostgreSQL 15. SubastaCementerio no sirve de scaffold porque usa Supabase y no Prisma. El login es Cidituc con el endpoint de empleados. *Actualizado el 27/10/2026: el ingreso pasa a usuario y contraseña propios; Cidituc en pausa.* Se despliega en servidores municipales, como DIM360.
 - **Plan:** con 2 desarrolladores son 8 semanas: 5 de construcción, 2 de piloto y 1 de corte. Con 1 desarrollador son 11. El corte de la ficha es por tipo de trámite, a medida que se publica cada plantilla.
 - **Antes de codificar necesito tu confirmación** sobre los puntos del final de la sección 8.
 
@@ -776,7 +778,7 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 
 | Ruta | Roles | Propósito | Contenido | Acciones principales |
 |---|---|---|---|---|
-| `/login` | público | Ingreso | Botón "Ingresar con Cidituc"; aviso de uso interno y de la Ley 25.326 | Ingresar |
+| `/login` | público | Ingreso | Botón "Ingresar con Cidituc"; aviso de uso interno y de la Ley 25.326. *Actualizado el 27/10/2026: formulario de CUIL o correo y contraseña; Cidituc en pausa (`/cambiar-clave` para la contraseña temporal)* | Ingresar |
 | `/auth/callback` | route handler | Validar `state` y token, crear la sesión | — | Redirige a `/bandeja`, `/panel` o `/sin-acceso` |
 | `/sin-acceso` | autenticado sin alta | Explicar la falta de alta | Nombre y CUIL según Cidituc; "pedí el alta al administrador" | Salir |
 | `/dev/login` | solo desarrollo, o staging con `AUTH_DEV_LOGIN_STAGING` (404 en producción) | Login simulado | Usuarios semilla por área (lista blanca) | Entrar como… |

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { UserCheck, UserCog, UserPlus, UserX } from "lucide-react";
+import { Copy, KeyRound, LockOpen, UserCheck, UserCog, UserPlus, UserX } from "lucide-react";
+import { Aviso } from "@/components/aviso";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
 import { atributosCampo, Campo, CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL } from "@/components/formulario";
@@ -13,8 +14,14 @@ import { AvisoHecho, DialogoConfirmar, erroresDe, useAccion } from "../piezas";
 
 /**
  * Los diálogos de `/admin/usuarios`: alta por CUIL, cambiar área o rol,
- * desactivar y reactivar. El CUIL se controla también acá (dígito
- * verificador) para avisar antes de enviar; el dominio lo vuelve a controlar.
+ * desactivar, reactivar, blanquear la contraseña y desbloquear. El CUIL se
+ * controla también acá (dígito verificador) para avisar antes de enviar; el
+ * dominio lo vuelve a controlar.
+ *
+ * Login propio (27/10/2026): el alta y el blanqueo devuelven una contraseña
+ * temporal que se muestra UNA sola vez (DialogoClaveTemporal), con un botón
+ * para copiarla. Vive solo en el estado de este componente: al cerrar el
+ * diálogo se pierde, y en la base queda solo el hash.
  */
 
 type Area = { id: number; codigo: string; nombre: string };
@@ -55,12 +62,63 @@ function CamposAcceso({ areaId, rol, setAreaId, setRol, areas, error, rolBloquea
   );
 }
 
+/**
+ * La contraseña temporal, una sola vez: grande, en monoespaciada, con
+ * "Copiar" y el aviso de que no se vuelve a ver.
+ */
+export function DialogoClaveTemporal({ nombre, clave, onCerrar }: { nombre: string; clave: string; onCerrar: () => void }) {
+  const [copiada, setCopiada] = useState<"si" | "no" | null>(null);
+  return (
+    <Dialogo titulo={`Contraseña temporal de ${nombre}`} onCerrar={onCerrar}>
+      <div className="space-y-4">
+        <Aviso tono="advertencia" titulo="Copiala ahora: no se vuelve a mostrar">
+          <p>
+            Pasásela a la persona en mano o por teléfono (no por un chat ni por correo). Al ingresar con su CUIL y esta
+            contraseña, CementerIA le va a pedir que elija una nueva.
+          </p>
+        </Aviso>
+        <p className="text-sm text-texto-secundario">Contraseña temporal:</p>
+        <p
+          data-clave-temporal
+          className="select-all rounded-control border border-borde bg-fondo px-4 py-3 text-center font-mono text-xl font-semibold tracking-wider text-texto"
+        >
+          {clave}
+        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-borde pt-3">
+          <div role="status" className="text-sm text-texto-secundario">
+            {copiada === "si" ? "Copiada al portapapeles." : copiada === "no" ? "No se pudo copiar: seleccionala y copiala a mano." : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(clave)
+                  .then(() => setCopiada("si"))
+                  .catch(() => setCopiada("no"));
+              }}
+              className={CLASE_BOTON_SECUNDARIO}
+            >
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Copiar
+            </button>
+            <button type="button" onClick={onCerrar} className={CLASE_BOTON_PRIMARIO} data-autofocus>
+              Listo, ya la copié
+            </button>
+          </div>
+        </div>
+      </div>
+    </Dialogo>
+  );
+}
+
 export function BotonAltaUsuario({ areas }: { areas: readonly Area[] }) {
   const [abierto, setAbierto] = useState(false);
   const [hecho, setHecho] = useState<string | null>(null);
+  const [temporal, setTemporal] = useState<{ nombre: string; clave: string } | null>(null);
   return (
     <div className="flex flex-col items-end gap-2">
-      <button type="button" aria-haspopup="dialog" onClick={() => setAbierto(true)} className={CLASE_BOTON_PRIMARIO}>
+      <button type="button" aria-haspopup="dialog" data-recorrido="usuarios-alta" onClick={() => setAbierto(true)} className={CLASE_BOTON_PRIMARIO}>
         <UserPlus className="h-4 w-4" aria-hidden="true" />
         Alta de usuario
       </button>
@@ -69,17 +127,27 @@ export function BotonAltaUsuario({ areas }: { areas: readonly Area[] }) {
         <DialogoAlta
           areas={areas}
           onCerrar={() => setAbierto(false)}
-          onHecho={(m) => {
+          onHecho={(m, clave) => {
             setAbierto(false);
             setHecho(m);
+            if (clave) setTemporal(clave);
           }}
         />
       ) : null}
+      {temporal ? <DialogoClaveTemporal nombre={temporal.nombre} clave={temporal.clave} onCerrar={() => setTemporal(null)} /> : null}
     </div>
   );
 }
 
-function DialogoAlta({ areas, onCerrar, onHecho }: { areas: readonly Area[]; onCerrar: () => void; onHecho: (mensaje: string) => void }) {
+function DialogoAlta({
+  areas,
+  onCerrar,
+  onHecho,
+}: {
+  areas: readonly Area[];
+  onCerrar: () => void;
+  onHecho: (mensaje: string, temporal: { nombre: string; clave: string } | null) => void;
+}) {
   const { pendiente, error, setError, enviar } = useAccion();
   const [cuil, setCuil] = useState("");
   const [nombre, setNombre] = useState("");
@@ -89,7 +157,12 @@ function DialogoAlta({ areas, onCerrar, onHecho }: { areas: readonly Area[]; onC
   const [areaId, setAreaId] = useState<number | null>(null);
   const soloDigitos = cuil.replace(/[\s.-]/g, "");
   return (
-    <Dialogo titulo="Alta de usuario" descripcion="Con el CUIL con el que entra a Cidituc. El nombre se actualiza en su primer ingreso." onCerrar={onCerrar} ocupado={pendiente}>
+    <Dialogo
+      titulo="Alta de usuario"
+      descripcion="Ingresa con su CUIL (o su correo) y una contraseña temporal que se genera al darlo de alta y se muestra una sola vez."
+      onCerrar={onCerrar}
+      ocupado={pendiente}
+    >
       <form
         className="space-y-4"
         onSubmit={(e) => {
@@ -98,7 +171,10 @@ function DialogoAlta({ areas, onCerrar, onHecho }: { areas: readonly Area[]; onC
             setError({ ok: false, codigo: "validacion", mensaje: "Revisá el CUIL", errores: [{ ruta: "cuil", mensaje: "CUIL inválido: 11 dígitos con el dígito verificador correcto" }] });
             return;
           }
-          enviar(() => accionUsuario({ accion: "alta", datos: { cuil: soloDigitos, nombre, apellido, email, rol, areaId } }), (r) => onHecho(r.mensaje));
+          enviar(
+            () => accionUsuario({ accion: "alta", datos: { cuil: soloDigitos, nombre, apellido, email, rol, areaId } }),
+            (r) => onHecho(r.mensaje, r.claveTemporal ? { nombre: `${nombre} ${apellido}`.trim(), clave: r.claveTemporal } : null),
+          );
         }}
       >
         <Campo ruta="cuil" etiqueta="CUIL" obligatorio errores={erroresDe(error, "cuil")} ayuda="Con o sin guiones (ej. 20-12345678-6)">
@@ -137,19 +213,23 @@ interface UsuarioFila {
   areaId: number | null;
   rol: Rol;
   activo: boolean;
+  /** Bloqueado por intentos fallidos ahora. */
+  bloqueado: boolean;
 }
 
 export function AccionesUsuario({ usuario, esUnoMismo, areas }: { usuario: UsuarioFila; esUnoMismo: boolean; areas: readonly Area[] }) {
-  const [dialogo, setDialogo] = useState<"acceso" | "desactivar" | "reactivar" | null>(null);
+  const [dialogo, setDialogo] = useState<"acceso" | "desactivar" | "reactivar" | "blanquear" | "desbloquear" | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
+  const [temporal, setTemporal] = useState<string | null>(null);
   const accion = useAccion();
-  const terminar = (r: { mensaje: string }) => {
+  const terminar = (r: { mensaje: string; claveTemporal?: string }) => {
     setDialogo(null);
     setHecho(r.mensaje);
+    if (r.claveTemporal) setTemporal(r.claveTemporal);
   };
   return (
     <div className="flex flex-col items-start gap-1">
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1" data-recorrido="usuarios-acciones">
         <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("acceso")} className={CLASE_BOTON_COMPACTO}>
           <UserCog className="h-4 w-4" aria-hidden="true" />
           Área o rol<span className="sr-only"> de {usuario.nombre}</span>
@@ -167,8 +247,53 @@ export function AccionesUsuario({ usuario, esUnoMismo, areas }: { usuario: Usuar
             Reactivar<span className="sr-only"> a {usuario.nombre}</span>
           </button>
         )}
+        {esUnoMismo ? null : (
+          <button type="button" aria-haspopup="dialog" data-recorrido="usuarios-blanquear" onClick={() => setDialogo("blanquear")} className={CLASE_BOTON_COMPACTO}>
+            <KeyRound className="h-4 w-4" aria-hidden="true" />
+            Blanquear contraseña<span className="sr-only"> de {usuario.nombre}</span>
+          </button>
+        )}
+        {usuario.bloqueado ? (
+          <button type="button" aria-haspopup="dialog" onClick={() => setDialogo("desbloquear")} className={CLASE_BOTON_COMPACTO}>
+            <LockOpen className="h-4 w-4" aria-hidden="true" />
+            Desbloquear<span className="sr-only"> a {usuario.nombre}</span>
+          </button>
+        ) : null}
       </div>
       <AvisoHecho mensaje={hecho} />
+      {temporal ? <DialogoClaveTemporal nombre={usuario.nombre} clave={temporal} onCerrar={() => setTemporal(null)} /> : null}
+      {dialogo === "blanquear" ? (
+        <DialogoConfirmar
+          titulo={`Blanquear la contraseña de ${usuario.nombre}`}
+          textoBoton="Blanquear contraseña"
+          peligro
+          motivo="obligatorio"
+          pendiente={accion.pendiente}
+          error={accion.error}
+          recargar={RUTA}
+          onCerrar={() => setDialogo(null)}
+          onConfirmar={(motivo) => accion.enviar(() => accionUsuario({ accion: "blanquear", id: usuario.id, motivo }), terminar)}
+        >
+          <p>
+            Se genera una contraseña temporal nueva, que vas a ver una sola vez; la actual deja de valer. Se cierran todas sus
+            sesiones abiertas y, si estaba bloqueado, se desbloquea. Al ingresar la va a tener que cambiar.
+          </p>
+        </DialogoConfirmar>
+      ) : null}
+      {dialogo === "desbloquear" ? (
+        <DialogoConfirmar
+          titulo={`Desbloquear a ${usuario.nombre}`}
+          textoBoton="Desbloquear"
+          motivo="opcional"
+          pendiente={accion.pendiente}
+          error={accion.error}
+          recargar={RUTA}
+          onCerrar={() => setDialogo(null)}
+          onConfirmar={(motivo) => accion.enviar(() => accionUsuario({ accion: "desbloquear", id: usuario.id, motivo }), terminar)}
+        >
+          <p>Está bloqueado por 5 intentos fallidos seguidos. Desbloquearlo le permite volver a probar ya, sin esperar los 15 minutos. Su contraseña no cambia.</p>
+        </DialogoConfirmar>
+      ) : null}
       {dialogo === "acceso" ? <DialogoAcceso usuario={usuario} esUnoMismo={esUnoMismo} areas={areas} onCerrar={() => setDialogo(null)} onHecho={terminar} /> : null}
       {dialogo === "desactivar" ? (
         <DialogoConfirmar
@@ -196,7 +321,7 @@ export function AccionesUsuario({ usuario, esUnoMismo, areas }: { usuario: Usuar
           onCerrar={() => setDialogo(null)}
           onConfirmar={(motivo) => accion.enviar(() => accionUsuario({ accion: "reactivar", id: usuario.id, motivo }), terminar)}
         >
-          <p>Vuelve a poder ingresar con Cidituc, con el área y el rol que tenía.</p>
+          <p>Vuelve a poder ingresar con su contraseña, con el área y el rol que tenía. Si no la recuerda, después blanqueásela.</p>
         </DialogoConfirmar>
       ) : null}
     </div>

@@ -16,7 +16,7 @@ export function BotonNuevaPlantilla({ tiposTramite }: { tiposTramite: ReadonlyAr
   const [abierto, setAbierto] = useState(false);
   return (
     <>
-      <button type="button" aria-haspopup="dialog" onClick={() => setAbierto(true)} className={CLASE_BOTON_PRIMARIO}>
+      <button type="button" aria-haspopup="dialog" data-recorrido="plantillas-nueva" onClick={() => setAbierto(true)} className={CLASE_BOTON_PRIMARIO}>
         <FilePlus2 className="h-4 w-4" aria-hidden="true" />
         Nueva plantilla
       </button>
@@ -85,7 +85,7 @@ export function AccionesPlantilla({ codigo, publicada, borrador }: { codigo: str
   const [retirando, setRetirando] = useState(false);
   const [hecho, setHecho] = useState<string | null>(null);
   return (
-    <div className="flex flex-col items-start gap-1.5">
+    <div className="flex flex-col items-start gap-1.5" data-recorrido="plantillas-acciones">
       {borrador !== null ? (
         <Link href={rutaVersionPlantilla(codigo, borrador)} className={CLASE_BOTON_COMPACTO}>
           <FilePen className="h-4 w-4" aria-hidden="true" />

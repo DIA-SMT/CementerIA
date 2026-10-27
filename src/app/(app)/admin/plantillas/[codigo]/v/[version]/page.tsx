@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { CLASE_ENLACE } from "@/components/formulario";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin, type VersionPlantilla } from "@/lib/dominio/admin/servidor";
 import { ErrorDominio } from "@/lib/dominio/expedientes/errores";
@@ -41,13 +42,14 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
 
   return (
     <section aria-labelledby="titulo-version" className="space-y-4">
+      <PantallaConRecorrido id="admin-editor" />
       <p>
         <Link href={RUTA_PLANTILLAS} className={`${CLASE_ENLACE} inline-flex items-center gap-1 text-sm`}>
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Plantillas
         </Link>
       </p>
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1" data-recorrido="editor-cabecera">
         <h1 id="titulo-version" className="text-2xl font-semibold tracking-tight text-texto">
           {v.nombre} <span className="font-mono text-base font-normal text-texto-secundario">· {v.codigo} v{v.version}</span>
         </h1>
@@ -88,7 +90,7 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
         ) : null}
       </dl>
       {v.versiones.length > 1 ? (
-        <nav aria-label="Otras versiones" className="text-sm text-texto-secundario">
+        <nav aria-label="Otras versiones" data-recorrido="editor-versiones" className="text-sm text-texto-secundario">
           Versiones:{" "}
           {v.versiones.map((x, i) => (
             <span key={x.version}>

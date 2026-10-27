@@ -19,6 +19,9 @@ Actualizado el 26/10/2026 (sección 19): la cadena de hash del historial
 nocturna) y la línea de tiempo con filtros y agrupada por paso; y (sección
 20) las métricas de gestión (`/panel/metricas`); y (sección 21) los avisos en
 el sistema (la campana del encabezado y `/avisos`).
+Actualizado el 27/10/2026 (sección 22): el ingreso con usuario y contraseña
+propios (Cidituc en pausa), el cambio de contraseña y lo que agrega a la
+administración de usuarios.
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -1372,10 +1375,12 @@ mensaje legible (sin ids internos).
 | Función | Qué hace |
 |---|---|
 | `listarUsuarios(usuario)` | `{ usuarios, areas, adminsActivos }`: todos menos SISTEMA (activos primero), con área, rol, activo y último ingreso; `areas` son las internas activas (las asignables) |
-| `altaUsuario(usuario, { cuil, nombre, apellido, email?, areaId, rol }, motivo?)` | CUIL con o sin guiones, con dígito verificador (`cuilValido`); área interna y activa, obligatoria salvo para el admin. `ya_existe` si el CUIL tiene usuario (dice si está inactivo) |
+| `altaUsuario(usuario, { cuil, nombre, apellido, email?, areaId, rol }, motivo?)` | CUIL con o sin guiones, con dígito verificador (`cuilValido`); área interna y activa, obligatoria salvo para el admin. `ya_existe` si el CUIL tiene usuario (dice si está inactivo). Desde el 27/10/2026 devuelve `claveTemporal` (sección 22) y el correo no puede repetir el de otro usuario |
 | `cambiarAccesoUsuario(usuario, id, { areaId, rol }, motivo?)` | Rige en el request siguiente (la sesión relee área y rol). No el propio rol |
 | `desactivarUsuario(usuario, id, motivo?)` | `activo = false` y `sesion_version + 1`: la cookie que tenía deja de valer en el request siguiente (`usuarioDeSesion`). No a uno mismo |
 | `reactivarUsuario(usuario, id, motivo?)` | Vuelve a activo (las sesiones viejas siguen sin valer). Si su área ya no es asignable, `validacion` |
+| `blanquearClave(usuario, id, motivo, { ip? })` | 27/10/2026, sección 22.5: contraseña temporal nueva, `debe_cambiar_clave`, cierra sus sesiones y lo desbloquea. Motivo obligatorio. No a uno mismo |
+| `desbloquearUsuario(usuario, id, motivo?, { ip? })` | 27/10/2026, sección 22.5: levanta el bloqueo por intentos fallidos. `repetido` si no estaba bloqueado |
 
 **El último administrador**: desactivar a un admin o quitarle el rol bloquea
 las filas de los administradores activos (`FOR UPDATE`) y exige que quede otro
@@ -1928,3 +1933,168 @@ de Cómputo dice "1 sin leer", el aviso lleva a la ficha).
 - Un ítem "Avisos" en la barra lateral: hoy se llega por la campana ("Ver
   todos los avisos"); `navegacion.tsx` y `iconos-modulos.ts` estaban en
   cambio por las métricas.
+
+## 22. Ingreso con usuario y contraseña (27/10/2026)
+
+Decisión del 27/10/2026: el ingreso con Cidituc queda **en pausa** y se entra
+con un **login propio**, CUIL (o correo) y contraseña. El código de Cidituc no
+se borró: con `CIDITUC_HABILITADO=1` el botón "Ingresar con Cidituc" vuelve a
+aparecer en /login, debajo del formulario, y `/auth/ingresar` y
+`/auth/callback` funcionan como antes. Nada de la autorización cambió: el
+ingreso emite la MISMA sesión (`cem_sesion`, `sesion_version`,
+`getUsuarioActual()`, sección 6 de la propuesta) y los permisos son los de
+siempre. Sin dependencias nuevas: `node:crypto`.
+
+| Módulo | Qué tiene |
+|---|---|
+| `@/lib/auth/clave` | `hashearClave`, `verificarClave`, `leerHash`, `generarClaveTemporal`, `problemasDeClave`, `REGLAS_CLAVE`, `PARAMETROS_ACTUALES`. Puro (solo node:crypto) |
+| `@/lib/auth/limite-intentos` | `siguienteFallo`, `estaBloqueado` (por usuario) y `LimitePorIp` (por IP, en memoria). Puro, con el reloj inyectado |
+| `@/lib/auth/ingreso-clave` | `ingresarConClave`, `cambiarClave`, `interpretarIdentificador`, `mensajeDeRechazo`. Recibe sus dependencias (`DependenciasClave`: lectura, `conActor`, reloj, límite por IP) |
+| `@/lib/auth/emitir` | `dejarSesion` (la cookie desde una Server Action), `sesionDeLaCookie`, `ipDelRequest`. `server-only` |
+| `@/lib/auth/sesion` | Además de lo de siempre: `getSesionActual()` (también con contraseña temporal), `RUTA_CAMBIAR_CLAVE`, `dependenciasClave` |
+
+### 22.1 El modelo (migración `20261027180000_login_propio`)
+
+Cinco columnas en `usuarios`; ninguna tabla nueva (la defensa RLS de
+`*_rls_defensa` no necesita nada más, y `cementeria_app` ya tenía UPDATE
+sobre la tabla).
+
+| Columna | Qué es |
+|---|---|
+| `clave_hash` | `scrypt$N$r$p$<sal>$<hash>` (sal de 16 bytes y hash de 32, en base64url). NULL: sin contraseña (no ingresa por el formulario hasta un blanqueo). CHECK del formato: una contraseña en texto no se puede guardar. SISTEMA no puede tener |
+| `debe_cambiar_clave` | La contraseña es temporal (alta, blanqueo, admin inicial) |
+| `clave_cambiada_en` | Cuándo cambió `clave_hash` por última vez (un rehash al ingresar no cuenta) |
+| `intentos_fallidos` | Fallos seguidos; al quinto vuelve a 0 y se bloquea |
+| `bloqueado_hasta` | Bloqueado por intentos fallidos hasta esa hora |
+
+El trigger `auditar_cambio` de usuarios guarda ahora `id, cuil, area_id, rol,
+activo, debe_cambiar_clave`: un blanqueo (no → sí) y el primer cambio (sí → no)
+quedan en `auditoria.cambios` con su autor y motivo. **Nunca** el hash ni el
+contador (`tests/integracion/auditoria.test.ts`). `auditoria.accesos` suma
+cuatro acciones: `bloqueo` (el usuario bloqueado, firmado por SISTEMA),
+`desbloqueo` y `blanqueo_clave` (el admin que lo hizo; el usuario afectado va
+en `detalle.usuario_id`) y `cambio_clave` (el propio usuario).
+
+### 22.2 El hash
+
+scrypt de `node:crypto` con **N = 2^15, r = 8, p = 3** (una de las
+combinaciones equivalentes que recomienda OWASP; 32 MiB y unos 160 ms por
+cálculo). La contraseña se normaliza a NFC antes de calcular. Los parámetros
+van en el propio valor: para subir el costo se cambia `PARAMETROS_ACTUALES` y
+cada hash viejo se sigue verificando con los suyos y se rehace con los nuevos
+en el próximo ingreso correcto (`verificarClave` devuelve `rehacer: true`).
+La comparación es en tiempo constante (`timingSafeEqual`), y sin usuario o
+sin hash se calcula igual contra un **señuelo**: el tiempo de respuesta no dice
+si el CUIL existe. La copia en JavaScript para el paquete SQL
+(`scripts/supabase/lib.mjs`, `hashClave`) da hashes que esto verifica
+(`scripts/supabase/lib.test.ts`).
+
+### 22.3 Ingreso (`ingresarConClave`, /login)
+
+1. Si la IP llegó al tope (30 fallos en 15 minutos), se rechaza sin buscar a
+   nadie ni escribir en la base (`limite_ip`, el único con otro mensaje). El
+   límite por IP vive **en la memoria del proceso**: es por instancia y un
+   reinicio lo borra (alcanza con una instancia detrás de nginx; con varias,
+   tendría que ir a la base).
+2. "CUIL o correo": un CUIL de 11 dígitos con o sin guiones, puntos o
+   espacios, o un correo (sin importar mayúsculas). El correo no es único en
+   la base: si lo comparten dos usuarios, no se elige ninguno (por eso el alta
+   rechaza un correo repetido).
+3. Se calcula scrypt **siempre**. Se rechaza, con el **mismo mensaje**
+   ("CUIL, correo o contraseña incorrectos"), si: no existe, es inactivo o
+   SISTEMA, está bloqueado (aunque la contraseña sea la correcta), no tiene
+   contraseña, o la contraseña no es. El motivo real queda en
+   `auditoria.accesos` (`ingreso_rechazado`, firmado por SISTEMA, con
+   `detalle.motivo`; del identificador, solo el tipo y, si es un CUIL válido,
+   el CUIL: nunca la contraseña ni un texto que podría serlo).
+4. Una contraseña incorrecta de un usuario existente suma un fallo con su fila
+   bloqueada (`FOR UPDATE`); al quinto seguido, `bloqueado_hasta = ahora + 15
+   min`, el contador vuelve a 0 y queda `bloqueo` en la auditoría.
+5. Correcta: `ultimo_ingreso`, contador en 0, sin bloqueo, el hash rehecho si
+   hace falta y `ingreso` en la auditoría (`via: "clave"`), todo firmado por el
+   usuario. La condición del UPDATE repite lo decidido (activo, mismo hash, sin
+   bloqueo): si cambió en el medio, no entra (`carrera`).
+
+La Server Action (`src/app/login/acciones.ts`) emite la sesión con
+`dejarSesion()` y redirige al destino (`?volver=`) o al inicio del rol; con
+`debe_cambiar_clave`, a `/cambiar-clave` (con el destino). **CSRF**: Next 16
+compara `Origin` con `Host` o `X-Forwarded-Host` y deja pasar un POST sin
+`Origin` (node_modules/next/dist/docs/01-app/02-guides/server-actions.md,
+"Security"); además, `envioDelMismoSitio()` (src/lib/auth/red.ts) exige
+`Origin` igual a `Host` (no a X-Forwarded-Host, que detrás de nginx escribe
+el cliente) y `Sec-Fetch-Site` `same-origin` si vienen. La cookie sigue
+siendo httpOnly, SameSite=Lax y, en producción, `__Host-`.
+
+### 22.4 Cambio de contraseña (`cambiarClave`, /cambiar-clave)
+
+- **Obligatorio** mientras `debe_cambiar_clave`: `getUsuarioActual()` no
+  devuelve a ese usuario y `exigirUsuario()` lo manda a /cambiar-clave, así que
+  todas las pantallas, Server Actions y Route Handlers quedan cerrados sin
+  tocarlos (las API responden 401). Lo único que puede hacer es cambiarla o
+  Salir. /cambiar-clave y la salida usan `getSesionActual()`.
+- **Voluntario**: el botón de la llave del encabezado (junto a Salir).
+- Pide la actual (o la temporal) y la nueva dos veces. La actual incorrecta
+  cuenta como un fallo (el mismo contador y bloqueo del ingreso).
+- **Política** (`problemasDeClave`, la lista `REGLAS_CLAVE` se muestra en la
+  pantalla): 12 caracteres o más (y hasta 128), que no sea el CUIL ni contenga
+  el apellido (sin importar mayúsculas ni tildes; las partículas "de", "la"…
+  no cuentan), que no sea una clave común ni una palabra común con números o
+  signos ("Password2026!", "Cementeria123"; la lista `CLAVES_COMUNES` incluye
+  la contraseña de desarrollo de la semilla), al menos 5 caracteres distintos,
+  y distinta de la actual.
+- Al cambiarla: hash nuevo, `debe_cambiar_clave = false`, `clave_cambiada_en`,
+  sin fallos ni bloqueo y `sesion_version + 1` (**se cierran todas sus
+  sesiones**); esta PC recibe la sesión de nuevo con la versión nueva y el
+  mismo inicio (no estira las 10 horas). `cambio_clave` en la auditoría.
+
+### 22.5 Administración (`/admin/usuarios`)
+
+- **Alta**: genera una contraseña temporal (`generarClaveTemporal`: cuatro
+  grupos de cuatro, minúsculas y dígitos sin los ambiguos i, l, o, 0, 1; unos
+  79 bits) y marca `debe_cambiar_clave`. La pantalla la muestra **una sola
+  vez** con "Copiar" y el aviso de que no se vuelve a ver; en la base queda el
+  hash. No se manda por correo (no hay correo todavía).
+- **Blanquear contraseña** (con confirmación y motivo obligatorio): temporal
+  nueva (una vez), `debe_cambiar_clave`, `sesion_version + 1` (cierra sus
+  sesiones) y desbloquea. No la propia (esa se cambia en /cambiar-clave).
+- **Desbloquear**: aparece solo si está bloqueado; contador en 0 y sin bloqueo.
+- La lista muestra, en Estado, "Contraseña temporal", "Sin contraseña" y
+  "Bloqueado hasta …". `FilaUsuarioAdmin` trae `conClave`,
+  `debeCambiarClave` y `bloqueadoHasta`; el hash no sale del dominio.
+
+### 22.6 Semillas y Supabase
+
+- **Desarrollo** (`npm run db:seed`, con ficticios): los usuarios ficticios y
+  el admin de desarrollo tienen la contraseña `CLAVE_DESARROLLO`
+  (prisma/semilla/usuarios.ts, en el README), sin cambio obligatorio.
+- **Producción** (`--sin-ficticios`): el admin inicial nace con una contraseña
+  temporal y `debe_cambiar_clave`; prisma/seed.ts la imprime una sola vez y la
+  escribe en `.local/clave-admin-inicial.txt` (o
+  `ADMIN_INICIAL_CLAVE_ARCHIVO`), que no se versiona. Si el admin ya existía
+  con contraseña, no se toca; si existía sin (una base anterior), recibe una.
+- **Paquete SQL de Supabase** (`npm run supabase:sql`): `.local/35_admin_inicial.sql`
+  lleva el **hash** de la temporal (nunca la contraseña), que está solo en
+  `supabase/sql/.local/clave-admin-inicial.txt`. Ver docs/despliegue.md, 18.12.
+
+### 22.7 Pruebas
+
+Unitarias: `src/lib/auth/clave.test.ts` (hash y verificación, formato
+versionado, rehash, señuelo, NFC, temporales, política),
+`limite-intentos.test.ts` (bloqueo y límite por IP con reloj inyectado),
+`ingreso-clave.test.ts` (ingreso, rechazos, bloqueo, tiempo del inexistente,
+cambio), `red.test.ts` (`envioDelMismoSitio`), `sesion.test.ts` (el cierre
+con contraseña temporal) y `scripts/supabase/lib.test.ts` (los hashes del
+script los verifica la app). Integración: `tests/integracion/login.test.ts`
+(ingreso correcto, incorrecto, inexistente e inactivo con el mismo mensaje,
+bloqueo y desbloqueo, cambio obligatorio, blanqueo que cierra sesiones,
+auditoría sin contraseñas, admin inicial de producción). Punta a punta:
+`tests/e2e/login.spec.ts` (alta con temporal, ingreso por el formulario,
+cambio obligatorio y bandeja; la contraseña de desarrollo y el mensaje único).
+
+### 22.8 Pendientes
+
+- Correo: mandar la temporal o un enlace de recuperación cuando haya un
+  servicio de correo (hoy el admin la entrega en mano).
+- El límite por IP en la base si algún día hay más de una instancia.
+- Volver a Cidituc: `CIDITUC_HABILITADO=1` y decidir si las dos formas
+  conviven (el botón ya aparece debajo del formulario).

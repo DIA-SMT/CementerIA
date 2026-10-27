@@ -8,6 +8,7 @@ import { inicioPara, puedeVerPantalla, type Pantalla } from "@/lib/dominio/naveg
 import { entorno } from "@/lib/entorno";
 import { nombreCookie } from "./cookies";
 import type { DependenciasIngreso } from "./ingreso";
+import type { DependenciasClave } from "./ingreso-clave";
 import { COOKIE_SESION, verificarSesion } from "./sesion-token";
 import { SELECCION_USUARIO, usuarioDeSesion, type UsuarioActual } from "./usuario";
 
@@ -20,6 +21,9 @@ export {
   verificarSesion,
 } from "./sesion-token";
 
+/** A donde va quien tiene una contraseña temporal: es lo único que puede usar (y Salir). */
+export const RUTA_CAMBIAR_CLAVE = "/cambiar-clave";
+
 /**
  * La sesión de verdad (sección 6, "Autorización").
  *
@@ -31,10 +35,16 @@ export {
  * El proxy renueva la cookie sin tocar la base y NO es la barrera: cada página,
  * Server Action y Route Handler llama a `getUsuarioActual()` (o
  * `exigirUsuario()`) y después a `exigirPermiso()`.
+ *
+ * Contraseña temporal (login propio, 27/10/2026): con `debe_cambiar_clave` la
+ * sesión vale, pero solo para cambiarla. `getUsuarioActual()` y
+ * `exigirUsuario()` no la aceptan (la segunda lleva a /cambiar-clave), así que
+ * todas las pantallas, acciones y Route Handlers que ya los usan quedan
+ * cerrados sin tocarlos; /cambiar-clave y la salida usan `getSesionActual()`.
  */
 
-/** Verifica un token y carga su usuario. Para Route Handlers, que ya tienen la cookie. */
-export async function usuarioDesdeToken(token: string | undefined): Promise<UsuarioActual | null> {
+/** Verifica un token y carga su usuario, aunque tenga que cambiar la contraseña. Para la salida. */
+export async function sesionDesdeToken(token: string | undefined): Promise<UsuarioActual | null> {
   if (!token) return null;
   const verificacion = await verificarSesion(token, entorno().secretoSesion);
   if (!verificacion.ok) return null;
@@ -45,24 +55,43 @@ export async function usuarioDesdeToken(token: string | undefined): Promise<Usua
   return usuarioDeSesion(fila, verificacion.sesion);
 }
 
+/** Como sesionDesdeToken(), pero sin el usuario que todavía tiene que cambiar la contraseña. */
+export async function usuarioDesdeToken(token: string | undefined): Promise<UsuarioActual | null> {
+  const usuario = await sesionDesdeToken(token);
+  return usuario && !usuario.debeCambiarClave ? usuario : null;
+}
+
 /**
- * El usuario de este request, o `null`. Con `cache()` de React la base se
- * consulta una vez por render aunque la llamen el layout y cada página. En
- * Server Actions y Route Handlers `cache()` no memoriza (no hay render), y está
- * bien: ahí se llama una vez.
+ * El usuario de la cookie de este request, también si tiene que cambiar la
+ * contraseña. Solo para /cambiar-clave, /login y lo que tiene que funcionar
+ * igual (la salida); el resto usa getUsuarioActual().
+ */
+export const getSesionActual = cache(async (): Promise<UsuarioActual | null> => {
+  const almacen = await cookies();
+  return sesionDesdeToken(almacen.get(nombreCookie(COOKIE_SESION, entorno().nodeEnv))?.value);
+});
+
+/**
+ * El usuario de este request, o `null` (sin sesión, o con una contraseña
+ * temporal que todavía no cambió). Con `cache()` de React la base se consulta
+ * una vez por render aunque la llamen el layout y cada página. En Server
+ * Actions y Route Handlers `cache()` no memoriza (no hay render), y está bien:
+ * ahí se llama una vez.
  */
 export const getUsuarioActual = cache(async (): Promise<UsuarioActual | null> => {
-  const almacen = await cookies();
-  return usuarioDesdeToken(almacen.get(nombreCookie(COOKIE_SESION, entorno().nodeEnv))?.value);
+  const usuario = await getSesionActual();
+  return usuario && !usuario.debeCambiarClave ? usuario : null;
 });
 
 /**
  * Como `getUsuarioActual()`, pero sin usuario redirige a /login. Si había
  * cookie, avisa que la sesión ya no vale (salió en otra PC, lo desactivaron).
+ * Con una contraseña temporal, a /cambiar-clave.
  */
 export async function exigirUsuario(): Promise<UsuarioActual> {
-  const usuario = await getUsuarioActual();
-  if (usuario) return usuario;
+  const usuario = await getSesionActual();
+  if (usuario && !usuario.debeCambiarClave) return usuario;
+  if (usuario) redirect(RUTA_CAMBIAR_CLAVE);
   const almacen = await cookies();
   redirect(almacen.has(nombreCookie(COOKIE_SESION, entorno().nodeEnv)) ? "/login?error=sesion_invalida" : "/login");
 }
@@ -80,3 +109,6 @@ export async function exigirPantalla(pantalla: Pantalla): Promise<UsuarioActual>
 
 /** Lecturas con el cliente global; escrituras con conActor(). */
 export const dependenciasIngreso: DependenciasIngreso = { leer: prisma, escribir: conActor };
+
+/** Lo mismo para el login propio (el límite por IP es el del proceso). */
+export const dependenciasClave: DependenciasClave = { leer: prisma, escribir: conActor };

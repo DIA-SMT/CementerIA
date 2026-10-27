@@ -63,7 +63,7 @@ export function PestanaFeriados({
         ))}
       </nav>
 
-      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-control border px-3 py-2 text-sm ${cerrado ? "border-exito-borde bg-exito-fondo text-exito" : "border-advertencia-borde bg-advertencia-fondo text-advertencia"}`}>
+      <div data-recorrido="feriados-estado" className={`flex flex-wrap items-center justify-between gap-2 rounded-control border px-3 py-2 text-sm ${cerrado ? "border-exito-borde bg-exito-fondo text-exito" : "border-advertencia-borde bg-advertencia-fondo text-advertencia"}`}>
         <p>
           {cerrado
             ? `${anio} está cerrado${cerradoTexto ? ` (${cerradoTexto})` : ""}: sus vencimientos son definitivos. Si se decreta un asueto, se agrega igual y el vencimiento se corrige solo.`

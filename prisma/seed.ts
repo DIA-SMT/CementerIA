@@ -28,7 +28,17 @@
 //   --sin-ficticios   sin los usuarios de prueba por área, ni los expedientes
 //                     ficticios ni los escenarios. Es la única forma en que
 //                     corre con NODE_ENV=production.
+//
+// Contraseñas (login propio, 27/10/2026; prisma/semilla/sembrar.ts): con
+// ficticios, todos los usuarios de la semilla tienen la contraseña de
+// desarrollo del README. Con --sin-ficticios, el admin inicial nace con una
+// contraseña TEMPORAL que se imprime UNA sola vez acá y se escribe en un
+// archivo local que no se versiona: ADMIN_INICIAL_CLAVE_ARCHIVO, o por defecto
+// .local/clave-admin-inicial.txt (relativo a la carpeta desde la que se corre).
+// En la base queda solo el hash, con debe_cambiar_clave: al ingresar la cambia.
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { config as cargarEnv } from "dotenv";
 import { SISTEMA_ID } from "../src/lib/auth/ingreso";
 import { conActorEn } from "../src/lib/db/actor";
@@ -41,6 +51,50 @@ import { sembrar } from "./semilla/sembrar";
 import { ADMIN_CUIL_DESARROLLO } from "./semilla/usuarios";
 
 cargarEnv({ path: ".env.local", quiet: true });
+
+const ARCHIVO_CLAVE_POR_DEFECTO = path.join(".local", "clave-admin-inicial.txt");
+
+/**
+ * La contraseña temporal del admin inicial: al archivo local (solo para quien
+ * corre la semilla: 0600) y a la consola, una sola vez. Si el archivo no se
+ * puede escribir (en el servidor, la carpeta del paquete es de solo lectura),
+ * queda solo lo impreso.
+ */
+function entregarClaveAdmin(clave: string): void {
+  const archivo = path.resolve(process.env.ADMIN_INICIAL_CLAVE_ARCHIVO?.trim() || ARCHIVO_CLAVE_POR_DEFECTO);
+  let escrito = false;
+  try {
+    mkdirSync(path.dirname(archivo), { recursive: true });
+    writeFileSync(
+      archivo,
+      [
+        "# Contraseña TEMPORAL del administrador inicial de CementerIA (prisma/seed.ts).",
+        "# Se ingresa en /login con el CUIL de ADMIN_INICIAL_CUIL y esta contraseña; CementerIA",
+        "# pide cambiarla en el primer ingreso. Entregala en mano y BORRÁ este archivo después.",
+        "# No se versiona (.gitignore) y no se vuelve a generar: si se pierde, otro admin la blanquea.",
+        clave,
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
+    escrito = true;
+  } catch (error) {
+    console.warn(`No se pudo escribir ${archivo} (${error instanceof Error ? error.message : String(error)}): la contraseña queda solo acá abajo.`);
+  }
+  const linea = "=".repeat(72);
+  console.log(
+    [
+      linea,
+      "Contraseña TEMPORAL del administrador inicial (se muestra solo esta vez):",
+      "",
+      `    ${clave}`,
+      "",
+      escrito ? `También quedó en ${archivo} (no se versiona): borralo después del primer ingreso.` : "Copiala ahora: no se guardó en ningún archivo.",
+      "Se ingresa en /login con el CUIL de ADMIN_INICIAL_CUIL; CementerIA pide cambiarla al entrar.",
+      linea,
+    ].join("\n"),
+  );
+}
 
 async function main(): Promise<void> {
   const produccion = process.env.NODE_ENV === "production";
@@ -58,7 +112,7 @@ async function main(): Promise<void> {
 
   const cliente = crearCliente();
   try {
-    const { creados, avisos } = await sembrar(cliente, { adminCuil, usuariosFicticios: !sinFicticios });
+    const { creados, avisos, claveAdminInicial } = await sembrar(cliente, { adminCuil, usuariosFicticios: !sinFicticios });
     const total = Object.values(creados).reduce((a, b) => a + b, 0);
     console.log(
       total === 0
@@ -69,6 +123,8 @@ async function main(): Promise<void> {
             .join(", ")}.`,
     );
     for (const a of avisos) console.warn(`Aviso: ${a}`);
+    if (claveAdminInicial) entregarClaveAdmin(claveAdminInicial);
+    if (!sinFicticios) console.log("Usuarios de la semilla: ingresan en /login con la contraseña de desarrollo del README (o por /dev/login).");
 
     if (!sinFicticios) {
       const expedientes = await sembrarExpedientes(cliente);

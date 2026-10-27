@@ -22,6 +22,13 @@ import { RUTA_PLANTILLAS, rutaVersionPlantilla } from "./rutas-admin";
 export { RUTA_PLANTILLAS, rutaVersionPlantilla };
 
 export type ResultadoAdmin = { ok: true; mensaje: string; repetido: boolean } | EstadoError;
+
+/**
+ * Lo de un usuario: como ResultadoAdmin, más la contraseña temporal del alta o
+ * del blanqueo, que la pantalla muestra UNA sola vez (no se guarda en ningún
+ * lado: en la base queda solo el hash).
+ */
+export type ResultadoUsuarioAdmin = { ok: true; mensaje: string; repetido: boolean; claveTemporal?: string } | EstadoError;
 export type ResultadoNavegacionAdmin = { ok: true; destino: string; mensaje: string } | EstadoError;
 
 const Codigo = z.string().min(1).max(60);
@@ -154,17 +161,32 @@ const EntradaUsuario = z.discriminatedUnion("accion", [
   z.object({ accion: z.literal("acceso"), id: z.int().positive(), datos: z.record(z.string(), z.unknown()), motivo: Motivo }),
   z.object({ accion: z.literal("desactivar"), id: z.int().positive(), motivo: Motivo }),
   z.object({ accion: z.literal("reactivar"), id: z.int().positive(), motivo: Motivo }),
+  z.object({ accion: z.literal("blanquear"), id: z.int().positive(), motivo: Motivo }),
+  z.object({ accion: z.literal("desbloquear"), id: z.int().positive(), motivo: Motivo }),
 ]);
 export type EntradaUsuarioAdmin = z.input<typeof EntradaUsuario>;
 
-export async function procesarUsuario(servicio: ServicioAdmin, usuario: UsuarioPermisos, valor: unknown): Promise<ResultadoAdmin> {
+export async function procesarUsuario(
+  servicio: ServicioAdmin,
+  usuario: UsuarioPermisos,
+  valor: unknown,
+  opciones: { ip?: string | null } = {},
+): Promise<ResultadoUsuarioAdmin> {
   try {
     const d = leerEntrada(EntradaUsuario, valor);
     const motivo = vacioANull(d.motivo);
     switch (d.accion) {
       case "alta": {
         const r = await servicio.altaUsuario(usuario, d.datos, motivo);
-        return { ok: true, repetido: r.repetido, mensaje: r.repetido ? "Ese usuario ya estaba dado de alta así." : "Usuario dado de alta: ya puede ingresar con Cidituc." };
+        if (r.repetido || !r.claveTemporal) {
+          return { ok: true, repetido: true, mensaje: "Ese usuario ya estaba dado de alta así. Si no puede ingresar, usá \"Blanquear contraseña\"." };
+        }
+        return {
+          ok: true,
+          repetido: false,
+          mensaje: "Usuario dado de alta. Pasale la contraseña temporal: la va a tener que cambiar al ingresar.",
+          claveTemporal: r.claveTemporal,
+        };
       }
       case "acceso": {
         const r = await servicio.cambiarAccesoUsuario(usuario, d.id, d.datos, motivo);
@@ -177,6 +199,19 @@ export async function procesarUsuario(servicio: ServicioAdmin, usuario: UsuarioP
       case "reactivar": {
         const r = await servicio.reactivarUsuario(usuario, d.id, motivo);
         return { ok: true, repetido: r.repetido, mensaje: r.repetido ? "Ya estaba activo." : "Usuario reactivado: puede volver a ingresar." };
+      }
+      case "blanquear": {
+        const r = await servicio.blanquearClave(usuario, d.id, motivo, opciones);
+        return {
+          ok: true,
+          repetido: false,
+          mensaje: "Contraseña blanqueada: se cerraron sus sesiones. Pasale la temporal: la va a tener que cambiar al ingresar.",
+          claveTemporal: r.claveTemporal,
+        };
+      }
+      case "desbloquear": {
+        const r = await servicio.desbloquearUsuario(usuario, d.id, motivo, opciones);
+        return { ok: true, repetido: r.repetido, mensaje: r.repetido ? "No estaba bloqueado." : "Usuario desbloqueado: ya puede volver a intentar." };
       }
     }
   } catch (e) {

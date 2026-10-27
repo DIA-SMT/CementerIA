@@ -15,9 +15,22 @@
 //
 // Escribe con el rol de la app y como SISTEMA (id 1), en UNA transacción: o
 // queda todo o no queda nada.
+//
+// Contraseñas (login propio, 27/10/2026):
+// - con los usuarios ficticios (desarrollo y staging), ellos y el admin tienen
+//   CLAVE_DESARROLLO (./usuarios.ts, documentada en el README), sin cambio
+//   obligatorio: así se prueba el formulario real además de /dev/login;
+// - sin ficticios (producción), el admin inicial nace con una contraseña
+//   TEMPORAL y `debe_cambiar_clave`. La semilla la devuelve
+//   (`claveAdminInicial`) y prisma/seed.ts la escribe en un archivo local y la
+//   imprime una sola vez. En la base queda solo el hash.
+// Lo que ya tiene contraseña no se toca. A un usuario de la semilla que exista
+// SIN contraseña (una base anterior al login propio) se le pone la que
+// corresponde.
 
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma } from "../../src/generated/prisma/client";
+import { generarClaveTemporal, hashearClave } from "../../src/lib/auth/clave";
 import { conActorEn } from "../../src/lib/db/actor";
 import type { Cliente, Transaccion } from "../../src/lib/db/crear-cliente";
 import { cuilValido } from "../../src/lib/dominio/cuil";
@@ -28,7 +41,7 @@ import { TIPOS_MONUMENTO, TIPOS_TRAMITE } from "./catalogos";
 import { CEMENTERIOS } from "./cementerios";
 import { ANIOS_FERIADOS, FERIADOS } from "./feriados";
 import { NOTAS_CARGA_INICIAL, PLANTILLAS } from "./plantillas";
-import { ADMIN_NOMBRE, USUARIOS_FICTICIOS } from "./usuarios";
+import { ADMIN_NOMBRE, CLAVE_DESARROLLO, USUARIOS_FICTICIOS } from "./usuarios";
 
 /** Id del usuario técnico SISTEMA (lo inserta la migración reglas_base). */
 export const SISTEMA = 1;
@@ -40,6 +53,8 @@ export interface OpcionesSemilla {
   adminCuil: string;
   /** Un usuario ficticio por área. Solo desarrollo y staging. Por defecto, sí. */
   usuariosFicticios?: boolean;
+  /** La contraseña de los usuarios de desarrollo (con ficticios). Por defecto, CLAVE_DESARROLLO. */
+  claveDesarrollo?: string;
 }
 
 export interface ResumenSemilla {
@@ -56,12 +71,26 @@ export interface ResumenSemilla {
   };
   /** Lo que ya existía y no coincide con la semilla. */
   avisos: string[];
+  /**
+   * Sin ficticios (producción): la contraseña TEMPORAL que se le acaba de poner
+   * al admin inicial, para mostrarla una sola vez. `null` si no se le puso
+   * ninguna (ya tenía, o es desarrollo).
+   */
+  claveAdminInicial: string | null;
 }
 
 export async function sembrar(cliente: Cliente, opciones: OpcionesSemilla): Promise<ResumenSemilla> {
   const adminCuil = opciones.adminCuil.trim();
   const ficticios = opciones.usuariosFicticios ?? true;
   controlarUsuarios(adminCuil, ficticios);
+
+  // Los hashes antes de la transacción: scrypt tarda (a propósito). Uno por
+  // usuario, cada uno con su sal. Si después resulta que ya tenían, se descartan.
+  const claveDesarrollo = opciones.claveDesarrollo ?? CLAVE_DESARROLLO;
+  const hashesFicticios = ficticios ? await Promise.all(USUARIOS_FICTICIOS.map(() => hashearClave(claveDesarrollo))) : [];
+  const claveAdmin = ficticios ? claveDesarrollo : generarClaveTemporal();
+  const hashAdmin = await hashearClave(claveAdmin);
+  const ahora = new Date();
 
   return conActorEn(
     cliente,
@@ -117,23 +146,37 @@ export async function sembrar(cliente: Cliente, opciones: OpcionesSemilla): Prom
       let usuarios = 0;
       if (ficticios) {
         const r = await tx.usuario.createMany({
-          data: USUARIOS_FICTICIOS.map((u) => ({
+          data: USUARIOS_FICTICIOS.map((u, i) => ({
             cuil: u.cuil,
             nombre: u.nombre,
             apellido: u.apellido,
             areaId: obtener(idArea, u.area, "área"),
             rol: u.rol,
+            claveHash: hashesFicticios[i],
+            claveCambiadaEn: ahora,
           })),
           skipDuplicates: true,
         });
         usuarios += r.count;
+        // Una base de antes del login propio: los ficticios sin contraseña reciben la de desarrollo.
+        for (const [i, u] of USUARIOS_FICTICIOS.entries()) {
+          await tx.usuario.updateMany({ where: { cuil: u.cuil, claveHash: null }, data: { claveHash: hashesFicticios[i], claveCambiadaEn: ahora } });
+        }
       }
+      // Desarrollo: la de desarrollo, sin cambio obligatorio. Producción: una temporal.
+      const datosClaveAdmin = { claveHash: hashAdmin, debeCambiarClave: !ficticios, claveCambiadaEn: ahora };
+      let claveAdminInicial: string | null = null;
       const admin = await tx.usuario.findUnique({ where: { cuil: adminCuil } });
       if (!admin) {
-        await tx.usuario.create({ data: { cuil: adminCuil, ...ADMIN_NOMBRE, areaId: null, rol: "admin" } });
+        await tx.usuario.create({ data: { cuil: adminCuil, ...ADMIN_NOMBRE, areaId: null, rol: "admin", ...datosClaveAdmin } });
         usuarios += 1;
+        claveAdminInicial = ficticios ? null : claveAdmin;
       } else if (admin.rol !== "admin" || !admin.activo) {
         avisos.push(`El CUIL de ADMIN_INICIAL_CUIL ya existe como ${admin.rol}${admin.activo ? "" : " inactivo"}: no se cambia.`);
+      } else if (admin.claveHash === null) {
+        // Un admin de antes del login propio, sin contraseña: no podría ingresar.
+        await tx.usuario.update({ where: { id: admin.id }, data: datosClaveAdmin });
+        claveAdminInicial = ficticios ? null : claveAdmin;
       }
 
       // --- Plantillas -------------------------------------------------------------
@@ -151,6 +194,7 @@ export async function sembrar(cliente: Cliente, opciones: OpcionesSemilla): Prom
           plantillas,
         },
         avisos,
+        claveAdminInicial,
       };
     },
     // Unas 30 sentencias; el margen es para máquinas lentas o un antivirus.

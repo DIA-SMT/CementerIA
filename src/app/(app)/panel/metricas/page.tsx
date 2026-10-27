@@ -5,6 +5,7 @@ import { Aviso } from "@/components/aviso";
 import { BotonImprimir } from "@/components/boton-imprimir";
 import { EncabezadoPagina } from "@/components/encabezado-pagina";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL } from "@/components/formulario";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { ErrorDominio } from "@/lib/dominio/expedientes/errores";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
@@ -59,6 +60,7 @@ export default async function PaginaMetricas(props: PageProps<"/panel/metricas">
 
   return (
     <section aria-labelledby="titulo-pantalla" className="@container space-y-6 print:space-y-4 print:text-[11px]">
+      <PantallaConRecorrido id="metricas" />
       <EncabezadoPagina
         antetitulo="Panel"
         titulo="Métricas de gestión"
@@ -80,7 +82,7 @@ export default async function PaginaMetricas(props: PageProps<"/panel/metricas">
         acciones={<BotonImprimir />}
       />
 
-      <Form action="/panel/metricas" className="tarjeta space-y-3 p-4 print:hidden" aria-label="Filtros de las métricas">
+      <Form action="/panel/metricas" className="tarjeta space-y-3 p-4 print:hidden" aria-label="Filtros de las métricas" data-recorrido="metricas-filtros">
         <div className="grid grid-cols-1 gap-3 @2xl:grid-cols-2 @5xl:grid-cols-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -202,7 +204,7 @@ function Resumen({ m }: { m: Metricas }) {
   const meses = m.flujo.length;
   const tono = (c: ReturnType<typeof comparacion>) => (c?.mejora === true ? "mejor" : c?.mejora === false ? "peor" : "neutro");
   return (
-    <section aria-labelledby="titulo-resumen" className="break-inside-avoid space-y-3">
+    <section aria-labelledby="titulo-resumen" data-recorrido="metricas-resumen" className="break-inside-avoid space-y-3">
       <h2 id="titulo-resumen" className="titulo-seccion">
         Resumen
       </h2>

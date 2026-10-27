@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, type Prisma } from "@/generated/prisma/client";
+import { conexionPg } from "./tls";
 
 /**
  * Fábrica del cliente de Prisma, sin `server-only`.
@@ -26,7 +27,9 @@ export function crearCliente(url: string | undefined = process.env.DATABASE_URL)
     );
   }
   const adapter = new PrismaPg({
-    connectionString: url,
+    // Con DATABASE_CA_FILE o DATABASE_CA_PEM (Supabase): TLS con la CA
+    // explícita, verificando la cadena y el host (./tls.ts).
+    ...conexionPg(url),
     // `pg-pool` lee `max`; el `connection_limit` en la URL era del motor viejo
     // de Prisma y con los driver adapters no lo lee nadie.
     max: Number(process.env.DB_POOL_MAX ?? 5),
@@ -38,6 +41,9 @@ export function crearCliente(url: string | undefined = process.env.DATABASE_URL)
     // Prisma se corría 3 horas (tests/integracion/fechas.test.ts). Los
     // triggers no dependen de la zona de la sesión: usan AT TIME ZONE
     // explícito.
+    // En Supabase el pooler (Supavisor) no le pasa al servidor las opciones de
+    // inicio, así que esto no llega: ahí la sesión sale en UTC porque el rol
+    // cementeria_app tiene `timezone = 'UTC'` (scripts/supabase/sql/roles.sql).
     options: "-c TimeZone=UTC",
   });
   return new PrismaClient({ adapter });

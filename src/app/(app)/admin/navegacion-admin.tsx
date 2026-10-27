@@ -22,7 +22,7 @@ export function NavegacionAdmin({ secciones }: { secciones: ReadonlyArray<{ href
   const ruta = usePathname();
   const items = [{ href: "/admin", etiqueta: "Inicio" }, ...secciones];
   return (
-    <nav aria-label="Administración" className="print:hidden">
+    <nav aria-label="Administración" data-recorrido="admin-menu" className="print:hidden">
       <ul className="flex flex-wrap gap-1.5">
         {items.map((s) => {
           const actual = s.href === "/admin" ? ruta === "/admin" : ruta === s.href || ruta.startsWith(`${s.href}/`);

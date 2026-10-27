@@ -39,12 +39,19 @@ describe("usuarios", () => {
       const conGuiones = `${cuil.slice(0, 2)}-${cuil.slice(2, 10)}-${cuil.slice(10)}`;
       const r = await admin.altaUsuario(yo, { cuil: conGuiones, nombre: " Ana ", apellido: "Ficticia", email: "", areaId: mesa, rol: "operador" }, "Ingresa a Mesa de Entradas");
       expect(r.repetido).toBe(false);
+      // Login propio: una contraseña temporal, que se devuelve una sola vez; en la base, el hash.
+      expect(r.claveTemporal).toMatch(/^[a-z2-9]{4}(-[a-z2-9]{4}){3}$/);
+      expect(await tx.usuario.findUniqueOrThrow({ where: { id: r.id }, select: { debeCambiarClave: true, claveHash: true } })).toEqual({
+        debeCambiarClave: true,
+        claveHash: expect.stringMatching(/^scrypt\$/),
+      });
       expect(await tx.usuario.findUniqueOrThrow({ where: { id: r.id }, select: { cuil: true, nombre: true, email: true, activo: true, areaId: true } })).toEqual({ cuil, nombre: "Ana", email: null, activo: true, areaId: mesa });
-      expect(await admin.altaUsuario(yo, { cuil, nombre: "Ana", apellido: "Ficticia", areaId: mesa, rol: "operador" })).toEqual({ id: r.id, repetido: true });
+      expect(await admin.altaUsuario(yo, { cuil, nombre: "Ana", apellido: "Ficticia", areaId: mesa, rol: "operador" })).toEqual({ id: r.id, repetido: true, claveTemporal: null });
       await expect(admin.altaUsuario(yo, { cuil, nombre: "Ana", apellido: "Ficticia", areaId: mesa, rol: "lectura" })).rejects.toMatchObject({ codigo: "ya_existe" });
 
       const audit = await tx.auditoriaCambio.findFirstOrThrow({ where: { tabla: "usuarios", registroId: String(r.id), operacion: "I" } });
-      expect(audit).toMatchObject({ usuarioId: yo.id, motivo: "Ingresa a Mesa de Entradas", despues: { cuil, rol: "operador", activo: true, area_id: mesa } });
+      expect(audit).toMatchObject({ usuarioId: yo.id, motivo: "Ingresa a Mesa de Entradas", despues: { cuil, rol: "operador", activo: true, area_id: mesa, debe_cambiar_clave: true } });
+      expect(JSON.stringify([audit.antes, audit.despues])).not.toContain("scrypt");
       // Un admin puede no tener área.
       expect((await admin.altaUsuario(yo, { cuil: cuilFicticio(), nombre: "Beto", apellido: "Ficticio", areaId: null, rol: "admin" })).repetido).toBe(false);
     });
@@ -123,7 +130,16 @@ describe("usuarios", () => {
       expect(await procesarUsuario(admin, mesa, { accion: "desactivar", id: yo.id })).toMatchObject({ ok: false, codigo: "permiso" });
       expect(await procesarUsuario(admin, yo, { accion: "desactivar", id: "uno" })).toMatchObject({ ok: false, codigo: "validacion" });
       const alta = await procesarUsuario(admin, yo, { accion: "alta", datos: { cuil: cuilFicticio(), nombre: "Dora", apellido: "Ficticia", areaId: await idArea(prisma, "LIQUIDACION"), rol: "operador" } });
-      expect(alta).toMatchObject({ ok: true, repetido: false, mensaje: expect.stringContaining("dado de alta") });
+      expect(alta).toMatchObject({ ok: true, repetido: false, mensaje: expect.stringContaining("dado de alta"), claveTemporal: expect.stringMatching(/^[a-z2-9-]{19}$/) });
+      // Blanquear: con motivo obligatorio, y devuelve la temporal nueva (una sola vez).
+      const id = (await admin.listarUsuarios(yo)).usuarios.find((u) => u.nombre === "Dora" && u.apellido === "Ficticia")?.id ?? 0;
+      expect(await procesarUsuario(admin, yo, { accion: "blanquear", id, motivo: "" })).toMatchObject({ ok: false, codigo: "motivo_requerido" });
+      expect(await procesarUsuario(admin, yo, { accion: "blanquear", id, motivo: "Olvidó la contraseña" })).toMatchObject({ ok: true, claveTemporal: expect.stringMatching(/^[a-z2-9-]{19}$/) });
+      expect(await procesarUsuario(admin, yo, { accion: "desbloquear", id })).toMatchObject({ ok: true, repetido: true });
+      // La lista no trae el hash: solo si tiene contraseña.
+      const fila = (await admin.listarUsuarios(yo)).usuarios.find((u) => u.id === id);
+      expect(fila).toMatchObject({ conClave: true, debeCambiarClave: true, bloqueadoHasta: null });
+      expect(fila).not.toHaveProperty("claveHash");
     });
   });
 });

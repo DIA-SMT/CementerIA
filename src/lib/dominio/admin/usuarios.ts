@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { generarClaveTemporal, hashearClave } from "@/lib/auth/clave";
 import type { Transaccion } from "@/lib/db/crear-cliente";
 import { cuilValido } from "../cuil";
-import { ErrorDominio, errorValidacion, limpiarMotivo, type ErrorCampo } from "../expedientes/errores";
+import { ErrorDominio, errorValidacion, exigirMotivo, limpiarMotivo, type ErrorCampo } from "../expedientes/errores";
 import { exigirPermiso, ROLES, type Rol, type UsuarioPermisos } from "../permisos";
 import { enSerie, type DependenciasAdmin } from "./dependencias";
 import { conErroresLegibles } from "./errores-base";
@@ -19,9 +20,14 @@ import { conErroresLegibles } from "./errores-base";
  *   filas de los administradores bloqueadas (FOR UPDATE): dos administradores
  *   que se desactivan uno al otro a la vez se serializan, y el segundo ve que
  *   sería el último.
- * - El alta, el área, el rol y `activo` quedan en `auditoria.cambios` por el
- *   trigger `auditar_cambio` (que en usuarios mira solo cuil, área, rol y
- *   activo); el nombre y el correo los actualiza Cidituc en cada ingreso.
+ * - El alta, el área, el rol, `activo` y `debe_cambiar_clave` quedan en
+ *   `auditoria.cambios` por el trigger `auditar_cambio` (que en usuarios mira
+ *   solo esas columnas: nunca el hash de la contraseña).
+ * - Login propio (27/10/2026; docs/api-dominio.md, sección 22): el alta y
+ *   "Blanquear contraseña" generan una contraseña TEMPORAL que se devuelve una
+ *   sola vez (la pantalla la muestra y no se puede volver a ver: en la base
+ *   queda solo el hash) y marcan `debe_cambiar_clave`. "Desbloquear" levanta
+ *   el bloqueo por intentos fallidos. Nada de esto se manda por correo.
  *
  * Idempotencia: las acciones dicen el estado final (activo o no, tal área y
  * rol); repetirlas devuelve `repetido: true` sin escribir.
@@ -41,6 +47,12 @@ export interface FilaUsuarioAdmin {
   activo: boolean;
   ultimoIngreso: Date | null;
   creadoEn: Date;
+  /** Tiene contraseña (el hash no sale de acá). */
+  conClave: boolean;
+  /** Su contraseña es temporal: la tiene que cambiar al ingresar. */
+  debeCambiarClave: boolean;
+  /** Bloqueado por intentos fallidos hasta esta hora; null si no lo está. */
+  bloqueadoHasta: Date | null;
 }
 
 export interface ListadoUsuarios {
@@ -59,12 +71,23 @@ export async function listarUsuarios(deps: DependenciasAdmin, usuario: UsuarioPe
   const [filas, areas] = await enSerie(
     () => deps.leer.usuario.findMany({
       where: { id: { not: SISTEMA_ID } },
-      select: { id: true, cuil: true, nombre: true, apellido: true, email: true, rol: true, activo: true, ultimoIngreso: true, creadoEn: true, area: { select: { id: true, codigo: true, nombre: true } } },
+      select: {
+        id: true, cuil: true, nombre: true, apellido: true, email: true, rol: true, activo: true, ultimoIngreso: true, creadoEn: true,
+        claveHash: true, debeCambiarClave: true, bloqueadoHasta: true,
+        area: { select: { id: true, codigo: true, nombre: true } },
+      },
       orderBy: [{ activo: "desc" }, { apellido: "asc" }, { nombre: "asc" }],
     }),
     () => deps.leer.area.findMany({ where: { tipo: "interna", activa: true }, select: { id: true, codigo: true, nombre: true }, orderBy: [{ orden: "asc" }, { nombre: "asc" }] }),
   );
-  const usuarios = filas.map((f) => ({ ...f, rol: comoRol(f.rol) }));
+  const ahora = deps.ahora?.() ?? new Date();
+  // El hash se lee solo para saber si hay contraseña: no sale de esta función.
+  const usuarios = filas.map(({ claveHash, bloqueadoHasta, ...f }) => ({
+    ...f,
+    rol: comoRol(f.rol),
+    conClave: claveHash !== null,
+    bloqueadoHasta: bloqueadoHasta && bloqueadoHasta.getTime() > ahora.getTime() ? bloqueadoHasta : null,
+  }));
   return { usuarios, areas, adminsActivos: usuarios.filter((u) => u.rol === "admin" && u.activo).length };
 }
 
@@ -145,25 +168,61 @@ async function cargar(tx: Transaccion, id: number) {
 // ---------------------------------------------------------------------------
 
 /**
- * Alta por CUIL: con el dígito verificador (un error de tipeo dejaría a la
- * persona sin poder entrar, porque Cidituc manda el CUIL real). El nombre y el
- * apellido se actualizan desde Cidituc en el primer ingreso.
+ * El correo con el que se puede ingresar no puede ser de otro usuario: con dos
+ * iguales, el ingreso por correo no sabría a quién elegir (se entra con el CUIL).
+ */
+async function controlarCorreo(tx: Transaccion, email: string | null, menosId: number | null, errores: ErrorCampo[]): Promise<void> {
+  if (!email) return;
+  const otros = await tx.usuario.findMany({
+    where: { email: { equals: email, mode: "insensitive" }, ...(menosId !== null ? { id: { not: menosId } } : {}) },
+    select: { email: true },
+    take: 5,
+  });
+  if (otros.some((o) => o.email?.toLowerCase() === email.toLowerCase())) {
+    errores.push({ ruta: "email", mensaje: "Ese correo ya lo tiene otro usuario: con el correo se puede ingresar, así que no se repite" });
+  }
+}
+
+/** Una contraseña temporal nueva y su hash. La temporal se devuelve una sola vez; en la base queda el hash. */
+async function nuevaTemporal(): Promise<{ clave: string; hash: string }> {
+  const clave = generarClaveTemporal();
+  return { clave, hash: await hashearClave(clave) };
+}
+
+/**
+ * Alta por CUIL, con el dígito verificador (con el CUIL se ingresa: un error
+ * de tipeo dejaría a la persona sin poder entrar). Genera una contraseña
+ * temporal (`claveTemporal`, que se muestra una sola vez) y marca
+ * `debe_cambiar_clave`. Si el usuario ya existía igual (`repetido`), no
+ * genera nada: para una contraseña nueva está "Blanquear contraseña".
  *
  * @throws ErrorDominio `validacion`, `ya_existe`
  */
-export async function altaUsuario(deps: DependenciasAdmin, usuario: UsuarioPermisos, entrada: unknown, motivo: string | null = null): Promise<{ id: number; repetido: boolean }> {
+export async function altaUsuario(
+  deps: DependenciasAdmin,
+  usuario: UsuarioPermisos,
+  entrada: unknown,
+  motivo: string | null = null,
+): Promise<{ id: number; repetido: boolean; claveTemporal: string | null }> {
   exigirPermiso("administrar", null, usuario);
   const d = leer(EntradaAlta, entrada);
   const errores: ErrorCampo[] = [];
   if (!cuilValido(d.cuil)) errores.push({ ruta: "cuil", mensaje: "CUIL inválido: 11 dígitos con el dígito verificador correcto (ej. 20-12345678-6)" });
+  // Antes de la transacción: scrypt tarda (a propósito) y no tiene por qué tener una conexión tomada.
+  const temporal = await nuevaTemporal();
+  const ahora = deps.ahora?.() ?? new Date();
   return conErroresLegibles(
     () =>
       deps.escribir(usuario.id, limpiarMotivo(motivo) ?? "Alta de usuario", async (tx) => {
         await controlarArea(tx, d.areaId, d.rol, errores);
+        const existente = await tx.usuario.findUnique({
+          where: { cuil: d.cuil },
+          select: { id: true, nombre: true, apellido: true, activo: true, areaId: true, rol: true },
+        });
+        if (!existente) await controlarCorreo(tx, d.email ?? null, null, errores);
         if (errores.length > 0) throw errorValidacion(errores);
-        const existente = await tx.usuario.findUnique({ where: { cuil: d.cuil } });
         if (existente) {
-          if (existente.activo && existente.areaId === d.areaId && existente.rol === d.rol) return { id: existente.id, repetido: true };
+          if (existente.activo && existente.areaId === d.areaId && existente.rol === d.rol) return { id: existente.id, repetido: true, claveTemporal: null };
           throw new ErrorDominio(
             "ya_existe",
             `Ya hay un usuario con el CUIL ${d.cuil} (${existente.nombre} ${existente.apellido}${existente.activo ? "" : ", inactivo"})${existente.activo ? "" : ": reactivalo desde la lista"}`,
@@ -171,10 +230,20 @@ export async function altaUsuario(deps: DependenciasAdmin, usuario: UsuarioPermi
           );
         }
         const nuevo = await tx.usuario.create({
-          data: { cuil: d.cuil, nombre: d.nombre, apellido: d.apellido, email: d.email ?? null, areaId: d.areaId, rol: d.rol },
+          data: {
+            cuil: d.cuil,
+            nombre: d.nombre,
+            apellido: d.apellido,
+            email: d.email ?? null,
+            areaId: d.areaId,
+            rol: d.rol,
+            claveHash: temporal.hash,
+            debeCambiarClave: true,
+            claveCambiadaEn: ahora,
+          },
           select: { id: true },
         });
-        return { id: nuevo.id, repetido: false };
+        return { id: nuevo.id, repetido: false, claveTemporal: temporal.clave };
       }),
     `Ya hay un usuario con el CUIL ${d.cuil}`,
   );
@@ -235,7 +304,8 @@ export async function desactivarUsuario(deps: DependenciasAdmin, usuario: Usuari
 
 /**
  * Reactivar. Las sesiones viejas siguen sin valer (la versión ya cambió al
- * desactivarlo): entra de nuevo con Cidituc.
+ * desactivarlo): vuelve a ingresar con su contraseña (si no la recuerda,
+ * "Blanquear contraseña").
  *
  * @throws ErrorDominio `validacion` (su área ya no es asignable), `no_encontrado`
  */
@@ -249,6 +319,81 @@ export async function reactivarUsuario(deps: DependenciasAdmin, usuario: Usuario
       await controlarArea(tx, u.areaId, comoRol(u.rol), errores);
       if (errores.length > 0) throw errorValidacion(errores, `${errores[0].mensaje}: cambiale el área antes de reactivarlo`);
       await tx.usuario.update({ where: { id: u.id }, data: { activo: true } });
+      return { repetido: false };
+    }),
+  );
+}
+
+/**
+ * "Blanquear contraseña": una temporal nueva (se devuelve una sola vez),
+ * `debe_cambiar_clave`, cierra todas sus sesiones (`sesion_version` + 1) y lo
+ * desbloquea. Con motivo obligatorio: queda en auditoria.accesos
+ * (`blanqueo_clave`, firmado por el admin, con el usuario en el detalle) y, si
+ * pasa a tener que cambiarla, en auditoria.cambios. La propia se cambia desde
+ * /cambiar-clave.
+ *
+ * @throws ErrorDominio `validacion` (uno mismo), `motivo_requerido`, `no_encontrado`
+ */
+export async function blanquearClave(
+  deps: DependenciasAdmin,
+  usuario: UsuarioPermisos,
+  id: number,
+  motivo: string | null,
+  opciones: { ip?: string | null } = {},
+): Promise<{ claveTemporal: string }> {
+  exigirPermiso("administrar", null, usuario);
+  if (id === usuario.id) throw errorValidacion([], 'Tu propia contraseña la cambiás desde "Cambiar contraseña": no se blanquea');
+  const m = exigirMotivo(motivo, "Blanquear la contraseña");
+  const temporal = await nuevaTemporal();
+  const ahora = deps.ahora?.() ?? new Date();
+  return conErroresLegibles(() =>
+    deps.escribir(usuario.id, m, async (tx) => {
+      const u = await cargar(tx, id);
+      await tx.usuario.update({
+        where: { id: u.id },
+        data: {
+          claveHash: temporal.hash,
+          debeCambiarClave: true,
+          claveCambiadaEn: ahora,
+          intentosFallidos: 0,
+          bloqueadoHasta: null,
+          sesionVersion: { increment: 1 },
+        },
+      });
+      await tx.auditoriaAcceso.create({
+        data: { usuarioId: usuario.id, accion: "blanqueo_clave", ip: opciones.ip ?? null, detalle: { usuario_id: u.id, motivo: m } },
+      });
+      return { claveTemporal: temporal.clave };
+    }),
+  );
+}
+
+/**
+ * "Desbloquear": levanta el bloqueo por intentos fallidos (y pone el contador
+ * en 0) antes de los 15 minutos. Queda `desbloqueo` en auditoria.accesos,
+ * firmado por el admin, con el usuario en el detalle.
+ *
+ * @throws ErrorDominio `no_encontrado`
+ */
+export async function desbloquearUsuario(
+  deps: DependenciasAdmin,
+  usuario: UsuarioPermisos,
+  id: number,
+  motivo: string | null = null,
+  opciones: { ip?: string | null } = {},
+): Promise<{ repetido: boolean }> {
+  exigirPermiso("administrar", null, usuario);
+  const ahora = deps.ahora?.() ?? new Date();
+  const m = limpiarMotivo(motivo);
+  return conErroresLegibles(() =>
+    deps.escribir(usuario.id, m ?? "Desbloqueo", async (tx) => {
+      const u = await cargar(tx, id);
+      const bloqueado = u.bloqueadoHasta !== null && u.bloqueadoHasta.getTime() > ahora.getTime();
+      if (!bloqueado && u.intentosFallidos === 0) return { repetido: true };
+      await tx.usuario.update({ where: { id: u.id }, data: { intentosFallidos: 0, bloqueadoHasta: null } });
+      await tx.auditoriaAcceso.create({
+        data: { usuarioId: usuario.id, accion: "desbloqueo", ip: opciones.ip ?? null, detalle: { usuario_id: u.id, ...(m ? { motivo: m } : {}) } },
+      });
       return { repetido: false };
     }),
   );

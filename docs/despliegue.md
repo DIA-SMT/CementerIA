@@ -6,6 +6,10 @@
 > `docs/pedidos-dia-1.md` (pedidos A, B y C).
 > Todavía no hay servidores: todo lo que sigue está listo para usarse cuando
 > Sistemas entregue las VM. Lo que falta para poder hacerlo está en la sección 1.
+>
+> **La base del MVP va en Supabase** (decisión del 27/10/2026): ver la
+> [sección 18](#18-base-en-supabase). Las secciones 4, 12 y 13 describen la base
+> en el servidor municipal que preveía la propuesta.
 
 Cada paso dice quién lo hace: **[S]** Sistemas, **[D]** Dirección de IA.
 Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
@@ -31,6 +35,7 @@ Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
 15. [Checklist posterior a cada despliegue](#15-checklist-posterior-a-cada-despliegue)
 16. [Staging](#16-staging)
 17. [Probar el paquete en local](#17-probar-el-paquete-en-local)
+18. [Base en Supabase](#18-base-en-supabase)
 
 ---
 
@@ -205,13 +210,15 @@ GRANT CONNECT ON DATABASE cementeria TO cementeria_app, cementeria_deploy;
 rol de solo lectura cuya clave queda en `/etc/cementeria/backup.env`:
 
 ```sql
-CREATE ROLE cementeria_backup LOGIN;
+CREATE ROLE cementeria_backup LOGIN BYPASSRLS;
 GRANT pg_read_all_data TO cementeria_backup;
 GRANT CONNECT ON DATABASE cementeria TO cementeria_backup;
 \password cementeria_backup
 ```
 
-`pg_read_all_data` lee todo y no escribe nada; `pg_dump` igual vuelca los
+`pg_read_all_data` lee todo y no escribe nada; `BYPASSRLS` hace falta desde la
+migración `*_rls_defensa` (sin él, `pg_dump` se niega a volcar las tablas con
+RLS; sección 18.6). `pg_dump` igual vuelca los
 dueños reales (`cementeria_owner`). No hace falta en `scripts/roles.sql`: no
 es dueño de nada ni recibe permisos dentro de la base, así que el dump no lo
 nombra y la restauración no lo necesita. Si Sistemas prefiere hacer el dump
@@ -474,9 +481,10 @@ scp build/paquetes/cementeria-<versión>.tar.gz build/paquetes/cementeria-<versi
 Orden, con todo lo de las secciones 2 a 7 hecho:
 
 1. **[S]** Base y roles (sección 4). **[D]** verifica.
-2. **[D]** `/etc/cementeria/cementeria.env` (sección 5). Si la clave
-   `cementeria` todavía no está en el derivador (B1), `CIDITUC_HABILITADO=0`:
-   la app arranca, pero nadie puede ingresar.
+2. **[D]** `/etc/cementeria/cementeria.env` (sección 5). Desde el
+   27/10/2026 se ingresa con usuario y contraseña propios y el ingreso con
+   Cidituc está en pausa: `CIDITUC_HABILITADO=0` (con `1`, el botón de
+   Cidituc aparece además, debajo del formulario).
 3. **[D]** Instalar la versión y migrar:
 
    ```bash
@@ -488,7 +496,13 @@ Orden, con todo lo de las secciones 2 a 7 hecho:
    arranca el servicio y espera `/api/salud` 200.
 4. **[D]** Semilla de producción: áreas, cementerios, catálogos, feriados, las
    4 plantillas y el administrador inicial, **sin** usuarios ni expedientes
-   ficticios. Corre con el rol de la app y es idempotente:
+   ficticios. Corre con el rol de la app y es idempotente. El admin inicial
+   nace con una **contraseña temporal** que la semilla **imprime una sola vez**
+   en esta terminal (copiarla ahí: la carpeta del paquete es de solo lectura
+   para `cementeria`, así que el archivo `.local/clave-admin-inicial.txt` no se
+   puede escribir y lo avisa; con `-E ADMIN_INICIAL_CLAVE_ARCHIVO=<ruta>` se
+   puede elegir otro lugar, y después hay que borrarlo). En la base queda solo
+   el hash. Si se corre otra vez, no la cambia:
 
    ```bash
    sudo systemd-run --pipe --wait --collect \
@@ -498,8 +512,11 @@ Orden, con todo lo de las secciones 2 a 7 hecho:
      /usr/bin/node scripts/semilla.mjs --sin-ficticios
    ```
 
-5. **[D]** El administrador ingresa con Cidituc y da de alta al resto de los
-   usuarios desde la pantalla de administración.
+5. **[D]** El administrador ingresa en `/login` con su CUIL y la contraseña
+   temporal, elige la suya (es obligatorio) y da de alta al resto de los
+   usuarios desde `/admin/usuarios`: cada alta muestra la contraseña temporal
+   **una sola vez**, para entregarla en mano (no hay correo). Si alguien la
+   pierde u olvida la suya: "Blanquear contraseña" (18.12).
 6. **[S]** Backups (sección 12) y timers:
 
    ```bash
@@ -683,7 +700,7 @@ backup (RPO 24 h sin pgBackRest).
 ## 14. Rotación de SESSION_SECRET y de claves
 
 **`SESSION_SECRET`** firma la cookie de sesión. Rotarlo **cierra todas las
-sesiones**: cada usuario vuelve a ingresar con Cidituc. Se rota si pudo
+sesiones**: cada usuario vuelve a ingresar (con su contraseña). Se rota si pudo
 filtrarse (un respaldo del `.env` donde no correspondía, alguien con acceso
 al servidor que deja de tenerlo) y, como rutina, una vez por año.
 
@@ -702,6 +719,8 @@ segundos de 503 entre el cambio y el reinicio.
 
 **Clave de `cementeria_deploy`:** la cambia **[S]** y la entrega por canal
 seguro; nada que tocar en el servidor.
+
+**Base en Supabase:** ver la sección 18.8.
 
 **Clave de restic:** `restic key add` / `restic key remove` (el repositorio
 admite varias), y se actualiza `backup.env` y la copia del custodio.
@@ -722,7 +741,8 @@ admite varias), y se actualiza `backup.env` y la copia del custodio.
 | 5 | Encabezados | `curl -sI https://DOM/login` | `strict-transport-security`, `x-content-type-options: nosniff`, `x-frame-options: SAMEORIGIN`, `referrer-policy`, `content-security-policy`; **sin** `x-powered-by` ni versión de nginx en `server` |
 | 6 | Login simulado cerrado | `curl -s -o /dev/null -w '%{http_code}\n' https://DOM/dev/login` | `404` (en producción siempre; en staging, salvo la lista blanca) |
 | 7 | Host ajeno | `curl -sS -o /dev/null -w '%{http_code}\n' -H 'Host: otro.ejemplo' https://DOM/login` | `000` (444: nginx cierra sin responder) |
-| 8 | Ingreso con Cidituc | Pedido B1, pasos 1 a 3: `/login` lleva a `cidituc.smt.gob.ar/#/login?next=cementeria&state=…`; con la cuenta de empleado vuelve a `https://DOM/auth/callback` y entra | Entra. Si dice "Cidituc no está disponible", revisar A3 |
+| 8 | Ingreso con contraseña (login propio, 27/10/2026) | En `/login`, el CUIL del admin y una contraseña incorrecta; después la correcta | "CUIL, correo o contraseña incorrectos"; con la correcta entra (en `auditoria.accesos`, `ingreso_rechazado` con motivo `clave_incorrecta` y después `ingreso` con `via: clave`, con la IP de la PC). Con Cidituc en pausa, las filas 9 y 10 no aplican |
+| 8b | Ingreso con Cidituc (solo con `CIDITUC_HABILITADO=1`) | Pedido B1, pasos 1 a 3: el botón "Ingresar con Cidituc" de `/login` lleva a `cidituc.smt.gob.ar/#/login?next=cementeria&state=…`; con la cuenta de empleado vuelve a `https://DOM/auth/callback` y entra | Entra. Si dice "Cidituc no está disponible", revisar A3 |
 | 9 | El token no queda en el log (en la VM) | `grep -c 'auth=' /var/log/nginx/cementeria-access.log` | `0` |
 | 10 | Token de **vecino** | Pedido B1, paso 4: ingresar con una cuenta de Ciudadano Digital sin cuenta de empleado | "token inválido" (401 en `/usuarios/authStatusIA`), **no** "sin alta". Anotarlo en `docs/pedidos-dia-1.md`, seguimiento |
 | 11 | Salir | Ingresar y apretar **Salir** | Vuelve a `https://DOM/login` (303; si va a `localhost`, falta el `proxy_redirect` de la sección 6). En `auditoria.accesos`, la `salida` tiene la IP de la PC, no `127.0.0.1` |
@@ -830,3 +850,365 @@ restauración; las funciones que leen el dump y comparan se probaron con un
 dump de texto armado a mano, y `scripts/backup.sh` con `pg_dump` y `restic`
 simulados (camino feliz, falla de `pg_dump`, falla de `restic`, retención
 inválida o a cargo del servidor, sin clave).
+
+---
+
+## 18. Base en Supabase
+
+> **Decisión (27/10/2026):** la base del MVP vive en **Supabase** (nube), no en
+> el PostgreSQL municipal que preveía la propuesta. La app sigue igual (VM con
+> nginx y systemd, secciones 2 a 11); lo que cambia es la base: las secciones
+> 4, 12 y 13 describen el servidor municipal, y para Supabase vale esta.
+> Todo se prueba sin el proyecto real con `npm run supabase:probar` (18.11).
+
+### 18.1 Crear el proyecto [D]
+
+1. En [supabase.com](https://supabase.com), en la organización de la
+   Dirección: **New project**. Nombre `cementeria` (y `cementeria-staging` si
+   hay staging: otro proyecto, no otra base). **Región: South America (São
+   Paulo), `sa-east-1`** (la más cercana; ver 18.10 por los datos personales).
+2. **Plan:** Free alcanza para probar, pero **pausa el proyecto tras una
+   semana sin uso y no tiene backups**. Para producción, **Pro** (backups
+   diarios con 7 días de retención; 18.9).
+3. **Versión de PostgreSQL:** la que ofrezca (17 hoy; 15 también sirve). Todo
+   está probado sobre 15 y no usa nada que cambie en 17, salvo lo de 18.6
+   sobre CREATEROLE.
+4. **Database password:** la que genera el panel, al gestor de contraseñas. Es
+   la del rol `postgres` (administración): **la app nunca la usa**.
+5. **Settings → Database → SSL Configuration:**
+   - **Enforce SSL on incoming connections**: prendido.
+   - **Download certificate** (`prod-ca-2021.crt`, "Supabase Root 2021 CA") y
+     guardarlo en el repositorio como `certs/supabase-prod-ca-2021.crt`. Es
+     público y se versiona. Sin él nada se conecta: Supabase firma con su
+     propia CA y Node la rechaza (`SELF_SIGNED_CERT_IN_CHAIN`). **Nunca**
+     `rejectUnauthorized: false` ni `sslmode=no-verify`.
+6. **Settings → Database → Network Restrictions** (si el plan lo permite):
+   solo la IP de salida de la VM de la app y la de quien corre las
+   migraciones.
+
+### 18.2 Apagar la Data API [D]
+
+Supabase publica el esquema `public` por HTTP (PostgREST) con los roles
+`anon` y `authenticated`. CementerIA no la usa: **Settings → API → Data API →
+apagar "Enable Data API"** (si la versión del panel no tiene el interruptor,
+sacar `public` de "Exposed schemas" y no dejar ningún esquema expuesto). Las
+claves `anon` y `service_role` del panel **no se usan ni se copian a ningún
+lado**. Tampoco se usan Auth, Storage ni Realtime de Supabase.
+
+Esa es la primera barrera; las otras dos las pone la preparación (18.4):
+`anon`, `authenticated` y `service_role` sin ningún privilegio sobre las
+tablas, y RLS en todas las tablas con política solo para `cementeria_app`.
+
+### 18.3 Completar `.env.supabase.local` [D]
+
+Copiar `.env.supabase.ejemplo` a `.env.supabase.local` (no se versiona) y
+completar **solo dos variables**:
+
+- `SUPABASE_ADMIN_URL`: botón **Connect → Session pooler** (puerto **5432**
+  del host `aws-1-sa-east-1.pooler.supabase.com`, usuario
+  `postgres.<ref del proyecto>`), con la Database password. No la del
+  Transaction pooler (6543) ni la "Direct connection" (`db.<ref>.supabase.co`,
+  solo IPv6 sin el add-on de IPv4).
+- `ADMIN_INICIAL_CUIL`: el CUIL (11 dígitos) de quien va a ser el primer
+  administrador. Se valida el dígito verificador antes de tocar nada.
+
+### 18.4 `npm run supabase:preparar` [D]
+
+Un solo comando, idempotente (se puede correr las veces que haga falta), sin
+pasos manuales en SQL. Hace, en orden:
+
+| Paso | Qué | Fuente |
+|---|---|---|
+| a | Conecta como `postgres` con TLS verificado contra el certificado de 18.1; controla versión (15 o más), que sea el `postgres` de Supabase (no superusuario, con CREATEROLE y los roles `anon`, `authenticated`, `service_role`) y que la conexión vaya cifrada | `scripts/supabase/preparar.mjs` |
+| b | Crea `cementeria_owner` (NOLOGIN), `cementeria_deploy` (LOGIN, NOINHERIT, miembro del owner, `SET role = cementeria_owner`) y `cementeria_app` (LOGIN), con claves aleatorias de 32 bytes que se mandan como **verificador SCRAM** (la clave no viaja ni queda en el log de la base). Guarda `DATABASE_URL` y `MIGRATE_DATABASE_URL` (usuario `rol.<ref>`, como exige Supavisor) en `.env.supabase.local`. **Nunca las imprime** | `scripts/supabase/sql/roles.sql` |
+| c | Base `postgres` (en Supabase no hay CREATE DATABASE): CONNECT para app y deploy, CREATE para el owner; zona horaria por rol; `unaccent` y `pg_trgm` en `public` (las mueve si estaban en `extensions`) | `sql/roles.sql`, `sql/extensiones.sql` |
+| d | `prisma migrate deploy` con `cementeria_deploy` (entra como owner: todo queda a su nombre) | `prisma/migrations` |
+| e | Cierre de la API: REVOKE de todo a `anon`, `authenticated` y `service_role` sobre tablas, secuencias y funciones de `public` y `auditoria`, y `ALTER DEFAULT PRIVILEGES` del owner para lo que se cree después | `sql/cierre-api-*.sql` |
+| f | Semilla de **producción**: `--sin-ficticios` (áreas, catálogos, cementerios, plantillas publicadas, feriados) y el admin de `ADMIN_INICIAL_CUIL`, con una **contraseña temporal** (login propio) que la semilla imprime una vez y deja en `supabase/sql/.local/clave-admin-inicial.txt` (no se versiona). Si el admin ya existía con contraseña, no se toca. Ningún dato ficticio | `prisma/seed.ts` |
+| g | Verificación **como `cementeria_app`**: triggers ENABLE ALWAYS, dueños, que la app no pueda UPDATE/DELETE/TRUNCATE del historial (también con un intento real), que `anon` y `authenticated` no lean ninguna tabla (intento real), privilegios por defecto, RLS, extensiones (`f_normalizar('GONZÁLEZ…')`), zona de la sesión UTC, sin usuarios ficticios, un **alta de prueba con la cadena de hash que se deshace** (no deja datos ni huecos de numeración) y `historial:verificar`. Termina con un resumen sin secretos | `sql/verificar.sql`, `scripts/supabase/probar-alta.ts` |
+
+Opciones: `--env <archivo>` (otro archivo de entorno), `--rotar-claves`
+(18.8), `--app-pooler transaccion` (18.6). `npm run supabase:verificar` corre
+solo el paso g.
+
+**Alternativa a mano**, desde el SQL Editor del panel: `npm run supabase:sql`
+genera `supabase/sql/` con lo mismo en archivos numerados (ver
+`supabase/sql/README.md`). Son equivalentes: `npm run supabase:probar` aplica
+los dos caminos en simuladores y compara roles, dueños, privilegios,
+triggers, políticas, `_prisma_migrations` y filas de la semilla.
+
+**Una migración nueva** (por ejemplo, la del login propio): volver a correr
+`npm run supabase:preparar` (aplica solo lo nuevo y verifica) o, a mano,
+`npm run supabase:sql` y correr solo el `20_migracion_<nueva>.sql` (ver el
+README de `supabase/sql/`). Si crea tablas, la migración les habilita RLS y
+crea la política de `cementeria_app` (`tests/integracion/rls.test.ts` lo exige).
+
+### 18.5 Variables en el servidor de la app [D]
+
+En `/etc/cementeria/cementeria.env` (sección 5):
+
+- `DATABASE_URL`: la de `.env.supabase.local`.
+- `DATABASE_CA_FILE=/etc/cementeria/supabase-prod-ca-2021.crt` (copiar ahí el
+  certificado, `0644`: lo lee también `nobody`, que corre las migraciones en
+  `deploy/desplegar.sh`). O `DATABASE_CA_PEM` con su contenido.
+
+`MIGRATE_DATABASE_URL` **no** queda en el servidor, como antes:
+`deploy/desplegar.sh` pide la clave de deploy y arma la URL desde
+`DATABASE_URL` (con Supabase, usuario `cementeria_deploy.<ref>` y siempre el
+puerto 5432 del Session pooler), y `deploy/prisma.config.mjs` le agrega el
+TLS con `DATABASE_CA_FILE`. Con un host de Supabase y sin certificado, la app
+no arranca a propósito (`src/lib/db/tls.ts`).
+
+### 18.6 Decisiones y fuentes
+
+**Pooler (Supavisor).** Los roles propios entran por el pooler compartido con
+usuario `<rol>.<ref>` ([Supabase, "Connect to your
+database"](https://supabase.com/docs/guides/database/connecting-to-postgres)).
+Esa misma página recomienda para un servidor persistente la conexión directa
+(solo IPv6) o el **Session pooler** desde redes IPv4, y deja el Transaction
+pooler para serverless. Por eso:
+
+- `MIGRATE_DATABASE_URL`: **Session pooler (5432)**, siempre. `prisma migrate`
+  necesita la sesión entera (advisory lock de sesión, DDL), y
+  `cementeria_deploy` toma el rol owner por `ALTER ROLE … SET role`.
+- `DATABASE_URL`: **Session pooler (5432) por defecto.** La app es un proceso
+  de Node que vive siempre, con un pool chico (`DB_POOL_MAX`, 5). El
+  Transaction pooler (6543) también funciona con lo que hace la app, y se
+  elige con `--app-pooler transaccion` si hiciera falta multiplexar más
+  conexiones: `@prisma/adapter-pg` manda sentencias **sin nombre** (no usa
+  prepared statements con nombre si no se le da `statementNameGenerator`),
+  `conActor()` fija el actor con `set_config(…, true)` (local a la
+  transacción) y el alta usa `pg_advisory_xact_lock` (de transacción); no hay
+  `SET` de sesión, `LISTEN`, locks de sesión ni tablas temporales en `src/`.
+  El `?pgbouncer=true` que sugiere Supabase es para el motor viejo de Prisma:
+  con el adapter no se lee.
+- **Las opciones de inicio no llegan al servidor** a través del pooler (al
+  menos en modo transacción: un reporte público lo midió con `timezone` y
+  `statement_timeout`,
+  [techno-terminal#191](https://github.com/ibrhmahmd/techno-terminal/issues/191);
+  Supavisor trata `options` como texto,
+  [supavisor#1198](https://github.com/supabase/supavisor/issues/1198)). La app
+  manda `-c TimeZone=UTC` y lo necesita (`@prisma/adapter-pg` da por hecho
+  UTC; con otra zona las fechas se corren 3 horas): por eso `cementeria_app`
+  tiene `timezone = 'UTC'` **por rol**, que se aplica igual.
+- Después de crear un rol o cambiarle la clave, el pooler tarda unos segundos
+  en enterarse (guarda las credenciales un rato,
+  [Supabase](https://supabase.com/docs/guides/troubleshooting/supavisor-error-password-authentication-failed-after-password-rotation)):
+  preparar.mjs reintenta.
+
+**Zona horaria.** Supabase deja la base en UTC y recomienda no cambiarla
+([Supabase](https://supabase.com/docs/guides/database/postgres/configuration)).
+No se toca la de la base (la comparten los servicios de Supabase): va por rol.
+`cementeria_app` en UTC (arriba) y `cementeria_deploy` en
+`America/Argentina/Tucuman` (psql, migraciones), como la base local. Nada de
+la base depende de la zona de la sesión: los triggers usan `AT TIME ZONE`
+explícito y el "hoy" de las consultas lo calcula la app.
+
+**Extensiones en `public`.** Supabase las pone por defecto en el esquema
+`extensions`. Pero la migración `20261019120100_reglas_base` (que no se edita)
+crea `f_unaccent` con `public.unaccent('public.unaccent'::regdictionary, …)`
+escrito, y PostgreSQL valida el cuerpo de una función SQL al crearla: con
+`unaccent` en otro esquema esa migración falla, y una migración nueva no llega
+a corregirlo (corre después). Por eso preparar.mjs las crea en `public` (o las
+mueve) antes de migrar. Supabase lo permite (el panel deja elegir el esquema);
+su Security Advisor lo marca como advertencia
+([lint 0014](https://supabase.com/docs/guides/database/database-advisors?queryGroups=lint&lint=0014_extension_in_public):
+funciones expuestas por la Data API), que no aplica con la Data API apagada.
+
+**Cierre de la API y RLS.** Lo que crea `cementeria_owner` no recibe los
+privilegios por defecto que Supabase da sobre lo que crean `postgres` y
+`supabase_admin`; igual se revoca todo explícitamente y se fijan los defaults
+del owner. El USAGE sobre `public` que les queda a los roles de la API es el
+de PUBLIC (default de PostgreSQL, lo usan los servicios de Supabase): no da
+acceso a ninguna tabla. Además, la migración `20261027120000_rls_defensa`
+habilita **RLS en todas las tablas** con **una sola política, para
+`cementeria_app`** (todo permitido: lo que puede hacer lo siguen decidiendo
+los GRANT y los triggers). Si a `anon` o `authenticated` les quedara un GRANT
+por error, igual no verían ni escribirían una fila. El owner (migraciones,
+`pg_dump` con deploy) no queda filtrado (RLS no se fuerza). Corre igual en la
+base local y en la CI (`tests/integracion/rls.test.ts`). Supabase marca la
+falta de RLS en `public` como error (lint 0013); con esto desaparece.
+
+**TLS.** Todo se conecta con la CA de Supabase y verificando el host:
+`src/lib/db/tls.ts` (app, semilla y scripts, con `pg`), `prisma.config.ts` y
+`deploy/prisma.config.mjs` (la CLI de Prisma: `sslmode=require`,
+`sslcert=<CA>`, `sslaccept=strict`; sin `strict` el motor no verifica nada).
+Probado en el simulador: con otra CA o con un nombre de host que no está en
+el certificado, ni la app ni la CLI se conectan.
+
+**PostgreSQL 16/17 y CREATEROLE.** Desde PostgreSQL 16 un rol con CREATEROLE
+solo administra los roles que creó (queda con ADMIN OPTION sobre ellos).
+preparar.mjs crea los tres roles con `postgres`, así que los administra; si ya
+existieran creados por otro rol, `ALTER ROLE` falla con un mensaje claro. El
+simulador es PostgreSQL 15 (embedded-postgres): lo propio de 16/17 se verifica
+en la primera corrida contra el proyecto real (la verificación final lo
+cubre).
+
+### 18.7 Riesgo residual
+
+El rol `postgres` del proyecto (y quien tenga el panel) tiene CREATEROLE:
+puede darse a sí mismo `cementeria_owner` y, como dueño, deshabilitar los
+triggers del historial. Es el mismo lugar que ocupaba el superusuario del
+servidor municipal (propuesta, 2.13(b)); la cadena de hash
+(`historial:verificar`, cada noche) detecta una alteración. Más arriba está el
+personal de Supabase (`supabase_admin`). Por eso: la Database password en el
+gestor de contraseñas, pocas personas en la organización de Supabase y MFA en
+sus cuentas. El Table Editor del panel no muestra las tablas de CementerIA
+(`postgres` no tiene privilegios sobre ellas): para mirar datos, psql con
+`cementeria_deploy`.
+
+### 18.8 Rotar claves
+
+- **`cementeria_app` y `cementeria_deploy`:**
+  `npm run supabase:preparar -- --rotar-claves`. Genera claves nuevas, las
+  aplica (verificador SCRAM), reescribe las URLs en `.env.supabase.local` y
+  verifica. Después **[D]** actualiza `DATABASE_URL` en el servidor y
+  reinicia (`systemctl restart cementeria`). Entre el cambio y el reinicio la
+  app no se conecta (unos segundos de 503), y el pooler puede rechazar la
+  clave nueva durante unos segundos: se reintenta. Sin corte: crear un rol
+  nuevo con la clave nueva, pasar la app y retirar el viejo
+  ([Supabase](https://supabase.com/docs/guides/troubleshooting/supavisor-error-password-authentication-failed-after-password-rotation));
+  no se justifica para el MVP.
+- **`postgres` (administración):** Settings → Database → Reset database
+  password, y actualizar `SUPABASE_ADMIN_URL`. No afecta a la app.
+- **Después de restaurar un backup de Supabase:** los backups diarios no
+  guardan las claves de los roles propios
+  ([Supabase, Backups](https://supabase.com/docs/guides/platform/backups)):
+  correr `npm run supabase:preparar -- --rotar-claves`.
+
+### 18.9 Backups
+
+Lo que da Supabase ([Backups](https://supabase.com/docs/guides/platform/backups)):
+
+| Plan | Backups |
+|---|---|
+| Free | **Ninguno.** Supabase recomienda exportar con regularidad |
+| Pro | Diarios, últimos 7 días, restaurables desde el panel |
+| Team / Enterprise | 14 / hasta 30 días |
+| PITR (add-on de Pro en adelante) | A cualquier segundo de la ventana (7, 14 o 28 días; desde unos US$ 100/mes, requiere compute Small); reemplaza a los diarios |
+
+Los diarios se restauran desde el panel, no se descargan. **Propuesta: además,
+un `pg_dump` propio programado**, fuera de Supabase, con lo que ya existe
+(`scripts/backup.sh` y `cementeria-backup.timer`, sección 12, con restic al
+servidor de backup):
+
+- `backup.env` con `PGHOST=aws-1-sa-east-1.pooler.supabase.com`,
+  `PGPORT=5432`, `PGDATABASE=postgres`, `PGSSLMODE=verify-full`,
+  `PGSSLROOTCERT=/etc/cementeria/supabase-prod-ca-2021.crt` y el usuario del
+  dump con su clave (`PGUSER`, y `PGPASSWORD` o `~/.pgpass`).
+- **El usuario del dump:** `cementeria_deploy.<ref>` (entra como owner: lee
+  todo y RLS no lo filtra), con lo que la credencial de deploy queda en el
+  host del backup; o un `cementeria_backup` con `pg_read_all_data` **y
+  `BYPASSRLS`** (sin BYPASSRLS, `pg_dump` falla en las tablas con RLS), si
+  Supabase deja a `postgres` darlo. A decidir con Sistemas (pedido A7).
+- `pg_dump` de la **misma versión mayor que el servidor o más nueva**
+  (`postgresql-client-17` si el proyecto es 17).
+- Volcar solo `public` y `auditoria` (`pg_dump --schema=public
+  --schema=auditoria`; lo de Supabase no hace falta) y probar la restauración
+  (sección 13) contra un PostgreSQL de la misma versión, con
+  `scripts/roles.sql` antes.
+
+Con el plan Free esto **es el único backup**: no salir a producción sin él.
+
+### 18.10 Datos personales (para Asesoría Legal)
+
+La base guarda datos personales: CUIL, nombre y correo de los usuarios, y de
+los titulares y otras personas de cada expediente nombre, DNI, teléfono,
+domicilio y datos de personas fallecidas. Con Supabase quedan en
+infraestructura de un proveedor privado extranjero (Supabase Inc., sobre AWS),
+en **São Paulo, Brasil**. Antes de cargar datos reales, Asesoría Legal tiene
+que dictaminar sobre la **Ley 25.326**, en particular:
+
+- **Transferencia internacional (art. 12):** está prohibida a países sin
+  protección adecuada salvo las excepciones de la ley. Verificar si Brasil
+  figura entre los países con protección adecuada según la normativa vigente
+  de la AAIP (la lista de la Disposición 60-E/2016 de la DNPDP no lo incluía)
+  y, si no, qué recaudo corresponde (por ejemplo, las cláusulas contractuales
+  modelo aprobadas por la autoridad).
+- **Encargado del tratamiento (art. 25):** el contrato con Supabase (términos
+  y su Data Processing Addendum), subencargados, confidencialidad, seguridad,
+  destrucción al terminar el servicio.
+- **Seguridad (art. 9):** cifrado en tránsito (TLS verificado, 18.1 y 18.6) y
+  en reposo (lo da Supabase), acceso administrativo (18.7), backups (18.9).
+- **Registro** de la base ante la AAIP y el **aviso** a los titulares, como
+  estaba previsto para el servidor municipal (propuesta, sección 6, "Ley
+  25.326").
+
+Mientras no haya dictamen: solo datos ficticios (staging o pruebas).
+
+### 18.11 Probar sin el proyecto real
+
+- `npm run supabase:probar`: dos **simuladores locales** de Supabase
+  (`scripts/supabase/simular-local.mjs`: clúster aparte de embedded-postgres,
+  base `postgres`, `postgres` sin superusuario pero con CREATEROLE y
+  CREATEDB, los roles `anon`, `authenticated` y `service_role`, el esquema
+  `extensions`, los GRANT por defecto de Supabase sobre `public` y TLS con una
+  CA de prueba). En uno corre preparar.mjs dos veces (idempotencia) con las
+  extensiones ya habilitadas en `extensions`; en el otro aplica
+  `supabase/sql/` en orden como el SQL Editor; prueba que con otra CA o con
+  otro host no se conecta nada; y compara los dos resultados. Menos de un
+  minuto.
+- `npm run supabase:simular -- iniciar --dir <carpeta> --env-salida <archivo>`
+  deja un simulador corriendo para probar a mano
+  (`npm run supabase:preparar -- --env <archivo>`, la app con esa
+  `DATABASE_URL`); se borra con
+  `npm run supabase:simular -- detener --dir <carpeta> --borrar`.
+
+Lo que el simulador no imita: Supavisor (usuarios `rol.<ref>`, modo
+transacción), supautils y PostgreSQL 17. Eso se ve en la primera corrida real,
+que verifica todo al final.
+
+### 18.12 Primer ingreso del admin y blanqueo (login propio, 27/10/2026)
+
+Desde el 27/10/2026 se ingresa con CUIL (o correo) y contraseña; Cidituc está
+en pausa (docs/api-dominio.md, sección 22). Para Supabase eso agrega la
+migración `20261027180000_login_propio` y la contraseña del admin inicial.
+
+**La contraseña temporal del admin inicial.** Nunca va en texto a la base, al
+SQL Editor ni a un archivo versionado. Según el camino:
+
+- `npm run supabase:preparar`: la semilla la genera, la **imprime una vez** en
+  la terminal y la deja en `supabase/sql/.local/clave-admin-inicial.txt`.
+- `npm run supabase:sql` (a mano, SQL Editor): el generador la escribe en
+  `supabase/sql/.local/clave-admin-inicial.txt` (no la imprime) y pone **solo
+  su hash** (scrypt) en `.local/35_admin_inicial.sql`, con
+  `debe_cambiar_clave`. Si el archivo ya existe, reusa esa contraseña: volver
+  a generar no invalida la que ya se entregó. Necesita `ADMIN_INICIAL_CUIL`
+  en `.env.supabase.local`; sin él no genera ni el 35 ni la contraseña. Las
+  claves de `cementeria_app` y `cementeria_deploy` tampoco se regeneran: si ya
+  están en `.env.supabase.local`, `05_claves.sql` lleva verificadores de las
+  mismas.
+- `.local/35_admin_inicial.sql` es idempotente: si el admin ya existe con
+  contraseña, no lo toca; si existe **sin** contraseña (aplicado antes del
+  login propio), le pone esta temporal.
+
+**Una base que ya tenía aplicado todo hasta `*_rls_defensa`**, a mano:
+`20_migracion_20261027180000_login_propio.sql`, `30_semilla_produccion.sql`
+(cambió la huella; no agrega filas nuevas), `.local/35_admin_inicial.sql`,
+`40_cierre_api.sql` y `99_verificar.sql` (el control 16 ahora cuenta admins
+activos **con contraseña**). O `npm run supabase:preparar`.
+
+**Primer ingreso.**
+
+1. Abrir `supabase/sql/.local/clave-admin-inicial.txt` y entregarle la
+   contraseña a la persona del `ADMIN_INICIAL_CUIL` **en mano** (no por chat
+   ni correo).
+2. Ella entra en `/login` con su CUIL y esa contraseña: CementerIA la lleva a
+   `/cambiar-clave` y no la deja hacer otra cosa hasta elegir la suya (12
+   caracteres o más, no su CUIL ni su apellido, no una clave común).
+3. **Borrar** `supabase/sql/.local/clave-admin-inicial.txt` (y
+   `.local/35_admin_inicial.sql`, que tiene el CUIL real).
+4. El admin da de alta al resto en `/admin/usuarios`; cada alta muestra la
+   temporal de esa persona una sola vez.
+
+**Blanqueo.** Si alguien olvida su contraseña o la temporal se perdió, un admin
+usa "Blanquear contraseña" en `/admin/usuarios` (con motivo, que queda en la
+auditoría): genera otra temporal (se ve una vez), cierra todas las sesiones de
+esa persona y la desbloquea si estaba bloqueada. "Desbloquear" solo levanta el
+bloqueo de 15 minutos por cinco intentos fallidos. **Si el único admin perdió
+su contraseña**, no hay otro que la blanquee: correr la semilla de producción
+no sirve (no toca un admin que ya tiene contraseña); hay que dejarle
+`clave_hash = NULL` desde el SQL Editor (como `cementeria_owner`, con el actor
+fijado: `SELECT set_config('app.usuario_id', '1', true)`) y volver a correr
+`.local/35_admin_inicial.sql` generado con una contraseña nueva (borrar antes
+`supabase/sql/.local/clave-admin-inicial.txt` y `npm run supabase:sql`).

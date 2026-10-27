@@ -194,6 +194,7 @@ export function CampanaAvisos({ inicial, ahoraServidor }: { inicial: ResumenAvis
       <button
         ref={boton}
         type="button"
+        data-recorrido="campana-avisos"
         aria-expanded={abierto}
         aria-controls={idPanel}
         onClick={alternar}

@@ -15,6 +15,12 @@ export interface UsuarioActual extends UsuarioPermisos {
   email: string | null;
   sesionVersion: number;
   area: { id: number; codigo: string; nombre: string } | null;
+  /**
+   * La contraseña es temporal (alta, blanqueo, admin inicial): hasta cambiarla
+   * solo puede usar /cambiar-clave y Salir. getUsuarioActual() no devuelve a
+   * este usuario; getSesionActual() sí (./sesion.ts).
+   */
+  debeCambiarClave: boolean;
 }
 
 export const SELECCION_USUARIO = {
@@ -26,6 +32,7 @@ export const SELECCION_USUARIO = {
   rol: true,
   activo: true,
   sesionVersion: true,
+  debeCambiarClave: true,
   area: { select: { id: true, codigo: true, nombre: true } },
 } as const satisfies Prisma.UsuarioSelect;
 
@@ -52,5 +59,6 @@ export function usuarioDeSesion(fila: FilaUsuario | null, sesion: Sesion): Usuar
     activo: fila.activo,
     sesionVersion: fila.sesionVersion,
     area: fila.area,
+    debeCambiarClave: fila.debeCambiarClave,
   };
 }

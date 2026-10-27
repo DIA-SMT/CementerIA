@@ -4,6 +4,7 @@ import { ArrowRight, ClipboardList, FileCog, ShieldCheck, Users, type LucideIcon
 import { Aviso } from "@/components/aviso";
 import { EncabezadoPagina } from "@/components/encabezado-pagina";
 import { CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin } from "@/lib/dominio/admin/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
@@ -30,31 +31,34 @@ export default async function PaginaAdmin() {
 
   return (
     <section aria-labelledby="titulo-admin" className="space-y-5">
+      <PantallaConRecorrido id="admin-inicio" />
       <EncabezadoPagina id="titulo-admin" titulo="Administración" descripcion="Plantillas de trámite, usuarios, catálogos y auditoría. Los cambios quedan registrados." />
       {borradores.length > 0 || sinCerrar.length > 0 ? (
-        <Aviso tono="advertencia" titulo={<span role="heading" aria-level={2}>Pendiente</span>}>
-          <ul className="list-disc space-y-0.5 pl-5">
-            {borradores.map((p) => (
-              <li key={p.codigo}>
-                Borrador sin publicar:{" "}
-                <Link href={`/admin/plantillas/${p.codigo}/v/${p.borrador?.version}`} className={CLASE_ENLACE}>
-                  {p.codigo} v{p.borrador?.version}
-                </Link>
-              </li>
-            ))}
-            {sinCerrar.length > 0 ? (
-              <li>
-                Feriados sin cerrar: {sinCerrar.join(", ")} (
-                <Link href="/admin/catalogos?pestana=feriados" className={CLASE_ENLACE}>
-                  Catálogos, Feriados
-                </Link>
-                )
-              </li>
-            ) : null}
-          </ul>
-        </Aviso>
+        <div data-recorrido="admin-pendiente">
+          <Aviso tono="advertencia" titulo={<span role="heading" aria-level={2}>Pendiente</span>}>
+            <ul className="list-disc space-y-0.5 pl-5">
+              {borradores.map((p) => (
+                <li key={p.codigo}>
+                  Borrador sin publicar:{" "}
+                  <Link href={`/admin/plantillas/${p.codigo}/v/${p.borrador?.version}`} className={CLASE_ENLACE}>
+                    {p.codigo} v{p.borrador?.version}
+                  </Link>
+                </li>
+              ))}
+              {sinCerrar.length > 0 ? (
+                <li>
+                  Feriados sin cerrar: {sinCerrar.join(", ")} (
+                  <Link href="/admin/catalogos?pestana=feriados" className={CLASE_ENLACE}>
+                    Catálogos, Feriados
+                  </Link>
+                  )
+                </li>
+              ) : null}
+            </ul>
+          </Aviso>
+        </div>
       ) : null}
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grid gap-3 sm:grid-cols-2" data-recorrido="admin-secciones">
         {SECCIONES_ADMIN.map((s) => {
           const Icono = ICONOS[s.href] ?? FileCog;
           return (

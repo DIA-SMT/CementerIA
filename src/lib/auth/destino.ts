@@ -13,7 +13,7 @@
 const ORIGEN = "https://cementeria.invalid";
 
 /** Volver a estas rutas relanza el ingreso o da una vuelta en círculo. */
-const NO_VOLVER = /^\/(?:auth|api|login|dev|sin-acceso)(?:\/|$)/;
+const NO_VOLVER = /^\/(?:auth|api|login|dev|sin-acceso|cambiar-clave)(?:\/|$)/;
 
 /**
  * La ruta, si es de este sitio y tiene sentido volver a ella; si no, `null`.

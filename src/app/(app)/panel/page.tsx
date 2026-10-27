@@ -5,6 +5,7 @@ import { ArrowRight, ChartColumnIncreasing, FileText, History, Library, Triangle
 import { BotonImprimir } from "@/components/boton-imprimir";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
 import { ICONO_PANTALLA } from "@/components/iconos-modulos";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { expedientes, type FilaPanel, type FilaPlazoPanel, type Lista, type MovimientoPanel } from "@/lib/dominio/expedientes/servidor";
 import { navegacionPara, puedeVerPantalla, SECCIONES_ADMIN } from "@/lib/dominio/navegacion";
@@ -45,6 +46,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
 
   return (
     <section aria-labelledby="titulo-pantalla" className="@container space-y-6 print:space-y-4 print:text-[11px]">
+      <PantallaConRecorrido id="panel" />
       <Portada accesos={accesosRapidos(navegacionPara(usuario))} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -59,7 +61,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
             {" · "}sin las cargas históricas abiertas, salvo en su bloque
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-recorrido="panel-imprimir">
           {puedeVerPantalla(usuario, "metricas") ? (
             <Link href="/panel/metricas" className={`${CLASE_BOTON_SECUNDARIO} print:hidden`}>
               <ChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
@@ -70,7 +72,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
         </div>
       </div>
 
-      <Form action="/panel" className="tarjeta flex flex-wrap items-end gap-3 p-4 print:hidden" aria-label="Filtros del panel">
+      <Form action="/panel" className="tarjeta flex flex-wrap items-end gap-3 p-4 print:hidden" aria-label="Filtros del panel" data-recorrido="panel-filtros">
         <div className="w-full sm:w-auto sm:min-w-56">
           <label htmlFor="panel-tramite" className="mb-1.5 block text-sm font-medium text-texto">
             Tipo de trámite
@@ -121,7 +123,7 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
         </ul>
       ) : null}
 
-      <section aria-labelledby="titulo-estados" className="break-inside-avoid">
+      <section aria-labelledby="titulo-estados" data-recorrido="panel-estados" className="break-inside-avoid">
         <h2 id="titulo-estados" className="titulo-seccion mb-3">
           Expedientes por estado <span className="font-normal text-texto-secundario">({textoCantidad(total)})</span>
         </h2>
@@ -250,7 +252,7 @@ function Portada({ accesos }: { accesos: AccesoRapido[] }) {
           <span aria-hidden="true" className="mt-3 block h-1 w-12 rounded-full bg-amarillo" />
         </div>
         {accesos.length > 0 ? (
-          <nav aria-label="Accesos rápidos">
+          <nav aria-label="Accesos rápidos" data-recorrido="panel-accesos">
             <ul className="flex flex-wrap gap-2 lg:justify-end">
               {accesos.map(({ href, etiqueta, Icono }) => (
                 <li key={href}>
@@ -282,7 +284,7 @@ function Matriz({ panel }: { panel: DatosPanel }) {
   const { areas, tipos, celdas } = panel.matriz;
   const celda = (areaId: number, tipoId: number) => celdas.find((c) => c.areaId === areaId && c.tipoTramiteId === tipoId);
   return (
-    <section aria-labelledby="titulo-matriz" className="tarjeta overflow-hidden break-inside-avoid">
+    <section aria-labelledby="titulo-matriz" data-recorrido="panel-matriz" className="tarjeta overflow-hidden break-inside-avoid">
       <div className="border-b border-borde px-4 py-3 print:px-2 print:py-1.5">
         <h2 id="titulo-matriz" className="titulo-seccion">
           En trámite por área y tipo de trámite
@@ -376,7 +378,7 @@ function Bloque({
           : "bg-institucional text-white";
   const clasePastilla = `min-w-7 rounded-full px-2 text-center text-sm font-semibold tabular-nums ${color}`;
   return (
-    <section aria-labelledby={`titulo-${id}`} className="tarjeta overflow-hidden print:break-inside-avoid">
+    <section aria-labelledby={`titulo-${id}`} data-recorrido={`panel-${id}`} className="tarjeta overflow-hidden print:break-inside-avoid">
       <h2 id={`titulo-${id}`} className="titulo-seccion flex flex-wrap items-center gap-2 border-b border-borde px-4 py-3 print:px-2 print:py-1.5">
         {titulo}
         {enlace ? (

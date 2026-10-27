@@ -36,6 +36,7 @@ export function BuscadorGlobal() {
         type="button"
         aria-expanded={abierto}
         aria-controls={idFormulario}
+        data-recorrido="buscador-global"
         onClick={() => setAbiertoEn(abierto ? null : ruta)}
         className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control border transition-colors duration-150 sm:hidden ${CLASE_FOCO} ${
           abierto
@@ -51,6 +52,7 @@ export function BuscadorGlobal() {
         action="/expedientes"
         role="search"
         aria-label="Búsqueda global"
+        data-recorrido="buscador-global"
         onKeyDown={(e) => {
           if (e.key === "Escape" && abierto) {
             e.preventDefault();

@@ -35,7 +35,12 @@ const ESQUEMA = z.object({
     .string()
     .regex(/^[a-z0-9][a-z0-9-]*$/, "solo minúsculas, dígitos y guiones")
     .default("cementeria"),
+  // `libre` acepta cualquier contraseña (1 a 128 caracteres) para probar. Por
+  // defecto, la política estricta de src/lib/auth/clave.ts.
+  CLAVE_POLITICA: z.enum(["estricta", "libre"], { error: "tiene que ser estricta o libre" }).default("estricta"),
 });
+
+export type PoliticaClave = "estricta" | "libre";
 
 export type NodeEnv = "development" | "production" | "test";
 
@@ -57,6 +62,8 @@ export interface Entorno {
   appUrl: URL | null;
   cidituc: ConfigCidituc;
   devLogin: ConfigDevLogin;
+  /** Qué exige la contraseña nueva (CLAVE_POLITICA). */
+  politicaClave: PoliticaClave;
 }
 
 export class EntornoInvalido extends Error {
@@ -175,7 +182,7 @@ export function leerEntorno(fuente: Readonly<Record<string, string | undefined>>
     devLogin = { habilitado: true, listaBlanca: null };
   }
 
-  return { nodeEnv: e.NODE_ENV, produccion, secretoSesion: e.SESSION_SECRET, appUrl, cidituc, devLogin };
+  return { nodeEnv: e.NODE_ENV, produccion, secretoSesion: e.SESSION_SECRET, appUrl, cidituc, devLogin, politicaClave: e.CLAVE_POLITICA };
 }
 
 /**
@@ -229,6 +236,15 @@ export function validarEntornoAlIniciar(fuente: Readonly<Record<string, string |
     cidituc: resultado.cidituc.habilitado,
     devLogin: resultado.devLogin.habilitado,
     devLoginListaBlanca: resultado.devLogin.habilitado ? (resultado.devLogin.listaBlanca?.size ?? null) : null,
+    politicaClave: resultado.politicaClave,
   });
+  // No impide arrancar (sirve para probar un despliegue), pero no puede pasar
+  // desapercibido: con datos reales, una contraseña como 123456 se adivina al
+  // primer intento y el bloqueo por intentos no la protege.
+  if (resultado.produccion && resultado.politicaClave === "libre") {
+    log.warn("entorno.clave_politica_libre", {
+      aviso: "CLAVE_POLITICA=libre en producción: se aceptan contraseñas triviales. Volvé a estricta antes de cargar datos reales.",
+    });
+  }
   return resultado;
 }

@@ -178,7 +178,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
         }}
       >
         {!soloLectura ? (
-          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-borde bg-white/95 py-2 backdrop-blur" role="toolbar" aria-label="Acciones del borrador">
+          <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-borde bg-white/95 py-2 backdrop-blur" role="toolbar" aria-label="Acciones del borrador" data-recorrido="editor-acciones">
             <button type="button" onClick={guardar} disabled={accion.pendiente} className={CLASE_BOTON_PRIMARIO} aria-keyshortcuts="Control+S">
               <Save className="h-4 w-4" aria-hidden="true" />
               Guardar borrador
@@ -205,7 +205,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
         {accion.error ? <AvisoError error={accion.error} recargar={rutaVersionPlantilla(datos.codigo, datos.version)} yaMostradas={accion.error.errores.map((e) => e.ruta)} /> : null}
 
         {errores.length > 0 ? (
-          <nav aria-label="Errores de la validación" className="rounded-control border border-error-borde bg-error-fondo px-3 py-2 text-sm text-error">
+          <nav aria-label="Errores de la validación" data-recorrido="editor-errores" className="rounded-control border border-error-borde bg-error-fondo px-3 py-2 text-sm text-error">
             <p className="flex items-center gap-1.5 font-medium">
               <CircleAlert className="h-4 w-4" aria-hidden="true" />
               {errores.length === 1 ? "1 error para corregir antes de publicar" : `${errores.length} errores para corregir antes de publicar`}
@@ -222,7 +222,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
           </nav>
         ) : null}
 
-        <div role="tablist" aria-label="Partes de la plantilla" onKeyDown={teclaPestanas} className="flex flex-wrap gap-1 border-b border-borde">
+        <div role="tablist" aria-label="Partes de la plantilla" data-recorrido="editor-pestanas" onKeyDown={teclaPestanas} className="flex flex-wrap gap-1 border-b border-borde">
           {PESTANAS_EDITOR.map((p) => {
             const actual = p === pestana;
             return (
@@ -252,7 +252,7 @@ export function EditorPlantilla({ datos }: { datos: DatosEditor }) {
           })}
         </div>
 
-        <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`pestana-${pestana}`} tabIndex={-1} className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario">
+        <div role="tabpanel" id={`panel-${pestana}`} aria-labelledby={`pestana-${pestana}`} data-recorrido="editor-panel" tabIndex={-1} className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario">
           {/* Una versión publicada o retirada se ve con los controles deshabilitados: está congelada. */}
           <fieldset disabled={soloLectura} className="min-w-0 border-0 p-0">
             <legend className="sr-only">{ETIQUETA_PESTANA_EDITOR[pestana]}</legend>

@@ -5,6 +5,7 @@ import { Download, Filter } from "lucide-react";
 import { AvisoError } from "@/components/aviso-error";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE } from "@/components/formulario";
 import { clasePestana } from "@/components/pestanas";
+import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { admin, ETIQUETA_ACCION_ACCESO, type AccionAccesoAuditoria, type FilaAcceso, type FilaCambio, type Pagina } from "@/lib/dominio/admin/servidor";
 import { formatearFechaHora } from "@/lib/fechas";
@@ -41,10 +42,11 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
 
   return (
     <section aria-labelledby="titulo-auditoria" className="space-y-4">
+      <PantallaConRecorrido id="admin-auditoria" />
       <h1 id="titulo-auditoria" className="text-2xl font-semibold tracking-tight text-texto">
         Auditoría
       </h1>
-      <nav aria-label="Vista de la auditoría">
+      <nav aria-label="Vista de la auditoría" data-recorrido="auditoria-vistas">
         <ul className="flex flex-wrap gap-1 border-b border-borde">
           {(["accesos", "cambios"] as const).map((v) => (
             <li key={v}>
@@ -60,7 +62,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
         </ul>
       </nav>
 
-      <Form action="/admin/auditoria" className="grid gap-3 tarjeta px-4 py-3.5 sm:grid-cols-2 lg:grid-cols-5" aria-label="Filtros">
+      <Form action="/admin/auditoria" className="grid gap-3 tarjeta px-4 py-3.5 sm:grid-cols-2 lg:grid-cols-5" aria-label="Filtros" data-recorrido="auditoria-filtros">
         <input type="hidden" name="vista" value={vista} />
         <div>
           <label htmlFor="filtro-usuario" className="mb-1 block text-sm font-medium text-texto">
@@ -133,7 +135,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
             Limpiar
           </Link>
           {/* Un <a>: es una descarga (attachment), no una navegación de la app. */}
-          <a href={rutaExportarAuditoria(vista, activos)} className={`${CLASE_BOTON_SECUNDARIO} ml-auto`}>
+          <a href={rutaExportarAuditoria(vista, activos)} data-recorrido="auditoria-exportar" className={`${CLASE_BOTON_SECUNDARIO} ml-auto`}>
             <Download className="h-4 w-4" aria-hidden="true" />
             Exportar CSV
           </a>
@@ -158,7 +160,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
 
 function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
   return (
-    <div className="tarjeta relative @container overflow-x-auto">
+    <div className="tarjeta relative @container overflow-x-auto" data-recorrido="auditoria-tabla">
       <table className="tabla-datos tabla-apilable">
         <caption className="sr-only">Accesos</caption>
         <thead>
@@ -202,7 +204,7 @@ function TablaAccesos({ filas }: { filas: readonly FilaAcceso[] }) {
 
 function TablaCambios({ filas }: { filas: readonly FilaCambio[] }) {
   return (
-    <div className="tarjeta relative @container overflow-x-auto">
+    <div className="tarjeta relative @container overflow-x-auto" data-recorrido="auditoria-tabla">
       <table className="tabla-datos tabla-apilable">
         <caption className="sr-only">Cambios de configuración</caption>
         <thead>
