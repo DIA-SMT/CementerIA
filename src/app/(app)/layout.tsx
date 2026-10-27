@@ -2,11 +2,13 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { Inbox, KeyRound, LogOut } from "lucide-react";
 import { exigirUsuario } from "@/lib/auth/sesion";
+import { perfilPrueba } from "@/lib/dominio/admin/servidor";
 import { avisos, recibeAvisos } from "@/lib/dominio/avisos/servidor";
 import { expedientes } from "@/lib/dominio/expedientes/servidor";
 import { inicioPara, navegacionPara, puedeVerPantalla } from "@/lib/dominio/navegacion";
 import { log, resumenError } from "@/lib/log";
 import { COOKIE_BARRA, leerPreferenciaBarra } from "@/lib/presentacion/barra-lateral";
+import { mostrarFranja } from "@/lib/presentacion/perfil-prueba";
 import { rutaBandeja } from "@/lib/presentacion/flujo";
 import { CLASE_FOCO } from "@/components/formulario";
 import { BotonRecorrido } from "@/components/recorrido/botones";
@@ -15,6 +17,7 @@ import { perfilDe } from "@/lib/presentacion/recorridos/motor";
 import { BuscadorGlobal } from "./buscador-global";
 import { CampanaAvisos } from "./campana-avisos";
 import { BarraLateral } from "./navegacion";
+import { FranjaPerfilPrueba, SelectorPerfilPrueba } from "./perfil-prueba";
 
 /**
  * Cáscara de las pantallas con sesión: barra lateral con la marca y la
@@ -51,6 +54,15 @@ import { BarraLateral } from "./navegacion";
  * recorrido de la pantalla a la vista. La invitación (una tarjeta chica que no
  * bloquea) la pone el proveedor; la preferencia queda en el navegador.
  *
+ * Modo prueba (27/10/2026, docs/diseno.md, "Modo prueba"): para un usuario
+ * cuyo CUIL está en PERFILES_PRUEBA_CUILS, el selector "Ver como…" en el
+ * encabezado y, mientras su perfil no sea Administrador, la franja "Modo
+ * prueba: estás viendo como…" arriba del contenido. Sin la variable, nada. Con
+ * el selector, el nombre y el área se ocultan por debajo de `xl` (1280 px): la
+ * fila no da para un botón más (con "Por confirmar" y la campana empujaba el
+ * nombre sobre la llave) y el perfil ya lo dicen la franja y el nombre
+ * accesible del selector.
+ *
  * Este layout NO es la barrera: Next puede renderizar una página sin volver a
  * renderizar su layout (navegación del lado del cliente), así que cada página
  * vuelve a pedir el usuario con exigirPantalla(). Por `cache()` la base se
@@ -72,6 +84,10 @@ export default async function LayoutConSesion({ children }: { children: React.Re
   }
   const resumenAvisos = conAvisos ? await avisos.resumen(usuario) : null;
   const preferenciaBarra = leerPreferenciaBarra((await cookies()).get(COOKIE_BARRA)?.value);
+  // null salvo para un CUIL de PERFILES_PRUEBA_CUILS (el de la base, que trae la sesión).
+  const modoPrueba = await perfilPrueba.opciones(usuario);
+  const perfilesPrueba = modoPrueba?.perfiles.map(({ clave, etiqueta, rol }) => ({ clave, etiqueta, rol })) ?? [];
+  const perfilPruebaActual = perfilesPrueba.find((p) => p.clave === modoPrueba?.actual) ?? null;
 
   // En escritorio el fondo azul sigue debajo de la barra lateral (que es
   // sticky) hasta el final de la página.
@@ -99,7 +115,8 @@ export default async function LayoutConSesion({ children }: { children: React.Re
                   }`}
                 >
                   <Inbox className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only sm:not-sr-only">Por confirmar</span>
+                  {/* Con el selector del modo prueba, el texto aparece recién desde lg: entre sm y lg no entraban los dos. */}
+                  <span className={modoPrueba ? "sr-only lg:not-sr-only" : "sr-only sm:not-sr-only"}>Por confirmar</span>
                   <span
                     className={`min-w-6 rounded-full px-1.5 text-center text-xs font-semibold tabular-nums ${
                       porConfirmar > 0 ? "bg-institucional text-white" : "bg-fondo text-texto-secundario ring-1 ring-inset ring-borde"
@@ -113,12 +130,15 @@ export default async function LayoutConSesion({ children }: { children: React.Re
               {/* flex-1 con base 0: así este grupo no salta a otra fila en el celular
                   (con la campana no entraba con un área de nombre largo); el nombre se trunca. */}
               <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+                {/* Modo prueba: "Ver como…" (en el celular, solo el ícono; su menú
+                    se abre como el panel de la campana). */}
+                {modoPrueba ? <SelectorPerfilPrueba perfiles={perfilesPrueba} actual={modoPrueba.actual} /> : null}
                 {/* "?": el recorrido de esta pantalla (también en el celular, solo el ícono). */}
                 <BotonRecorrido />
                 {/* La campana: en el celular, solo el ícono y el número; su panel se
                     abre debajo del encabezado, a todo su ancho (el div de la fila es relative). */}
                 {resumenAvisos ? <CampanaAvisos inicial={resumenAvisos} ahoraServidor={new Date().toISOString()} /> : null}
-                <div className="flex min-w-0 items-center gap-2.5 text-right leading-tight">
+                <div className={`${modoPrueba ? "hidden xl:flex" : "flex"} min-w-0 items-center gap-2.5 text-right leading-tight`}>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-texto">
                       {usuario.nombre} {usuario.apellido}
@@ -159,6 +179,8 @@ export default async function LayoutConSesion({ children }: { children: React.Re
               </div>
             </div>
           </header>
+
+          {modoPrueba && mostrarFranja(modoPrueba.actual) ? <FranjaPerfilPrueba perfil={perfilPruebaActual} /> : null}
 
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8 lg:py-8 print:max-w-none print:p-0">{children}</main>
         </div>

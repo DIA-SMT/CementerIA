@@ -120,3 +120,21 @@ export {
 } from "./auditoria";
 export { descripcionRegistro, diferenciasCambio, ETIQUETA_TABLA, type Diferencia } from "./diferencias";
 export { traducirErrorBase } from "./errores-base";
+export {
+  CLAVE_PERFIL_ADMIN,
+  ModoPruebaInexistente,
+  NOTA_SIN_OTRO_ADMIN,
+  PerfilPruebaDenegado,
+  PREFIJO_MOTIVO,
+  crearServicioPerfilPrueba,
+  cuilHabilitado,
+  motivoCambio,
+  perfilActualDe,
+  perfilesDesdeAreas,
+  type DependenciasPerfilPrueba,
+  type OpcionesPerfilPrueba,
+  type PerfilPrueba,
+  type ResultadoCambioPerfil,
+  type ServicioPerfilPrueba,
+  type UsuarioPerfilPrueba,
+} from "./perfil-prueba";

@@ -30,9 +30,11 @@ import { randomBytes } from "node:crypto";
 import { createWriteStream, existsSync, readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import pg from "pg";
 import { puertoLibre } from "../../scripts/lib/postgres-local.mjs";
 import { ADMIN_CUIL_DESARROLLO } from "../../prisma/semilla/usuarios";
 import { levantarBaseEfimera } from "../integracion/base-efimera";
+import { USUARIO_MODO_PRUEBA } from "./ayudas";
 
 const ESPERA_ARRANQUE_MS = 120_000;
 
@@ -68,6 +70,7 @@ const VARIABLES_AJENAS = [
   "VERCEL",
   "ENCABEZADOS_SEGURIDAD",
   "DB_POOL_MAX",
+  "PERFILES_PRUEBA_CUILS",
   "NODE_ENV",
   "PORT",
   "HOSTNAME",
@@ -134,6 +137,26 @@ async function esperarSalud(url: string, hijo: ChildProcess, log: string): Promi
   throw new Error(`La app no respondió en ${url}/api/salud en ${ESPERA_ARRANQUE_MS / 1000} s:\n${cola(log)}`);
 }
 
+/**
+ * Da de alta al administrador del modo prueba (sin área ni contraseña: entra
+ * por /dev/login), firmado por SISTEMA como la semilla. Idempotente.
+ */
+async function crearAdminModoPrueba(urlApp: string): Promise<void> {
+  const c = new pg.Client({ connectionString: urlApp });
+  await c.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('app.usuario_id', '1', true), set_config('app.motivo', 'Pruebas de punta a punta del modo prueba', true)");
+    await c.query(
+      "INSERT INTO public.usuarios (cuil, nombre, apellido, rol, area_id) VALUES ($1, $2, $3, 'admin', NULL) ON CONFLICT (cuil) DO NOTHING",
+      [USUARIO_MODO_PRUEBA.cuil, USUARIO_MODO_PRUEBA.nombre, USUARIO_MODO_PRUEBA.apellido],
+    );
+    await c.query("COMMIT");
+  } finally {
+    await c.end();
+  }
+}
+
 export default async function globalSetup(config: FullConfig): Promise<() => Promise<void>> {
   const inicio = Date.now();
   if (config.configFile) RAIZ = path.dirname(config.configFile);
@@ -162,6 +185,12 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
       logSemilla,
     );
 
+    // El administrador del modo prueba ("Ver como…", tests/e2e/perfil-prueba.spec.ts):
+    // uno propio, para que cambiarle el perfil no afecte a las pruebas que
+    // entran como el admin de la semilla en paralelo. CUIL ficticio; su CUIL va
+    // en PERFILES_PRUEBA_CUILS de la app (abajo).
+    await crearAdminModoPrueba(base.urlApp);
+
     const next = path.join(RAIZ, "node_modules", "next", "dist", "bin", "next");
     if (process.env.E2E_SIN_BUILD === "1" && existsSync(path.join(RAIZ, ".next", "BUILD_ID"))) {
       console.log("[e2e] E2E_SIN_BUILD=1: se usa el build que ya está en .next");
@@ -185,6 +214,7 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
         DATABASE_URL: base.urlApp,
         SESSION_SECRET: randomBytes(48).toString("base64url"),
         AUTH_DEV_LOGIN: "1",
+        PERFILES_PRUEBA_CUILS: USUARIO_MODO_PRUEBA.cuil,
         CIDITUC_HABILITADO: "0",
         ADJUNTOS_DIR: adjuntos,
       }),

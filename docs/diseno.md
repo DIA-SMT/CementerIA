@@ -826,6 +826,61 @@ con `todos` como comodín; un perfil sin texto no ve el paso.
    y poner el `<BotonRecorrido />` y `<InvitacionRecorrido enLinea />` donde
    correspondan (como `/cambiar-clave`).
 
+## Modo prueba: "Ver como…" (27/10/2026)
+
+Solo existe con `PERFILES_PRUEBA_CUILS` y solo para esos CUILs (README, "Modo
+prueba"; docs/api-dominio.md, sección 23). Sirve para recorrer cada perfil con
+un mismo usuario. Sin tokens nuevos ni dependencias:
+`src/app/(app)/perfil-prueba.tsx` (`SelectorPerfilPrueba` y
+`FranjaPerfilPrueba`), textos en `src/lib/presentacion/perfil-prueba.ts`.
+
+- **Selector** (encabezado, a la izquierda del "?"): botón de 40 × 40 como
+  los demás, en **ámbar** para que se distinga de los controles de siempre
+  (borde `advertencia`, ícono `FlaskConical` en `advertencia` sobre
+  `advertencia-fondo`, 6,21:1; abierto, `superficie-azul` con
+  `primario-oscuro`, como la campana). Sin texto visible: su nombre accesible
+  es "Ver como… (modo prueba, ahora Liquidación)" y tiene `title`; desde `lg`
+  suma una flecha (`ChevronDown`) que dice que abre un menú. Con "Por
+  confirmar" y la campana, el texto "Ver como…" escrito no entraba.
+- **Menú** (patrón *menu button*): el botón lleva `aria-haspopup="menu"`,
+  `aria-expanded` y `aria-controls`; el menú es `role="menu"` con el título
+  "Ver como…" (`aria-labelledby`) y una línea gris ("Modo prueba: cambia el
+  área y el rol de tu propio usuario. Queda en la auditoría."). Una opción por
+  perfil (`menuitemradio`): el nombre del área (o "Administrador") y debajo el
+  rol ("Operador", "Solo lectura", "Administrador del sistema"); el actual con
+  `aria-checked="true"`, una tilde, fondo `superficie-azul` al 60 % y "· el de
+  ahora". Al abrirse, el foco va al perfil actual (foco itinerante:
+  `tabIndex` 0 solo en la opción activa); ↑ ↓ (dan la vuelta), Inicio y Fin
+  recorren; Enter o Espacio eligen; Escape cierra y devuelve el foco al botón;
+  Tab o un clic afuera lo cierran. ↓ o ↑ sobre el botón también lo abren. La
+  tarjeta es como el panel de la campana (`rounded-tarjeta`, `shadow-elevada`,
+  20 rem anclada a la derecha desde `sm`; en el celular, a lo ancho del
+  encabezado y debajo de él). Mientras cambia, las opciones quedan
+  deshabilitadas y abajo dice "Cambiando de perfil…" (`role="status"`); un
+  error va en rojo (`role="alert"`) y el menú queda abierto.
+- **Después de elegir**: carga completa del inicio del perfil (la bandeja o el
+  panel), así el menú, "Por confirmar", la campana y los recorridos salen ya
+  con el perfil nuevo.
+- **Franja** (debajo del encabezado, arriba del contenido, a todo el ancho de
+  la columna; no toca la barra lateral): mientras el perfil no es
+  Administrador. `advertencia-fondo` con borde inferior `advertencia-borde` y
+  texto `advertencia` (6,21:1), como "Por confirmar": ícono `FlaskConical`,
+  "**Modo prueba:** estás viendo como **Liquidación**" (Dirección: "Dirección
+  (solo lectura)"), un punto medio y **Volver a Administrador**
+  (`CLASE_BOTON_COMPACTO`, ícono `Undo2`; "Volviendo…" mientras tanto). Es una
+  región con nombre ("Modo prueba", `section` con `aria-label`): no toma el
+  foco ni se anuncia. En el celular el botón baja a la línea siguiente.
+- **Celular y anchos medianos**: con el selector, el nombre y el área del
+  encabezado se ocultan por debajo de `xl` (1280 px) y el texto de "Por
+  confirmar" aparece recién desde `lg` (antes, ícono y número): sin eso, entre
+  `sm` y `xl` el nombre se montaba sobre la llave. En 390 px el encabezado
+  sigue siendo una fila de 57 px (buscador, "Por confirmar", selector, "?",
+  campana, llave y Salir) y el menú se abre a lo ancho, debajo
+  (`tests/e2e/perfil-prueba.spec.ts` lo mide). Para quien no está en la lista
+  no cambia nada.
+- **Impresión**: el encabezado (con el selector) ya era `print:hidden`; la
+  franja también lo es. Los imprimibles salen igual que siempre.
+
 ## Capturas
 
 En `docs/capturas/rediseno/` (base efímera con la semilla y `next start`, como
@@ -883,6 +938,10 @@ página completa del formulario la barra de acciones se ve en su lugar, al pie.
   rediseño).
 - **Banda de Administración**: usa el velo de la portada; si se cambia la foto
   o el velo, volver a medir el texto blanco.
+- **Encabezado entre 640 y unos 700 px**: con "Por confirmar" y la campana, el
+  "?" se monta sobre "Por confirmar" (ya pasaba antes del modo prueba: el
+  buscador no se achica más). Con el selector del modo prueba pasa lo mismo
+  con el matraz. Desde 768 px y en el celular entra todo en una fila.
 - **Recorridos guiados**: revisar los textos con las áreas en el piloto (subir
   la `version` de lo que cambie). En el celular, con el "?" en la fila del
   encabezado, el nombre de un operador con campana queda en una o dos letras

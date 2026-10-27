@@ -33,6 +33,8 @@ export interface ServiciosEnTransaccion {
   tx: Transaccion;
   /** Fija el actor para escribir directo con `tx` (lo que hace conActor). */
   comoActor: (usuarioId: number, motivo?: string | null) => Promise<void>;
+  /** El `conActor` de esta transacción (cada llamada en su SAVEPOINT), para armar otros servicios del dominio. */
+  escribir: Escritor;
 }
 
 /** Corre `fn` con los servicios sobre una transacción que se deshace al final; devuelve lo que devuelva `fn`. */
@@ -61,7 +63,7 @@ export async function conServiciosQueSeDeshacen<T>(prisma: Cliente, fn: (s: Serv
         };
         const admin = crearServicioAdmin({ leer: tx, escribir });
         const expedientes = crearServicioExpedientes({ leer: tx, escribir });
-        resultado = { valor: await fn({ admin, expedientes, tx, comoActor }) };
+        resultado = { valor: await fn({ admin, expedientes, tx, comoActor, escribir }) };
         throw new Deshacer();
       },
       { timeout: 120_000, maxWait: 10_000 },

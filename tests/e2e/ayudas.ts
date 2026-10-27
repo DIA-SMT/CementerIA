@@ -27,6 +27,14 @@ export const USUARIOS = {
 
 export type Quien = keyof typeof USUARIOS;
 
+/**
+ * El administrador del modo prueba ("Ver como…"): lo crea global-setup.ts y su
+ * CUIL (ficticio) es el único de PERFILES_PRUEBA_CUILS en la app de las
+ * pruebas. No está en USUARIOS: solo lo usa tests/e2e/perfil-prueba.spec.ts,
+ * así cambiarle el perfil no molesta a las demás pruebas.
+ */
+export const USUARIO_MODO_PRUEBA = { cuil: "20000000095", nombre: "Probador", apellido: "Modo Prueba" } as const;
+
 /** Dónde cae cada uno al entrar (inicioPara): los operadores en la bandeja; Dirección y el admin, en el panel. */
 const INICIO: Record<Quien, RegExp> = {
   mesa: /\/bandeja/,

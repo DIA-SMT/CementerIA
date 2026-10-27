@@ -21,7 +21,8 @@ nocturna) y la línea de tiempo con filtros y agrupada por paso; y (sección
 el sistema (la campana del encabezado y `/avisos`).
 Actualizado el 27/10/2026 (sección 22): el ingreso con usuario y contraseña
 propios (Cidituc en pausa), el cambio de contraseña y lo que agrega a la
-administración de usuarios.
+administración de usuarios; y (sección 23) el modo prueba, "Ver como…"
+(`PERFILES_PRUEBA_CUILS`), para recorrer todos los perfiles con un solo usuario.
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -36,7 +37,7 @@ en el código: esto es el mapa.
 | `@/lib/adjuntos/tipos` | Semana 3. `MAXIMO_BYTES_ADJUNTO`, `detectarTipo()` (magic bytes), `esHeic()`. Puro: el navegador lo puede usar para avisar antes de subir |
 | `@/lib/dominio/metricas/servidor` | 26/10/2026. `metricas` (el servicio de las métricas de gestión, ya conectado) y sus tipos. `server-only`. Sección 20 |
 | `@/lib/dominio/avisos/servidor` | 26/10/2026. `avisos` (el servicio de los avisos en el sistema, ya conectado) y sus tipos. `server-only`. Sección 21 |
-| `@/lib/dominio/admin/servidor` | Semana 5. `admin` (el servicio de la administración, ya conectado) y sus tipos. `server-only`. Sección 17 |
+| `@/lib/dominio/admin/servidor` | Semana 5. `admin` (el servicio de la administración, ya conectado) y sus tipos. `server-only`. Sección 17. Desde el 27/10/2026, también `perfilPrueba` (el modo prueba, sección 23) |
 | `@/lib/dominio/plantillas/borrador` | Semana 5. `definicionEditable()` y `definicionInicial()`: la definición de un borrador con la forma del esquema. Puro |
 | `@/lib/adjuntos/almacen` | Semana 3. `AlmacenAdjuntos` (interfaz), `crearAlmacenEnDisco()`, `raizAdjuntos()`, `barrerTemporales()`. Servidor |
 
@@ -2133,3 +2134,135 @@ cambio obligatorio y bandeja; la contraseña de desarrollo y el mensaje único).
 - El límite por IP en la base si algún día hay más de una instancia.
 - Volver a Cidituc: `CIDITUC_HABILITADO=1` y decidir si las dos formas
   conviven (el botón ya aparece debajo del formulario).
+
+## 23. Modo prueba: "Ver como…" (27/10/2026)
+
+Pedido: probar todas las pantallas y roles con el propio CUIL, sin un usuario
+por área. Decisión: un **selector de perfil de prueba**, activado por
+configuración, con vuelta a Administrador y auditado. **Sin migraciones ni
+cambios de esquema** y sin tocar permisos ni reglas de negocio: el modo prueba
+solo cambia el área y el rol de la fila del propio usuario, y todo lo demás lo
+decide el código de siempre a partir de esa fila.
+
+| Módulo | Qué tiene |
+|---|---|
+| `@/lib/entorno` | `perfilesPrueba` (el conjunto de CUILs de `PERFILES_PRUEBA_CUILS`, ya validado) y `leerPerfilesPrueba()` |
+| `@/lib/dominio/admin/perfil-prueba` | `crearServicioPerfilPrueba(deps)`, `perfilesDisponibles`, `opcionesPerfilPrueba`, `cambiarPerfilDePrueba`, `perfilesDesdeAreas`, `perfilActualDe`, `motivoCambio`, `cuilHabilitado`, `ModoPruebaInexistente`, `PerfilPruebaDenegado`. Recibe sus dependencias (`leer`, `escribir` = `conActor`, `cuils`) |
+| `@/lib/dominio/admin/servidor` | `perfilPrueba`: el servicio conectado, con `cuils: () => entorno().perfilesPrueba` |
+| `@/lib/presentacion/acciones-perfil-prueba` | `procesarCambioPerfilPrueba(servicio, usuario, { clave })`: la lógica de la Server Action, sin Next |
+| `@/lib/presentacion/perfil-prueba` | Textos del selector y de la franja. Puro (lo usan los Client Components) |
+| `src/app/(app)/perfil-prueba-acciones.ts` | `accionCambiarPerfilPrueba(clave)`: la Server Action |
+| `src/app/(app)/perfil-prueba.tsx` | `SelectorPerfilPrueba` y `FranjaPerfilPrueba` (docs/diseno.md, "Modo prueba") |
+
+### 23.1 Configuración
+
+`PERFILES_PRUEBA_CUILS`: CUILs separados por coma, con o sin guiones (también
+puntos o espacios), cada uno con su dígito verificador (`cuilValido`).
+`entorno.ts` la valida con el resto: un valor inválido es `EntornoInvalido` y
+la app no arranca (el mensaje nombra la variable y cuántos fallan, nunca los
+números). **Vacía o ausente, el modo prueba no existe**: ni el selector en la
+pantalla ni la acción en el servidor (responde 404 con `notFound()`). **Está
+permitida en producción** (se prueba en Vercel), pero
+`validarEntornoAlIniciar()` deja `log.warn` `entorno.modo_prueba_activo` con la
+cantidad de CUILs y si es producción (nunca los números), y `entorno.validado`
+suma `perfilesPrueba: <cantidad>`.
+
+### 23.2 Perfiles
+
+`perfilesDisponibles()`: una entrada por **área interna activa**, en su orden
+(`areas.orden`): Mesa de Entradas, Cómputo, Liquidación, Asesoría Legal,
+Administrativo y Departamento Tributario / Notificación con rol **operador**,
+Dirección con rol **lectura** (como en 2.4), y al final **Administrador** (rol
+admin, sin área). La clave de cada perfil es `area:<CODIGO>` o `admin`; la DIM
+y los cementerios (áreas externas) no son perfiles. El perfil actual
+(`perfilActualDe`) sale del rol y el área: un admin es "Administrador" aunque
+tenga área; un rol que no coincide con su área (lectura en Liquidación) no
+marca ninguno.
+
+### 23.3 `cambiarPerfilDePrueba(deps, usuario, destino)`
+
+1. Sin CUILs: `ModoPruebaInexistente` (la acción hace `notFound()` antes).
+2. Lee **de la base** el CUIL y `activo` del usuario de la sesión
+   (`usuario.id`): si no está en la lista o está inactivo,
+   `PerfilPruebaDenegado` (la pantalla: "No podés usar el modo prueba…",
+   código `permiso`). Del navegador llega solo la clave del perfil, nunca un
+   CUIL.
+3. El destino tiene que ser uno de `perfilesDisponibles()`; si no,
+   `validacion`.
+4. En `conActor(usuario.id, "Modo prueba: ver como <perfil>")`: relee y
+   bloquea su fila (`SELECT … FOR UPDATE`) y **vuelve a comprobar el CUIL** en
+   la misma transacción; si ya tiene ese perfil, `repetido` sin escribir; si
+   deja Administrador y no queda otro administrador activo, **se permite
+   igual** y el motivo pasa a "Modo prueba: ver como Cómputo (sin otro
+   administrador activo mientras dure)" (con `set_config` de `app.motivo`
+   dentro de la transacción); actualiza **solo `area_id` y `rol` de su propia
+   fila**.
+5. Devuelve `{ perfil, destino, repetido, sinOtroAdmin }`; `destino` es
+   `inicioPara()`: `/bandeja` para operadores, `/panel` para Dirección y el
+   admin.
+
+- **Auditoría**: el trigger `auditar_cambio` de `usuarios` (columnas `id,
+  cuil, area_id, rol, activo, debe_cambiar_clave`) deja en
+  `auditoria.cambios` cada cambio con `antes`, `despues`, el autor (el mismo
+  usuario) y el motivo. Se ve en Administración → Auditoría → Cambios. La
+  Server Action además deja `perfil_prueba.cambio` en el log (id y destino,
+  sin CUIL) y `perfil_prueba.sin_otro_admin` como advertencia.
+- **No incrementa `sesion_version`**: la sesión sigue. `getUsuarioActual()`
+  relee área y rol en cada request, así que el perfil nuevo rige en el request
+  siguiente, igual que un cambio desde la administración.
+- **CHECK y triggers**: los de siempre. El admin va sin área
+  (`usuarios_area_check` exige área a los demás) y las áreas son internas y
+  activas (`usuarios_area_interna`); si una carrera los violara,
+  `conErroresLegibles` lo devuelve como `validacion`.
+
+### 23.4 Por qué no pasa por las reglas de la administración de usuarios
+
+`cambiarAccesoUsuario` (17.2) no deja cambiarse el rol a uno mismo ni quitarle
+el rol al último administrador, y **no cambió**. El modo prueba es otro
+camino, explícito y separado, y es aceptable porque:
+
+- solo existe con `PERFILES_PRUEBA_CUILS` y solo para esos CUILs, comprobados
+  en el servidor en cada llamada contra el CUIL guardado en la base; la lista
+  la controla **quien despliega**, no la pantalla (nadie se agrega a sí
+  mismo);
+- **siempre se puede volver**: "Administrador" está en la lista desde
+  cualquier perfil y la franja tiene "Volver a Administrador", también si era
+  el único admin;
+- todo queda auditado con su motivo, y quedarse sin otro admin queda dicho en
+  el motivo y en el log;
+- lo que se hace en otro perfil es real y lleva su firma (un pase como
+  Liquidación queda con `area_usuario_id` de Liquidación y el usuario de
+  prueba como autor): es para probar sobre datos de prueba.
+
+**Riesgo que queda**: borrar la variable con alguien en otro perfil. El
+selector desaparece y esa persona queda como Liquidación (si era el único
+admin, sin administrador). Por eso, antes de borrarla, volver a
+Administrador; si ya pasó, volver a ponerla, volver y borrarla otra vez.
+
+### 23.5 Avisos, bandejas y recorridos
+
+Nada se cachea por perfil: no hay `"use cache"` ni `unstable_cache`
+(`cacheComponents: false`) y el layout lee el usuario de la base en cada
+request. Después de cambiar, el selector hace una **carga completa** del
+inicio del perfil (`window.location.assign`, no `router.push`), así el Router
+Cache del cliente arranca vacío y el layout se dibuja entero con el perfil
+nuevo: el menú (`navegacionPara`), el contador "Por confirmar" (solo con
+bandeja), la campana (solo operadores, `recibeAvisos`), la bandeja del área
+nueva y el perfil de los recorridos (`perfilDe`, que cambia sus textos). Los
+avisos son **del usuario** (`avisos.usuario_id`), no del área: los que
+recibió como Liquidación siguen en su campana si pasa a Cómputo (es el mismo
+usuario), y como Dirección o Administrador la campana no aparece. Lo
+recordado de los recorridos (localStorage) también es por usuario, no por
+perfil.
+
+### 23.6 Pruebas
+
+Unitarias: `src/lib/entorno-perfiles-prueba.test.ts` (lectura de la variable,
+con y sin guiones, inválida sin mostrar valores, producción, la advertencia al
+arrancar con la cantidad), `src/lib/dominio/admin/perfil-prueba.test.ts`
+(perfiles, perfil actual, motivo y autorización con dependencias falsas: sin
+CUILs no existe, CUIL no listado o inactivo denegado sin escribir, el CUIL
+releído en la transacción, destinos inválidos, sin otro admin) y
+`src/lib/presentacion/perfil-prueba.test.ts` (textos). Integración:
+`tests/integracion/perfil-prueba.test.ts`. Punta a punta:
+`tests/e2e/perfil-prueba.spec.ts`.

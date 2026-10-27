@@ -133,6 +133,7 @@ mostrar).
 | `SUPABASE_URL` | `https://blkqkevgsorfflolxiah.supabase.co` | Settings → API → Project URL (solo el origen, sin `/storage/v1`) | No |
 | `SUPABASE_SECRET_KEY` | `sb_secret_…` | sección 3 | **Sí** |
 | `CRON_SECRET` | `openssl rand -base64 48` (32 caracteres o más) | se genera; Vercel Cron lo manda como `Authorization: Bearer …` | **Sí** |
+| `PERFILES_PRUEBA_CUILS` | **Opcional, solo mientras se prueba**: tu CUIL (o varios, separados por coma; con o sin guiones) | el CUIL con el que entrás (el de `ADMIN_INICIAL_CUIL`) | No, pero son CUILs de personas: no pegarlos en capturas ni tickets |
 
 Las que **NO** van en Vercel:
 
@@ -150,6 +151,18 @@ Las que **NO** van en Vercel:
 | `ENCABEZADOS_SEGURIDAD` | En Vercel los encabezados ya salen de la app (`VERCEL=1`). |
 | `NEXT_DEPLOYMENT_ID` | Es del paquete del servidor municipal. |
 | Clave publicable, `anon` o `service_role` de Supabase | La app no las usa. |
+
+**Modo prueba (`PERFILES_PRUEBA_CUILS`).** Con la variable, quienes estén en
+la lista ven "Ver como…" en el encabezado y pueden pasar su propio usuario a
+cualquier área (operador), a Dirección (lectura) y volver a Administrador;
+cada cambio queda en la auditoría (docs/api-dominio.md, sección 23). Se carga
+en **Production** y hace falta **Redeploy** para que la tome. Al arrancar, el
+log de la función muestra `entorno.modo_prueba_activo` (advertencia) con la
+cantidad de CUILs. **Antes de cargar datos reales: volver a Administrador,
+borrar la variable y redesplegar** (si se borra con alguien en otro perfil,
+queda en ese perfil: ver README, "Modo prueba"). Un valor mal escrito (un CUIL
+con el dígito verificador equivocado) hace que la app no arranque, con
+`PERFILES_PRUEBA_CUILS` en `arranque.rechazado`.
 
 Si falta o sobra algo, la app **no arranca**: el log de la función
 (Deployments → el despliegue → Logs) muestra `arranque.rechazado` con la

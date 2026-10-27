@@ -33,6 +33,10 @@ levantado (`npm run db:local` ni `npm run dev`).
    `127.0.0.1`, con `NODE_ENV=test`, `TZ=America/Argentina/Tucuman` y un
    entorno propio: base efímera, `SESSION_SECRET` aleatorio,
    `AUTH_DEV_LOGIN=1`, Cidituc apagado y los adjuntos en la carpeta temporal.
+   Antes, da de alta un admin propio del modo prueba ("Modo Prueba, Probador",
+   CUIL ficticio `20000000095`, `USUARIO_MODO_PRUEBA` de `ayudas.ts`) y su
+   CUIL es el único de `PERFILES_PRUEBA_CUILS` de la app: así cambiarle el
+   perfil no afecta a las pruebas que entran como el admin de la semilla.
    Las variables de quien corre las pruebas que la app lee (`DATABASE_URL`,
    `APP_URL`, `AUTH_DEV_LOGIN_STAGING`…) se sacan del entorno.
 4. Espera a que `GET /api/salud` responda 200 y deja la URL en
@@ -149,3 +153,4 @@ Ayudas en `ayudas.ts`:
 | `login.spec.ts` | 27/10/2026, login propio, por el formulario real de `/login` (no `/dev/login`): el admin da de alta un usuario y ve su contraseña temporal una vez; la persona entra con ella en otro contexto, queda obligada a cambiarla (`/bandeja` la devuelve a `/cambiar-clave`), una clave común se rechaza junto al campo, la cambia y llega a su bandeja; después la temporal ya no entra y la nueva sí. Y un usuario de la semilla entra con la contraseña de desarrollo, mientras que una incorrecta y un CUIL inexistente dan el mismo mensaje y "Mostrar" cambia el tipo del campo |
 | `recorridos.spec.ts` | 27/10/2026, recorridos guiados: el de la bandeja se abre con "Recorrido de esta pantalla" (el "?"), el globo es un diálogo modal con el foco adentro, → / ← / Enter cambian de paso (anunciado en `aria-live`), Tab no sale del globo y Escape (o "Terminar") devuelve el foco al "?"; el de la ficha, como Dirección, no tiene el paso de "Dar pase"; la invitación aparece la primera vez sin tomar el foco ni bloquear la pantalla, "Ahora no" la pospone hasta el día siguiente (`page.clock`) y "No volver a mostrar" no vuelve; "Empezar" y "Reiniciar los recorridos" (en `/avisos`); y en 390 px el "?" está en el encabezado de una fila y el globo es una hoja inferior |
 | `accesibilidad.spec.ts` | Los diálogos de la ficha ("Faltan N", tildar, documento, nota) y "Nueva plantilla" reciben el foco al abrirse, se cierran con Escape y devuelven el foco al botón que los abrió |
+| `perfil-prueba.spec.ts` | 27/10/2026, modo prueba: el admin de prueba abre "Ver como…" (`aria-expanded`, Administrador marcado con `aria-checked` y con el foco, Escape cierra y devuelve el foco), con ↓, Inicio y Enter elige Liquidación, cae en la bandeja de Liquidación con la franja "Modo prueba: estás viendo como Liquidación", "Por confirmar" y la campana, sin Administración (y `/admin` lo manda a la bandeja); la franja y el selector no salen al imprimir; "Volver a Administrador" lo lleva al panel sin franja. En 390 px el encabezado sigue siendo una fila, sin desplazamiento lateral, y el menú se abre dentro de la pantalla |

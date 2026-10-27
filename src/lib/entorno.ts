@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { enVercel, problemasAlmacen, tipoDeAlmacen } from "@/lib/adjuntos/config";
+import { cuilValido } from "@/lib/dominio/cuil";
 import { log } from "@/lib/log";
 
 /**
@@ -39,6 +40,9 @@ const ESQUEMA = z.object({
   // `libre` acepta cualquier contraseña (1 a 128 caracteres) para probar. Por
   // defecto, la política estricta de src/lib/auth/clave.ts.
   CLAVE_POLITICA: z.enum(["estricta", "libre"], { error: "tiene que ser estricta o libre" }).default("estricta"),
+  // Modo prueba (27/10/2026): los CUILs que pueden usar "Ver como…" para entrar
+  // a cada perfil con su propio usuario. Se valida en leerPerfilesPrueba().
+  PERFILES_PRUEBA_CUILS: z.string().optional(),
 });
 
 export type PoliticaClave = "estricta" | "libre";
@@ -65,6 +69,13 @@ export interface Entorno {
   devLogin: ConfigDevLogin;
   /** Qué exige la contraseña nueva (CLAVE_POLITICA). */
   politicaClave: PoliticaClave;
+  /**
+   * Modo prueba (PERFILES_PRUEBA_CUILS): los CUILs, de 11 dígitos y sin
+   * guiones, que pueden cambiar su propio perfil con "Ver como…". Vacío = el
+   * selector no existe (ni en la pantalla ni en el servidor). Ver
+   * src/lib/dominio/admin/perfil-prueba.ts.
+   */
+  perfilesPrueba: ReadonlySet<string>;
 }
 
 export class EntornoInvalido extends Error {
@@ -110,6 +121,31 @@ function leerListaBlanca(valor: string | undefined, problemas: string[]): Readon
   return new Set(cuils);
 }
 
+const SIN_PERFILES_PRUEBA: ReadonlySet<string> = new Set();
+
+/**
+ * PERFILES_PRUEBA_CUILS: CUILs separados por coma, con o sin guiones (también
+ * puntos o espacios), cada uno con su dígito verificador. Ausente o vacía, el
+ * conjunto vacío: modo prueba apagado. El mensaje de error no repite los
+ * valores: son CUILs de personas y el error termina en el log.
+ */
+export function leerPerfilesPrueba(valor: string | undefined, problemas: string[]): ReadonlySet<string> {
+  if (valor === undefined || valor.trim() === "") return SIN_PERFILES_PRUEBA;
+  const cuils = valor
+    .split(",")
+    .map((c) => c.replace(/[\s.-]/g, ""))
+    .filter(Boolean);
+  const invalidos = cuils.filter((c) => !cuilValido(c)).length;
+  if (cuils.length === 0 || invalidos > 0) {
+    const cuantos = invalidos === 1 ? " (1 no lo es)" : invalidos > 1 ? ` (${invalidos} no lo son)` : "";
+    problemas.push(
+      `PERFILES_PRUEBA_CUILS: tiene que ser una lista de CUILs de 11 dígitos (con o sin guiones), separados por coma y con el dígito verificador correcto${cuantos}`,
+    );
+    return SIN_PERFILES_PRUEBA;
+  }
+  return new Set(cuils);
+}
+
 /**
  * Lee y valida el entorno. Pura: recibe las variables, así se prueba sin tocar
  * `process.env`.
@@ -146,6 +182,9 @@ export function leerEntorno(fuente: Readonly<Record<string, string | undefined>>
   }
 
   const listaBlanca = leerListaBlanca(e.AUTH_DEV_LOGIN_STAGING, problemas);
+  // Permitida también en producción (el modo prueba se usa en Vercel); al
+  // arrancar deja una advertencia en el log (validarEntornoAlIniciar).
+  const perfilesPrueba = leerPerfilesPrueba(e.PERFILES_PRUEBA_CUILS, problemas);
   if (produccion && listaBlanca) {
     if (!appUrl) {
       problemas.push("APP_URL: hace falta con AUTH_DEV_LOGIN_STAGING, para comprobar que este host no es el de producción");
@@ -183,7 +222,16 @@ export function leerEntorno(fuente: Readonly<Record<string, string | undefined>>
     devLogin = { habilitado: true, listaBlanca: null };
   }
 
-  return { nodeEnv: e.NODE_ENV, produccion, secretoSesion: e.SESSION_SECRET, appUrl, cidituc, devLogin, politicaClave: e.CLAVE_POLITICA };
+  return {
+    nodeEnv: e.NODE_ENV,
+    produccion,
+    secretoSesion: e.SESSION_SECRET,
+    appUrl,
+    cidituc,
+    devLogin,
+    politicaClave: e.CLAVE_POLITICA,
+    perfilesPrueba,
+  };
 }
 
 /**
@@ -264,6 +312,7 @@ export function validarEntornoAlIniciar(fuente: Readonly<Record<string, string |
     devLogin: resultado.devLogin.habilitado,
     devLoginListaBlanca: resultado.devLogin.habilitado ? (resultado.devLogin.listaBlanca?.size ?? null) : null,
     politicaClave: resultado.politicaClave,
+    perfilesPrueba: resultado.perfilesPrueba.size,
   });
   // No impide arrancar (sirve para probar un despliegue), pero no puede pasar
   // desapercibido: con datos reales, una contraseña como 123456 se adivina al
@@ -271,6 +320,17 @@ export function validarEntornoAlIniciar(fuente: Readonly<Record<string, string |
   if (resultado.produccion && resultado.politicaClave === "libre") {
     log.warn("entorno.clave_politica_libre", {
       aviso: "CLAVE_POLITICA=libre en producción: se aceptan contraseñas triviales. Volvé a estricta antes de cargar datos reales.",
+    });
+  }
+  // Modo prueba: tampoco impide arrancar (se prueba en Vercel), pero queda a la
+  // vista en el log en cualquier entorno, con la cantidad de CUILs y nunca los
+  // números.
+  if (resultado.perfilesPrueba.size > 0) {
+    log.warn("entorno.modo_prueba_activo", {
+      aviso:
+        'PERFILES_PRUEBA_CUILS está definida: hay modo prueba ("Ver como…") y esos usuarios pueden cambiar su propia área y rol. Volvé a Administrador y borrala antes de cargar datos reales.',
+      cuils: resultado.perfilesPrueba.size,
+      produccion: resultado.produccion,
     });
   }
   return resultado;

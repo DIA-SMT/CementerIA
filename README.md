@@ -572,6 +572,39 @@ Detalle técnico: [docs/api-dominio.md](docs/api-dominio.md), sección 22.
   `exigirPermiso()` (`src/lib/dominio/permisos.ts`). Salir cierra todas las
   sesiones del usuario.
 
+### Modo prueba ("Ver como…")
+
+Para recorrer todas las pantallas con **un solo usuario** (el propio CUIL),
+sin crear un usuario por área. Detalle: [docs/api-dominio.md](docs/api-dominio.md),
+sección 23; diseño: [docs/diseno.md](docs/diseno.md), "Modo prueba".
+
+- **Qué hace:** con `PERFILES_PRUEBA_CUILS` definida, los usuarios cuyo CUIL
+  está en la lista ven en el encabezado un botón con un matraz, **"Ver
+  como…"**: un menú con un perfil por área interna (Mesa de Entradas, Cómputo,
+  Liquidación, Asesoría Legal, Administrativo y Tributario como operador;
+  Dirección como solo lectura) y **Administrador**. Elegir uno cambia el área y
+  el rol **de tu propio usuario** y te lleva al inicio de ese perfil (bandeja o
+  panel). Mientras no seas Administrador, una franja ámbar arriba del contenido
+  dice "Modo prueba: estás viendo como Liquidación" con **Volver a
+  Administrador**. Lo que hagas como Liquidación queda hecho por vos, en
+  Liquidación (es un pase real).
+- **Auditado:** cada cambio queda en Administración → Auditoría → Cambios
+  (tabla usuarios, antes y después) con el motivo "Modo prueba: ver como …".
+  La sesión no se corta.
+- **Sin la variable no existe:** ni el botón ni la acción (responde 404).
+- **En desarrollo:** en `.env.local`, `PERFILES_PRUEBA_CUILS=20-12345678-6`
+  (tu CUIL; varios separados por coma, con o sin guiones) y reiniciar `npm run
+  dev` o `npm run dev:supabase`. Con la semilla de desarrollo, por ejemplo el
+  admin `20000000001`.
+- **En Vercel:** Settings → Environment Variables → `PERFILES_PRUEBA_CUILS`
+  (Production) y **Redeploy** (las variables se leen al arrancar). El log de
+  la función muestra al arrancar `entorno.modo_prueba_activo` con la cantidad
+  de CUILs (nunca los números). Ver docs/despliegue-vercel.md, sección 5.
+- **Antes de producción con datos reales: volver a Administrador y BORRAR la
+  variable** (y redesplegar). Si se borra con alguien en otro perfil, el botón
+  desaparece y esa persona queda en ese perfil (si era el único admin, sin
+  administrador): volver a ponerla, volver a Administrador y borrarla de nuevo.
+
 ## Tests
 
 ```bash
@@ -637,7 +670,12 @@ de un minuto. Cubren:
   foco; el de la ficha saltea "Dar pase" para Dirección; la invitación aparece
   la primera vez, no bloquea y respeta "Ahora no" (vuelve al día siguiente) y
   "No volver a mostrar"; "Reiniciar los recorridos"; y en el celular el globo
-  es una hoja inferior.
+  es una hoja inferior;
+- el modo prueba: un admin de prueba propio (CUIL ficticio en
+  `PERFILES_PRUEBA_CUILS` de la app de las pruebas) elige "Ver como…
+  Liquidación" con el teclado, ve la bandeja de Liquidación con la franja (que
+  no sale al imprimir) y vuelve a Administrador; y en 390 px el selector entra
+  en el encabezado de una fila.
 
 `E2E_SIN_BUILD=1` reusa el build de `.next` para iterar sobre una prueba.
 Trazas y capturas de las que fallan en `test-results/` y el reporte en
@@ -661,6 +699,7 @@ Documentadas una por una en [.env.example](.env.example).
 | `AUTH_DEV_LOGIN` | `1` habilita `/dev/login`. Solo en `.env.development.local` |
 | `AUTH_DEV_LOGIN_STAGING`, `APP_URL` | Staging: lista blanca de CUILs para `/dev/login` y su URL https. `APP_URL` es además la base del QR de la carátula (sin ella, el host del request) |
 | `ADMIN_INICIAL_CUIL` | CUIL del primer administrador que crea la semilla |
+| `PERFILES_PRUEBA_CUILS` | Opcional, **solo para probar**: CUILs (separados por coma, con o sin guiones) que pueden usar "Ver como…" para cambiar su propio perfil. Vacía o ausente, no existe. Borrarla antes de cargar datos reales (ver "Modo prueba") |
 | `ADMIN_INICIAL_CLAVE_ARCHIVO` | Opcional: dónde deja la semilla de producción la contraseña temporal del admin inicial (por defecto `.local/clave-admin-inicial.txt`) |
 | `CIDITUC_HABILITADO` | `1` muestra el botón de Cidituc debajo del formulario; `0` (el ingreso con Cidituc está en pausa desde el 27/10/2026) |
 | `CIDITUC_DERIVADOR_URL`, `CIDITUC_CLAVE` | Origen del derivador y clave de esta instancia (`cementeria` o `cementeria-staging`) |
