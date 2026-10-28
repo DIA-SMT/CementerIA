@@ -81,6 +81,10 @@ export const ACCIONES = [
   "transcribir", // la transcripción de la ficha y "Terminar carga histórica" (2.13(c))
   // Métricas de gestión
   "ver_metricas", // /panel/metricas: tiempos, flujo, carga, devoluciones y línea de base (Dirección y admin)
+  // Consulta pública (28/10/2026)
+  "regenerar_codigo_consulta", // un código de consulta nuevo si el concesionario lo perdió o se filtró (Mesa de Entradas y admin)
+  // Sitio público (28/10/2026)
+  "editar_sitio_publico", // el contenido de la página pública: cementerios, recorridos, novedades, contacto y preguntas (Dirección y admin)
 ] as const;
 export type Accion = (typeof ACCIONES)[number];
 
@@ -228,6 +232,8 @@ export function evaluarPermiso(
 
     case "alta":
     case "carga_historica":
+    // 28/10/2026: en cualquier estado (el concesionario puede consultar también uno concluido o archivado).
+    case "regenerar_codigo_consulta":
       if (admin || mesa) return SI;
       return no(lectura ? "solo_lectura" : "area_no_habilitada");
 
@@ -355,6 +361,12 @@ export function evaluarPermiso(
       // Las métricas de gestión son de la conducción: Dirección y admin. Son
       // agregados sin datos personales, pero no hacen al trabajo de cada área.
       return admin || areaEs(usuario, AREA_DIRECCION) ? SI : no("area_no_habilitada");
+
+    case "editar_sitio_publico":
+      // 28/10/2026: lo que la Municipalidad publica (horarios, recorridos,
+      // novedades) lo decide la conducción. Dirección lo carga aunque su rol
+      // sea de lectura (no toca expedientes); los operadores, no.
+      return admin || areaEs(usuario, AREA_DIRECCION) ? SI : no(lectura ? "solo_lectura" : "area_no_habilitada");
 
     default: {
       // Si se agrega una acción a ACCIONES sin su regla, esto no compila.

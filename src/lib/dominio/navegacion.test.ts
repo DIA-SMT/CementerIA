@@ -20,8 +20,8 @@ describe("navegacionPara (sección 5)", () => {
     },
   );
 
-  it("Dirección: Panel · Métricas · Buscar", () => {
-    expect(etiquetas(usuario("lectura", "DIRECCION"))).toEqual(["Panel", "Métricas", "Buscar"]);
+  it("Dirección: Panel · Métricas · Buscar · Sitio público", () => {
+    expect(etiquetas(usuario("lectura", "DIRECCION"))).toEqual(["Panel", "Métricas", "Buscar", "Sitio público"]);
   });
 
   it("otro usuario de lectura: Panel · Buscar (sin Métricas)", () => {

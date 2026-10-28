@@ -2,13 +2,24 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Aviso } from "@/components/aviso";
 import { CLASE_ENLACE } from "@/components/formulario";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
-import { ErrorDominio, expedientes, type Caratula, type HojaHistorial, type PersonaCaratula, type ResultadoIntegridad } from "@/lib/dominio/expedientes/servidor";
+import {
+  ErrorDominio,
+  expedientes,
+  formatearCodigoConsulta,
+  type Caratula,
+  type Comprobante,
+  type HojaHistorial,
+  type PersonaCaratula,
+  type ResultadoIntegridad,
+} from "@/lib/dominio/expedientes/servidor";
 import { entorno } from "@/lib/entorno";
 import { formatearFecha } from "@/lib/fechas";
-import { leerHoja, origenPublico, rutaFicha, urlAbsoluta } from "@/lib/presentacion/enlaces";
+import { AVISO_ORIENTATIVO, RUTA_CONSULTA, urlConsultaConCodigo } from "@/lib/presentacion/consulta-publica";
+import { leerHoja, origenPublico, rutaFicha, rutaImprimir, urlAbsoluta, type Hoja } from "@/lib/presentacion/enlaces";
 import { contextoResumen, textoIntegridad } from "@/lib/presentacion/historial";
 import { svgQr } from "@/lib/presentacion/qr";
 import { documentoDePersona, etiquetaEstado, nombreCompleto } from "@/lib/presentacion/textos";
@@ -18,29 +29,44 @@ import { BotonImprimir } from "@/components/boton-imprimir";
 export async function generateMetadata(props: PageProps<"/expedientes/[numero]/imprimir">): Promise<Metadata> {
   const { numero } = await props.params;
   const hoja = leerHoja((await props.searchParams).hoja);
-  return { title: `${hoja === "historial" ? "Historial" : "Carátula"} ${numero.toUpperCase()}` };
+  const titulos: Record<Hoja, string> = { caratula: "Carátula", historial: "Historial", comprobante: "Comprobante" };
+  return { title: `${titulos[hoja]} ${numero.toUpperCase()}` };
 }
 
 /**
  * Imprimibles (sección 5): `?hoja=caratula` (predeterminada) e
  * `?hoja=historial`. CSS de impresión, A4, sin librería de PDF. Pedir una hoja
  * registra `imprimir` en auditoria.accesos (lo hace el dominio).
+ *
+ * 28/10/2026: `?hoja=comprobante`, la media hoja para el concesionario con el
+ * código de consulta y el QR a la consulta pública. Con `&nuevo=1` (al
+ * terminar el alta), la carátula ofrece además el comprobante.
  */
 export default async function PaginaImprimir(props: PageProps<"/expedientes/[numero]/imprimir">) {
   const usuario = await exigirPantalla("expedientes");
   const { numero } = await props.params;
-  const hoja = leerHoja((await props.searchParams).hoja);
+  const parametros = await props.searchParams;
+  const hoja = leerHoja(parametros.hoja);
+  const recienCreado = parametros.nuevo === "1";
   const h = await headers();
   const ip = ipDeSolicitud(h);
+  const origen = origenPublico({ appUrl: entorno().appUrl, host: h.get("host"), protocoloReenviado: h.get("x-forwarded-proto") });
 
-  type Datos = { hoja: "caratula"; caratula: Caratula; url: string; qr: string } | { hoja: "historial"; historial: HojaHistorial };
+  type Datos =
+    | { hoja: "caratula"; caratula: Caratula; url: string; qr: string }
+    | { hoja: "historial"; historial: HojaHistorial }
+    | { hoja: "comprobante"; comprobante: Comprobante; url: string; qr: string };
   let datos: Datos;
   try {
     if (hoja === "caratula") {
       const c = await expedientes.datosCaratula(usuario, numero, { ip });
-      const origen = origenPublico({ appUrl: entorno().appUrl, host: h.get("host"), protocoloReenviado: h.get("x-forwarded-proto") });
       const url = urlAbsoluta(c.rutaFicha, origen);
       datos = { hoja, caratula: c, url, qr: await svgQr(url, `Código QR de la ficha del expediente ${c.numero}`) };
+    } else if (hoja === "comprobante") {
+      const c = await expedientes.datosComprobante(usuario, numero, { ip });
+      // El QR lleva el código en el fragmento (#): la consulta lo lee en el navegador y no llega a los logs.
+      const qr = await svgQr(urlConsultaConCodigo(origen, c.numero, c.codigoConsulta), `Código QR para consultar el trámite ${c.numero}`);
+      datos = { hoja, comprobante: c, url: urlAbsoluta(RUTA_CONSULTA, origen), qr };
     } else {
       datos = { hoja, historial: await expedientes.datosHistorial(usuario, numero, { ip }) };
     }
@@ -48,7 +74,8 @@ export default async function PaginaImprimir(props: PageProps<"/expedientes/[num
     if (e instanceof ErrorDominio && e.codigo === "no_encontrado") notFound();
     throw e;
   }
-  const numeroCanonico = datos.hoja === "caratula" ? datos.caratula.numero : datos.historial.numero;
+  const numeroCanonico =
+    datos.hoja === "caratula" ? datos.caratula.numero : datos.hoja === "comprobante" ? datos.comprobante.numero : datos.historial.numero;
 
   return (
     <div className="space-y-4">
@@ -57,11 +84,34 @@ export default async function PaginaImprimir(props: PageProps<"/expedientes/[num
         <Link href={rutaFicha(numeroCanonico)} prefetch={false} className={CLASE_ENLACE}>
           Volver a la ficha
         </Link>
-        <span className="text-sm text-slate-600">Hoja A4. En el diálogo de impresión, desactivá encabezados y pies de página del navegador.</span>
+        {datos.hoja !== "comprobante" ? (
+          <Link href={rutaImprimir(numeroCanonico, "comprobante")} prefetch={false} className={CLASE_ENLACE}>
+            Comprobante para el concesionario
+          </Link>
+        ) : null}
+        <span className="text-sm text-slate-600">
+          {datos.hoja === "comprobante" ? "Media hoja A4: se corta por la línea de puntos" : "Hoja A4"}. En el diálogo de impresión, desactivá
+          encabezados y pies de página del navegador.
+        </span>
       </div>
+      {recienCreado && datos.hoja === "caratula" ? (
+        <div className="print:hidden">
+          <Aviso tono="exito" role="status">
+            <p>
+              Expediente {numeroCanonico} creado. Imprimí la carátula para el papel y{" "}
+              <Link href={rutaImprimir(numeroCanonico, "comprobante")} prefetch={false} className={CLASE_ENLACE}>
+                el comprobante para el concesionario
+              </Link>
+              , con el código para seguir el trámite.
+            </p>
+          </Aviso>
+        </div>
+      ) : null}
       <div className="mx-auto max-w-[210mm] bg-white p-[12mm] text-slate-900 shadow-sm ring-1 ring-slate-300 print:max-w-none print:p-0 print:shadow-none print:ring-0">
         {datos.hoja === "caratula" ? (
           <HojaCaratula caratula={datos.caratula} url={datos.url} qr={datos.qr} />
+        ) : datos.hoja === "comprobante" ? (
+          <HojaComprobante comprobante={datos.comprobante} urlConsulta={datos.url} qr={datos.qr} />
         ) : (
           <HojaDelHistorial hoja={datos.historial} />
         )}
@@ -218,6 +268,61 @@ function Huella({ integridad: r }: { integridad: ResultadoIntegridad }) {
         <strong className="text-slate-900"> · ATENCIÓN: {textoIntegridad(r)}</strong>
       )}
     </p>
+  );
+}
+
+/**
+ * El comprobante para el concesionario (28/10/2026): media hoja A4 con el
+ * número, el trámite, el cementerio, la fecha de inicio, el código de consulta
+ * grande, la dirección de la consulta y el QR (con el código en el fragmento).
+ * Sin personas ni ubicación: es un papel que se lleva el concesionario.
+ */
+function HojaComprobante({ comprobante: c, urlConsulta, qr }: { comprobante: Comprobante; urlConsulta: string; qr: string }) {
+  return (
+    <article aria-label={`Comprobante del expediente ${c.numero}`} className="space-y-4 border-b-2 border-dashed border-slate-500 pb-6 text-sm">
+      <header className="space-y-1 border-b-2 border-slate-900 pb-3">
+        <Encabezado />
+        <h1 className="text-xl font-bold">Comprobante de inicio de trámite</h1>
+        <p className="text-slate-700">Guardalo: con el número y el código seguís el trámite desde tu casa.</p>
+      </header>
+      <div className="flex items-start justify-between gap-6">
+        <table className="w-full border-collapse">
+          <tbody>
+            <Fila titulo="N° de expediente">
+              <span className="font-mono text-lg font-bold">{c.numero}</span> <span className="text-slate-700">({c.numeroCorto})</span>
+            </Fila>
+            <Fila titulo="Trámite">{c.tipoTramite}</Fila>
+            <Fila titulo="Cementerio">{c.cementerio}</Fila>
+            <Fila titulo="Fecha de inicio">{formatearFecha(c.fechaInicio)}</Fila>
+          </tbody>
+        </table>
+        <figure className="w-32 shrink-0 text-center">
+          <div className="h-32 w-32" dangerouslySetInnerHTML={{ __html: qr }} />
+          <figcaption className="mt-1 text-[10px] leading-tight text-slate-700">Escaneá el QR para consultar</figcaption>
+        </figure>
+      </div>
+      <section aria-labelledby="titulo-codigo" className="rounded-md border-2 border-slate-900 px-4 py-3 text-center">
+        <h2 id="titulo-codigo" className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+          Código de consulta
+        </h2>
+        <p data-codigo-comprobante="" className="mt-1 font-mono text-4xl font-bold tracking-[0.2em]">
+          {formatearCodigoConsulta(c.codigoConsulta)}
+        </p>
+      </section>
+      <div className="space-y-1">
+        <p>
+          Consultá en <strong className="break-all">{urlConsulta}</strong> con el número <strong className="font-mono">{c.numero}</strong> y el
+          código, o escaneá el QR.
+        </p>
+        <p className="text-xs text-slate-700">
+          El código es para vos: con él se ve en qué estado está el trámite (no tus datos). Si lo perdés o lo tiene alguien más, pedí uno nuevo en
+          Mesa de Entradas. {AVISO_ORIENTATIVO}
+        </p>
+      </div>
+      <footer className="border-t border-slate-400 pt-2 text-xs text-slate-700">
+        <p>Emitido el {formatearFecha(c.emitidoEl)} por Mesa de Entradas de la Dirección de Cementerios.</p>
+      </footer>
+    </article>
   );
 }
 

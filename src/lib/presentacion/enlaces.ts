@@ -120,7 +120,8 @@ export function enlaceWhatsapp(telefono: string | null | undefined, mensaje: str
 // Rutas de la app
 // ---------------------------------------------------------------------------
 
-export type Hoja = "caratula" | "historial";
+/** 28/10/2026: `comprobante`, la hoja con el código de consulta para el concesionario. */
+export type Hoja = "caratula" | "historial" | "comprobante";
 
 export function rutaFicha(numero: string): string {
   return `/expedientes/${encodeURIComponent(numero)}`;
@@ -130,12 +131,16 @@ export function rutaEditar(numero: string): string {
   return `${rutaFicha(numero)}/editar`;
 }
 
-export function rutaImprimir(numero: string, hoja: Hoja): string {
-  return `${rutaFicha(numero)}/imprimir?hoja=${hoja}`;
+/**
+ * `nuevo`: la hoja se abre al terminar el alta ("Guardar e imprimir carátula"):
+ * la página ofrece además el comprobante para el concesionario.
+ */
+export function rutaImprimir(numero: string, hoja: Hoja, opciones: { nuevo?: boolean } = {}): string {
+  return `${rutaFicha(numero)}/imprimir?hoja=${hoja}${opciones.nuevo ? "&nuevo=1" : ""}`;
 }
 
 /** `?hoja=` de la página de imprimibles: la carátula si no dice otra cosa. */
 export function leerHoja(valor: string | string[] | undefined): Hoja {
   const v = Array.isArray(valor) ? valor[0] : valor;
-  return v === "historial" ? "historial" : "caratula";
+  return v === "historial" || v === "comprobante" ? v : "caratula";
 }

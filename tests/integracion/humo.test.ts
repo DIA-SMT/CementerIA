@@ -9,6 +9,8 @@ import { conPg } from "./helper";
 const TABLAS_ESPERADAS = [
   "auditoria.accesos",
   "auditoria.cambios",
+  // 28/10/2026 (*_consulta_publica): los intentos fallidos de la consulta pública.
+  "auditoria.intentos_consulta",
   "public.areas",
   // 26/10/2026 (*_avisos): los avisos en el sistema.
   "public.avisos",
@@ -21,13 +23,20 @@ const TABLAS_ESPERADAS = [
   "public.feriados_anios",
   "public.movimientos",
   "public.plantillas",
+  // 28/10/2026 (*_sitio_publico): el contenido de la página pública.
+  "public.sitio_cementerios",
+  "public.sitio_contacto",
+  "public.sitio_novedades",
+  "public.sitio_preguntas",
+  "public.sitio_recorrido_fechas",
+  "public.sitio_recorridos",
   "public.tipos_monumento",
   "public.tipos_tramite",
   "public.usuarios",
 ];
 
 describe("humo: la base efímera quedó como en producción", () => {
-  it("aplicó todas las migraciones, tiene las 16 tablas y todas son de cementeria_owner", async () => {
+  it("aplicó todas las migraciones, tiene las 23 tablas y todas son de cementeria_owner", async () => {
     const carpetas = (await readdir(path.join(process.cwd(), "prisma", "migrations"), { withFileTypes: true }))
       .filter((d) => d.isDirectory())
       .map((d) => d.name)

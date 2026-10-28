@@ -164,6 +164,23 @@ queda en ese perfil: ver README, "Modo prueba"). Un valor mal escrito (un CUIL
 con el dígito verificador equivocado) hace que la app no arranque, con
 `PERFILES_PRUEBA_CUILS` en `arranque.rechazado`.
 
+**Página pública y consulta (28/10/2026).** No hace falta ninguna variable para
+que anden: `/` sin sesión es la página pública y `/consulta` la consulta del
+trámite (README, "Página pública y consulta"). Con `APP_URL`, el QR del
+comprobante apunta a `https://<dominio>/consulta/…`; sin ella, al host del
+request. `Cache-Control: no-store` y `Referrer-Policy: no-referrer` de
+`/consulta` salen de `next.config.ts`. Mientras la Dirección no apruebe la
+publicación [C], las páginas van con `noindex, nofollow`. Antes de desplegar,
+la migración `*_consulta_publica` en Supabase (supabase/sql/README.md, "La
+consulta pública"), si no, la app falla al leer los expedientes.
+
+**Sitio público (28/10/2026).** Tampoco lleva variables: el contenido de la
+página (horarios, recorridos, novedades, contacto, preguntas) lo carga la
+Dirección desde /admin/sitio-publico y vive en la base. Antes de desplegar, la
+migración `*_sitio_publico` y `32_sitio_publico.sql` en Supabase
+(supabase/sql/README.md, "El sitio público"); sin la migración, la página sale
+sin ese contenido (y lo registra en el log) y /admin/sitio-publico falla.
+
 Si falta o sobra algo, la app **no arranca**: el log de la función
 (Deployments → el despliegue → Logs) muestra `arranque.rechazado` con la
 variable y la regla, nunca el valor.
@@ -200,7 +217,7 @@ Tucumán es UTC−3 todo el año):
 |---|---|---|---|---|
 | `/api/cron/historial` | `30 6 * * *` | 03:30 | verificación de la cadena de hash de todo el historial (`historial:verificar`); **500 si hay alguna rota** | 300 s |
 | `/api/cron/adjuntos-tmp` | `30 7 * * *` | 04:30 | borra temporales de Storage de más de 24 h (`adjuntos:barrer`) | 120 s |
-| `/api/cron/avisos` | `0 9 * * *` | 06:00 | avisos por tiempo del día (`avisos:generar`) | 300 s |
+| `/api/cron/avisos` | `0 9 * * *` | 06:00 | avisos por tiempo del día (`avisos:generar`) y, desde el 28/10/2026, borra los intentos fallidos de la consulta pública de más de 7 días (`intentos_consulta_borrados` en la respuesta) | 300 s |
 
 - Las tres son **idempotentes** (Vercel puede saltear una o llamarla dos veces).
 - Responden **401** sin `Authorization: Bearer <CRON_SECRET>` (comparación en

@@ -10,7 +10,7 @@ import { CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_ENLACE } from
 import { modoDeSubida } from "@/lib/adjuntos/config";
 import { ipDeSolicitud } from "@/lib/auth/red";
 import { exigirPantalla } from "@/lib/auth/sesion";
-import { ErrorDominio, expedientes, type DocumentoFicha, type Ficha, type MovimientoFicha, type PersonaFicha } from "@/lib/dominio/expedientes/servidor";
+import { ErrorDominio, expedientes, formatearCodigoConsulta, type DocumentoFicha, type Ficha, type MovimientoFicha, type PersonaFicha } from "@/lib/dominio/expedientes/servidor";
 import { diaEnTucuman, formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
 import { AVISO_EDITADO } from "@/lib/presentacion/acciones";
 import { enlaceWhatsapp, mensajeWhatsapp, rutaEditar, rutaFicha, rutaImprimir } from "@/lib/presentacion/enlaces";
@@ -23,6 +23,7 @@ import { BotonFlujo, ProveedorFlujo } from "./flujo/contexto";
 import { BarraAcciones, BotonesDocumento, BotonesSubtarea, ListaAdjuntos, PanelFaltan } from "./flujo/controles";
 import { MenuCorregir } from "./flujo/correcciones";
 import type { DatosFlujo } from "./flujo/tipos";
+import { RegenerarCodigoConsulta } from "./codigo-consulta";
 import { HistorialFiltrable, type EntradaHistorial } from "./historial-filtrable";
 import { VerificarIntegridad } from "./verificar-integridad";
 import { VerDatosCompletos } from "./ver-datos-completos";
@@ -168,6 +169,13 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
               </span>
             </Dato>
             <Dato titulo="N° municipal">{ficha.numeroMunicipal ?? "—"}</Dato>
+            {/* 28/10/2026: el código para la consulta pública (/consulta), que va en el comprobante del concesionario. */}
+            <Dato titulo="Código de consulta">
+              <span data-codigo-consulta="" className="font-mono tracking-wider">
+                {formatearCodigoConsulta(ficha.codigoConsulta)}
+              </span>
+              <span className="block text-xs text-texto-secundario">Para seguir el trámite desde la página pública</span>
+            </Dato>
             <Dato titulo="Trámite">
               {ficha.tipoTramite.nombre}
               <span className="block text-xs text-texto-secundario">
@@ -236,8 +244,13 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
                     <Printer className="h-3.5 w-3.5" aria-hidden="true" />
                     Imprimir historial
                   </Link>
+                  <Link href={rutaImprimir(ficha.numero, "comprobante")} prefetch={false} className={CLASE_BOTON_COMPACTO}>
+                    <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                    Imprimir comprobante
+                  </Link>
                 </>
               ) : null}
+              {a.regenerarCodigoConsulta.permitido ? <RegenerarCodigoConsulta numero={ficha.numero} /> : null}
               {a.transcribir.permitido ? (
                 <Link href={`${rutaFicha(ficha.numero)}/transcribir`} prefetch={false} className={CLASE_BOTON_COMPACTO}>
                   <FileClock className="h-3.5 w-3.5" aria-hidden="true" />

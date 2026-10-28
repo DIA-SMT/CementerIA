@@ -17,6 +17,9 @@ const D = "DELETE";
 const PRIVILEGIOS_APP: Record<string, string[]> = {
   "auditoria.accesos": [S, I],
   "auditoria.cambios": [S, I],
+  // 28/10/2026 (*_consulta_publica): los intentos fallidos de la consulta pública.
+  // DELETE solo de lo vencido (trigger intentos_consulta_proteger; consulta-publica.test.ts).
+  "auditoria.intentos_consulta": [S, I, D],
   "public._prisma_migrations": [],
   "public.areas": [S, I, U],
   // 26/10/2026 (*_avisos): UPDATE solo de algunas columnas (leido_en; activo y
@@ -31,6 +34,14 @@ const PRIVILEGIOS_APP: Record<string, string[]> = {
   "public.feriados_anios": [S, I, U],
   "public.movimientos": [S, I],
   "public.plantillas": [S, I, U, D],
+  // 28/10/2026 (*_sitio_publico): lo de la página pública. Se borran solo
+  // fechas de recorrido y novedades; lo demás se desactiva.
+  "public.sitio_cementerios": [S, I, U],
+  "public.sitio_contacto": [S, I, U],
+  "public.sitio_novedades": [S, I, U, D],
+  "public.sitio_preguntas": [S, I, U],
+  "public.sitio_recorrido_fechas": [S, I, U, D],
+  "public.sitio_recorridos": [S, I, U],
   "public.tipos_monumento": [S, I, U],
   "public.tipos_tramite": [S, I, U],
   "public.usuarios": [S, I, U],
@@ -87,6 +98,11 @@ describe("privilegios de cementeria_app", () => {
     "public.avisos",
     "public.avisos_corridas",
     "public.avisos_preferencias",
+    // 28/10/2026: lo del sitio público que se desactiva en vez de borrarse.
+    "public.sitio_cementerios",
+    "public.sitio_recorridos",
+    "public.sitio_contacto",
+    "public.sitio_preguntas",
   ];
 
   it.each(SIN_DELETE)("no puede borrar en %s", async (tabla) => {
@@ -214,8 +230,11 @@ describe("dueños", () => {
           "auditar_cambio",
           "cementerios_area_externa",
           "expediente_personas_proteger",
+          // 28/10/2026 (*_consulta_publica): el código de consulta y los intentos de la consulta pública.
+          "expedientes_codigo_consulta",
           "expedientes_preparar",
           "f_actor",
+          "f_codigo_consulta_aleatorio",
           // Semana 4: el CHECK del CUIT de una persona jurídica.
           "f_cuit_valido",
           "f_dias_habiles_entre",
@@ -223,9 +242,11 @@ describe("dueños", () => {
           "f_hash_inicial",
           "f_hash_movimiento",
           "f_normalizar",
+          "f_purgar_intentos_consulta",
           "f_sumar_dias_habiles",
           "f_unaccent",
           "f_verificar_cadena",
+          "intentos_consulta_proteger",
           "movimientos_inmutables",
           "movimientos_sellar",
           "plantillas_congelar",
@@ -263,14 +284,26 @@ describe("triggers (2.11)", () => {
     ["cementerios", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.cementerios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["cementerios", "cementerios_area_externa", "BEFORE INSERT OR UPDATE OF area_id ON public.cementerios FOR EACH ROW EXECUTE FUNCTION cementerios_area_externa()"],
     ["expediente_personas", "expediente_personas_proteger", "BEFORE INSERT OR DELETE OR UPDATE ON public.expediente_personas FOR EACH ROW EXECUTE FUNCTION expediente_personas_proteger()"],
+    // 28/10/2026 (*_consulta_publica): el código de consulta cambia solo con "Regenerar código de consulta".
+    ["expedientes", "expedientes_codigo_consulta", "BEFORE UPDATE OF codigo_consulta ON public.expedientes FOR EACH ROW EXECUTE FUNCTION expedientes_codigo_consulta()"],
     ["expedientes", "expedientes_preparar", "BEFORE INSERT OR UPDATE ON public.expedientes FOR EACH ROW EXECUTE FUNCTION expedientes_preparar()"],
     ["feriados", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.feriados FOR EACH ROW EXECUTE FUNCTION auditar_cambio('fecha')"],
     ["feriados_anios", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.feriados_anios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('anio')"],
+    // 28/10/2026 (*_consulta_publica): los intentos no se modifican y se borran solo vencidos.
+    ["intentos_consulta", "intentos_consulta_proteger", "BEFORE DELETE OR UPDATE ON auditoria.intentos_consulta FOR EACH ROW EXECUTE FUNCTION intentos_consulta_proteger()"],
+    ["intentos_consulta", "intentos_consulta_proteger_truncate", "BEFORE TRUNCATE ON auditoria.intentos_consulta FOR EACH STATEMENT EXECUTE FUNCTION intentos_consulta_proteger()"],
     ["movimientos", "movimientos_inmutables", "BEFORE DELETE OR UPDATE ON public.movimientos FOR EACH ROW EXECUTE FUNCTION movimientos_inmutables()"],
     ["movimientos", "movimientos_inmutables_truncate", "BEFORE TRUNCATE ON public.movimientos FOR EACH STATEMENT EXECUTE FUNCTION movimientos_inmutables()"],
     ["movimientos", "movimientos_sellar", "BEFORE INSERT ON public.movimientos FOR EACH ROW EXECUTE FUNCTION movimientos_sellar()"],
     ["plantillas", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.plantillas FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["plantillas", "plantillas_congelar", "BEFORE INSERT OR DELETE OR UPDATE ON public.plantillas FOR EACH ROW EXECUTE FUNCTION plantillas_congelar()"],
+    // 28/10/2026 (*_sitio_publico): el contenido de la página pública, auditado como la configuración.
+    ["sitio_cementerios", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_cementerios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('cementerio_id')"],
+    ["sitio_contacto", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_contacto FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_novedades", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_novedades FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_preguntas", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_preguntas FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_recorrido_fechas", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_recorrido_fechas FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_recorridos", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_recorridos FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["tipos_monumento", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.tipos_monumento FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["tipos_tramite", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.tipos_tramite FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     // Login propio (27/10/2026): también debe_cambiar_clave; nunca el hash.
@@ -309,6 +342,7 @@ describe("columnas identity", () => {
       expect(r.rows).toEqual([
         { tabla: "auditoria.accesos", identity: "a" },
         { tabla: "auditoria.cambios", identity: "a" },
+        { tabla: "auditoria.intentos_consulta", identity: "a" },
         { tabla: "public.areas", identity: "d" },
         { tabla: "public.avisos", identity: "a" },
         { tabla: "public.cementerios", identity: "d" },
@@ -316,6 +350,11 @@ describe("columnas identity", () => {
         { tabla: "public.expedientes", identity: "a" },
         { tabla: "public.movimientos", identity: "a" },
         { tabla: "public.plantillas", identity: "d" },
+        // 28/10/2026 (*_sitio_publico): como los catálogos.
+        { tabla: "public.sitio_novedades", identity: "d" },
+        { tabla: "public.sitio_preguntas", identity: "d" },
+        { tabla: "public.sitio_recorrido_fechas", identity: "d" },
+        { tabla: "public.sitio_recorridos", identity: "d" },
         { tabla: "public.tipos_monumento", identity: "d" },
         { tabla: "public.tipos_tramite", identity: "d" },
         { tabla: "public.usuarios", identity: "d" },
@@ -334,6 +373,10 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["accesos_usuario_id_en_idx", "", "auditoria.accesos USING btree (usuario_id, en)"],
     ["cambios_pkey", UNICO, "auditoria.cambios USING btree (id)"],
     ["cambios_tabla_registro_id_idx", "", "auditoria.cambios USING btree (tabla, registro_id)"],
+    // 28/10/2026 (*_consulta_publica): los dos conteos del límite de intentos.
+    ["intentos_consulta_ip_en_idx", "", "auditoria.intentos_consulta USING btree (ip, en)"],
+    ["intentos_consulta_numero_en_idx", "", "auditoria.intentos_consulta USING btree (numero, en)"],
+    ["intentos_consulta_pkey", UNICO, "auditoria.intentos_consulta USING btree (id)"],
     ["areas_codigo_key", UNICO, "public.areas USING btree (codigo)"],
     ["areas_pkey", UNICO, "public.areas USING btree (id)"],
     // 26/10/2026 (*_avisos): "mis no leídos" (parcial), la lista y no duplicar.
@@ -358,6 +401,7 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["expedientes_area_actual_id_idx", "", "public.expedientes USING btree (area_actual_id) WHERE (recibido_en IS NULL)"],
     ["expedientes_area_responsable_id_estado_idx", "", "public.expedientes USING btree (area_responsable_id, estado)"],
     ["expedientes_busqueda_idx", "", "public.expedientes USING gin (busqueda gin_trgm_ops)"],
+    ["expedientes_codigo_consulta_key", UNICO, "public.expedientes USING btree (codigo_consulta)"],
     ["expedientes_cementerio_id_ubicacion_clave_idx", "", "public.expedientes USING btree (cementerio_id, ubicacion_clave) WHERE (ubicacion_clave IS NOT NULL)"],
     ["expedientes_estado_en_area_desde_idx", "", "public.expedientes USING btree (estado, en_area_desde)"],
     ["expedientes_numero_interno_key", UNICO, "public.expedientes USING btree (numero_interno)"],
@@ -381,6 +425,16 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["plantillas_codigo_publicada_key", UNICO, "public.plantillas USING btree (codigo) WHERE (estado = 'publicada'::text)"],
     ["plantillas_codigo_version_key", UNICO, "public.plantillas USING btree (codigo, version)"],
     ["plantillas_pkey", UNICO, "public.plantillas USING btree (id)"],
+    // 28/10/2026 (*_sitio_publico): las fechas que vienen y las novedades vigentes.
+    ["sitio_cementerios_pkey", UNICO, "public.sitio_cementerios USING btree (cementerio_id)"],
+    ["sitio_contacto_pkey", UNICO, "public.sitio_contacto USING btree (id)"],
+    ["sitio_novedades_desde_hasta_idx", "", "public.sitio_novedades USING btree (desde, hasta)"],
+    ["sitio_novedades_pkey", UNICO, "public.sitio_novedades USING btree (id)"],
+    ["sitio_preguntas_pkey", UNICO, "public.sitio_preguntas USING btree (id)"],
+    ["sitio_recorrido_fechas_fecha_idx", "", "public.sitio_recorrido_fechas USING btree (fecha)"],
+    ["sitio_recorrido_fechas_pkey", UNICO, "public.sitio_recorrido_fechas USING btree (id)"],
+    ["sitio_recorrido_fechas_recorrido_id_fecha_idx", "", "public.sitio_recorrido_fechas USING btree (recorrido_id, fecha)"],
+    ["sitio_recorridos_pkey", UNICO, "public.sitio_recorridos USING btree (id)"],
     ["tipos_monumento_codigo_key", UNICO, "public.tipos_monumento USING btree (codigo)"],
     ["tipos_monumento_pkey", UNICO, "public.tipos_monumento USING btree (id)"],
     ["tipos_tramite_codigo_key", UNICO, "public.tipos_tramite USING btree (codigo)"],

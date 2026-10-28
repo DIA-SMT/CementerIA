@@ -80,5 +80,12 @@ describe("rutas", () => {
     expect(leerHoja("cualquiera")).toBe("caratula");
     expect(leerHoja("historial")).toBe("historial");
     expect(leerHoja(["historial", "caratula"])).toBe("historial");
+    // 28/10/2026: el comprobante para el concesionario.
+    expect(leerHoja("comprobante")).toBe("comprobante");
+  });
+
+  it("al terminar el alta, la carátula con nuevo=1 (ofrece el comprobante)", () => {
+    expect(rutaImprimir("CEM-2026-00042", "caratula", { nuevo: true })).toBe("/expedientes/CEM-2026-00042/imprimir?hoja=caratula&nuevo=1");
+    expect(rutaImprimir("CEM-2026-00042", "comprobante")).toBe("/expedientes/CEM-2026-00042/imprimir?hoja=comprobante");
   });
 });

@@ -41,6 +41,7 @@ import { TIPOS_MONUMENTO, TIPOS_TRAMITE } from "./catalogos";
 import { CEMENTERIOS } from "./cementerios";
 import { ANIOS_FERIADOS, FERIADOS } from "./feriados";
 import { NOTAS_CARGA_INICIAL, PLANTILLAS } from "./plantillas";
+import { sembrarPreguntasFrecuentes } from "./sitio-publico";
 import { ADMIN_NOMBRE, CLAVE_DESARROLLO, USUARIOS_FICTICIOS } from "./usuarios";
 
 /** Id del usuario técnico SISTEMA (lo inserta la migración reglas_base). */
@@ -68,6 +69,8 @@ export interface ResumenSemilla {
     feriadosAnios: number;
     usuarios: number;
     plantillas: number;
+    /** Las preguntas frecuentes de la página pública (28/10/2026, ./sitio-publico.ts). */
+    preguntasFrecuentes: number;
   };
   /** Lo que ya existía y no coincide con la semilla. */
   avisos: string[];
@@ -182,6 +185,10 @@ export async function sembrar(cliente: Cliente, opciones: OpcionesSemilla): Prom
       // --- Plantillas -------------------------------------------------------------
       const plantillas = await sembrarPlantillas(tx, avisos);
 
+      // --- Sitio público (28/10/2026) ---------------------------------------------
+      // Solo las preguntas frecuentes: lo demás lo carga la Dirección.
+      const preguntasFrecuentes = await sembrarPreguntasFrecuentes(tx);
+
       return {
         creados: {
           areas: areas.count,
@@ -192,6 +199,7 @@ export async function sembrar(cliente: Cliente, opciones: OpcionesSemilla): Prom
           feriadosAnios: feriadosAnios.count,
           usuarios,
           plantillas,
+          preguntasFrecuentes,
         },
         avisos,
         claveAdminInicial,

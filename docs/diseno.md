@@ -881,6 +881,408 @@ un mismo usuario. Sin tokens nuevos ni dependencias:
 - **Impresión**: el encabezado (con el selector) ya era `print:hidden`; la
   franja también lo es. Los imprimibles salen igual que siempre.
 
+
+## Página pública (28/10/2026)
+
+Una página por sección, en `src/app/(publico)/` (grupo de rutas con su
+layout): `/` (el inicio), `/cementerios`, `/horarios`, `/recorridos`,
+`/tramites`, `/consulta` (y `/consulta/[numero]`) y `/contacto`. Hasta el
+28/10/2026 era una sola página larga con anclas (`#cementerios`, `#visitas`,
+…); ya no hay anclas. Desde el sitio público ([api-dominio.md](api-dominio.md),
+sección 25) replica el **boceto aprobado** por el usuario (estructura,
+jerarquía y estética), con el contenido que carga la Dirección desde
+/admin/sitio-publico. El mismo 28/10/2026, a pedido del usuario ("el fondo se
+corta", más orden y contraste, modo oscuro), pasó al **sistema visual de
+abajo**: fondo completo y fijo, vidrio esmerilado y modo oscuro. Las piezas
+compartidas (el fondo fijo, la barra, el encabezado de las páginas internas
+con las migas, el panel de lectura, las invitaciones del pie, el pie, "Saltar
+al contenido", el antetítulo en pastilla y el wordmark) están en
+`src/components/publico.tsx`; el botón y el script del modo, en
+`src/components/tema-publico.tsx`; el contenido de cada página, en
+`src/components/landing.tsx`; las páginas, sus títulos, bajadas y textos de
+acceso, en `PAGINAS_PUBLICAS` (`src/lib/presentacion/sitio-publico.ts`).
+Server Components: el único JavaScript es el del formulario de consulta y el
+del botón del modo. Del boceto **no** pasan a la app la marca amarilla
+"Boceto", las píldoras "A completar" ni las tres recomendaciones "A validar"
+de los horarios.
+
+### Sistema visual: "armonía + tech"
+
+Sobrio e institucional, con la paleta de siempre (`institucional` #0F2F5D,
+`primario` #0F68FF, `celeste` #38B2F6, blanco, `fondo` #F4F7FB y el acento
+`amarillo` #F4C400) y un detalle técnico discreto: nada de neón ni gradientes
+chillones.
+
+- **Fondo completo y fijo** (`FondoPublico`, en el layout, igual en todas las
+  páginas): una capa `position: fixed` detrás de todo (`.fondo-publico`,
+  `z-index: -1` dentro del contenedor `isolate` del sitio) con
+  `landing-panoramica-{960,1916}.webp` (`srcset`, `sizes="100vw"`, `alt=""`,
+  `fetchpriority="high"`, `object-fit: cover`, `object-position: 50% 60%`), el
+  **velo** (`.velo-publico`) y la **trama** (`.trama-publica`). El contenido
+  se desplaza encima y la foto queda quieta; ya no termina a mitad de los
+  accesos. **No** es `background-attachment: fixed` (iOS no lo respeta y
+  repinta en cada desplazamiento): la capa se compone una vez. Alto `100lvh`
+  (con `100vh` de respaldo): en el celular no cambia de tamaño cuando aparece
+  o se esconde la barra del navegador. Sin parallax ni animación (nada que
+  apagar con `prefers-reduced-motion`), sin `will-change` (no hizo falta) y
+  sin desenfoque sobre la foto entera. Al imprimir, no sale.
+- **Velo:** un tinte parejo en toda la capa, más denso hacia el centro y
+  abajo. En claro (desde el 28/10/2026, variante "B" elegida por el usuario:
+  la elipse blanca de antes lavaba la foto), **azul institucional** #0F2F5D
+  de 55 a 64 % hacia abajo (55 → 57 → 64 %; el 55 % de arriba es el token
+  `pub-velo`) y una elipse detrás del centro (30 → 15 → 0 %, 70 × 60 % en
+  50 % 42 %): la foto se ve con color y nitidez, más liviana que en oscuro, y
+  el texto que va directo encima es claro (`pub-sobre-foto-*`). **No se
+  aclara hacia abajo:** el fondo es fijo y cualquier texto directo sobre la
+  foto cae, según el desplazamiento, en cualquier punto del velo. En oscuro,
+  azul noche (#050D1C) de 66 a 90 % hacia abajo, y una elipse algo más oscura
+  detrás del centro.
+- **Trama:** una grilla de 48 px con líneas de 1 px en #8ECBFF al 12 % (claro,
+  sobre el velo azul) o `celeste` al 9 % (oscuro), con una máscara que la
+  deja solo arriba y se apaga hacia el centro.
+- **Vidrio esmerilado** (`.vidrio`, `.vidrio-azul`, en `globals.css`):
+  translúcido (`pub-vidrio`: blanco al 84 % en claro, azul noche al 66 % en
+  oscuro), `backdrop-filter: blur(12px) saturate(1.3)`, borde de 1 px claro
+  (`pub-vidrio-borde`), un **filete con brillo** (un degradé en `::before`,
+  blanco arriba a la izquierda y celeste abajo a la derecha, enmascarado al
+  borde), un brillo interior de 1 px arriba y la sombra suave `shadow-pub`.
+  `.vidrio-azul` es el azul institucional (al 92 % en claro; #16408A al 86 %
+  en oscuro) con texto blanco: la tarjeta destacada "Consultá tu trámite" y la
+  banda de la consulta. **Sin `backdrop-filter`** (`@supports not`), opacos
+  (`pub-vidrio-opaco`). Se usa para lo chico sobre la foto: la barra, los
+  accesos, las novedades, las fechas y las invitaciones (claros en claro;
+  sobre el velo azul, el borde blanco y la sombra los despegan).
+  `.vidrio-foto` es el de las **pastillas y los botones chicos sobre la foto**
+  (los antetítulos, las migas, "Horarios de visita" del hero, "Explorá el
+  sitio" y "Ver todos los recorridos"): en claro, azul institucional al 62 %
+  (`pub-vidrio-foto`, borde blanco al 22 % y el filete con brillo más tenue, opaco #1D3D69) con el texto claro
+  (`pub-sobre-foto-*`), del color del velo; en oscuro, igual que `.vidrio`.
+  Se eligió el vidrio azul y no uno blanco más opaco: uno blanco sobre el velo
+  azul le ganaba al botón primario y cortaba el tono de la foto.
+- **Panel de lectura** (`.panel-lectura`): el contenido de las internas,
+  casi opaco (`pub-panel`: #F8FAFD al 96 % en claro; #081222 al 94 % en
+  oscuro), radio de 16 px, sin desenfoque (no hace falta y no cuesta). Dentro,
+  tarjetas opacas (`pub-superficie`, borde `pub-borde`).
+- **Halo** (`.halo-publico`, token `pub-halo`): una mancha difusa
+  (`blur(48px)`, azul institucional al 38 % en claro, sin brillo blanco; azul
+  noche al 32 % en oscuro) detrás del texto que va directo sobre la foto: el
+  hero, el `h2` de cada sección del inicio y el encabezado de las internas. El contenido se desplaza sobre una foto fija, así que lo
+  que queda detrás cambia al bajar: el halo asegura el contraste en cualquier
+  posición (medido abajo).
+- **Antetítulo en pastilla** (`ChipPublico`): `.vidrio-foto` con el texto
+  `pub-sobre-foto-titulo`, `rounded-full`, el punto
+  `celeste` con un anillo y mayúsculas espaciadas (0,12 → 0,16 em, 11 → 12
+  px, negrita). Dentro del panel, el antetítulo va sin pastilla
+  (`.antetitulo-publico`, `pub-enlace`).
+- **Monoespaciada** (`font-mono`, cifras tabulares): los números de
+  expediente (el campo y el resultado de la consulta), las fechas del
+  resultado y el día de las cajitas de fechas.
+- **Línea celeste:** un filete de 1 px (`celeste` al 70 %, que se apaga hacia
+  los costados) cierra el hero.
+- **Foco:** anillo de 2 px separado 2 px (`pub-foco`: `primario` en claro,
+  #5CC8FF en oscuro; `celeste` sobre la barra y el vidrio azul) y, por dentro,
+  un filete del color de la superficie (blanco en claro, #050D1C en oscuro)
+  con `box-shadow`: así contrasta 3:1 aunque detrás quede una parte oscura (o
+  clara) de la foto. Fuera de las capas, para ganarle a la sombra del vidrio
+  mientras hay foco. Lo que va directo sobre la foto (los botones del hero,
+  "Explorá el sitio", "Ver todos los recorridos", las migas) lleva el foco
+  `pub-sobre-foto-foco` (blanco en claro, #5CC8FF en oscuro: sobre el velo
+  azul ni el `primario` ni el celeste llegaban a 3:1 en las partes claras
+  de la foto).
+- **Anchos de lectura:** bajadas en 56–62 ch, los `h2` en 60 ch, novedades y
+  respuestas del acordeón en 70–75 ch. Contenedor de 72 rem (`max-w-6xl`) con
+  16 → 24 px de margen. Ritmo vertical del inicio: 56 px entre secciones en
+  celular y 80 px desde `sm`; cada sección con el mismo encabezado
+  (`EncabezadoSeccion`: pastilla, `h2` de 24 → 30 px y, a la derecha, su
+  enlace).
+- **Contenedor del sitio:** `.sitio-publico` (en el layout) con
+  `overflow-x: clip` (los halos no generan desplazamiento lateral; `clip` no
+  crea contenedor de desplazamiento y la barra sigue fija).
+
+### Tokens del sitio público (claro / oscuro)
+
+Propios del sitio (`pub-*`, en el `@theme` de `globals.css`): la app interna
+no los usa y no cambia. Cada uno lleva sus dos valores con `light-dark()`,
+que resuelve según el `color-scheme` de `.sitio-publico`.
+
+| Token | Claro | Oscuro | Uso |
+|---|---|---|---|
+| `pub-fondo` | #F4F7FB | #07111F | Debajo de la foto mientras carga; fondo del `body` |
+| `pub-texto` | #172B4D | #E8EEF7 | Texto |
+| `pub-texto-secundario` | #4A5568 | #B3C2D6 | Texto secundario (más oscuro que el `texto-secundario` de la app: va sobre vidrio) |
+| `pub-titulo` | #0F2F5D | #FFFFFF | Títulos |
+| `pub-enlace` | #0B53CC | #8ECBFF | Enlaces, íconos y antetítulos |
+| `pub-borde` | #D5DEEA | #8EB6E8 al 22 % | Bordes de tarjetas y tablas |
+| `pub-borde-control` | #7C8798 | #7F93B0 | Borde de los campos (3:1, WCAG 1.4.11) |
+| `pub-foco` | #0F68FF | #5CC8FF | Anillo de foco |
+| `pub-superficie` | #FFFFFF | #0F1F38 | Tarjetas dentro del panel, campos |
+| `pub-tinte` | #EEF3FA | #16294A | Cabecera de tabla |
+| `pub-chip` | #E8F2FF | `celeste` al 14 % | Chips, cajitas de ícono, resultado de la consulta |
+| `pub-panel` | #F8FAFD al 96 % | #081222 al 94 % | Panel de lectura |
+| `pub-vidrio` / `-opaco` | blanco al 84 % / #F8FAFD | #0A182E al 66 % / #0C1A31 | Vidrio / sin `backdrop-filter` |
+| `pub-vidrio-borde` | blanco al 80 % | #8EB6E8 al 20 % | Borde del vidrio y del panel |
+| `pub-azul` | #0F2F5D al 92 % | #16408A al 86 % | Vidrio azul (destacada, banda) |
+| `pub-barra` / `-solida` | #0F2F5D al 86 % / #0F2F5D | #050D1C al 82 % / #08142A | Barra / menú desplegado del celular |
+| `pub-pie` | #0F2F5D al 95 % | #040A16 al 95 % | Pie |
+| `pub-advertencia` | #8A4B00 | `amarillo` #F4C400 | Megáfono de las novedades |
+| `pub-error` / `-fondo` / `-borde` | #B42318 / #FDECEC / #F2B8B5 | #FFB4AB / #B42318 al 20 % / #FFB4AB al 40 % | Error de la consulta |
+| `pub-info-borde` | #B5D3FF | #8ECBFF al 32 % | Borde del resultado de la consulta |
+| `pub-sobre-foto-titulo` | #FFFFFF | #FFFFFF | Texto directo sobre la foto: `h1` del hero y de las internas, `h2` de sección; texto de las pastillas y del botón secundario del hero |
+| `pub-sobre-foto-texto` | #E6EEF9 | #E8EEF7 | Bajadas sobre la foto, la página actual de las migas, "Explorá el sitio" |
+| `pub-sobre-foto-secundario` | #C7D6EB | #B3C2D6 | El separador de las migas |
+| `pub-sobre-foto-enlace` | #A9DCFF | #8ECBFF | "Inicio" en las migas, íconos y borde al pasar en `.vidrio-foto` |
+| `pub-sobre-foto-foco` | #FFFFFF | #5CC8FF | Foco de lo que va sobre la foto |
+| `pub-vidrio-foto` / `-opaco` / `-borde` | #0F2F5D al 62 % / #1D3D69 / blanco al 22 % | como `pub-vidrio` | Vidrio de las pastillas y los botones chicos sobre la foto |
+| `pub-velo` | #0F2F5D al 55 % | #050D1C al 66 % | El punto más liviano del velo (arriba) |
+| `pub-halo` | #0F2F5D al 38 % | #050D1C al 32 % | El halo |
+
+El `amarillo` (filetes, cajitas de los pasos, "Consultar mi trámite", el
+subrayado de la página actual) y el `primario` de los botones son los mismos
+en los dos modos. Los `pub-sobre-foto-*` dan en oscuro lo mismo que
+`pub-titulo`, `pub-texto`, `pub-texto-secundario`, `pub-enlace` y
+`pub-foco`: el modo oscuro no cambió con el velo azul del claro.
+
+### Modo oscuro
+
+- **Elección:** por defecto, el del sistema (`prefers-color-scheme`): sin nada
+  elegido, `.sitio-publico` no lleva `data-tema` y tiene `color-scheme: light
+  dark`. El **botón de la barra** (`BotonTema`, luna en claro y sol en oscuro,
+  por CSS con la variante `pub-oscuro:`; `aria-label="Modo oscuro"` y
+  `aria-pressed`) alterna y lo guarda en `localStorage`
+  (`cementeria.sitio-publico.tema`, con `try/catch`). Si lo elegido coincide
+  con el sistema, se borra lo guardado y el sitio vuelve a seguir al sistema.
+  Sin `localStorage`, alterna igual mientras dure la página.
+- **Sin parpadeo:** `ScriptTema`, el primer hijo del contenedor en el layout,
+  es un `<script>` en línea que lee lo guardado y pone `data-tema` en el
+  contenedor mientras el navegador lee el HTML, antes de pintar. Es el patrón
+  de la guía de Next 16 ("Preventing flash before hydration"): `text/plain` en
+  el cliente (React no lo vuelve a ejecutar ni avisa) y
+  `suppressHydrationWarning` en el contenedor. Va en el contenedor del layout
+  público y **no** en `<html>`/`<head>`: el layout raíz es el de la app
+  interna (que no tiene modo oscuro), y en desarrollo React vuelve a poner los
+  atributos de `<html>` al remontar. `html:has(.sitio-publico[data-tema])`
+  lleva el `color-scheme` a la barra de desplazamiento y al fondo del `body`.
+  Al llegar al sitio desde la app (navegación del cliente, sin script), el
+  botón aplica lo guardado en un `useLayoutEffect`. Ni nginx ni
+  `next.config.ts` ponen `script-src` en la CSP: no hace falta nonce (si algún
+  día se agrega, el script necesita uno).
+- **En oscuro:** el velo azul noche más profundo, el vidrio oscuro
+  translúcido, el texto claro, la barra y el pie casi negros, el `amarillo`
+  conservado. Los formularios de la consulta (campos con `pub-*`, no
+  `CLASE_CONTROL`), la tabla de horarios, el acordeón de preguntas y las migas
+  andan en los dos modos.
+- **No cambian:** la app interna, `/login` y el comprobante imprimible (es de
+  la app). Lo prueba `tests/e2e/sitio-publico-tema.spec.ts`.
+
+### Las páginas
+
+- **Layout (`src/app/(publico)/layout.tsx`):** el contenedor `.sitio-publico`
+  con el script del modo, el fondo fijo, "Saltar al contenido", la página y
+  el pie; el `title.template` ("Recorridos históricos · Cementerios de San
+  Miguel de Tucumán") y `noindex, nofollow`. La barra **no** va en el layout:
+  un layout no recibe la ruta ni se vuelve a renderizar al navegar. La pone
+  cada página con su ruta (`BarraPublica actual=…`, o `PaginaInterna`), así la
+  página actual sale del servidor, sin `usePathname`.
+- **Barra fija** (`sticky`, vidrio azul `pub-barra` con `backdrop-blur`,
+  borde inferior blanco al 10 %): el wordmark "CementerIA" con el filete
+  `amarillo` y "Dirección de Cementerios · SMT" (`institucional-texto`), que
+  lleva al inicio; un enlace por página (Cementerios, Horarios de visita,
+  Recorridos, Trámites, **Consultá tu trámite**, Contacto), el botón del modo
+  e "Ingreso del personal" (borde blanco). La **página actual** lleva
+  `aria-current="page"`, texto blanco en negrita, fondo `white/12` y el
+  **subrayado amarillo**; "Consultá tu trámite" va siempre destacada (blanca,
+  semibold, fondo `white/10`). Por debajo de `xl` (1280 px), el botón del modo
+  y un **menú `<details>`/`<summary>`** ("Menú") con "Inicio", las mismas
+  páginas (la actual con fondo y un filete amarillo a la izquierda) y el
+  ingreso: abre sin JavaScript y se cierra al cambiar de página. Foco celeste.
+- **Inicio (`/`)**, en este orden:
+  1. **Hero de alto completo** (`min-height: calc(100svh - 4rem)`, el contenido
+     centrado): la pastilla "Municipalidad de San Miguel de Tucumán",
+     **"Cementerios de San Miguel de Tucumán"** (el único `h1`,
+     `pub-sobre-foto-titulo`, 34 → 60 px, extra negrita, `text-balance`), el
+     filete amarillo, la bajada (`pub-sobre-foto-texto`, 16 → 19 px, 56 ch) y
+     dos llamados: **"Consultá tu trámite"** (primario, con la lupa, a
+     `/consulta`; en claro, con un filete blanco al 45 % para despegarse del
+     velo azul) y **"Horarios de visita"** (`.vidrio-foto`, a `/horarios`),
+     todo sobre el halo. Abajo, el **indicador** "Explorá el sitio" (una
+     pastilla `.vidrio-foto` con la flecha, enlace a `#accesos`; sin
+     animación) y la línea celeste.
+  2. **Accesos** (`nav` "Accesos rápidos", `#accesos`): pastilla "Secciones",
+     `h2` "Todo lo que necesitás, en un lugar" y seis tarjetas de vidrio (1 →
+     2 → 3 columnas), una por página, con el ícono en una cajita `pub-chip`,
+     título, texto corto (de `PAGINAS_PUBLICAS`) y una flecha. **"Consultá tu
+     trámite" en vidrio azul** con el ícono y la flecha en `amarillo`.
+  3. **Novedades** (solo si hay vigentes): pastilla "Avisos vigentes", `h2`
+     "Novedades" y una franja de vidrio por novedad con el borde izquierdo
+     `amarillo` de 4 px y el megáfono (`pub-advertencia`).
+  4. **Próximos recorridos** (solo si hay fechas): pastilla "Patrimonio",
+     `h2`, "Ver todos los recorridos" (`.vidrio-foto`) y hasta **tres** fechas en
+     vidrio (la cajita `institucional` con el día en monoespaciada y el mes en
+     `amarillo`).
+  5. **Banda de la consulta:** vidrio azul dentro del contenedor (20 px de
+     radio; a todo el ancho se pegaría al pie), con dos anillos celestes
+     decorativos (desde `sm`: en el celular cruzaban el texto), antetítulo
+     celeste claro (#8FD6FB), `h2` blanco, una línea de texto y **"Consultar mi
+     trámite"** (`amarillo` con texto `institucional`).
+  6. **Pie.**
+- **Páginas internas** (`PaginaInterna`):
+  - **Encabezado, sobre el fondo fijo:** centrado y sobre el halo, las **migas
+    de pan** en una pastilla de `.vidrio-foto` (`nav aria-label="Migas de pan"`,
+    "Inicio › Recorridos"; la última con `aria-current="page"`, sin enlace),
+    el `h1` con el título de la página (28 → 40 px, extra negrita,
+    `pub-sobre-foto-titulo`, `text-balance`), el filete amarillo y la bajada
+    (`pub-sobre-foto-texto`, 62 ch). Es el único `h1`: el contenido empieza en `h2`.
+  - **Panel de lectura** con el contenido (16 → 32 → 40 px de relleno).
+  - **Al pie, "También te puede servir":** la pastilla y un `nav` con dos
+    tarjetas de vidrio a otras páginas (ícono, título, texto y flecha),
+    **distintas en cada página** (`INVITACIONES`): Cementerios → Horarios y
+    Recorridos; Horarios → Cementerios y Contacto; Recorridos → Horarios y
+    Cementerios; Trámites → "¿Ya iniciaste un trámite? Consultalo" y Contacto;
+    Consulta → Trámites y Contacto; Contacto → Consulta y Trámites.
+  - **Cementerios:** la bajada dice cuántos son ("Tres cementerios
+    municipales: dónde están, qué tienen y cómo llegar.", y "Las fotos son
+    ilustrativas." si hay alguna); tarjetas con la foto 16:9 (si se eligió;
+    si no, una franja `institucional` con el filete), nombre (`h2`),
+    descripción, Domicilio · Visitas (lunes a viernes) · Tiene (solo lo
+    cargado), "Cómo llegar" (primario, a otra pestaña) y "Horarios" (a
+    `/horarios`).
+  - **Horarios de visita:** arriba, las novedades vigentes (con el `h2` solo
+    para lectores); desde `md`, la tabla (cabecera `pub-tinte`, versalitas
+    `pub-titulo`, el cementerio como `th` de fila; lo que falta, "—" con "Sin
+    informar" para lectores); en celular, **una tarjeta por cementerio**: nunca
+    scroll lateral. Sin horarios, "Consultá los horarios en Mesa de
+    Entradas." con el contacto.
+  - **Recorridos históricos:** el primero, ficha destacada (foto a la
+    izquierda desde 900 px, chip con el cementerio, datos, "Cómo inscribirse",
+    "Consultas" a `/contacto`); los demás, fichas debajo; "Próximas fechas" y
+    "Grupos, escuelas e instituciones" con el contacto, los dos `h2`.
+  - **Trámites y requisitos:** de las plantillas publicadas, en tarjetas de
+    dos columnas con viñetas `pub-enlace`; la consulta, en la invitación del
+    pie.
+  - **Consultá tu trámite** (`src/app/(publico)/consulta/`): en el panel, dos
+    columnas desde 900 px: antetítulo, `h2` "Cómo funciona" y los 3 pasos
+    (tarjetas con el número en monoespaciada en un círculo `amarillo`); a la
+    derecha, la tarjeta con el **formulario de siempre** ("Datos del
+    comprobante", `h2` que lo nombra; el resultado también va en `h2`, con el
+    número y las fechas en monoespaciada) y la nota de privacidad con el
+    escudo.
+  - **Contacto:** la tarjeta de Mesa de Entradas (`h2`; lo cargado; teléfono
+    con `tel:` y correo con `mailto:`; "Cómo llegar") y, si hay, "Preguntas
+    frecuentes" (`h2`) con el acordeón de `<details>` (la primera abierta,
+    `+`/`−` en `pub-enlace`).
+- **Pie** (de todas): `pub-pie`, "CementerIA", la Dirección y la
+  Municipalidad, "Desarrollado por la Dirección de Inteligencia Artificial ·
+  Ingreso del personal".
+- **Responsive:** desde 360 px sin desplazamiento lateral (lo prueban
+  `tests/e2e/sitio-publico.spec.ts` en 375 px en las siete páginas, con el menú
+  abierto; `tests/e2e/sitio-publico-tema.spec.ts`, en los dos modos; y
+  `tests/e2e/consulta-publica.spec.ts` con un resultado).
+- **El comprobante** (`?hoja=comprobante`, de la app, sin modo oscuro): la
+  misma hoja que la carátula (blanco, `slate`, sin fondos al imprimir), media
+  A4 con línea de corte punteada: encabezado, "Comprobante de inicio de
+  trámite", la tabla (número, trámite, cementerio, fecha de inicio), el QR a
+  la derecha, el **código** en un recuadro con 36 px monoespaciada y
+  espaciado, la dirección de la consulta (`/consulta`) y el pie.
+- **/admin/sitio-publico:** como Catálogos: la banda de Administración (para
+  Dirección, "Administración del sitio público" con solo esa sección), `h1`,
+  "Ver la página pública" (secundario, a otra pestaña, `/?vista=publica`) y, al
+  lado, la página donde se ve la pestaña abierta ("Ver «Recorridos
+  históricos»"; Contacto y Preguntas, a `/contacto`; Novedades, solo el
+  inicio), pestañas en la URL, tablas apilables con "Modificar", diálogos
+  (ancho en Cementerios y Recorridos) y "Quitar" en rojo con confirmación.
+
+### Rendimiento
+
+Una sola imagen (la del fondo, en todas las páginas, la misma URL: queda en
+caché), sin `will-change` y sin desenfoque sobre la foto entera: solo los
+elementos chicos de vidrio y la barra. Medido desplazando el inicio y
+`/recorridos` cuadro a cuadro (`requestAnimationFrame`, 12 px por cuadro) en
+Chromium: **con la GPU** (D3D11), 1440 px y 375 px con la CPU 4× más lenta, la
+mediana y el p95 en 16,7 ms (60 cuadros por segundo), salvo uno o dos cuadros
+al empezar (la primera decodificación). Con el renderizado por software del
+modo sin pantalla, en 1440 px el inicio pierde un cuadro de cada cinco
+(33 ms) por el `backdrop-filter`; sin el desenfoque no pierde ninguno: si en
+las PC de la oficina se nota, bajar a `blur(8px)` o quitarlo de los accesos
+(el vidrio tiene respaldo opaco).
+
+### Contraste (WCAG 2.1 AA, los dos modos)
+
+**Tokens contra sus superficies** (las translúcidas compuestas sobre lo peor
+que puede haber detrás: negro en claro, blanco en oscuro; los
+`pub-sobre-foto-*`, que son claros, sobre una foto **blanca** con el punto más
+liviano del velo, `pub-velo`, y encima el halo o el vidrio de la foto). Lo
+vuelve a medir `tests/e2e/sitio-publico-tema.spec.ts`.
+
+| Par | Claro | Oscuro | Mínimo |
+|---|---|---|---|
+| `pub-texto` / `pub-superficie` · `pub-panel` | 14,10 · 12,35 | 14,14 · 14,00 | 4,5 |
+| `pub-texto-secundario` / superficie · panel · `pub-tinte` | 7,53 · 6,59 · 6,75 | 9,11 · 9,02 · 8,00 | 4,5 |
+| `pub-titulo` / panel · tinte | 11,61 · 11,88 | 16,32 · 14,48 | 4,5 |
+| `pub-enlace` / superficie · panel · `pub-chip` | 6,72 · 5,89 · 5,95 | 9,53 · 9,43 · 7,41 | 4,5 |
+| `pub-error` / `pub-error-fondo` | 5,76 | 8,99 | 4,5 |
+| blanco / `primario` (botones) | 4,73 | 4,73 | 4,5 |
+| `pub-borde-control` / superficie | 3,64 | 5,26 | 3 |
+| `pub-foco` / superficie · panel | 4,73 · 4,14 | 8,76 · 8,68 | 3 |
+| `pub-sobre-foto-titulo` / velo · velo + halo | 3,40 · 5,60 | 6,39 · 9,64 | 3 · 4,5 |
+| `pub-sobre-foto-texto` / velo + halo (bajadas) | 4,79 | 8,27 | 4,5 |
+| `pub-sobre-foto-titulo` · `-texto` / `pub-vidrio-foto` | 7,87 · 6,73 | 13,25 · 11,36 | 4,5 |
+| `pub-sobre-foto-secundario` · `-enlace` / `pub-vidrio-foto` | 5,34 · 5,39 | 7,32 · 7,66 | 4,5 |
+| `pub-sobre-foto-foco` / velo | 3,40 | 3,40 | 3 |
+
+**Texto sobre la foto y sobre el vidrio**, medido como antes, con el texto
+transparente: el píxel de fondo **más oscuro** (texto oscuro, claro) o **más
+claro** (texto claro, oscuro) detrás de cada línea. Como el fondo es fijo, lo
+que queda detrás cambia al desplazar: se midió cada página bajando de a un
+tercio de la ventana (360 × 780, 768 × 1024 y 1440 × 900) y se guardó el peor
+de cada línea (2116 mediciones, todo el texto visible de las siete páginas y
+la consulta con resultado). El peor por grupo:
+
+| Texto | Claro 360 | Claro 768 | Claro 1440 | Oscuro 360 | Oscuro 768 | Oscuro 1440 |
+|---|---|---|---|---|---|---|
+| Barra: enlaces y bajada de la marca | 5,90 | 5,90 | 5,90 | 9,18 | 9,08 | 9,39 |
+| Hero: antetítulo (pastilla `.vidrio-foto`) | 10,25 | 10,38 | 10,42 | 16,10 | 16,31 | 16,33 |
+| Hero: título `h1` | 6,06 | 6,47 | 6,36 | 11,94 | 11,53 | 11,16 |
+| Hero: bajada | 5,53 | 5,54 | 5,77 | 9,97 | 10,16 | 10,62 |
+| Hero: "Horarios de visita" (`.vidrio-foto`) e indicador | 7,94 | 8,00 | 8,00 | 13,36 | 13,36 | 13,36 |
+| Inicio: pastillas de sección | 9,79 | 9,64 | 9,63 | 15,77 | 15,23 | 15,23 |
+| Inicio: `h2` de sección (sobre el halo) | 5,21 | 4,99 | 5,18 | 9,81 | 9,58 | 9,84 |
+| Inicio: tarjetas de vidrio (accesos, novedad, fechas) | 5,26 | 5,49 | 5,01 | 6,77 | 6,66 | 6,85 |
+| Banda de la consulta (vidrio azul) | 7,74 | 6,26 | 7,76 | 6,34 | 5,43 | 6,63 |
+| Internas: migas (pastilla `.vidrio-foto`) | 7,09 | 7,18 | 7,18 | 9,23 | 9,32 | 9,32 |
+| Internas: título `h1` | 6,13 | 6,47 | 6,46 | 11,24 | 11,56 | 11,81 |
+| Internas: bajada | 4,74 | 5,19 | 5,28 | 9,31 | 9,74 | 10,00 |
+| Internas: "También te puede servir" | 9,10 | 9,77 | 9,75 | 15,58 | 16,52 | 16,49 |
+| Pie | 8,53 | 8,53 | 8,53 | 13,33 | 13,36 | 13,36 |
+| El peor de todo el texto de cada página interna | 4,73 | 4,73 | 4,73 | 4,73 | 4,73 | 4,73 |
+
+Medido el 28/10/2026 con el velo azul del modo claro (el oscuro no cambió:
+sus valores son los de antes, con las décimas del barrido). El 4,73 de la
+última fila es siempre el blanco sobre el `primario` de los botones ("Cómo
+llegar", "Consultar"), igual en los dos modos; lo demás del panel queda en
+4,84 o más en claro (las bajadas de /tramites y /consulta en 360 px y el chip
+del cementerio de /recorridos, 4,90; con el velo blanco de antes era 5,90: el
+panel es casi opaco y detrás ahora hay azul) y 7,45 o más en oscuro.
+
+**Foco sobre la foto** (el anillo contra los píxeles de 1 a 4 px por fuera,
+con el texto transparente, en tres posiciones de desplazamiento; 360, 768 y
+1440): en claro, con el anillo blanco, de 4,45 ("Ver todos los recorridos")
+a 6,80 ("Consultá tu trámite"), y 3,39 el de "Inicio" en las migas (el anillo
+cae sobre el filete de la pastilla); en oscuro, de 5,12 a 7,05, y 3,22 el de
+las migas. Con el celeste #5CC8FF en claro, "Explorá el sitio" y "Ver todos
+los recorridos" quedaban en 2,4–2,6 sobre la parte del empedrado: por eso el
+foco sobre la foto es blanco en claro. Con el filete con brillo de 50 % de la
+pastilla, el de las migas daba 2,24: bajó a 30 % (y el borde, de 30 a 22 %).
+Las tarjetas de vidrio claras pasaron de blanco al 76 a 84 % en claro: sobre el
+velo azul, el texto secundario de la tarjeta de Contacto quedaba en 4,43. Se corrigió en el
+camino: el antetítulo `celeste` de la banda (4,39 en 1440 y 3,97 en 360, en
+claro) pasó a #8FD6FB; los anillos celestes de la banda cruzaban el texto en
+el celular (4,29) y ahora van desde `sm` y más tenues; el vidrio azul subió de
+90 a 92 % (claro) y de 80 a 86 % (oscuro). Los `h2` de sección del inicio no
+tenían halo en la primera versión: sobre la foto fija dependían de la
+posición; ahora llevan el halo y la pastilla. Si se cambia la foto, el velo,
+el halo, el vidrio o un token, volver a medir (el script de medición está
+descripto arriba: captura, texto transparente, peor píxel por línea).
+
 ## Capturas
 
 En `docs/capturas/rediseno/` (base efímera con la semilla y `next start`, como

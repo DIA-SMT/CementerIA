@@ -58,7 +58,19 @@ const nextConfig: NextConfig = {
     incomingRequests: { ignore: [/\/auth\/callback(?:[/?]|$)/] },
   },
   async headers() {
-    if (!encabezadosDesdeLaApp) return [];
+    // La consulta pública (28/10/2026), en los dos despliegues: nada de caché
+    // (la respuesta es de un trámite) y sin Referer (la ruta lleva el número).
+    // Va última: si coincide con la general, gana su Referrer-Policy. Detrás de
+    // nginx, que agrega el suyo, la página lo repite con <meta name="referrer">.
+    const consulta = [
+      { key: "Cache-Control", value: "no-store, max-age=0" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+    ];
+    const deLaConsulta = [
+      { source: "/consulta", headers: consulta },
+      { source: "/consulta/:path*", headers: consulta },
+    ];
+    if (!encabezadosDesdeLaApp) return deLaConsulta;
     return [
       { source: "/:path*", headers: ENCABEZADOS_SEGURIDAD },
       // La CSP general, en todo salvo /adjuntos/…: esa ruta manda la suya
@@ -67,6 +79,7 @@ const nextConfig: NextConfig = {
       // (send-response.js no lo agrega si ya está). Ahí el enmarcado lo sigue
       // limitando X-Frame-Options, como detrás de nginx.
       { source: "/:path((?!adjuntos/).*)", headers: [{ key: "Content-Security-Policy", value: CSP }] },
+      ...deLaConsulta,
     ];
   },
   turbopack: {

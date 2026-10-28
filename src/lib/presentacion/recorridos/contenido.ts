@@ -14,7 +14,7 @@ import type { Recorrido } from "./motor";
 export const BIENVENIDA: Recorrido = {
   id: "bienvenida",
   nombre: "Bienvenida",
-  version: 1,
+  version: 2,
   pasos: [
     {
       id: "hola",
@@ -29,8 +29,8 @@ export const BIENVENIDA: Recorrido = {
       texto: {
         operador: "En el menú tenés lo de todos los días: la Bandeja con el trabajo de tu área, Buscar y el Panel.",
         mesa: "En el menú tenés lo de todos los días: la Bandeja, Nuevo expediente para dar de alta, Buscar y el Panel.",
-        direccion: "En el menú tenés el Panel con el estado de todo el circuito, las Métricas de gestión y Buscar.",
-        admin: "En el menú tenés el Panel, las Métricas, Buscar y Administración (plantillas, usuarios, catálogos y auditoría).",
+        direccion: "En el menú tenés el Panel con el estado de todo el circuito, las Métricas de gestión, Buscar y el Sitio público.",
+        admin: "En el menú tenés el Panel, las Métricas, Buscar y Administración (plantillas, usuarios, catálogos, auditoría y sitio público).",
       },
     },
     {
@@ -544,13 +544,13 @@ const CAMBIAR_CLAVE: Recorrido = {
 const ADMIN_INICIO: Recorrido = {
   id: "admin-inicio",
   nombre: "Administración",
-  version: 1,
+  version: 2,
   pasos: [
     {
       id: "menu",
       ancla: "admin-menu",
       titulo: "Las secciones",
-      texto: "Plantillas, Usuarios, Catálogos y Auditoría. Este menú está arriba en todas las pantallas de administración.",
+      texto: "Plantillas, Usuarios, Catálogos, Auditoría y Sitio público. Este menú está arriba en todas las pantallas de administración.",
     },
     {
       id: "pendiente",
@@ -751,6 +751,37 @@ const ADMIN_AUDITORIA: Recorrido = {
   ],
 };
 
+const ADMIN_SITIO_PUBLICO: Recorrido = {
+  id: "admin-sitio-publico",
+  nombre: "Sitio público",
+  version: 1,
+  pasos: [
+    {
+      id: "pestanas",
+      ancla: "sitio-pestanas",
+      titulo: "Lo que ve cualquier persona",
+      texto: "Cementerios con sus horarios, recorridos con sus fechas, novedades, el contacto de Mesa de Entradas y las preguntas frecuentes.",
+    },
+    {
+      id: "contenido",
+      ancla: "sitio-contenido",
+      titulo: "Cargar y corregir",
+      texto: "Cada fila se modifica con su botón. Lo que queda vacío no aparece en la página, y lo que no querés mostrar se desactiva.",
+    },
+    {
+      id: "ver",
+      ancla: "sitio-ver",
+      titulo: "Mirá cómo queda",
+      texto: "Abren en otra pestaña la página donde se ve esta parte y el inicio, igual que los ve el público. Después de guardar, recargala.",
+    },
+    {
+      id: "registro",
+      titulo: "Texto simple y registrado",
+      texto: "Se muestra tal cual se escribe, sin formatos. Cada cambio guarda quién lo hizo y cuándo, como el resto de la configuración.",
+    },
+  ],
+};
+
 /** Los recorridos de cada pantalla, por id (el que pone cada página con `<PantallaConRecorrido id=… />`). */
 export const RECORRIDOS = {
   bandeja: BANDEJA,
@@ -769,6 +800,7 @@ export const RECORRIDOS = {
   "admin-usuarios": ADMIN_USUARIOS,
   "admin-catalogos": ADMIN_CATALOGOS,
   "admin-auditoria": ADMIN_AUDITORIA,
+  "admin-sitio-publico": ADMIN_SITIO_PUBLICO,
 } as const satisfies Record<string, Recorrido>;
 
 export type IdPantallaRecorrido = keyof typeof RECORRIDOS;

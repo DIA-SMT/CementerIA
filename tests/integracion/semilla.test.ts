@@ -14,6 +14,7 @@ import { TIPOS_MONUMENTO, TIPOS_TRAMITE } from "../../prisma/semilla/catalogos";
 import { CEMENTERIOS } from "../../prisma/semilla/cementerios";
 import { ANIOS_FERIADOS, FERIADOS } from "../../prisma/semilla/feriados";
 import { NOTAS_CARGA_INICIAL, PLANTILLAS } from "../../prisma/semilla/plantillas";
+import { PREGUNTAS_FRECUENTES } from "../../prisma/semilla/sitio-publico";
 import { USUARIOS_FICTICIOS } from "../../prisma/semilla/usuarios";
 import { cuilValido } from "@/lib/dominio/cuil";
 import { validarPublicacion } from "@/lib/dominio/plantillas/validar";
@@ -60,6 +61,7 @@ describe("semilla", () => {
         feriadosAnios: ANIOS_FERIADOS.length,
         usuarios: USUARIOS_FICTICIOS.length + 1,
         plantillas: PLANTILLAS.length,
+        preguntasFrecuentes: PREGUNTAS_FRECUENTES.length,
       },
       avisos: [],
       claveAdminInicial: null,
@@ -284,6 +286,7 @@ describe("semilla", () => {
           feriadosAnios: 0,
           usuarios: 0,
           plantillas: 0,
+          preguntasFrecuentes: 0,
         },
         avisos: [],
         claveAdminInicial: null,

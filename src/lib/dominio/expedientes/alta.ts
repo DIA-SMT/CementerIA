@@ -7,6 +7,7 @@ import { exigirPermiso, type UsuarioPermisos } from "../permisos";
 import type { DefinicionPlantilla } from "../plantillas/esquema";
 import { cargarCementerio, cargarContexto, cargarPlantilla } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
+import { generarCodigoConsulta } from "./codigo-consulta";
 import { buscarDuplicados, type AvisoDuplicado } from "./duplicados";
 import { ErrorDominio, errorValidacion } from "./errores";
 import { construirEsquemaAlta, erroresDeZod, validarCon, type AltaValidada, type PersonaValidada } from "./esquemas";
@@ -32,6 +33,9 @@ import { claveDeUbicacion, textoDeUbicacion } from "./ubicacion";
  *    después las personas, con `creada_mov_id` = ese movimiento (2.7: el
  *    movimiento no se puede actualizar, así que va primero).
  * 5. `items`: los documentos recibidos en el alta, presentados por ese movimiento.
+ * 6. 28/10/2026: el código de consulta pública (./codigo-consulta.ts), que va
+ *    en el comprobante del concesionario. No entra en el movimiento `alta`
+ *    (es una credencial, no un dato del trámite).
  *
  * Fechas: alta normal con `fecha_inicio` de hasta 30 días atrás; histórica, de
  * 1950 a hoy y con fuente. El `alta` lleva `fecha_efectiva = fecha_inicio`: si
@@ -180,7 +184,7 @@ export async function alta(
   if (cabecera.data.expedienteAnteriorId) exigirPermiso("reiniciar_con_otra_plantilla", null, usuario);
 
   const ahora = deps.ahora?.() ?? new Date();
-  return deps.escribir(usuario.id, null, (tx) => altaEn(tx, usuario, datos, comando, ahora));
+  return deps.escribir(usuario.id, null, (tx) => altaEn(tx, usuario, datos, comando, ahora, { generarCodigo: deps.generarCodigoConsulta }));
 }
 
 export interface OpcionesAltaEn {
@@ -190,6 +194,26 @@ export interface OpcionesAltaEn {
    * referencia sin que el anterior esté anulado.
    */
   anteriorVinculado?: { id: bigint; numero: string };
+  /** El generador del código de consulta (`DependenciasExpedientes.generarCodigoConsulta`). */
+  generarCodigo?: (numero: string) => string;
+}
+
+/**
+ * Un código de consulta que ningún expediente tiene (el índice único lo
+ * exige igual). Con el generador determinista de la semilla, si choca, uno al
+ * azar. Lo usan el alta y "Regenerar código de consulta".
+ */
+export async function codigoConsultaLibre(
+  tx: Pick<Transaccion, "expediente">,
+  numero: string,
+  generar: (numero: string) => string = generarCodigoConsulta,
+): Promise<string> {
+  for (let intento = 0; intento < 5; intento++) {
+    const codigo = intento < 2 ? generar(numero) : generarCodigoConsulta();
+    const ocupado = await tx.expediente.findUnique({ where: { codigoConsulta: codigo }, select: { id: true } });
+    if (!ocupado) return codigo;
+  }
+  throw new Error("No se encontró un código de consulta libre en 5 intentos");
 }
 
 /**
@@ -260,8 +284,11 @@ export async function altaEn(
     extrasBuscables: extrasBuscables(def, v.datosExtra, new Map(cementerios.map((c) => [c.codigo, c.nombre]))),
   });
 
+  const codigoConsulta = await codigoConsultaLibre(tx, numero, opciones.generarCodigo);
+
   const expediente = await tx.expediente.create({
     data: {
+      codigoConsulta,
       anio,
       secuencia,
       numeroInterno: numero,

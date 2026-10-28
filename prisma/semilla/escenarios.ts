@@ -50,6 +50,7 @@ import { crearAlmacenEnDisco, raizAdjuntos, type AlmacenAdjuntos } from "../../s
 import { conActorEn } from "../../src/lib/db/actor";
 import type { Cliente } from "../../src/lib/db/crear-cliente";
 import {
+  codigoDeSemilla,
   crearServicioExpedientes,
   ErrorDominio,
   type DatosAlta,
@@ -1122,6 +1123,8 @@ async function cargarContexto(cliente: Cliente, opciones: OpcionesEscenarios): P
     escribir: (usuarioId, motivo, fn) => conActorEn(cliente, usuarioId, motivo, fn),
     ahora: opciones.ahora,
     almacen: opciones.almacen ?? crearAlmacenEnDisco(raizAdjuntos()),
+    // Códigos de consulta deterministas (28/10/2026): los del README, para probar /consulta.
+    generarCodigoConsulta: codigoDeSemilla,
   });
   const hoy = hoyEnTucuman(opciones.ahora?.() ?? new Date());
   return { cliente, servicio, calendario: new Calendario(hoy, feriados), usuarios, plantillas, cementerios };

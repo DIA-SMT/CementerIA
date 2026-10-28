@@ -43,7 +43,7 @@ async function altaPorFormulario(datos: DatosAlta, destino = "caratula") {
 describe("alta desde el formulario", () => {
   it('"Guardar e imprimir carátula" (predeterminado) va a la carátula; "Guardar", a la ficha', async () => {
     const r = await altaPorFormulario(await datosAlta(prisma));
-    expect(r).toMatchObject({ ok: true, destino: expect.stringMatching(/^\/expedientes\/CEM-\d{4}-\d{5}\/imprimir\?hoja=caratula$/) });
+    expect(r).toMatchObject({ ok: true, destino: expect.stringMatching(/^\/expedientes\/CEM-\d{4}-\d{5}\/imprimir\?hoja=caratula&nuevo=1$/) });
 
     const sinDestino = await procesarAlta(exp, mesa, formulario({ datos: await datosAlta(prisma), comandoId: comando() }));
     expect(sinDestino).toMatchObject({ ok: true, destino: expect.stringContaining("hoja=caratula") });

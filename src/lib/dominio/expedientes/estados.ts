@@ -768,6 +768,7 @@ export async function archivarYAbrirVinculado(
       }
       const nuevo = await altaEn(ctx.tx, usuario, datos, ctx.comando, ctx.ahora, {
         anteriorVinculado: { id: ctx.exp.id, numero: ctx.exp.numeroInterno },
+        generarCodigo: deps.generarCodigoConsulta,
       });
       return { archivado, nuevo };
     },

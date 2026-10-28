@@ -10,6 +10,9 @@
 // días a las 6:00 (deploy/systemd/, docs/despliegue.md). En Vercel, lo mismo lo
 // corre GET /api/cron/avisos (src/lib/tareas/programadas.ts, docs/despliegue-vercel.md).
 //
+// 28/10/2026: después borra los intentos fallidos de la consulta pública de
+// más de 7 días (src/lib/tareas/programadas.ts, tareaPurgarIntentosConsulta).
+//
 // Escribe una línea JSON (como el barrido de adjuntos y la verificación del
 // historial). Sale con 0 si generó (aunque no haya creado ninguno) y con 2 si
 // no pudo.
@@ -21,7 +24,7 @@
 import { config as cargarEnv } from "dotenv";
 import { crearCliente } from "../src/lib/db/crear-cliente";
 import { esFechaValida, inicioDelDiaEnTucuman } from "../src/lib/fechas";
-import { tareaAvisos } from "../src/lib/tareas/programadas";
+import { tareaAvisos, tareaPurgarIntentosConsulta } from "../src/lib/tareas/programadas";
 
 cargarEnv({ path: ".env.local", quiet: true });
 
@@ -45,6 +48,8 @@ async function main(): Promise<number> {
   try {
     const r = await tareaAvisos(cliente, ahora);
     log("info", "avisos.generados", { dia: r.dia, expedientes: r.expedientes, creados: r.creados, por_tipo: r.porTipo, duracion_ms: r.duracionMs });
+    const i = await tareaPurgarIntentosConsulta(cliente);
+    log("info", "consulta_publica.intentos_purgados", { borrados: i.borrados });
     return 0;
   } finally {
     await cliente.$disconnect();

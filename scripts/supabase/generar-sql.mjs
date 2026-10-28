@@ -15,8 +15,9 @@
 // Versionados (sin secretos ni datos personales):
 //   00_roles.sql, 01_extensiones.sql, 02_prisma_migrations.sql,
 //   20_migracion_<nombre>.sql (una por migración), 30_semilla_produccion.sql,
-//   31_inhumacion.sql (lo que la semilla agregó después, para una base que ya
-//   tiene la anterior: ver INCREMENTALES), 40_cierre_api.sql, 45_storage.sql
+//   31_inhumacion.sql y 32_sitio_publico.sql (lo que la semilla agregó
+//   después, para una base que ya tiene la anterior: ver INCREMENTALES),
+//   40_cierre_api.sql, 45_storage.sql
 //   (el bucket privado de adjuntos), 99_verificar.sql
 // En supabase/sql/.local/ (ignorado por git), solo si .env.supabase.local
 // tiene SUPABASE_ADMIN_URL (y ADMIN_INICIAL_CUIL para el admin):
@@ -63,7 +64,7 @@ export const SALIDA = path.join(RAIZ, "supabase", "sql");
 export const SALIDA_LOCAL = path.join(SALIDA, ".local");
 
 /** Las tablas que llena la semilla de producción, en el orden de prisma/semilla/sembrar.ts. */
-const TABLAS_SEMILLA = ["areas", "tipos_monumento", "tipos_tramite", "cementerios", "feriados", "feriados_anios", "plantillas"];
+const TABLAS_SEMILLA = ["areas", "tipos_monumento", "tipos_tramite", "cementerios", "feriados", "feriados_anios", "plantillas", "sitio_preguntas"];
 
 const AVISO = "-- GENERADO por `npm run supabase:sql` (scripts/supabase/generar-sql.mjs). No editar a mano:\n-- se cambia la fuente y se vuelve a generar.";
 
@@ -226,7 +227,7 @@ export function archivoSemilla(volcado, huella) {
   }
   return (
     encabezado(
-      "Semilla de PRODUCCIÓN: áreas, catálogos, cementerios, feriados y plantillas publicadas.",
+      "Semilla de PRODUCCIÓN: áreas, catálogos, cementerios, feriados, plantillas publicadas y preguntas frecuentes.",
       [
         "-- Es la semilla real (prisma/seed.ts --sin-ficticios), corrida en un simulador",
         "-- efímero y volcada tal cual: mismos ids y valores (las fechas de alta y de",
@@ -262,6 +263,16 @@ export const INCREMENTALES = [
     titulo: "Inhumación (27/10/2026): el tipo de trámite INHUMACION y sus dos plantillas publicadas.",
     tiposTramite: ["INHUMACION"],
     plantillas: ["INHUMACION_DIRECCION", "INHUMACION_EMPRESA"],
+    preguntas: false,
+  },
+  {
+    // Sitio público (28/10/2026): las preguntas frecuentes de producción
+    // (prisma/semilla/sitio-publico.ts). Va DESPUÉS de la migración *_sitio_publico.
+    archivo: "32_sitio_publico.sql",
+    titulo: "Sitio público (28/10/2026): las preguntas frecuentes iniciales de la página pública.",
+    tiposTramite: [],
+    plantillas: [],
+    preguntas: true,
   },
 ];
 
@@ -383,6 +394,70 @@ function archivoIncremental(volcado, inc) {
     comoOwner(cuerpo) +
     "\n"
   );
+}
+
+/**
+ * El incremental de las preguntas frecuentes (32_sitio_publico.sql). Busca por
+ * el texto de la pregunta (sin importar mayúsculas): la que ya existe no se
+ * toca, aunque la Dirección le haya cambiado la respuesta, el orden o la haya
+ * desactivado; la base pone los ids. Antes, que esté la tabla (la migración
+ * *_sitio_publico).
+ */
+function archivoIncrementalPreguntas(volcado, inc) {
+  const t = volcado.tablas.find((x) => x.tabla === "sitio_preguntas");
+  if (!t) throw new Error("El volcado no tiene la tabla sitio_preguntas");
+  if (t.filas.length === 0) throw new Error(`${inc.archivo}: la semilla no tiene preguntas frecuentes`);
+  const columnas = t.columnas.filter((c) => !c.identidad).map((c) => c.nombre);
+  const filas = t.filas.map((f) => Object.fromEntries(columnas.map((c) => [c, f[c]])));
+  const migracion = listarMigracionesSync().find((m) => m.endsWith("_sitio_publico")) ?? "*_sitio_publico";
+  const cuerpo = [
+    "-- Que estén las migraciones, la de sitio público incluida.",
+    "DO $$",
+    "BEGIN",
+    "  IF NOT EXISTS (SELECT FROM public.usuarios WHERE id = 1 AND apellido = 'SISTEMA') THEN",
+    "    RAISE EXCEPTION 'No está el usuario SISTEMA: aplicá antes las migraciones (20_migracion_*.sql)';",
+    "  END IF;",
+    "  IF to_regclass('public.sitio_preguntas') IS NULL THEN",
+    `    RAISE EXCEPTION 'Falta la tabla sitio_preguntas: aplicá antes 20_migracion_${migracion}.sql';`,
+    "  END IF;",
+    "END",
+    "$$;",
+    "",
+    "-- El actor, como conActor(): SISTEMA y el motivo de la semilla.",
+    `SELECT set_config('app.usuario_id', '1', true), set_config('app.motivo', '${volcado.motivo.replaceAll("'", "''")}', true);`,
+    "",
+    `-- sitio_preguntas: ${filas.length} pregunta(s), por el texto de la pregunta (si ya existe, no se toca).`,
+    `INSERT INTO public.sitio_preguntas (${columnas.map((c) => `"${c}"`).join(", ")})`,
+    `SELECT ${columnas.map((c) => `d."${c}"`).join(", ")}`,
+    `  FROM jsonb_populate_recordset(NULL::public.sitio_preguntas, ${literalJson(filas)}) AS d`,
+    " WHERE NOT EXISTS (SELECT FROM public.sitio_preguntas p WHERE lower(p.pregunta) = lower(d.pregunta));",
+  ].join("\n");
+  return (
+    encabezado(
+      inc.titulo,
+      [
+        "-- Para una base de Supabase que YA tiene aplicada una semilla anterior (sin el sitio",
+        "-- público): agrega solo las preguntas frecuentes que son verdad por el diseño del",
+        "-- sistema y los procedimientos (lo demás del sitio arranca vacío y lo carga la",
+        "-- Dirección desde /admin/sitio-publico). Va DESPUÉS de la migración *_sitio_publico.",
+        "-- En una base nueva, después del 30 no hace nada (el 30 ya las trae).",
+        "-- Idempotente: una pregunta que ya existe (el mismo texto) no se toca. Mismo",
+        "-- contenido que el 30 (el mismo volcado de prisma/semilla).",
+      ].join("\n"),
+    ) +
+    "\n" +
+    comoOwner(cuerpo) +
+    "\n"
+  );
+}
+
+/** Los nombres de las migraciones, sin leer su contenido (para nombrarlas en los mensajes). */
+function listarMigracionesSync() {
+  const dir = path.join(RAIZ, "prisma", "migrations");
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .sort();
 }
 
 /**
@@ -574,7 +649,7 @@ export async function generar() {
   );
   for (const m of migraciones) versionados.set(`20_migracion_${m.nombre}.sql`, archivoMigracion(m));
   versionados.set("30_semilla_produccion.sql", archivoSemilla(volcado, huellaSemilla()));
-  for (const inc of INCREMENTALES) versionados.set(inc.archivo, archivoIncremental(volcado, inc));
+  for (const inc of INCREMENTALES) versionados.set(inc.archivo, inc.preguntas ? archivoIncrementalPreguntas(volcado, inc) : archivoIncremental(volcado, inc));
   versionados.set("40_cierre_api.sql", archivoCierre());
   versionados.set(
     "45_storage.sql",

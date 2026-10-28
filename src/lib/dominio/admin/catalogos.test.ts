@@ -49,10 +49,13 @@ describe("controlarCamposUbicacion", () => {
 });
 
 describe("Administración en la navegación (sección 5)", () => {
-  it("las cuatro secciones, solo para el admin", () => {
-    expect(SECCIONES_ADMIN.map((s) => s.etiqueta)).toEqual(["Plantillas", "Usuarios", "Catálogos", "Auditoría"]);
+  it("las cinco secciones, solo para el admin; el Sitio público, también para Dirección", () => {
+    expect(SECCIONES_ADMIN.map((s) => s.etiqueta)).toEqual(["Plantillas", "Usuarios", "Catálogos", "Auditoría", "Sitio público"]);
     expect(puedeVerPantalla({ id: 1, rol: "admin", activo: true, area: null }, "admin")).toBe(true);
     expect(puedeVerPantalla({ id: 2, rol: "lectura", activo: true, area: { id: 1, codigo: "DIRECCION" } }, "admin")).toBe(false);
     expect(puedeVerPantalla({ id: 3, rol: "operador", activo: true, area: { id: 2, codigo: "MESA_ENTRADAS" } }, "admin")).toBe(false);
+    expect(puedeVerPantalla({ id: 1, rol: "admin", activo: true, area: null }, "sitio_publico")).toBe(true);
+    expect(puedeVerPantalla({ id: 2, rol: "lectura", activo: true, area: { id: 1, codigo: "DIRECCION" } }, "sitio_publico")).toBe(true);
+    expect(puedeVerPantalla({ id: 3, rol: "operador", activo: true, area: { id: 2, codigo: "MESA_ENTRADAS" } }, "sitio_publico")).toBe(false);
   });
 });

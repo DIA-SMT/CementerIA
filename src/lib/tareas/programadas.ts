@@ -84,3 +84,25 @@ export async function tareaBarrerAdjuntos(almacen: AlmacenAdjuntos, ahora: Date 
   const borrados = await barrerTemporales(almacen, ahora, horas);
   return { horas, borrados, duracionMs: Date.now() - inicio };
 }
+
+export interface ResumenIntentosConsulta {
+  borrados: number;
+  duracionMs: number;
+}
+
+/**
+ * La limpieza de los intentos fallidos de la consulta pública (28/10/2026):
+ * borra los de más de 7 días (`f_purgar_intentos_consulta()`: la retención está
+ * en la base, y el trigger intentos_consulta_proteger no deja borrar uno más nuevo). Corre con los avisos
+ * de cada mañana, la tarea diaria que ya va contra la base (timer
+ * `cementeria-avisos` y GET /api/cron/avisos): el barrido de temporales, en el
+ * servidor municipal, no tiene a propósito las credenciales de la base. Idempotente.
+ */
+export async function tareaPurgarIntentosConsulta(cliente: Cliente): Promise<ResumenIntentosConsulta> {
+  const inicio = Date.now();
+  // Como SISTEMA, como las demás escrituras (la función no pide actor, pero así queda dicho quién la corre).
+  const [fila] = await conActorEn(cliente, SISTEMA_ID, "Limpieza de intentos de la consulta pública", (tx) =>
+    tx.$queryRaw<Array<{ borrados: number }>>`SELECT public.f_purgar_intentos_consulta() AS borrados`,
+  );
+  return { borrados: Number(fila?.borrados ?? 0), duracionMs: Date.now() - inicio };
+}

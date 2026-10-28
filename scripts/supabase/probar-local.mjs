@@ -23,6 +23,15 @@
 //    ocupan los ids que la semilla nueva usaría). Ahí, el 30 nuevo entero NO
 //    sirve (se ve y se deshace) y el incremental agrega solo lo nuevo, por
 //    código, igual que en B, sin tocar lo del admin; corrido dos veces, igual.
+// 4c. Simulador D (28/10/2026): una base EN USO con el paquete anterior
+//    (hasta *_login_propio, la semilla de entonces, 31, 40 y 45) y expedientes
+//    cargados; ahí se aplica solo lo nuevo, como lo haría el usuario en el SQL
+//    Editor y en el orden de supabase/sql/README.md: *_consulta_publica (el
+//    relleno de los códigos de consulta, todos válidos, distintos y sin tocar
+//    actualizado_en, y el trigger que no deja cambiarlos), *_sitio_publico, 32
+//    (antes de la migración se niega; después, dos veces, y deja las preguntas
+//    una vez), 40 y la verificación (99) sin nada en falso. Repetidas, las
+//    migraciones se niegan.
 // 5. A y B son equivalentes: roles, dueños, ACL, triggers, políticas, RLS,
 //    privilegios por defecto, extensiones, _prisma_migrations (definición y
 //    checksums, que tienen que ser los que calcula Prisma), filas de la semilla
@@ -283,7 +292,9 @@ async function probarActualizacion(sim, simB, volcado, versionados) {
         ? { ...t, filas: t.filas.filter((f) => !nuevosTipos.has(f.codigo)) }
         : t.tabla === "plantillas"
           ? { ...t, filas: t.filas.filter((f) => !nuevasPlantillas.includes(f.codigo)) }
-          : t,
+          : t.tabla === "sitio_preguntas" && INCREMENTALES.some((i) => i.preguntas)
+            ? { ...t, filas: [] }
+            : t,
     ),
   };
   const tiposAntes = anterior.tablas.find((t) => t.tabla === "tipos_tramite").filas.length;
@@ -364,6 +375,11 @@ async function probarActualizacion(sim, simB, volcado, versionados) {
       (await c.query("SELECT p.estado, t.codigo AS tipo FROM public.plantillas p JOIN public.tipos_tramite t ON t.id = p.tipo_tramite_id WHERE p.codigo = 'PRUEBA_ADMIN'")).rows,
     );
     ok(JSON.stringify(delAdmin) === JSON.stringify([{ estado: "borrador", tipo: "PRUEBA_ADMIN" }]), "C: lo del admin quedó como estaba (su borrador sigue borrador)");
+    // Las preguntas frecuentes (32_sitio_publico.sql): las mismas que en B, una vez cada una.
+    const PREGUNTAS = "SELECT jsonb_build_object('pregunta', pregunta, 'respuesta', respuesta, 'orden', orden, 'activa', activa)::text AS f FROM public.sitio_preguntas ORDER BY orden, pregunta";
+    const preguntasC = await conSuper(sim, async (c) => (await c.query(PREGUNTAS)).rows.map((r) => r.f));
+    const preguntasB = await conSuper(simB, async (c) => (await c.query(PREGUNTAS)).rows.map((r) => r.f));
+    ok(preguntasC.length > 0 && JSON.stringify(preguntasC) === JSON.stringify(preguntasB), "C: las preguntas frecuentes quedaron igual que en B", `${preguntasC.length} pregunta(s)`);
     const auditoria = await conSuper(sim, async (c) =>
       (
         await c.query(
@@ -382,6 +398,147 @@ async function probarActualizacion(sim, simB, volcado, versionados) {
       "C: la auditoría tiene un alta por fila nueva y una publicación por plantilla, firmadas como la semilla",
       JSON.stringify(auditoria),
     );
+  } finally {
+    await admin.end();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4c. Solo lo nuevo sobre una base en uso (con expedientes)
+// ---------------------------------------------------------------------------
+
+const EXPEDIENTES_EN_USO = 300;
+/** Las migraciones que la base en uso todavía no tiene (28/10/2026), en orden. */
+const MIGRACIONES_NUEVAS = ["consulta_publica", "sitio_publico"];
+
+/**
+ * La base EN USO: el paquete que ya se aplicó en Supabase (roles, extensiones,
+ * las migraciones hasta *_login_propio, la semilla de entonces sin preguntas
+ * frecuentes, 31, 40 y 45) y expedientes cargados. Ahí, como en el SQL Editor y
+ * en el orden de supabase/sql/README.md: la migración *_consulta_publica (el
+ * relleno de los códigos y el trigger), después *_sitio_publico, 32 (dos
+ * veces), 40 y 99. Cada migración, repetida, se niega.
+ */
+async function probarMigracionNueva(sim, versionados, volcado) {
+  const migraciones = [...versionados.keys()].filter((n) => n.startsWith("20_migracion_")).sort();
+  const nuevas = MIGRACIONES_NUEVAS.map((sufijo) => migraciones.find((n) => n.endsWith(`_${sufijo}.sql`)));
+  if (nuevas.some((n) => !n)) throw new Error(`Falta alguna migración nueva: ${MIGRACIONES_NUEVAS.join(", ")}`);
+  const [consulta, sitioPublico] = nuevas;
+  // La semilla de entonces: sin la tabla de preguntas (no existía).
+  const semillaAnterior = archivoSemilla({ ...volcado, tablas: volcado.tablas.filter((t) => t.tabla !== "sitio_preguntas") }, "semilla anterior (prueba)");
+  const anteriores = [
+    ...["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql"].map((n) => ({ n, sql: versionados.get(n) })),
+    ...migraciones.filter((n) => !nuevas.includes(n)).map((n) => ({ n, sql: versionados.get(n) })),
+    { n: "30_semilla_produccion.sql (anterior)", sql: semillaAnterior },
+    ...["31_inhumacion.sql", "40_cierre_api.sql", "45_storage.sql"].map((n) => ({ n, sql: versionados.get(n) })),
+  ];
+  const admin = clientePg(sim.urlAdmin, { ca: { pem: readFileSync(sim.ca, "utf8") } });
+  await admin.connect();
+  try {
+    for (const a of anteriores) await admin.query(a.sql);
+    ok(true, `D: la base con el paquete anterior (${anteriores.length} archivos, sin ${nuevas.join(" ni ")})`);
+
+    // Expedientes como los dejaría la app (firmados por SISTEMA), en una base que todavía no tiene la columna.
+    await conSuper(sim, async (c) => {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('app.usuario_id', '1', true)");
+      await c.query(
+        `INSERT INTO public.expedientes (anio, secuencia, numero_interno, fecha_inicio, tipo_tramite_id, plantilla_id, cementerio_id,
+                                         tipo_monumento, forma_pago, paso_clave, paso_orden, area_actual_id, area_responsable_id,
+                                         en_area_desde, creado_por)
+         SELECT 2026, g, format('CEM-2026-%s', lpad(g::text, 5, '0')), (now() AT TIME ZONE 'America/Argentina/Tucuman')::date,
+                p.tipo_tramite_id, p.id, c.id, c.tipos_monumento[1], 'contado', p.definicion -> 'pasos' -> 0 ->> 'clave', 1, a.id, a.id,
+                now() - interval '3 days', 1
+           FROM generate_series(1, $1::int) g,
+                (SELECT * FROM public.plantillas WHERE codigo = 'RENOV_CONTADO' AND estado = 'publicada') p,
+                (SELECT * FROM public.cementerios ORDER BY id LIMIT 1) c,
+                (SELECT id FROM public.areas WHERE codigo = 'MESA_ENTRADAS') a`,
+        [EXPEDIENTES_EN_USO],
+      );
+      await c.query("COMMIT");
+    });
+    const antes = await conSuper(sim, async (c) => (await c.query("SELECT count(*)::int AS n, max(actualizado_en) AS ultimo FROM public.expedientes")).rows[0]);
+    ok(antes.n === EXPEDIENTES_EN_USO, `D: ${antes.n} expedientes cargados antes de las migraciones nuevas`);
+
+    // 1. La consulta pública.
+    await admin.query(versionados.get(consulta));
+    ok(true, `D: ${consulta} se aplica sobre la base en uso`);
+    const despues = await conSuper(sim, async (c) =>
+      (
+        await c.query(`SELECT count(*)::int AS n, count(codigo_consulta)::int AS con_codigo,
+                              count(*) FILTER (WHERE codigo_consulta ~ '^[0-9A-HJKMNP-TV-Z]{8}$')::int AS validos,
+                              count(DISTINCT codigo_consulta)::int AS distintos, max(actualizado_en) AS ultimo
+                         FROM public.expedientes`)
+      ).rows[0],
+    );
+    ok(
+      despues.n === EXPEDIENTES_EN_USO && despues.con_codigo === despues.n && despues.validos === despues.n && despues.distintos === despues.n,
+      "D: el relleno le dio a cada expediente un código válido y distinto",
+      `${despues.con_codigo} con código, ${despues.validos} válidos, ${despues.distintos} distintos`,
+    );
+    ok(String(despues.ultimo) === String(antes.ultimo), "D: el relleno no tocó actualizado_en (no es un cambio del expediente)");
+
+    const cambio = await conSuper(sim, async (c) => {
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('app.usuario_id', '1', true)");
+        await c.query("UPDATE public.expedientes SET codigo_consulta = 'AAAABBBB' WHERE secuencia = 1");
+        return null;
+      } catch (e) {
+        return e.message;
+      } finally {
+        await c.query("ROLLBACK");
+      }
+    });
+    ok(/solo cambia con/.test(cambio ?? ""), "D: un UPDATE del código (aun como superusuario) se niega", cambio ?? "se aplicó");
+
+    // 2. El sitio público: antes de su migración, el 32 se niega (no está la tabla).
+    try {
+      await admin.query(versionados.get("32_sitio_publico.sql"));
+      ok(false, "D: 32_sitio_publico.sql antes de la migración del sitio se niega");
+    } catch (e) {
+      ok(/Falta la tabla sitio_preguntas/.test(e.message), "D: 32_sitio_publico.sql antes de la migración del sitio se niega", e.message.slice(0, 100));
+    }
+    await admin.query(versionados.get(sitioPublico));
+    ok(true, `D: ${sitioPublico} se aplica sobre la base en uso`);
+    for (const vuelta of [1, 2]) {
+      await admin.query(versionados.get("32_sitio_publico.sql"));
+      ok(true, `D: 32_sitio_publico.sql (vuelta ${vuelta}) se aplica`);
+    }
+    const preguntas = await conSuper(sim, async (c) => (await c.query("SELECT pregunta FROM public.sitio_preguntas ORDER BY orden, id")).rows.map((f) => f.pregunta));
+    const esperadas = volcado.tablas.find((t) => t.tabla === "sitio_preguntas").filas.map((f) => f.pregunta);
+    ok(JSON.stringify(preguntas) === JSON.stringify(esperadas), "D: las preguntas frecuentes iniciales, una vez cada una", `${preguntas.length} pregunta(s)`);
+    const otras = await conSuper(sim, async (c) =>
+      (
+        await c.query(`SELECT (SELECT count(*) FROM public.sitio_cementerios) + (SELECT count(*) FROM public.sitio_recorridos)
+                              + (SELECT count(*) FROM public.sitio_novedades) + (SELECT count(*) FROM public.sitio_contacto) AS n`)
+      ).rows[0].n,
+    );
+    ok(Number(otras) === 0, "D: lo demás del sitio arranca vacío (lo carga la Dirección)");
+
+    for (const n of ["40_cierre_api.sql", "99_verificar.sql"]) {
+      const r = await admin.query(versionados.get(n));
+      if (n === "99_verificar.sql") {
+        const filas = (Array.isArray(r) ? r.at(-1) : r).rows;
+        const mal = filas.filter((f) => f.ok === false);
+        const control = (nombre) => filas.find((f) => f.control === nombre)?.ok;
+        ok(
+          mal.length === 0 &&
+            control("consulta pública: código e intentos protegidos") === true &&
+            control("sitio público: RLS, auditoría y privilegios") === true,
+          "D: 99_verificar.sql después: nada en falso, y el código, los intentos y las tablas del sitio protegidos",
+          mal.map((f) => f.control).join(", "),
+        );
+      }
+    }
+    for (const m of nuevas) {
+      try {
+        await admin.query(versionados.get(m));
+        ok(false, `D: ${m} repetida se niega`);
+      } catch (e) {
+        ok(/ya está aplicada/.test(e.message), `D: ${m} repetida se niega`, e.message.slice(0, 100));
+      }
+    }
   } finally {
     await admin.end();
   }
@@ -433,7 +590,7 @@ async function estado(sim) {
     const e = {};
     for (const [k, sql] of Object.entries(CONSULTAS_ESTADO)) e[k] = (await c.query(sql)).rows;
     // Filas de la semilla y de usuarios, sin las fechas (son las del momento).
-    for (const tabla of ["areas", "tipos_monumento", "tipos_tramite", "cementerios", "feriados", "feriados_anios", "plantillas", "usuarios", "expedientes", "movimientos"]) {
+    for (const tabla of ["areas", "tipos_monumento", "tipos_tramite", "cementerios", "feriados", "feriados_anios", "plantillas", "sitio_preguntas", "usuarios", "expedientes", "movimientos"]) {
       e[`filas_${tabla}`] = (
         // De usuarios, el hash no se compara (cada lado tiene su temporal): solo si hay.
         await c.query(
@@ -469,6 +626,7 @@ async function main() {
   secretos.push(...simA.secretos);
   let simB;
   let simC;
+  let simD;
   try {
     simB = await levantarSimulador({ tls: true });
     secretos.push(...simB.secretos);
@@ -488,6 +646,11 @@ async function main() {
     secretos.push(...simC.secretos);
     await probarActualizacion(simC, simB, volcado, versionados);
 
+    titulo("4c. Una base en uso (paquete anterior y expedientes): solo lo nuevo, en el orden del README (simulador D)");
+    simD = await levantarSimulador({ tls: true });
+    secretos.push(...simD.secretos);
+    await probarMigracionNueva(simD, versionados, volcado);
+
     titulo("5. Lo que dejan preparar.mjs (A) y los archivos (B)");
     const checksums = (await listarMigraciones()).map((m) => [m.nombre, m.checksum]);
     const [ea, eb] = [await estado(simA), await estado(simB)];
@@ -504,6 +667,7 @@ async function main() {
     await simA.limpiar().catch(() => undefined);
     await simB?.limpiar().catch(() => undefined);
     await simC?.limpiar().catch(() => undefined);
+    await simD?.limpiar().catch(() => undefined);
   }
   console.log(`\n${fallas.length ? `✗ ${fallas.length} FALLA(S): ${fallas.join("; ")}` : "✓ Todo en verde."}`);
   return fallas.length ? 1 : 0;

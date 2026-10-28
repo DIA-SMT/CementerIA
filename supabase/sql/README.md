@@ -42,8 +42,12 @@ día y que aplicarlos dé lo mismo que preparar.mjs.
 ## Orden exacto
 
 El de los números, mezclando las dos carpetas: 00, 01, 02, .local/05, 20_*, 30,
-31, .local/35, 40, 45, 99. En una base nueva, el 31 no hace nada (el 30 ya trae
-todo), pero se puede correr igual.
+31, 32, .local/35, 40, 45, 99. En una base nueva, el 31 y el 32 no hacen nada
+(el 30 ya trae todo), pero se pueden correr igual.
+
+**¿Es la base que ya está en uso** (con todo hasta `*_login_propio` y la
+inhumación)? Entonces no es este orden completo: ver "La base en uso: qué
+correr ahora (28/10/2026)", más abajo.
 
 Cada archivo se pega **entero** en el SQL Editor y se ejecuta **de una sola
 vez** (Run): todo el archivo es una única transacción, y si algo falla no queda
@@ -56,12 +60,13 @@ nada a medias. Con psql: `psql -1 -v ON_ERROR_STOP=1 -f <archivo>`.
 | 3 | `02_prisma_migrations.sql` | La tabla de control de Prisma, a nombre del owner | Sí |
 | 4 | `.local/05_claves.sql` | Las contraseñas (verificadores SCRAM) | Sí (pone la misma clave) |
 | 5 | `20_migracion_<nombre>.sql`, **todas, en orden de nombre** | Cada migración de `prisma/migrations` tal cual, como `cementeria_owner`, y su fila en `_prisma_migrations` con el checksum de Prisma | **No**: si ya está aplicada, se niega y no cambia nada |
-| 6 | `30_semilla_produccion.sql` | Áreas, catálogos, cementerios, feriados y las 6 plantillas publicadas (las 4 de la carga inicial y las 2 de inhumación; nacen borrador y se publican, como exige `plantillas_congelar`), con el actor SISTEMA y los ids de una base vacía | Sí, sobre una base que tiene solo lo de la semilla. **No** sobre una base en uso: ver "La semilla cambió" |
+| 6 | `30_semilla_produccion.sql` | Áreas, catálogos, cementerios, feriados, las 6 plantillas publicadas (las 4 de la carga inicial y las 2 de inhumación; nacen borrador y se publican, como exige `plantillas_congelar`) y, desde el 28/10/2026, las 3 preguntas frecuentes del sitio público, con el actor SISTEMA y los ids de una base vacía | Sí, sobre una base que tiene solo lo de la semilla. **No** sobre una base en uso: ver "La semilla cambió" |
 | 6b | `31_inhumacion.sql` | Solo lo que la semilla agregó el 27/10/2026: el tipo de trámite `INHUMACION` y las plantillas `INHUMACION_DIRECCION` e `INHUMACION_EMPRESA`, publicadas. Busca por código y deja que la base ponga los ids; al final controla que las dos queden publicadas (si no, falla y no deja nada) | Sí (lo que existe, por código, no se toca) |
+| 6c | `32_sitio_publico.sql` | Solo lo que la semilla agregó el 28/10/2026: las 3 preguntas frecuentes iniciales de la página pública (`sitio_preguntas`). Busca por el texto de la pregunta y deja que la base ponga los ids. Va **después** de la migración `*_sitio_publico` (antes, se niega: falta la tabla). Lo demás del sitio arranca vacío: lo carga la Dirección | Sí (una pregunta que ya existe, por su texto, no se toca) |
 | 7 | `.local/35_admin_inicial.sql` | El administrador inicial (`ADMIN_INICIAL_CUIL`) con el hash de su contraseña temporal y `debe_cambiar_clave`. Si ya existe con contraseña, no lo toca; si existe sin, le pone la temporal | Sí |
 | 8 | `40_cierre_api.sql` | Les saca todo a `anon`, `authenticated` y `service_role` sobre las tablas, secuencias y funciones de `public` y `auditoria`, y los privilegios por defecto | Sí |
 | 8b | `45_storage.sql` | El bucket **privado** `adjuntos` de Supabase Storage (10 MB, PDF/JPEG/PNG, sin políticas). Solo lo usa el despliegue en Vercel ([docs/despliegue-vercel.md](../../docs/despliegue-vercel.md)); controles 19 y 20 de `99_verificar.sql` | Sí |
-| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; como los otros que leen datos, con `postgres` sale en null y lo hace `npm run supabase:verificar` | Sí, las veces que haga falta |
+| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; el 24 (28/10/2026), si las 6 tablas del sitio público tienen RLS, auditoría y los privilegios mínimos; el 25, si están las preguntas frecuentes iniciales. Como los otros que leen datos, el 21 y el 25 salen en null con `postgres` y los hace `npm run supabase:verificar` | Sí, las veces que haga falta |
 
 Los archivos que corren como dueño hacen `GRANT cementeria_owner TO postgres`,
 `SET LOCAL ROLE cementeria_owner` y, al final, `REVOKE`: `postgres` no queda
@@ -145,6 +150,79 @@ base vacía, el orden completo de arriba (el 30 ya las trae y el 31 no hace nada
 Si la migración nueva crea tablas, tiene que habilitarles RLS y crear la
 política de `cementeria_app` (ver la migración `*_rls_defensa`):
 `tests/integracion/rls.test.ts` falla si falta.
+
+### La base en uso: qué correr ahora (28/10/2026)
+
+En la base de Supabase que ya está andando (con todo hasta `*_login_propio` y
+la inhumación, es decir, el paquete del 27/10/2026), en el SQL Editor y **en
+este orden exacto**, cada archivo entero y de una sola vez:
+
+1. `20_migracion_20261028120000_consulta_publica.sql`: la consulta pública, que
+   **todavía no se aplicó** (ver la sección siguiente). Una sola vez.
+2. `20_migracion_20261028180000_sitio_publico.sql`: las 6 tablas del sitio
+   público (`sitio_cementerios`, `sitio_recorridos`, `sitio_recorrido_fechas`,
+   `sitio_novedades`, `sitio_contacto`, `sitio_preguntas`) con sus CHECKs,
+   auditoría, GRANTs y RLS. Una sola vez (repetida, se niega y no cambia nada).
+3. `32_sitio_publico.sql`: las 3 preguntas frecuentes iniciales. Idempotente.
+4. `40_cierre_api.sql` (idempotente): hay tablas y funciones nuevas; les saca
+   todo a `anon`, `authenticated` y `service_role`. El archivo no cambió: cierra
+   todo lo de `public` y `auditoria`, también lo nuevo.
+5. `99_verificar.sql`: nada en falso; en verde el 22 ("consulta pública:
+   código e intentos protegidos") y el 24 ("sitio público: RLS, auditoría y
+   privilegios"). El 23 y el 25 salen en null con `postgres`: desde la máquina,
+   `npm run supabase:verificar` (como `cementeria_app`) tiene que decir "0 sin
+   un código de consulta válido" y "3 de las 3 iniciales".
+
+**No** se corren el 30, el 31 ni ninguna otra migración. **Después**,
+redesplegar la app en Vercel; en Vercel no se agrega ninguna variable (las
+`LANDING_*` ya no existen). Probado en `npm run supabase:probar`, simulador D:
+el paquete anterior con 300 expedientes, y encima exactamente estos cinco pasos
+(el 32 antes de la migración del sitio se niega; después, dos veces, deja las
+preguntas una sola vez). Con conexión desde la máquina, en lugar de los pasos
+1 a 5: `npm run supabase:preparar`.
+
+### El sitio público (28/10/2026)
+
+Agrega `20_migracion_20261028180000_sitio_publico.sql` (el contenido de la
+página pública que carga la Dirección: docs/api-dominio.md, sección 25) y
+`32_sitio_publico.sql` (las preguntas frecuentes de la semilla de producción,
+para una base en uso). Cambian `30_semilla_produccion.sql` (trae también las
+preguntas, para una base nueva) y `99_verificar.sql` (controles 24 y 25). La
+app lee, inserta y actualiza las 6 tablas, y borra solo fechas de recorrido y
+novedades. El orden, en "La base en uso", arriba.
+
+### La consulta pública (28/10/2026): qué correr en Supabase
+
+Agrega `20_migracion_20261028120000_consulta_publica.sql`: la columna
+`expedientes.codigo_consulta` (con el **relleno** de un código para cada
+expediente que ya existe), el trigger que no deja cambiarlo salvo con
+"Regenerar código de consulta", la tabla `auditoria.intentos_consulta` (con RLS,
+sus GRANTs y su trigger) y las acciones nuevas de `auditoria.accesos`. Cambian
+también `99_verificar.sql` (controles 22 y 23) y `30_semilla_produccion.sql`,
+**solo en su huella** (la semilla de producción es la misma: no se vuelve a
+correr).
+
+En la base de Supabase que ya está andando (con todo hasta `*_login_propio` y
+la inhumación), en el SQL Editor y **en este orden**:
+
+1. `20_migracion_20261028120000_consulta_publica.sql`: una sola vez (si ya está
+   aplicada, se niega y no cambia nada). Con expedientes cargados, el relleno
+   les da a todos un código válido y distinto, sin tocar `actualizado_en`
+   (probado: `npm run supabase:probar`, simulador D, con 300 expedientes).
+2. `40_cierre_api.sql` (idempotente): hay una tabla y funciones nuevas, y les
+   saca todo a `anon`, `authenticated` y `service_role`.
+3. `99_verificar.sql`: nada en falso; el control 22 ("consulta pública: código
+   e intentos protegidos") en verde. El 23 ("expedientes con código") sale en
+   null con `postgres`: mejor, desde la máquina, `npm run supabase:verificar`,
+   que lo corre como `cementeria_app` y tiene que decir "0 sin un código de
+   consulta válido".
+
+**Después**, redesplegar la app en Vercel (la versión nueva lee
+`codigo_consulta`). En ese orden: la versión anterior de la app sigue andando
+con la base ya migrada (el alta deja el código por el DEFAULT de la columna),
+pero la nueva no anda con la base sin migrar. Con conexión desde la máquina, en
+lugar de los pasos 1 a 3: `npm run supabase:preparar` (aplica solo lo nuevo y
+verifica). En una base vacía, el orden completo de arriba.
 
 ### El login propio (27/10/2026)
 

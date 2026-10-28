@@ -95,14 +95,22 @@ describe("reglas que no necesitan expediente (semana 1)", () => {
     expect(puede("ver_metricas", null, usuario("lectura", "LEGAL"))).toBe(false);
   });
 
+  it("regenerar el código de consulta (28/10/2026): Mesa de Entradas y el admin, en cualquier estado", () => {
+    expect(puede("regenerar_codigo_consulta", null, mesa)).toBe(true);
+    expect(puede("regenerar_codigo_consulta", expediente({ estado: "archivado" }), mesa)).toBe(true);
+    expect(puede("regenerar_codigo_consulta", null, admin)).toBe(true);
+    expect(evaluarPermiso("regenerar_codigo_consulta", null, computo)).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+    expect(evaluarPermiso("regenerar_codigo_consulta", null, direccion)).toEqual({ permitido: false, motivo: "solo_lectura" });
+  });
+
   it("nota libre: todos menos lectura", () => {
     expect(puede("nota", expediente(), legal)).toBe(true);
     expect(puede("nota", expediente(), admin)).toBe(true);
     expect(evaluarPermiso("nota", expediente(), direccion)).toEqual({ permitido: false, motivo: "solo_lectura" });
   });
 
-  it("Dirección (lectura) no hace ninguna acción que escriba", () => {
-    const lecturas: readonly Accion[] = ["ver_expediente", "ver_datos_completos", "ver_panel", "exportar_csv", "imprimir", "ver_metricas"];
+  it("Dirección (lectura) no hace ninguna acción que escriba un expediente (sí el contenido del sitio público)", () => {
+    const lecturas: readonly Accion[] = ["ver_expediente", "ver_datos_completos", "ver_panel", "exportar_csv", "imprimir", "ver_metricas", "editar_sitio_publico"];
     for (const accion of ACCIONES) {
       if (lecturas.includes(accion)) continue;
       expect(puede(accion, expediente(), direccion), accion).toBe(false);
@@ -120,6 +128,16 @@ describe("reglas que no necesitan expediente (semana 1)", () => {
     for (const accion of ACCIONES) {
       expect(() => evaluarPermiso(accion, expediente(), mesa)).not.toThrow();
     }
+  });
+});
+
+describe("sitio público (28/10/2026)", () => {
+  it("lo editan Dirección y el admin; los operadores (Mesa incluida) y los demás de lectura, no", () => {
+    expect(puede("editar_sitio_publico", null, direccion)).toBe(true);
+    expect(puede("editar_sitio_publico", null, usuario("admin", null))).toBe(true);
+    expect(evaluarPermiso("editar_sitio_publico", null, mesa)).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+    expect(evaluarPermiso("editar_sitio_publico", null, usuario("operador", "COMPUTO"))).toEqual({ permitido: false, motivo: "area_no_habilitada" });
+    expect(evaluarPermiso("editar_sitio_publico", null, usuario("lectura", "LEGAL"))).toEqual({ permitido: false, motivo: "solo_lectura" });
   });
 });
 

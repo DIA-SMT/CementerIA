@@ -42,7 +42,7 @@ function json(form: FormData, nombre: string): unknown {
 export async function procesarAlta(servicio: ServicioExpedientes, usuario: UsuarioPermisos, form: FormData): Promise<ResultadoFormulario> {
   try {
     const r = await servicio.alta(usuario, json(form, "datos"), campo(form, "comandoId") ?? "");
-    const destino = campo(form, "destino") === "ficha" ? rutaFicha(r.numero) : rutaImprimir(r.numero, "caratula");
+    const destino = campo(form, "destino") === "ficha" ? rutaFicha(r.numero) : rutaImprimir(r.numero, "caratula", { nuevo: true });
     return { ok: true, destino };
   } catch (e) {
     return estadoDeError(e);
@@ -92,6 +92,27 @@ export async function procesarVerDatos(
 ): Promise<ResultadoDatosCompletos> {
   try {
     return { ok: true, datos: await servicio.verDatosCompletos(usuario, numero, motivo, { ip }) };
+  } catch (e) {
+    return estadoDeError(e);
+  }
+}
+
+export type ResultadoRegenerar = { ok: true; codigo: string } | EstadoError;
+
+/**
+ * "Regenerar código de consulta" (28/10/2026), con su motivo. Devuelve el
+ * código nuevo, sin guion, para mostrarlo en el diálogo.
+ */
+export async function procesarRegenerarCodigo(
+  servicio: ServicioExpedientes,
+  usuario: UsuarioPermisos,
+  numero: string,
+  motivo: string,
+  ip: string | null,
+): Promise<ResultadoRegenerar> {
+  try {
+    const r = await servicio.regenerarCodigoConsulta(usuario, numero, motivo, { ip });
+    return { ok: true, codigo: r.codigoConsulta };
   } catch (e) {
     return estadoDeError(e);
   }

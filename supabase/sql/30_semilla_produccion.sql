@@ -1,4 +1,4 @@
--- Semilla de PRODUCCIÓN: áreas, catálogos, cementerios, feriados y plantillas publicadas.
+-- Semilla de PRODUCCIÓN: áreas, catálogos, cementerios, feriados, plantillas publicadas y preguntas frecuentes.
 --
 -- GENERADO por `npm run supabase:sql` (scripts/supabase/generar-sql.mjs). No editar a mano:
 -- se cambia la fuente y se vuelve a generar.
@@ -13,7 +13,7 @@
 -- ni expedientes. El administrador inicial va aparte, en
 -- .local/35_admin_inicial.sql (lleva un CUIL real y no se versiona).
 -- Idempotente: lo que ya existe (por clave) no se toca.
--- Huella de prisma/semilla/ y prisma/seed.ts: 43367072513caec45a56c71ad175d02c8e8893f7385b4761f688536dfc1d48b3
+-- Huella de prisma/semilla/ y prisma/seed.ts: 4510f294a44babba76b097fa532e7683dd2461fabb55ea005dd2f613847d5f09
 
 DO $$
 BEGIN
@@ -188,6 +188,17 @@ UPDATE public.plantillas p
 ]$semilla$::jsonb) AS d
  WHERE p.id = d.id AND p.estado = 'borrador' AND d.estado <> 'borrador';
 SELECT setval(pg_get_serial_sequence('public.plantillas', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM public.plantillas;
+
+-- sitio_preguntas: 3 fila(s).
+INSERT INTO public.sitio_preguntas ("id", "pregunta", "respuesta", "orden", "activa")
+SELECT d."id", d."pregunta", d."respuesta", d."orden", d."activa"
+  FROM jsonb_populate_recordset(NULL::public.sitio_preguntas, $semilla$[
+  {"id":1,"pregunta":"Perdí el código de consulta, ¿qué hago?","respuesta":"Pedí uno nuevo en Mesa de Entradas de la Dirección de Cementerios. Desde ese momento, el código anterior deja de funcionar.","orden":10,"activa":true},
+  {"id":2,"pregunta":"¿La consulta en línea reemplaza al expediente?","respuesta":"No. La consulta en línea es información orientativa sobre en qué anda tu trámite: el expediente oficial es el de papel.","orden":20,"activa":true},
+  {"id":3,"pregunta":"¿Dónde pago las tasas?","respuesta":"Con la boleta que te entrega Liquidación, en Rapipago, Pago Fácil o Banco Macro. Después traés una copia del pago a Mesa de Entradas para sumarla al expediente.","orden":30,"activa":true}
+]$semilla$::jsonb) AS d
+ON CONFLICT DO NOTHING;
+SELECT setval(pg_get_serial_sequence('public.sitio_preguntas', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM public.sitio_preguntas;
 
 RESET ROLE;
 REVOKE cementeria_owner FROM postgres;

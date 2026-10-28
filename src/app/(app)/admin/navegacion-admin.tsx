@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, FileCog, LayoutGrid, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { ClipboardList, FileCog, Globe, LayoutGrid, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 
 const ICONOS: Record<string, LucideIcon> = {
   "/admin": LayoutGrid,
@@ -10,17 +10,19 @@ const ICONOS: Record<string, LucideIcon> = {
   "/admin/usuarios": Users,
   "/admin/catalogos": ClipboardList,
   "/admin/auditoria": ShieldCheck,
+  "/admin/sitio-publico": Globe,
 };
 
 /**
  * El menú de Administración, dentro de la banda azul del encabezado de la
  * sección (ver layout.tsx). De cliente solo para marcar la sección actual.
  * Sobre el azul: la actual en blanco con texto institucional (13,25:1), las
- * demás en blanco sobre el velo (≥ 7:1) y el foco en blanco.
+ * demás en blanco sobre el velo (≥ 7:1) y el foco en blanco. `conInicio`:
+ * Dirección, que entra solo al Sitio público, no tiene el Inicio del admin.
  */
-export function NavegacionAdmin({ secciones }: { secciones: ReadonlyArray<{ href: string; etiqueta: string }> }) {
+export function NavegacionAdmin({ secciones, conInicio = true }: { secciones: ReadonlyArray<{ href: string; etiqueta: string }>; conInicio?: boolean }) {
   const ruta = usePathname();
-  const items = [{ href: "/admin", etiqueta: "Inicio" }, ...secciones];
+  const items = conInicio ? [{ href: "/admin", etiqueta: "Inicio" }, ...secciones] : secciones;
   return (
     <nav aria-label="Administración" data-recorrido="admin-menu" className="print:hidden">
       <ul className="flex flex-wrap gap-1.5">

@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PLANTILLAS } from "../../prisma/semilla/plantillas";
 import { TIPOS_TRAMITE } from "../../prisma/semilla/catalogos";
 import { USUARIOS_FICTICIOS } from "../../prisma/semilla/usuarios";
+import { PREGUNTAS_FRECUENTES } from "../../prisma/semilla/sitio-publico";
 import { hashearClave, PARAMETROS_ACTUALES, RE_CLAVE_TEMPORAL, verificarClave } from "../../src/lib/auth/clave";
 import { cuilValido as cuilValidoApp, digitoVerificadorCuil } from "../../src/lib/dominio/cuil";
 import { INCREMENTALES, SALIDA, huellaSemilla } from "./generar-sql.mjs";
@@ -187,9 +188,20 @@ describe("supabase/sql/ al día (sin base; la comparación completa es npm run s
         expect(PLANTILLAS.map((p) => p.codigo)).toContain(codigo);
         expect(texto).toContain(`"codigo":"${codigo}"`);
       }
-      expect(texto).toContain("ON CONFLICT (codigo) DO NOTHING");
+      if (inc.preguntas) {
+        // 32_sitio_publico.sql (28/10/2026): las preguntas frecuentes, por el texto de la pregunta.
+        for (const p of PREGUNTAS_FRECUENTES) expect(texto).toContain(JSON.stringify(p.pregunta).slice(1, -1));
+        expect(texto).toContain("WHERE NOT EXISTS (SELECT FROM public.sitio_preguntas p WHERE lower(p.pregunta) = lower(d.pregunta))");
+      } else {
+        expect(texto).toContain("ON CONFLICT (codigo) DO NOTHING");
+      }
       expect(texto).not.toMatch(/OVERRIDING SYSTEM VALUE|setval/);
     }
+  });
+
+  it("verificar.sql controla las mismas preguntas frecuentes que la semilla de producción", () => {
+    const lista = /unnest\(ARRAY\[([^\]]*)\]\) AS x\(p\)/.exec(leerFuente("verificar.sql"))?.[1] ?? "";
+    expect([...lista.matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual(PREGUNTAS_FRECUENTES.map((p) => p.pregunta));
   });
 
   it("los archivos .local/ no se versionan", () => {

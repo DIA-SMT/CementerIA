@@ -1,4 +1,4 @@
-import { ChartColumnIncreasing, FilePlus2, Inbox, LayoutDashboard, Search, Settings, type LucideIcon } from "lucide-react";
+import { ChartColumnIncreasing, FilePlus2, Globe, Inbox, LayoutDashboard, Search, Settings, type LucideIcon } from "lucide-react";
 import type { Pantalla } from "@/lib/dominio/navegacion";
 
 /**
@@ -13,4 +13,5 @@ export const ICONO_PANTALLA: Record<Pantalla, LucideIcon> = {
   panel: LayoutDashboard,
   metricas: ChartColumnIncreasing,
   admin: Settings,
+  sitio_publico: Globe,
 };

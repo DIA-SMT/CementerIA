@@ -23,6 +23,9 @@ Actualizado el 27/10/2026 (sección 22): el ingreso con usuario y contraseña
 propios (Cidituc en pausa), el cambio de contraseña y lo que agrega a la
 administración de usuarios; y (sección 23) el modo prueba, "Ver como…"
 (`PERFILES_PRUEBA_CUILS`), para recorrer todos los perfiles con un solo usuario.
+Actualizado el 28/10/2026 (sección 24): la página pública (`/`) y la consulta
+del trámite para el concesionario (`/consulta`), con el código de consulta, el
+comprobante y "Regenerar código de consulta".
 La especificación es [propuesta-mvp.md](propuesta-mvp.md); acá está solo lo que
 hace falta para llamar al dominio. Los tipos completos, con comentarios, están
 en el código: esto es el mapa.
@@ -2266,3 +2269,332 @@ releído en la transacción, destinos inválidos, sin otro admin) y
 `src/lib/presentacion/perfil-prueba.test.ts` (textos). Integración:
 `tests/integracion/perfil-prueba.test.ts`. Punta a punta:
 `tests/e2e/perfil-prueba.spec.ts`.
+
+## 24. Página pública y consulta del trámite (28/10/2026)
+
+El concesionario sigue su expediente sin sesión en `/consulta` (desde el
+28/10/2026, una página del sitio público a la que lleva el inicio, `/`), con
+el número y un **código de consulta** que le da Mesa de Entradas en un
+comprobante con QR. Migración `20261028120000_consulta_publica`.
+Lo que la consulta deja ver, y la retención, están en
+[borrador-tecnico-art22.md](borrador-tecnico-art22.md).
+
+| Módulo | Qué tiene |
+|---|---|
+| `@/lib/dominio/expedientes/codigo-consulta` | `generarCodigoConsulta()`, `normalizarCodigoConsulta()`, `formatearCodigoConsulta()`, `esCodigoConsulta()` y, solo para la semilla de desarrollo, `codigoDeSemilla()`. Puro (Web Crypto): sirve también en el navegador |
+| `@/lib/dominio/expedientes/servidor` | `expedientes.datosComprobante()` y `expedientes.regenerarCodigoConsulta()`; la ficha trae `codigoConsulta` y `acciones.regenerarCodigoConsulta` |
+| `@/lib/dominio/publico/servidor` | `publico.consultar({ numero, codigo }, ip)` y `publico.datosLanding()` (los trámites de la página). `server-only`. El resto del contenido de la página es del sitio público (sección 25) |
+| `@/lib/presentacion/consulta-publica` | El estado en lenguaje del ciudadano, `textoAvance`, `urlConsultaConCodigo` (el QR) y `codigoDelFragmento`. Puro |
+
+### 24.1 El código (migración `*_consulta_publica`)
+
+- `expedientes.codigo_consulta`: text NOT NULL UNIQUE, CHECK
+  `^[0-9A-HJKMNP-TV-Z]{8}$` (Crockford base32 sin I, L, O ni U; 40 bits). Se
+  guarda sin guion y se muestra `XXXX-XXXX`. Al leer lo que escribió la persona
+  se aceptan minúsculas, espacios y guiones, y O → 0, I y L → 1.
+- **Alta:** `altaEn()` lo genera con `DependenciasExpedientes.generarCodigoConsulta`
+  (por defecto al azar; la semilla de desarrollo pasa `codigoDeSemilla`,
+  determinista) y busca uno libre (`codigoConsultaLibre`). No entra en el
+  movimiento `alta`: es una credencial, no un dato del trámite.
+- **Relleno:** la migración le da uno a cada expediente que ya existía, en SQL
+  (`f_codigo_consulta_aleatorio()`: 5 bytes de `gen_random_uuid()`, nativa y con
+  `pg_strong_random`; sin pgcrypto), resolviendo las colisiones, con
+  `expedientes_preparar` apagado solo dentro de la migración (no es un cambio
+  del expediente: no mueve `actualizado_en`). La misma función es el DEFAULT de
+  la columna, para lo que se inserta por SQL (las pruebas).
+- **Protección:** el trigger `expedientes_codigo_consulta` (ALWAYS) rechaza
+  todo cambio del código salvo el que la transacción pidió para ese expediente
+  (`set_config('app.regenerar_codigo_consulta', '<id>', true)`) y con motivo
+  (`app.motivo`, 10 caracteres o más). El pedido vale para un cambio (el
+  trigger lo borra) y el mismo trigger deja la constancia en
+  `auditoria.accesos`. Ni la app ni el owner cambian el código con un UPDATE
+  suelto. Sin SECURITY DEFINER, como el resto de las funciones.
+
+### 24.2 `expedientes.regenerarCodigoConsulta(usuario, numero, motivo, { ip? })`
+
+Mesa de Entradas y el admin (`regenerar_codigo_consulta`, en cualquier
+estado), con motivo de 10 caracteres o más (`motivo_requerido`). Devuelve
+`{ numero, codigoConsulta }`. En `conActor()` con el motivo: fija
+`app.regenerar_codigo_consulta` (el id) y `app.ip`, y actualiza el código; el
+trigger deja `regenerar_codigo_consulta` en `auditoria.accesos` con `{ motivo }`
+(nunca el código) y la IP, en la misma transacción. **No es un movimiento:**
+el código no es parte del expediente de papel (como un blanqueo de contraseña,
+`blanqueo_clave`), así que no cambia la versión, ni el historial, ni su cadena
+de hash; y no va a `auditoria.cambios`, que es de la configuración. Pantalla:
+"Regenerar código" en la ficha (diálogo con el motivo, que muestra el código
+nuevo).
+
+### 24.3 `expedientes.datosComprobante(usuario, numero, { ip? })`
+
+Permiso `imprimir`. Número, número corto, tipo de trámite, cementerio, fecha
+de inicio, código y fecha de emisión; sin personas. Registra `imprimir` con
+`{ hoja: "comprobante" }`. Pantalla: `/expedientes/[numero]/imprimir?hoja=comprobante`,
+media hoja A4 con el código grande, la dirección de `/consulta` y el QR a
+`{origen}/consulta/{NUMERO}#{CODIGO}` (el código en el fragmento: no llega al
+servidor). Se ofrece desde la ficha ("Imprimir comprobante") y al terminar el
+alta: "Guardar e imprimir carátula" va a `?hoja=caratula&nuevo=1`, que muestra
+el aviso con el enlace al comprobante.
+
+### 24.4 `publico.consultar({ numero, codigo }, ip): Promise<ResultadoConsulta>`
+
+`src/lib/dominio/publico/consulta.ts` (`consultarTramite`), sin usuario:
+
+1. Normaliza: el número canónico (`canonizarNumeroInterno`, acepta `42/2026`) y
+   el código.
+2. **Límite**, contando en `auditoria.intentos_consulta` los `fallido` de los
+   últimos 15 minutos: 10 de la IP o 5 del número. Si se llegó, deja un
+   `bloqueado` y devuelve `{ ok: false, motivo: "limite", mensaje: MENSAJE_LIMITE }`
+   sin buscar.
+3. Busca el expediente y compara el código con `timingSafeEqual` (contra un
+   señuelo si el número no existe). Número inexistente, código incorrecto o
+   con otra forma: un `fallido` y `{ ok: false, motivo: "no_encontrado",
+   mensaje: "No encontramos un trámite con ese número y código" }`, siempre igual.
+4. Correcto: `armarTramitePublico()` arma la respuesta con una lista cerrada
+   de campos (`TramitePublico`: `numero`, `tipoTramite`, `cementerio`,
+   `fechaInicio`, `estado`, `area: { nombre, desde }`, `paso: { orden, total,
+   nombre }`, `ultimoMovimiento`) y deja `consulta_publica` en
+   `auditoria.accesos` sin usuario. El área de un cementerio se nombra con el
+   nombre del cementerio.
+
+Lo escribe SISTEMA (`conActor`), como un ingreso rechazado. La IP es la de
+`ipDeSolicitud()`, como en el resto. La pantalla (`src/app/(publico)/consulta/`) llama
+por una Server Action (POST): ni el número ni el código van en la URL. El
+estado se muestra con `textoEstadoCiudadano()` ("En trámite", "Esperando el
+pago en la DIM", "Finalizado: acercate a Mesa de Entradas" [C], "Archivado",
+"Sin curso: acercate a Mesa de Entradas" [C]).
+
+`auditoria.intentos_consulta` (id, en, ip, numero canónico, resultado `fallido`
+o `bloqueado`): SELECT, INSERT y DELETE para la app, RLS con la política de
+`cementeria_app`. El trigger `intentos_consulta_proteger` (ALWAYS) rechaza todo
+UPDATE y TRUNCATE y el DELETE de un intento de menos de 7 días, también al
+owner: el límite no se puede limpiar a mano. `f_purgar_intentos_consulta()`
+borra los de más de 7 días; la corre `tareaPurgarIntentosConsulta()` después de
+los avisos de cada mañana (`npm run avisos:generar`, timer `cementeria-avisos`,
+y `GET /api/cron/avisos` en Vercel). No va con el barrido de temporales:
+`cementeria-adjuntos-tmp` no tiene, a propósito, las credenciales de la base.
+
+### 24.5 `publico.datosLanding(): Promise<DatosLanding>`
+
+Los tipos de trámite activos con al menos una plantilla publicada (`nombre`,
+`modalidades`: los nombres de esas plantillas si alguno no es el del tipo, y
+`documentos`: `documentosParaTraer()`, los de origen concesionario sin repetir
+por nombre normalizado, con una nota si en todas las plantillas están
+condicionados a una persona jurídica o a ciertos cementerios). Las plantillas
+no tienen una descripción para el público: no se inventa. Hasta el sitio
+público (sección 25) traía también los nombres de los cementerios; ahora los
+da `sitio.contenidoPublico()`. Los muestra `/tramites`.
+
+### 24.6 Rutas y proxy
+
+Las páginas públicas están en el grupo `src/app/(publico)/`, con su layout
+(el pie, "Saltar al contenido", el `title.template` y el `noindex`): `/` (el
+inicio), `/cementerios`, `/horarios`, `/recorridos`, `/tramites`, `/consulta`,
+`/consulta/[numero]` y `/contacto` (hasta el 28/10/2026, una sola página con
+anclas; ver la sección 25 y [diseno.md](diseno.md), "Página pública"). `/` sin
+sesión es el inicio; con sesión redirige a `inicioPara()` (o a
+`/cambiar-clave`), salvo `/?vista=publica`, que lo muestra también con sesión
+(la vista previa de la administración). Las demás no miran la sesión: se ven
+igual con o sin ella. El matcher de `src/proxy.ts` deja afuera `/` exacto (`$`
+al principio del lookahead) y
+`(?:cementerios|horarios|recorridos|tramites|consulta|contacto)(?:/|$)` como
+primer segmento; nada más (`/cementeriosx` o `/admin/recorridos` siguen
+pasando por el proxy; `proxy.test.ts` comprueba que cada ruta de
+`NAVEGACION_PUBLICA` quede afuera). Ninguna ruta de la app con sesión empieza
+con esos segmentos. `next.config.ts` pone `Cache-Control: no-store,
+max-age=0` y `Referrer-Policy: no-referrer` en `/consulta` y
+`/consulta/:path*` en los dos despliegues (las URL no cambiaron con el grupo);
+las páginas lo repiten con `<meta name="referrer">`. `robots: noindex,
+nofollow` hasta que la Dirección apruebe la publicación [C]. Desde la sección
+25, los datos de atención (y todo el contenido salvo los trámites) los carga la
+Dirección desde /admin/sitio-publico; las variables `LANDING_*` ya no existen.
+Lo que leen las páginas pasa por `src/app/(publico)/datos.ts`
+(`contenidoDelSitio(pagina)` y `tramitesPublicados()`): si la base no
+responde, la página sale igual, vacía, y queda `publico.sitio_sin_datos` o
+`publico.tramites_sin_datos` en el log.
+
+### 24.7 Pruebas
+
+Unitarias: `src/lib/dominio/expedientes/codigo-consulta.test.ts` (alfabeto,
+generador, normalización, formato, semilla), `src/lib/dominio/publico/consulta.test.ts`
+(la respuesta sin datos personales, comparación, límite y mismo mensaje con
+dependencias falsas), `src/lib/dominio/publico/landing.test.ts`,
+`src/lib/presentacion/consulta-publica.test.ts` (estados, URL del QR,
+fragmento), y lo nuevo de `enlaces.test.ts`,
+`permisos.test.ts` y `proxy.test.ts` (las siete rutas públicas exactas afuera;
+`/cementeriosx`, `/contactos`, `/admin/recorridos` y `/expedientes/consulta`
+adentro). Integración:
+`tests/integracion/consulta-publica.test.ts` (alta con código, comprobante,
+regenerar con su constancia y sin tocar el historial, el trigger, la consulta
+correcta e incorrecta, los dos límites, la purga y el relleno de la migración
+sobre una base con expedientes). Punta a punta:
+`tests/e2e/consulta-publica.spec.ts`. Supabase: `npm run supabase:probar`,
+simulador D (solo la migración nueva sobre una base en uso).
+
+## 25. Sitio público: el contenido de la página que carga la Dirección (28/10/2026)
+
+El sitio público (una página por sección desde el 28/10/2026: `/`,
+`/cementerios`, `/horarios`, `/recorridos`, `/tramites`, `/consulta` y
+`/contacto`; 24.6) muestra, además de los trámites (24.5) y la consulta,
+lo que la Dirección de Cementerios carga desde **/admin/sitio-publico**: los
+datos públicos de cada cementerio con sus horarios de visita, los recorridos
+históricos con sus fechas, las novedades, el contacto de Mesa de Entradas y las
+preguntas frecuentes. Nada de eso está en el código ni en variables de entorno
+(reemplaza a `LANDING_*`, que no llegaron a publicarse). Migración
+`20261028180000_sitio_publico`; diseño en [diseno.md](diseno.md), "Página
+pública".
+
+| Módulo | Qué tiene |
+|---|---|
+| `@/lib/dominio/sitio/validacion` | `LARGOS`, `FOTOS_SITIO` (la lista cerrada de fotos), `esUrlMapa()`, `esUrlHttps()`, `esCorreo()`, `limpiarLinea()`, `limpiarParrafos()`, los esquemas zod de cada entrada, `novedadVigente()` y `fechasProximas()`. Puro |
+| `@/lib/dominio/sitio/admin` | Lo de la administración: `contenidoSitioAdmin`, `guardarCementerioSitio`, `guardarRecorrido`, `agregarFechaRecorrido`, `quitarFechaRecorrido`, `guardarNovedad`, `quitarNovedad`, `guardarContacto`, `guardarPregunta` |
+| `@/lib/dominio/sitio/lectura` | `contenidoSitioPublico(leer, ahora)`: lo que ve la página, sin sesión |
+| `@/lib/dominio/sitio/servidor` | `sitio` = `crearServicioSitio({ leer: prisma, escribir: conActor })`. `server-only` |
+| `@/lib/presentacion/acciones-sitio` | `procesarSitio(servicio, usuario, entrada)`: la Server Action de /admin/sitio-publico, sin Next |
+| `@/lib/presentacion/sitio-publico` | Las páginas (`PAGINAS_PUBLICAS`: etiqueta, título, bajada y texto de acceso de cada una; `RutaInterna`, `RutaPublica`), la barra (`NAVEGACION_PUBLICA`), las invitaciones al pie (`INVITACIONES`), `TITULO_SITIO`, `partesFechaRecorrido`, `parrafosDe`, `hrefTelefono`, `hrefCorreo`, `hrefComoLlegar` y `RUTA_VISTA_PUBLICA`. Puro |
+
+### 25.1 Modelo (migración `*_sitio_publico`)
+
+Seis tablas en `public`, con `creado_en`/`actualizado_en` como el resto:
+
+| Tabla | Qué guarda |
+|---|---|
+| `sitio_cementerios` | 1 a 1 con `cementerios` (PK `cementerio_id`): `visible`, `domicilio`, `mapa_url`, `descripcion`, `que_tiene`, `horario_semana`, `horario_fin_de_semana`, `horario_especial`, `foto`. Sin fila = sin datos cargados |
+| `sitio_recorridos` | `nombre`, `descripcion`, `cementerio_id` (opcional), `dias_hora`, `duracion`, `punto_encuentro`, `cupo`, `inscripcion`, `inscripcion_url`, `foto`, `activo`, `orden` |
+| `sitio_recorrido_fechas` | `recorrido_id`, `fecha` (timestamptz), `nota` |
+| `sitio_novedades` | `titulo`, `texto`, `desde` y `hasta` (date, inclusive), `activa`. No son los `avisos` (los internos) |
+| `sitio_contacto` | UNA fila (`id = 1`, CHECK): `domicilio`, `horario`, `telefono`, `correo`, `mapa_url` |
+| `sitio_preguntas` | `pregunta`, `respuesta`, `orden`, `activa` |
+
+Por qué una tabla aparte 1 a 1 y no columnas en `cementerios`: el catálogo es
+operativo (áreas, nomenclatura, monumentos) y lo administra solo el admin; el
+contenido público lo carga la Dirección, con otro permiso, otra auditoría y
+otra vida (un cementerio puede no tener nada cargado).
+
+- **Textos:** largos máximos (`LARGOS`: de 60 a 800 caracteres) con CHECK en la
+  base (`char_length BETWEEN 1 AND N`), sin caracteres de control (los textos
+  largos admiten `\n`), sin espacios en los bordes. Vacío es NULL (no se
+  muestra). Se muestran como **texto plano escapado** (React): un `<b>` o un
+  `**` se ve tal cual. Los párrafos se separan con una línea en blanco.
+- **URLs:** `mapa_url` solo `https://` de `google.com/maps` o
+  `www.google.com/maps`, `maps.app.goo.gl/…` u `openstreetmap.org` (o `www.`),
+  sin usuario, puerto, espacios, comillas, `<` `>` ni barra invertida;
+  `inscripcion_url`, cualquier `https://` con dominio y las mismas reglas.
+  `esUrlMapa` y el CHECK dicen lo mismo. El correo, con forma de correo.
+- **Fotos:** una clave de `FOTOS_SITIO` (`panoramica`, `avenida-azul`,
+  `avenida-memorial`, `ingreso-paseo-sereno`, `parque-memorial`): las
+  imágenes de `public/imagenes` con su versión de 960 px. Lista cerrada, en el
+  código y en el CHECK. **Subir fotos propias queda para más adelante.**
+- **Auditoría:** `auditar_cambio` (ALWAYS) en las seis: cada alta, cambio o baja
+  queda en `auditoria.cambios` con el antes, el después, el autor y el motivo,
+  y se ve en /admin/auditoria ("Sitio: …").
+- **Privilegios de `cementeria_app`:** SELECT, INSERT y UPDATE en las seis;
+  DELETE solo en `sitio_recorrido_fechas` y `sitio_novedades` (lo demás se
+  desactiva: `visible`, `activo`, `activa`). RLS con la política de
+  `cementeria_app`, como `*_rls_defensa`. Identity BY DEFAULT, como los
+  catálogos.
+
+### 25.2 Permiso `editar_sitio_publico`
+
+Dirección (`area = DIRECCION`, aunque su rol sea `lectura`: no toca
+expedientes) y el admin. Los operadores, Mesa de Entradas incluida, no
+(`area_no_habilitada`); otro usuario de lectura tampoco (`solo_lectura`).
+Pantalla `sitio_publico` (`puedeVerPantalla`): Dirección la tiene en su menú
+("Sitio público") y el admin entre las secciones de Administración. El layout
+de `/admin` deja entrar a Dirección solo por esa sección (su menú muestra solo
+esa); las demás páginas de `/admin` siguen pidiendo `administrar`.
+
+### 25.3 La administración (`crearServicioSitio(deps)`)
+
+Todas exigen `editar_sitio_publico` y escriben con `conActor()` (el motivo,
+opcional, va a la auditoría). Validan con zod y devuelven cada error en su
+campo (`ErrorDominio("validacion")`). Un guardado que no cambia nada no escribe
+(`repetido: true`): ni fila de auditoría ni `actualizado_en`.
+
+- `contenidoAdmin(usuario)`: los cementerios del catálogo (activos o no) con lo
+  cargado (`cargado`, `visible`…), los recorridos con sus fechas (las que
+  vienen y las de los últimos 30 días), las novedades con su `estado`
+  (`vigente`, `programada`, `terminada`, `inactiva`), el contacto y las preguntas.
+- `guardarCementerio(usuario, { cementerioId, visible, domicilio, mapaUrl,
+  descripcion, queTiene, horarioSemana, horarioFinDeSemana, horarioEspecial,
+  foto }, motivo?)`: alta la primera vez, después modificación. El cementerio
+  es el del catálogo (`no_encontrado` si no existe).
+- `guardarRecorrido(usuario, { id?, nombre, … , activo, orden }, motivo?)`.
+- `agregarFecha(usuario, { recorridoId, fecha, nota? }, motivo?)`: `fecha` es un
+  `datetime-local` en hora de Tucumán (`interpretarDatetimeLocal`); tiene que
+  ser futura y no repetida para ese recorrido (`ya_existe`).
+- `quitarFecha(usuario, id, motivo?)` y `quitarNovedad(usuario, id, motivo?)`:
+  DELETE (queda en la auditoría); si ya no estaba, `repetido`.
+- `guardarNovedad(usuario, { id?, titulo, texto, desde, hasta, activa }, motivo?)`:
+  `hasta` igual o posterior a `desde` (también CHECK).
+- `guardarContacto(usuario, { domicilio, horario, telefono, correo, mapaUrl }, motivo?)`:
+  la fila 1, alta o modificación.
+- `guardarPregunta(usuario, { id?, pregunta, respuesta, orden, activa }, motivo?)`.
+
+La pantalla (`src/app/(app)/admin/sitio-publico/`): pestañas Cementerios,
+Recorridos (con el diálogo de sus fechas: agregar y quitar), Novedades,
+Contacto y Preguntas frecuentes, en la URL (`?pestana=`); alta y modificación
+en diálogos (el contacto, en la pestaña), quitar con confirmación, "Ver la
+página pública" (`/?vista=publica`, otra pestaña) y, al lado, la página donde
+se ve la pestaña abierta (Cementerios, `/cementerios`; Recorridos,
+`/recorridos`; Contacto y Preguntas frecuentes, `/contacto`; las Novedades
+salen en el inicio y en `/horarios`), y su recorrido guiado
+(`admin-sitio-publico`). Una sola Server Action, `accionSitio`, con
+`procesarSitio` (`accion`: `cementerio`, `recorrido`, `fecha`,
+`quitar_fecha`, `novedad`, `quitar_novedad`, `contacto`, `pregunta`).
+
+### 25.4 Lo que ve la página: `sitio.contenidoPublico()`
+
+`contenidoSitioPublico(leer, ahora)`, sin sesión, solo lecturas. Cada página
+pública lo lee entero y usa lo suyo. En producción arranca vacío, y cada parte
+sabe qué hacer:
+
+| Parte | Qué devuelve | Dónde se ve | Si no hay nada |
+|---|---|---|---|
+| `cementerios` | Los activos del catálogo, salvo los marcados no visibles; de cada uno, lo cargado (y la foto resuelta) | `/cementerios`; los horarios, en `/horarios` | Se listan igual, con el nombre: "Para saber más, consultá en Mesa de Entradas." Sin domicilio no hay "Cómo llegar" (con domicilio y sin enlace, busca el domicilio en Google Maps) |
+| `hayHorarios` | Si algún cementerio tiene algún horario | `/horarios` (y el botón "Horarios" de cada tarjeta) | "Consultá los horarios en Mesa de Entradas." con el contacto, si hay |
+| `recorridos` | Los activos, por `orden` (el primero, destacado) | `/recorridos` | "Por ahora no hay recorridos programados. Para visitas de grupos o instituciones, escribinos." con el contacto. El acceso del inicio sigue |
+| `fechas` | Las futuras de recorridos activos, de la más cercana, hasta 6 (`MAXIMO_FECHAS_PROXIMAS`) | `/recorridos`; las 3 primeras, en el inicio ("Próximos recorridos") | En `/recorridos`, "Todavía no hay fechas programadas."; el inicio no muestra el adelanto |
+| `novedades` | Activas y vigentes hoy (día de Tucumán, `desde` a `hasta` inclusive) | El inicio y `/horarios` | No hay franja |
+| `contacto` | Lo cargado, o `null` si no hay ningún dato | `/contacto`; lo breve, en `/horarios`, `/recorridos` y `/cementerios` cuando falta lo suyo | Solo el texto de Mesa de Entradas |
+| `preguntas` | Las activas, por `orden` | `/contacto` | No hay acordeón ni "Preguntas frecuentes" |
+
+Si la base no responde, la página sale igual con el contenido vacío
+(`publico.sitio_sin_datos` en el log, con la página). En ninguna página hay
+"A completar".
+
+### 25.5 Semillas
+
+- **Producción** (`sembrar()`, también `--sin-ficticios`): solo las tres
+  preguntas frecuentes de `PREGUNTAS_FRECUENTES` (`prisma/semilla/sitio-publico.ts`),
+  verdaderas por el diseño del sistema y los procedimientos de docs/fuentes:
+  el código de consulta perdido, que la consulta no reemplaza al expediente y
+  dónde se pagan las tasas (procedimiento de inhumación, (A) punto 2). Por la
+  pregunta: la que ya existe no se toca. Lo demás arranca vacío.
+- **Desarrollo** (`sembrarSitioDesarrollo()`, desde `prisma/seed.ts` con
+  ficticios): contenido ficticio, marcado "(dato de prueba)" en domicilios y
+  teléfonos y "(ejemplo)" en el resto: los tres cementerios, 2 recorridos con 3
+  fechas futuras relativas al día de la semilla, 1 novedad vigente (de ayer a
+  dentro de 14 días) y el contacto. Idempotente por clave natural; las fechas,
+  solo al crear el recorrido.
+- **Supabase:** las preguntas van en `30_semilla_produccion.sql` (base nueva) y
+  en `32_sitio_publico.sql` (base en uso, después de la migración): ver
+  [supabase/sql/README.md](../supabase/sql/README.md).
+
+### 25.6 Pruebas
+
+Unitarias: `src/lib/dominio/sitio/validacion.test.ts` (URLs de mapa e
+inscripción, correo, textos, largos y que coincidan con los CHECKs de la
+migración, fotos y sus archivos, novedades vigentes y fechas próximas),
+`src/lib/presentacion/sitio-publico.test.ts` (las páginas y la barra en orden,
+títulos únicos, y dos invitaciones por página, a otras y distintas en cada
+una), y lo nuevo de `permisos.test.ts`,
+`navegacion.test.ts` y `admin/catalogos.test.ts`. Integración:
+`tests/integracion/sitio-publico.test.ts` (alta, modificación, quitar y sin
+cambios con su auditoría; validación por campo; un operador no puede; los
+CHECKs por fuera de la app; la página devuelve solo lo activo, lo visible y lo
+vigente), más las listas de `privilegios.test.ts` y `humo.test.ts`. Punta a
+punta: `tests/e2e/sitio-publico.spec.ts` (cada página con la semilla de
+desarrollo: su h1, su `<title>`, las migas, la barra con la actual en
+`aria-current` y las invitaciones; la navegación desde el inicio por los
+accesos, la barra y las migas; editar un horario desde la administración y
+verlo en `/horarios`; 375 px en las siete páginas; y las páginas vacías). Supabase: `npm run supabase:probar` (simuladores B, C y D).

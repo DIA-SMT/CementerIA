@@ -3,6 +3,7 @@ import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 import { COOKIE_SESION, emitirSesion, segundosAhora } from "@/lib/auth/sesion-token";
+import { NAVEGACION_PUBLICA } from "@/lib/presentacion/sitio-publico";
 
 const SECRETO = "secreto-de-prueba-que-tiene-mas-de-32-caracteres";
 vi.stubEnv("SESSION_SECRET", SECRETO);
@@ -15,7 +16,6 @@ function corre(url: string): boolean {
 
 describe("matcher del proxy", () => {
   it.each([
-    "/",
     "/bandeja",
     "/expedientes",
     "/expedientes/2026-00012",
@@ -32,6 +32,19 @@ describe("matcher del proxy", () => {
     "/loginx",
     "/dev/loginx",
     "/sin-accesox",
+    // 28/10/2026: solo "/" exacto y las páginas públicas quedan afuera, como primer segmento.
+    "/consultax",
+    "/consultas",
+    "/cementeriosx",
+    "/horarios-especiales",
+    "/recorridosx",
+    "/tramites2",
+    "/contactos",
+    "/x",
+    "/expedientes/consulta",
+    "/admin/recorridos",
+    "/admin/sitio-publico?pestana=recorridos",
+    "/panel/contacto",
   ])("corre en %s", (url) => {
     expect(corre(url)).toBe(true);
   });
@@ -61,9 +74,27 @@ describe("matcher del proxy", () => {
     "/api/cron/avisos",
     "/api/cron/historial",
     "/api/cron/adjuntos-tmp",
+    // 28/10/2026: el sitio público (el inicio, sus páginas y la consulta del trámite), sin sesión.
+    "/",
+    "/?x=1",
+    "/?vista=publica",
+    "/cementerios",
+    "/horarios",
+    "/recorridos",
+    "/recorridos/",
+    "/tramites",
+    "/contacto",
+    "/consulta",
+    "/consulta/",
+    "/consulta/CEM-2026-00012",
   ])("no corre en %s", (url) => {
     expect(corre(url)).toBe(false);
   });
+});
+
+it("cada página del sitio público (las de la barra) queda afuera del proxy", () => {
+  // Si se suma una página a NAVEGACION_PUBLICA y no al matcher, el proxy la mandaría a /login.
+  for (const { ruta } of NAVEGACION_PUBLICA) expect(corre(ruta), ruta).toBe(false);
 });
 
 async function token(edadSeg = 0, inicioHaceSeg = edadSeg): Promise<string> {

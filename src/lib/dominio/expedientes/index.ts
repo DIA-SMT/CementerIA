@@ -36,6 +36,7 @@ import type { UsuarioPermisos } from "../permisos";
 import type { OpcionesAcceso } from "./acceso";
 import { alta } from "./alta";
 import { datosCaratula } from "./caratula";
+import { datosComprobante, regenerarCodigoConsulta } from "./comprobante";
 import { opcionesAlta, opcionesBusqueda } from "./contexto";
 import type { DependenciasExpedientes } from "./dependencias";
 import { avisosDuplicados, type ConsultaDuplicados } from "./duplicados";
@@ -316,6 +317,13 @@ export function crearServicioExpedientes(deps: DependenciasExpedientes) {
     verificarIntegridad: (usuario: UsuarioPermisos, numero: string, opciones?: OpcionesAcceso) => verificarIntegridad(deps, usuario, numero, opciones),
     /** Todos los expedientes, con resumen (admin); registra `verificar_historial` sin expediente. */
     verificarIntegridadTodos: (usuario: UsuarioPermisos, opciones?: OpcionesAcceso) => verificarIntegridadTodos(deps, usuario, opciones),
+
+    // --- 28/10/2026: consulta pública -----------------------------------------
+    /** El comprobante para el concesionario (`?hoja=comprobante`); registra `imprimir`. */
+    datosComprobante: (usuario: UsuarioPermisos, numero: string, opciones?: OpcionesAcceso) => datosComprobante(deps, usuario, numero, opciones),
+    /** "Regenerar código de consulta" (Mesa de Entradas y admin), con motivo. */
+    regenerarCodigoConsulta: (usuario: UsuarioPermisos, numero: string, motivo: string | null, opciones?: OpcionesAcceso) =>
+      regenerarCodigoConsulta(deps, usuario, numero, motivo, opciones),
   };
 }
 
@@ -325,6 +333,17 @@ export type { DependenciasExpedientes, Escritor, Lector } from "./dependencias";
 export type { OpcionesAcceso } from "./acceso";
 export type { ResultadoAlta } from "./alta";
 export type { Caratula, PasoCaratula, PersonaCaratula } from "./caratula";
+export type { Comprobante, ResultadoRegenerarCodigo } from "./comprobante";
+export {
+  ALFABETO_CODIGO,
+  codigoDeSemilla,
+  CODIGOS_SEMILLA,
+  esCodigoConsulta,
+  formatearCodigoConsulta,
+  generarCodigoConsulta,
+  LARGO_CODIGO,
+  normalizarCodigoConsulta,
+} from "./codigo-consulta";
 export type {
   CementerioCargado,
   CementerioFiltro,

@@ -29,7 +29,7 @@
 
 import { conActorEn } from "../../src/lib/db/actor";
 import type { Cliente } from "../../src/lib/db/crear-cliente";
-import { crearServicioExpedientes, ErrorDominio } from "../../src/lib/dominio/expedientes";
+import { codigoDeSemilla, crearServicioExpedientes, ErrorDominio } from "../../src/lib/dominio/expedientes";
 import type { DatosAlta, PersonaEntrada } from "../../src/lib/dominio/expedientes/esquemas";
 import { digitoVerificadorCuil } from "../../src/lib/dominio/cuil";
 import { esRol, type UsuarioPermisos } from "../../src/lib/dominio/permisos";
@@ -219,6 +219,8 @@ export async function sembrarExpedientes(cliente: Cliente, opciones: { ahora?: D
     leer: cliente,
     escribir: (usuarioId, motivo, fn) => conActorEn(cliente, usuarioId, motivo, fn),
     ahora: () => ahora,
+    // Códigos de consulta deterministas (28/10/2026): los del README, para probar /consulta.
+    generarCodigoConsulta: codigoDeSemilla,
   });
 
   const [plantillas, cementerios] = await Promise.all([

@@ -199,6 +199,8 @@ Valores admitidos por campo:
 
 ### 2.6 `expedientes` (estado actual, la proyección)
 
+> Actualizado 28/10/2026: columna nueva **`codigo_consulta`** (text NN UNIQUE, CHECK `^[0-9A-HJKMNP-TV-Z]{8}$`): el código de la consulta pública que va en el comprobante del concesionario. Lo genera el alta; los expedientes anteriores lo recibieron en la migración `*_consulta_publica`. Cambia solo con "Regenerar código de consulta" (trigger `expedientes_codigo_consulta`). Ver docs/api-dominio.md, sección 24.
+
 | Columna | Tipo | Null | Default | Notas |
 |---|---|---|---|---|
 | id | bigint identity | NN | | PK |
@@ -352,7 +354,9 @@ El estado de un documento es `pendiente`, `presentado`, `no_corresponde` o `hist
 | Tabla | Columnas |
 |---|---|
 | `auditoria.cambios` | id bigint identity PK; tabla text NN; registro_id text NN; operacion char(1) CHECK in ('I','U','D'); antes, despues jsonb N; usuario_id integer NN (de `app.usuario_id`); motivo text N (de `app.motivo`); txid bigint NN `txid_current()`; en timestamptz NN `clock_timestamp()`; índice (tabla, registro_id). Solo configuración: no guarda datos de expedientes ni de personas |
-| `auditoria.accesos` | id bigint identity PK; usuario_id integer N; accion text CHECK in ('ingreso','ingreso_rechazado','salida','ver_expediente','ver_datos_completos','ver_adjunto','descargar_adjunto','imprimir','exportar', y, actualizado el 26/10/2026, 'verificar_historial'); expediente_id bigint N; detalle jsonb NN '{}' (incluye el motivo de `ver_datos_completos`); ip inet N; en timestamptz NN now(); índices (expediente_id, en) y (usuario_id, en) |
+| `auditoria.accesos` | id bigint identity PK; usuario_id integer N; accion text CHECK in ('ingreso','ingreso_rechazado','salida','ver_expediente','ver_datos_completos','ver_adjunto','descargar_adjunto','imprimir','exportar', y, actualizado el 26/10/2026, 'verificar_historial'; el 27/10/2026, 'bloqueo', 'desbloqueo', 'cambio_clave', 'blanqueo_clave'; actualizado 28/10/2026, 'consulta_publica' (sin usuario) y 'regenerar_codigo_consulta' (con el motivo en el detalle)); expediente_id bigint N; detalle jsonb NN '{}' (incluye el motivo de `ver_datos_completos`); ip inet N; en timestamptz NN now(); índices (expediente_id, en) y (usuario_id, en) |
+
+> Actualizado 28/10/2026: **`auditoria.intentos_consulta`** (id bigint identity PK; en timestamptz NN; ip inet N; numero text N, el canónico; resultado text CHECK in ('fallido','bloqueado'); índices (ip, en) y (numero, en)): los intentos fallidos de la consulta pública, para el límite por IP y por número. La app inserta y lee; el trigger `intentos_consulta_proteger` no deja modificar ni borrar uno de menos de 7 días, y `f_purgar_intentos_consulta()` borra los más viejos (retención de 7 días).
 
 ### 2.11 Funciones y triggers
 
@@ -552,6 +556,8 @@ El filtro avanzado por ubicación arma, dentro del cementerio elegido, la condic
   - reiniciado (tiene `expediente_anterior_id` o es el anterior de otro).
 
 ### 3.2 Permisos
+
+> Actualizado 28/10/2026: **"Regenerar código de consulta"** (con motivo) lo pueden hacer Mesa de Entradas y el admin, en cualquier estado. El código lo ve quien ve la ficha, y el comprobante se imprime como la carátula (todos).
 
 "Responsable" significa que el área del usuario es igual a `area_responsable_id`. Solo actúan los usuarios con rol `operador`, salvo donde dice admin. El admin no da pases ordinarios. "Trabaja el expediente" significa: es el área responsable, es un área por la que pasó el expediente (algún `movimientos.area_destino_id` o `area_usuario_id`), es Mesa de Entradas, es Dirección o es el admin.
 
@@ -776,6 +782,10 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 
 ## 5. Mapa de pantallas
 
+> Actualizado 28/10/2026: **sitio público.** La página `/` pasó a ser la de los cementerios (horarios de visita, recorridos históricos, trámites, la consulta, contacto y preguntas frecuentes, según el boceto aprobado), y su contenido lo carga la Dirección desde **`/admin/sitio-publico`** (Dirección y admin, permiso `editar_sitio_publico`; pestañas Cementerios, Recorridos con sus fechas, Novedades, Contacto y Preguntas frecuentes; cada cambio auditado). Seis tablas nuevas (`sitio_*`, migración `*_sitio_publico`), texto plano con largos máximos y CHECKs. Detalle: README, "Sitio público", y docs/api-dominio.md, sección 25.
+
+> Actualizado 28/10/2026: **página pública y consulta del trámite.** `/` sin sesión es una página pública (la consulta del trámite en el hero, cómo seguirlo, los trámites con lo que hay que traer según las plantillas publicadas, los cementerios y la atención de Mesa de Entradas); con sesión sigue llevando al inicio de cada uno. `/consulta` y `/consulta/[numero]` (sin sesión): número de expediente y código de consulta por POST; responde número, trámite, cementerio, fecha de inicio, estado en lenguaje del ciudadano ("Finalizado: acercate a Mesa de Entradas" para un concluido, [C]), área actual y desde cuándo, paso X de N y último movimiento, sin ningún dato personal; límite de intentos en la base. Imprimibles: `?hoja=comprobante`, el comprobante del concesionario con el código y un QR a `/consulta/{NUMERO}#{CODIGO}`. Sin indexar hasta que la Dirección apruebe la publicación [C]. Detalle: README, "Página pública y consulta", y docs/api-dominio.md, sección 24.
+
 | Ruta | Roles | Propósito | Contenido | Acciones principales |
 |---|---|---|---|---|
 | `/login` | público | Ingreso | Botón "Ingresar con Cidituc"; aviso de uso interno y de la Ley 25.326. *Actualizado el 27/10/2026: formulario de CUIL o correo y contraseña; Cidituc en pausa (`/cambiar-clave` para la contraseña temporal)* | Ingresar |
@@ -802,9 +812,10 @@ Las cuatro se cargan como versión 1 `publicada`, con `notas_cambio = "Carga ini
 - **Mesa de Entradas:** Bandeja · Nuevo expediente · Buscar · Panel.
 - **Cómputo, Liquidación, Legal, Administrativo y Tributario:** Bandeja · Buscar · Panel.
 - **Dirección:** Panel · Buscar (fichas e imprimibles en solo lectura).
-- **Admin:** Panel · Buscar · Administración (Plantillas, Usuarios, Catálogos, Auditoría).
+- **Admin:** Panel · Buscar · Administración (Plantillas, Usuarios, Catálogos, Auditoría). *Actualizado 28/10/2026: y Sitio público; Dirección lo tiene en su menú.*
 
 **Imprimibles** (CSS `@media print`, A4, sin librería de PDF):
+- *Actualizado 28/10/2026:* **Comprobante para el concesionario** (`?hoja=comprobante`, media hoja A4): número, trámite, cementerio, fecha de inicio, el código de consulta grande, la dirección de la consulta y el QR. Se ofrece al terminar el alta y desde la ficha.
 - **Carátula:** número grande, QR a `/expedientes/[numero]`, N° municipal, trámite, cementerio, ubicación, padrón, titular y solicitante (sin teléfono ni domicilio) y el recorrido previsto con casilleros. Se abrocha al papel y reemplaza la ficha.
 - **Historial:** todos los movimientos con ambas fechas, usuarios y correcciones. Se agrega al expediente al archivarlo.
 
@@ -836,6 +847,9 @@ Todas las dependencias van con versión exacta, sin `^`.
 - `cementeria.service` lleva `Environment=TZ=America/Argentina/Tucuman`, pero el código no depende de eso.
 
 **Autenticación:**
+
+*Actualizado 28/10/2026:* el proxy deja pasar también las páginas públicas, que no piden sesión: `/` exacto (el inicio), `/cementerios`, `/horarios`, `/recorridos`, `/tramites`, `/contacto` y `/consulta` (la consulta del trámite), cada una solo como primer segmento; el resto, igual.
+
 1. `/login` genera `state = crypto.randomUUID()`, lo guarda en la cookie `cem_cidituc_state` (httpOnly, 10 minutos) y redirige a `https://cidituc.smt.gob.ar/#/login?next=cementeria&state=<state>`. Es el mismo esquema que usa UrbanIA.
 2. `/auth/callback?auth=<token>&state=<state>` exige que el `state` coincida con la cookie y distingue los errores `state_ausente`, `state_vencido` y `state_distinto`. Después valida el token con `GET {CIDITUC_API_URL}/usuarios/authStatusIA`, con el token crudo, sin "Bearer", y lee el envoltorio `{user}`.
    - De UrbanIA se copia **solo** `lib/auth/identity/cidituc-https.ts` (`getDeCidituc`, con el intermedio Sectigo). Su `cidituc.ts` valida contra `/usuarios/authStatus`, que es el endpoint de ciudadanos, así que no se copia.
@@ -868,6 +882,9 @@ Todas las dependencias van con versión exacta, sin `^`.
 - La app nunca borra archivos, salvo la purga del admin (2.13(b)) y el barrido de temporales.
 
 **Ley 25.326:**
+
+*Actualizado 28/10/2026:* la consulta pública es una vía de acceso nueva, sin datos personales (docs/borrador-tecnico-art22.md); los intentos fallidos se guardan 7 días, y las consultas correctas quedan en `auditoria.accesos`.
+
 - **Art. 22:** la creación de un archivo de datos de un organismo público requiere una disposición general publicada en el boletín oficial, con finalidad, usos, personas alcanzadas, estructura, cesiones, responsable y oficina de acceso. En la semana 1 se pide a Asesoría Legal el proyecto de acto, con un borrador técnico de la Dirección de IA. **Propuesta: no cargar datos reales en producción hasta que el acto esté publicado** (pregunta 10).
 - Solo acceden usuarios dados de alta, con la minimización de la decisión 13.
 - Se registran las aperturas de ficha, la vista de datos completos, las vistas y descargas de adjuntos, las impresiones y las exportaciones. Retención propuesta: 24 meses [C].

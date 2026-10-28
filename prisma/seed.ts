@@ -3,8 +3,9 @@
 // Carga, como SISTEMA y con el rol de la app (DATABASE_URL): áreas,
 // cementerios con nomenclatura provisoria, tipos de monumento y de trámite,
 // feriados 2026-2027 (años sin cerrar), las 6 plantillas publicadas como v1 (las
-// 4 de la carga inicial y, desde el 27/10/2026, las 2 de inhumación), el
-// admin inicial (ADMIN_INICIAL_CUIL) y un usuario ficticio por área. Datos en
+// 4 de la carga inicial y, desde el 27/10/2026, las 2 de inhumación), las
+// preguntas frecuentes de la página pública (28/10/2026), el admin inicial
+// (ADMIN_INICIAL_CUIL) y un usuario ficticio por área. Datos en
 // prisma/semilla/; el porqué de cada uno, ahí.
 //
 // Después, y aparte, los 30 expedientes ficticios de la sección 6: los da de
@@ -49,6 +50,7 @@ import { leerAvisosViejos } from "./semilla/avisos";
 import { sembrarEscenarios } from "./semilla/escenarios";
 import { sembrarExpedientes } from "./semilla/expedientes";
 import { sembrar } from "./semilla/sembrar";
+import { sembrarSitioDesarrollo } from "./semilla/sitio-publico";
 import { ADMIN_CUIL_DESARROLLO } from "./semilla/usuarios";
 
 cargarEnv({ path: ".env.local", quiet: true });
@@ -140,6 +142,14 @@ async function main(): Promise<void> {
         escenarios.creados === 0
           ? `Escenarios: ya estaban sus ${escenarios.existentes} expedientes.`
           : `Escenarios: ${escenarios.creados} expedientes creados en ${escenarios.escenarios.length} escenarios (${escenarios.numeros[0]} a ${escenarios.numeros.at(-1)}).`,
+      );
+      // El sitio público de ejemplo (28/10/2026): ficticio, para ver todas las secciones de `/`.
+      const sitio = await sembrarSitioDesarrollo(cliente);
+      const sitioTotal = Object.values(sitio).reduce((a, b) => a + b, 0);
+      console.log(
+        sitioTotal === 0
+          ? "Sitio público de ejemplo: ya estaba."
+          : `Sitio público de ejemplo: ${sitio.cementerios} cementerios, ${sitio.recorridos} recorridos con ${sitio.fechas} fechas, ${sitio.novedades} novedad y ${sitio.contacto} contacto.`,
       );
       // Los "llegó" de pasos que el expediente ya dejó, leídos (prisma/semilla/avisos.ts).
       const leidos = await leerAvisosViejos(cliente);

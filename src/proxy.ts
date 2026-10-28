@@ -51,6 +51,18 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 /**
  * Corre en todo salvo:
+ * - lo público (28/10/2026), las páginas de src/app/(publico)/ y nada más:
+ *   "/" EXACTO, el inicio (con sesión, la página misma redirige al inicio de
+ *   cada uno, como antes); /cementerios, /horarios, /recorridos, /tramites y
+ *   /contacto, las páginas del sitio público; y la consulta del trámite,
+ *   /consulta y /consulta/[numero], también su POST (la Server Action). Son
+ *   para quien no tiene sesión: nada que renovar ni a dónde redirigir. "/" va
+ *   como `$` al principio del lookahead: lo que sigue a la primera barra está
+ *   vacío solo en "/" (la query no es parte de la ruta), así que /x, /bandeja y
+ *   cualquier otra siguen pasando por acá. Las demás valen solo como primer
+ *   segmento: /admin/recorridos o /expedientes/consulta pasan por acá. Si se
+ *   suma una página pública, va también en NAVEGACION_PUBLICA
+ *   (src/lib/presentacion/sitio-publico.ts): proxy.test.ts compara las dos;
  * - estáticos (`_next/static`, `_next/image`, favicon y archivos con extensión
  *   de recurso);
  * - el ingreso: /login, /auth/* (ingreso, callback, salida), /dev/login y
@@ -69,11 +81,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  *   inactividad no vencerían nunca. La ruta verifica la sesión sin renovarla.
  *
  * Cada alternativa termina en `/` o fin de ruta (`(?:/|$)`): un prefijo suelto
- * eximiría también /loginx o /dev/loginx. Va como literal porque Next lo analiza
- * en el build.
+ * eximiría también /loginx, /dev/loginx, /consultax o /cementeriosx. Va como
+ * literal porque Next lo analiza en el build.
  */
 export const config = {
   matcher: [
-    "/((?!_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|api/avisos/resumen(?:/|$)|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
+    "/((?!$|(?:cementerios|horarios|recorridos|tramites|consulta|contacto)(?:/|$)|_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|api/avisos/resumen(?:/|$)|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
   ],
 };

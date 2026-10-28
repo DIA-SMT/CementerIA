@@ -337,6 +337,11 @@ export interface Ficha {
   devolucion: DevolucionFicha;
   /** true si el contacto y los adjuntos se ven completos. */
   datosCompletos: boolean;
+  /**
+   * 28/10/2026: el código de consulta pública, sin guion (`K7QM3XZP`). Lo ve
+   * quien ve la ficha, para dictarlo o imprimir el comprobante.
+   */
+  codigoConsulta: string;
   /** Qué puede hacer el usuario (los mismos permisos que exigen las acciones). */
   acciones: {
     verDatosCompletos: Decision;
@@ -372,6 +377,8 @@ export interface Ficha {
     purgarAdjunto: Decision;
     /** Hay al menos un movimiento que el usuario puede corregir (ver `historial[i].correcciones`). */
     corregir: boolean;
+    /** 28/10/2026: "Regenerar código de consulta" (Mesa de Entradas y admin). */
+    regenerarCodigoConsulta: Decision;
   };
 }
 
@@ -818,6 +825,7 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     pase,
     devolucion,
     datosCompletos: completo,
+    codigoConsulta: e.codigoConsulta,
     acciones: {
       verDatosCompletos: ver,
       editarIdentificatorios: evaluarPermiso("editar_identificatorios", permisos, usuario),
@@ -843,6 +851,7 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
       suprimirPersona: evaluarPermiso("suprimir_persona", permisos, usuario),
       purgarAdjunto: evaluarPermiso("purgar_adjunto", permisos, usuario),
       corregir: corregibles.size > 0,
+      regenerarCodigoConsulta: evaluarPermiso("regenerar_codigo_consulta", permisos, usuario),
     },
   };
   return { ficha, id: e.id };

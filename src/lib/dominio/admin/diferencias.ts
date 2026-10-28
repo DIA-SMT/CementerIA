@@ -22,6 +22,13 @@ export const ETIQUETA_TABLA: Record<string, string> = {
   feriados: "Feriado",
   feriados_anios: "Año de feriados",
   usuarios: "Usuario",
+  // Sitio público (28/10/2026, migración *_sitio_publico).
+  sitio_cementerios: "Sitio: cementerio",
+  sitio_recorridos: "Sitio: recorrido",
+  sitio_recorrido_fechas: "Sitio: fecha de recorrido",
+  sitio_novedades: "Sitio: novedad",
+  sitio_contacto: "Sitio: contacto",
+  sitio_preguntas: "Sitio: pregunta frecuente",
 };
 
 export const ETIQUETA_OPERACION: Record<string, string> = { I: "Alta", U: "Cambio", D: "Baja" };
@@ -57,6 +64,34 @@ const ETIQUETA_COLUMNA: Record<string, string> = {
   cerrado_por: "Cerrado por",
   cerrado_en: "Cerrado el",
   debe_cambiar_clave: "Debe cambiar la contraseña",
+  // Sitio público (28/10/2026).
+  cementerio_id: "Cementerio",
+  visible: "Visible",
+  domicilio: "Domicilio",
+  mapa_url: "Enlace al mapa",
+  que_tiene: "Qué tiene",
+  horario_semana: "Lunes a viernes",
+  horario_fin_de_semana: "Sábados, domingos y feriados",
+  horario_especial: "Fechas especiales",
+  foto: "Foto",
+  dias_hora: "Días y hora",
+  duracion: "Duración",
+  punto_encuentro: "Punto de encuentro",
+  cupo: "Cupo",
+  inscripcion: "Cómo inscribirse",
+  inscripcion_url: "Enlace de inscripción",
+  recorrido_id: "Recorrido",
+  nota: "Nota",
+  titulo: "Título",
+  texto: "Texto",
+  desde: "Desde",
+  hasta: "Hasta",
+  horario: "Horario",
+  telefono: "Teléfono",
+  correo: "Correo",
+  pregunta: "Pregunta",
+  respuesta: "Respuesta",
+  actualizado_en: "Actualizado el",
 };
 
 /** Columnas que no dicen nada al leer el cambio (la clave, que ya está en "Registro"). */
@@ -187,6 +222,19 @@ export function descripcionRegistro(tabla: string, registroId: string, antes: un
     }
     case "feriados_anios":
       return `Año ${registroId}`;
+    // Sitio público (28/10/2026): lo que lo nombra para quien lee la auditoría.
+    case "sitio_cementerios":
+      return `Cementerio #${registroId}`;
+    case "sitio_recorridos":
+    case "sitio_preguntas":
+    case "sitio_novedades": {
+      const nombre = f.nombre ?? f.pregunta ?? f.titulo;
+      return typeof nombre === "string" ? nombre : `#${registroId}`;
+    }
+    case "sitio_recorrido_fechas":
+      return typeof f.fecha === "string" ? `Fecha ${textoValor("fecha", f.fecha)} (recorrido #${String(f.recorrido_id)})` : `#${registroId}`;
+    case "sitio_contacto":
+      return "Mesa de Entradas";
     default:
       return typeof f.codigo === "string" ? `${f.codigo}${typeof f.nombre === "string" ? ` (${f.nombre})` : ""}` : `#${registroId}`;
   }

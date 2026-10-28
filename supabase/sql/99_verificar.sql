@@ -96,7 +96,25 @@ datos AS (
       THEN (xpath('/row/v/text()', query_to_xml($q$
         SELECT format('%s|%s', count(*), count(*) FILTER (WHERE NOT v.integra)) AS v
           FROM public.expedientes e CROSS JOIN LATERAL public.f_verificar_cadena(e.id) v $q$, false, true, '')))[1]::text
-    END AS cadena
+    END AS cadena,
+    -- Consulta pública (28/10/2026): todos los expedientes con un código válido.
+    CASE WHEN has_table_privilege('public.expedientes', 'SELECT')
+      THEN (xpath('/row/v/text()', query_to_xml($q$
+        SELECT format('%s|%s', count(*), count(*) FILTER (WHERE codigo_consulta IS NULL OR codigo_consulta !~ '^[0-9A-HJKMNP-TV-Z]{8}$')) AS v
+          FROM public.expedientes $q$, false, true, '')))[1]::text
+    END AS codigos,
+    -- Sitio público (28/10/2026): las preguntas frecuentes de la semilla de
+    -- producción (prisma/semilla/sitio-publico.ts; scripts/supabase/lib.test.ts
+    -- controla que sean las mismas). Si la tabla todavía no existe, null.
+    CASE WHEN to_regclass('public.sitio_preguntas') IS NULL THEN NULL
+         WHEN has_table_privilege('public.sitio_preguntas', 'SELECT')
+      THEN (xpath('/row/v/text()', query_to_xml($q$
+        SELECT format('%s|%s|%s', count(*) FILTER (WHERE existe), coalesce(string_agg(p, ' · ') FILTER (WHERE NOT existe), '-'),
+                      (SELECT count(*) FROM public.sitio_preguntas)) AS v
+          FROM (SELECT x.p, EXISTS (SELECT 1 FROM public.sitio_preguntas s WHERE lower(s.pregunta) = lower(x.p)) AS existe
+                  FROM unnest(ARRAY['Perdí el código de consulta, ¿qué hago?', '¿La consulta en línea reemplaza al expediente?',
+                                    '¿Dónde pago las tasas?']) AS x(p)) s $q$, false, true, '')))[1]::text
+    END AS preguntas
 ),
 almacen AS (
   -- El bucket de adjuntos de Storage (el despliegue en Vercel; sql/storage.sql).
@@ -290,6 +308,70 @@ SELECT control, ok, detalle FROM (
                           split_part(d.plantillas_semilla, '|', 1), split_part(d.plantillas_semilla, '|', 2),
                           split_part(d.plantillas_semilla, '|', 3))
                    || CASE WHEN split_part(d.plantillas_semilla, '|', 2) <> '-' THEN ' (¿falta aplicar 31_inhumacion.sql?)' ELSE '' END END
+    FROM datos d
+
+  UNION ALL
+  -- Consulta pública (28/10/2026, migración *_consulta_publica): el código no
+  -- se cambia con un UPDATE suelto (trigger expedientes_codigo_consulta, que
+  -- además deja la constancia), es NOT NULL y único; los intentos de la
+  -- consulta no se modifican ni se borran antes de los 7 días (trigger
+  -- intentos_consulta_proteger) y la app no tiene UPDATE sobre ellos.
+  SELECT 22, 'consulta pública: código e intentos protegidos',
+         (SELECT count(*) FROM pg_trigger t JOIN tablas ta ON ta.oid = t.tgrelid
+           WHERE NOT t.tgisinternal AND t.tgenabled = 'A'
+             AND ((ta.nspname = 'public' AND ta.relname = 'expedientes' AND t.tgname = 'expedientes_codigo_consulta')
+                  OR (ta.nspname = 'auditoria' AND ta.relname = 'intentos_consulta'
+                      AND t.tgname IN ('intentos_consulta_proteger', 'intentos_consulta_proteger_truncate')))) = 3
+           AND EXISTS (SELECT 1 FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey)
+                        WHERE i.indrelid = 'public.expedientes'::regclass AND i.indisunique AND i.indnatts = 1
+                          AND a.attname = 'codigo_consulta' AND a.attnotnull)
+           AND (SELECT count(*) FROM tablas WHERE nspname = 'auditoria' AND relname = 'intentos_consulta'
+                   AND NOT has_table_privilege('cementeria_app', oid, 'UPDATE,TRUNCATE')) = 1,
+         'triggers expedientes_codigo_consulta e intentos_consulta_proteger ALWAYS, codigo_consulta NOT NULL y único, '
+           || 'auditoria.intentos_consulta sin UPDATE ni TRUNCATE para la app'
+
+  UNION ALL
+  SELECT 23, 'consulta pública: expedientes con código',
+         CASE WHEN d.codigos IS NULL THEN NULL ELSE split_part(d.codigos, '|', 2) = '0' END,
+         coalesce(format('%s expedientes, %s sin un código de consulta válido', split_part(d.codigos, '|', 1), split_part(d.codigos, '|', 2)),
+                  'sin permiso para leer datos con este rol: npm run supabase:verificar')
+    FROM datos d
+
+  UNION ALL
+  -- Sitio público (28/10/2026, migración *_sitio_publico): las seis tablas con
+  -- RLS y la política de la app, auditadas (auditar_cambio ALWAYS) y con los
+  -- privilegios mínimos: la app lee, inserta y actualiza; borra solo fechas de
+  -- recorrido y novedades (lo demás se desactiva); nunca TRUNCATE.
+  SELECT 24, 'sitio público: RLS, auditoría y privilegios',
+         count(*) = 6
+           AND bool_and(t.relrowsecurity AND NOT t.relforcerowsecurity
+                        AND EXISTS (SELECT 1 FROM pg_policies p
+                                     WHERE p.schemaname = 'public' AND p.tablename = t.relname
+                                       AND p.policyname = 'cementeria_app' AND p.roles = '{cementeria_app}'))
+           AND bool_and(EXISTS (SELECT 1 FROM pg_trigger g WHERE g.tgrelid = t.oid AND g.tgname = 'auditar_cambio' AND g.tgenabled = 'A'))
+           AND bool_and(has_table_privilege('cementeria_app', t.oid, 'SELECT') AND has_table_privilege('cementeria_app', t.oid, 'INSERT')
+                        AND has_table_privilege('cementeria_app', t.oid, 'UPDATE') AND NOT has_table_privilege('cementeria_app', t.oid, 'TRUNCATE')
+                        AND has_table_privilege('cementeria_app', t.oid, 'DELETE') = (t.relname IN ('sitio_recorrido_fechas', 'sitio_novedades'))),
+         CASE WHEN count(*) = 6
+              THEN 'sitio_cementerios, sitio_recorridos, sitio_recorrido_fechas, sitio_novedades, sitio_contacto y sitio_preguntas: '
+                   || 'RLS con la política de la app y auditar_cambio ALWAYS; la app lee, inserta y actualiza, y borra solo fechas de recorrido y novedades'
+              ELSE format('hay %s de las 6 tablas del sitio público (¿falta aplicar la migración *_sitio_publico?)', count(*)) END
+    FROM tablas t
+   WHERE t.nspname = 'public'
+     AND t.relname IN ('sitio_cementerios', 'sitio_recorridos', 'sitio_recorrido_fechas', 'sitio_novedades', 'sitio_contacto', 'sitio_preguntas')
+
+  UNION ALL
+  -- Mal si no hay ninguna pregunta (no se aplicó 32_sitio_publico.sql);
+  -- informativo si falta alguna de las iniciales (la Dirección pudo cambiarle el texto).
+  SELECT 25, 'sitio público: preguntas frecuentes iniciales',
+         CASE WHEN d.preguntas IS NULL THEN NULL
+              WHEN split_part(d.preguntas, '|', 3) = '0' THEN false
+              WHEN split_part(d.preguntas, '|', 1) <> '3' THEN NULL
+              ELSE true END,
+         CASE WHEN d.preguntas IS NULL THEN 'sin permiso para leer datos con este rol (o falta la tabla): npm run supabase:verificar'
+              ELSE format('%s de las 3 iniciales; faltan: %s; %s pregunta(s) en total', split_part(d.preguntas, '|', 1),
+                          split_part(d.preguntas, '|', 2), split_part(d.preguntas, '|', 3))
+                   || CASE WHEN split_part(d.preguntas, '|', 3) = '0' THEN ' (¿falta aplicar 32_sitio_publico.sql?)' ELSE '' END END
     FROM datos d
 ) controles
 ORDER BY orden;

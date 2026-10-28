@@ -54,6 +54,7 @@ Hoy cubre cuatro trámites: renovación de concesión de contado, renovación de
 8. Obtener estadísticas internas (cantidades y tiempos por área y por trámite) y exportar listados **sin datos de contacto**. Esto último solo lo pueden hacer la Dirección y el administrador.
 9. Controlar el uso: registrar quién consultó qué y guardar los cambios de configuración.
 10. Pasar a la herramienta, desde la ficha de papel, los expedientes iniciados antes de que existiera (carga histórica).
+11. *Agregado el 28/10/2026.* Permitir que el concesionario consulte, sin ingresar al sistema, en qué estado está su trámite: con el número de expediente y un código de consulta que le entrega Mesa de Entradas en un comprobante impreso (ver la sección 9, "Consulta pública").
 
 **Usos excluidos**, para que el acto los descarte si Asesoría Legal lo considera conveniente:
 - cruzar estos datos con otras bases o padrones;
@@ -192,6 +193,20 @@ Acceden solo empleados de la Dirección de Cementerios dados de alta y el admini
 - Se registran los cambios de usuarios, permisos y configuración, con el antes y el después.
 - Las copias digitales se ven dentro de la herramienta. Descargarlas es una acción aparte, que queda registrada, para que no queden copias en las computadoras compartidas.
 
+**Consulta pública** (agregada el 28/10/2026)
+
+Es una vía de acceso nueva, desde internet y sin usuario: la página `/consulta` del sitio público de la herramienta (y `/consulta/<número>`, a la que lleva el QR). Las demás páginas del sitio (inicio, cementerios, horarios, recorridos, trámites y contacto) solo muestran información institucional, sin datos de expedientes ni de personas.
+- **Quién y cómo:** quien tenga el número de expediente y el código de consulta del comprobante que Mesa de Entradas entrega al iniciar el trámite (8 caracteres al azar, distinto para cada expediente). El comprobante trae un código QR que abre la consulta. El código viaja en el cuerpo del pedido, nunca en la dirección web ni en los registros del servidor.
+- **Qué muestra:** solo el número de expediente, el tipo de trámite, el cementerio, la fecha de inicio, el estado en lenguaje simple, el área en la que está y desde qué fecha, el avance (paso X de N) y la fecha del último movimiento. **Ningún dato personal:** ni nombres, ni DNI o CUIL, ni contacto, ni ubicación de la sepultura, ni observaciones o motivos, ni copias digitales, ni empleados, ni el historial. La respuesta se arma con una lista cerrada de campos, probada.
+- **Contra la adivinación:** ante un número que no existe o un código incorrecto el mensaje es siempre el mismo; el código se compara en tiempo constante; y después de 10 intentos fallidos desde una misma conexión, o de 5 sobre un mismo número, en 15 minutos, la consulta se bloquea 15 minutos.
+- **Si el código se pierde o se filtra,** Mesa de Entradas (o el administrador) genera uno nuevo, con un motivo que queda registrado; el anterior deja de servir.
+- **Registro:** cada consulta correcta queda en el registro de accesos (sin usuario, con la dirección IP), con la misma retención que el resto. Los intentos fallidos se guardan aparte con la dirección IP y el número consultado, solo **7 días** (alcanzan para detectar un ataque), y se borran solos.
+- La página pública no se publica en buscadores (no se indexa) hasta que la Dirección de Cementerios lo apruebe.
+
+**Contenido de la página pública** (agregado el 28/10/2026)
+
+La Dirección de Cementerios carga desde la herramienta lo que muestra la página pública: domicilio, horarios de visita y descripción de cada cementerio, recorridos históricos con sus fechas, novedades, preguntas frecuentes y el contacto de Mesa de Entradas. **No son datos personales**: es información institucional. Lo único que podría acercarse es un teléfono o un correo de contacto, que tienen que ser **institucionales** (el de Mesa de Entradas), nunca los de un empleado; la pantalla lo recuerda. Cada cambio queda en el registro de cambios de configuración, con quién lo hizo y cuándo. Lo pueden cargar solo la Dirección y el administrador.
+
 **Integridad del historial**
 - La base de datos impide modificar o borrar el historial, incluso ante un error de la aplicación.
 - El único que puede alterarlo es un administrador del servidor de base de datos (superusuario), que es del Área de Sistemas. Para que una alteración así se detecte, se pide a Sistemas que registre los cambios de estructura y las sesiones de cualquier usuario distinto de la aplicación, y se compara contra los backups.
@@ -215,6 +230,7 @@ Acceden solo empleados de la Dirección de Cementerios dados de alta y el admini
 | Expedientes, personas e historial | Sin propuesta. La herramienta no prevé borrarlos, igual que la ficha de papel que reemplaza | **A definir** por Asesoría Legal; puede alinearse con el plazo de conservación del expediente de papel |
 | Copias digitales de documentos | Sin propuesta | **A definir** (pregunta 10) |
 | Registro de accesos | 24 meses | Propuesto, a confirmar |
+| Intentos fallidos de la consulta pública (IP y número consultado) | 7 días; se borran solos todos los días | Diseño (28/10/2026) |
 | Registro de cambios de configuración | Sin propuesta | **A definir** |
 | Backups | 30 copias diarias y 12 mensuales: los datos suprimidos desaparecen de todas las copias en alrededor de 12 meses | Propuesto, a confirmar |
 | Logs del servidor de base de datos | Los define el Área de Sistemas | A informar por Sistemas |

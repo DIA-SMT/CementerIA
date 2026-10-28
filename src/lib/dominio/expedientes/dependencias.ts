@@ -48,4 +48,11 @@ export interface DependenciasExpedientes {
    * `subirAdjunto` y `leerAdjunto`; la app lo arma con `ADJUNTOS_DIR`.
    */
   almacen?: AlmacenAdjuntos;
+  /**
+   * El código de consulta pública de un expediente nuevo o regenerado
+   * (./codigo-consulta.ts), con su número. Por defecto, al azar
+   * (`generarCodigoConsulta`, que no mira el número); la semilla de desarrollo
+   * pasa `codigoDeSemilla`, determinista, para documentar con qué probar.
+   */
+  generarCodigoConsulta?: (numero: string) => string;
 }

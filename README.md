@@ -178,6 +178,20 @@ obligatoria) y las preguntas para la Dirección están en
 Supabase: `supabase/sql/31_inhumacion.sql` ([supabase/sql/README.md](supabase/sql/README.md),
 "La semilla cambió").
 
+Página pública y consulta del trámite (28/10/2026; [docs/api-dominio.md](docs/api-dominio.md),
+sección 24; migración `*_consulta_publica`): ver "Página pública y consulta",
+más abajo. Sin sesión, `/` es el inicio del sitio público y `/consulta` la
+consulta del trámite; con sesión, `/` sigue llevando a cada uno a su inicio.
+El concesionario consulta con el número de expediente y un **código de
+consulta** que le entrega Mesa de Entradas en un comprobante (con QR).
+
+Sitio público (28/10/2026; [docs/api-dominio.md](docs/api-dominio.md), sección
+25; migración `*_sitio_publico`): ver "Sitio público", más abajo. El sitio de
+los cementerios, una página por sección (`/`, `/cementerios`, `/horarios`,
+`/recorridos`, `/tramites`, `/consulta` y `/contacto`), y su contenido lo carga
+la **Dirección** desde `/admin/sitio-publico`, sin tocar código ni variables de
+entorno.
+
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
 tocar código de Next, leer [AGENTS.md](AGENTS.md): Next 16 cambia APIs y
@@ -241,7 +255,9 @@ Solo datos ficticios en desarrollo y staging.
    npm run dev
    ```
 
-   Abrir <http://localhost:3000>: sin sesión lleva a `/login`. Ahí se entra
+   Abrir <http://localhost:3000>: sin sesión es el inicio del sitio público (ver
+   "Sitio público" y "Página pública y consulta") y "Ingreso del personal" lleva
+   a `/login` (cualquier otra pantalla, sin sesión, también). Ahí se entra
    con el **CUIL** (con o sin guiones) o el correo y la **contraseña de
    desarrollo** de todos los usuarios de la semilla, `cementeria-local-2026`
    (ver "Ingreso", más abajo), o por el **login simulado** (`/dev/login`,
@@ -270,7 +286,7 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run empaquetar` | Arma el paquete de despliegue (build standalone, migraciones y CLI de Prisma) desde el último commit, en `build/paquetes/`. Ver [docs/despliegue.md](docs/despliegue.md) |
 | `npm run db:verificar-restauracion` | Controla una base restaurada (conteos, dueños, triggers, cadena de hash, sha256 de adjuntos). Lo usa `scripts/restaurar-prueba.sh` |
 | `npm run historial:verificar` | Verifica la cadena de hash del historial de todos los expedientes y lo registra en `auditoria.accesos` como SISTEMA (`-- --sin-registro` para no registrar). Sale con 1 si hay alguno roto |
-| `npm run avisos:generar` | Genera los avisos por tiempo (plazo DIM, sin confirmar, demorado) como SISTEMA. Idempotente; `-- --fecha AAAA-MM-DD` para generar como si fuera ese día |
+| `npm run avisos:generar` | Genera los avisos por tiempo (plazo DIM, sin confirmar, demorado) como SISTEMA. Idempotente; `-- --fecha AAAA-MM-DD` para generar como si fuera ese día. Desde el 28/10/2026, después borra los intentos fallidos de la consulta pública de más de 7 días |
 | `npm run avisos:purgar` | Cuenta los avisos leídos hace más de 90 días; `-- --confirmar` los borra (`-- --dias N`, 90 o más). Con `MIGRATE_DATABASE_URL`: la app no puede borrar avisos |
 | `npm run supabase:preparar` | Prepara la base de Supabase de punta a punta (roles con claves aleatorias, extensiones, migraciones, cierre de la API, semilla de producción y verificación). Idempotente. Lee `.env.supabase.local`; `-- --rotar-claves`, `-- --app-pooler transaccion`, `-- --env <archivo>`. Ver [docs/despliegue.md](docs/despliegue.md), sección 18 |
 | `npm run supabase:verificar` | Solo la verificación final de la base de Supabase, como `cementeria_app` |
@@ -290,11 +306,15 @@ prisma/
   migrations/              *_inicial (generada y retocada), *_reglas_base (a mano:
                            CHECKs, funciones, triggers, GRANTs, usuario SISTEMA),
                            *_personas_juridicas (semana 4, a mano), *_cadena_hash
-                           (26/10/2026, a mano: la cadena de hash del historial) y
-                           *_avisos (26/10/2026: avisos, preferencias y corridas)
+                           (26/10/2026, a mano: la cadena de hash del historial),
+                           *_avisos (26/10/2026: avisos, preferencias y corridas),
+                           *_rls_defensa y *_login_propio (27/10/2026),
+                           *_consulta_publica (28/10/2026: código de consulta e intentos) y
+                           *_sitio_publico (28/10/2026: el contenido de la página pública)
   seed.ts, semilla/        semilla: áreas, catálogos, cementerios, feriados,
                            usuarios ficticios, las 4 plantillas de la sección 4 y
-                           las 2 de inhumación (27/10/2026)
+                           las 2 de inhumación (27/10/2026); las preguntas frecuentes
+                           y, en desarrollo, el sitio público de ejemplo (28/10/2026)
 scripts/
   db-local.mjs, lib/       PostgreSQL local con embedded-postgres
   db-init.sql              roles, bases y extensiones de DESARROLLO (owner con CREATEDB)
@@ -310,7 +330,10 @@ deploy/                    systemd, nginx, modelos de entorno y desplegar.sh (do
 src/
   proxy.ts                 renovación deslizante de la sesión (no autoriza)
   instrumentation.ts       valida el entorno al arrancar (lib/arranque.ts)
-  app/                     rutas: /login, /cambiar-clave, /auth/*, /dev/login, /sin-acceso y,
+  app/                     rutas: en (publico)/ (28/10/2026, sin sesión), el sitio
+                           público: / (el inicio), /cementerios, /horarios, /recorridos,
+                           /tramites, /contacto y la consulta, /consulta y /consulta/[numero];
+                           /login, /cambiar-clave, /auth/*, /dev/login, /sin-acceso y,
                            en (app)/, las pantallas con sesión; los adjuntos en
                            /adjuntos/[movimientoId], POST /api/expedientes/[numero]/adjuntos y,
                            semana 4, GET /expedientes/exportar (CSV); semana 5, /admin/* y
@@ -328,7 +351,9 @@ src/
                            usuarios, catálogos y auditoría) y plantillas/borrador.ts;
                            metricas/ (las métricas de gestión: recorrido, cálculo puro
                            y consultas); avisos/ (tipos y textos, los de cada evento,
-                           los del tiempo y lo que ve cada usuario). Ver docs/api-dominio.md
+                           los del tiempo y lo que ve cada usuario); publico/ (28/10/2026:
+                           la consulta pública y los trámites de la página pública); sitio/
+                           (28/10/2026: el contenido de la página que carga la Dirección). Ver docs/api-dominio.md
   lib/adjuntos/            tipos por magic bytes y el almacén en disco (AlmacenAdjuntos)
   lib/presentacion/        lógica de las pantallas, sin Next: modelo del formulario, parámetros
                            del buscador, URL del QR, enlace wa.me, textos, la lógica de las
@@ -474,6 +499,23 @@ base recién reseteada):
 | Mesa de Entradas | I2 · 00066 | Inhumación con pago en la empresa fúnebre (Oeste): horario informado, en el cementerio (Afuera) con los comprobantes presentados |
 | Mesa de Entradas | I3 · 00067 | Inhumación con pago en la Dirección (Norte) que volvió del cementerio: en "Conocimiento y archivo", falta tildar el conocimiento para concluir y archivar |
 
+**Códigos de consulta** (28/10/2026): la semilla de desarrollo les da a sus
+expedientes códigos **deterministas** (`codigoDeSemilla`, en
+`src/lib/dominio/expedientes/codigo-consulta.ts`; la app, en cambio, los genera
+al azar), así se puede probar la consulta pública siempre con los mismos. En una
+base recién reseteada (el año es el del día en que corre la semilla):
+
+| Expediente | Código de consulta | Qué muestra `/consulta` |
+|---|---|---|
+| `CEM-2026-00001` (uno de los 30) | `PRVE-8A01` | En trámite, en Mesa de Entradas, paso 1 |
+| `CEM-2026-00052` (D1) | `PRVE-8A52` | Esperando el pago en la DIM, en la Dirección de Ingresos Municipales (DIM) |
+| `CEM-2026-00058` (K1) | `PRVE-8A58` | Finalizado: acercate a Mesa de Entradas |
+
+Directo, como desde el QR del comprobante:
+<http://localhost:3000/consulta/CEM-2026-00052#PRVE-8A52>. Los demás tienen uno
+derivado de su número (se ve en la ficha). Son públicos (están acá): la semilla
+de producción no crea expedientes.
+
 Como **Dirección**, `/panel` tiene números en todas las secciones: por estado,
 la matriz área × trámite, demorados, plazos por vencer y vencidos, sin
 confirmar, diferidos y correcciones del mes, y las 3 cargas históricas de los
@@ -528,6 +570,137 @@ Dirección y el admin no reciben avisos.
 - Con ficticios, todos los usuarios de la semilla tienen la contraseña de
   desarrollo `cementeria-local-2026` (`CLAVE_DESARROLLO` de
   `prisma/semilla/usuarios.ts`).
+
+## Página pública y consulta
+
+Desde el 28/10/2026 ([docs/api-dominio.md](docs/api-dominio.md), sección 24;
+diseño en [docs/diseno.md](docs/diseno.md), "Página pública").
+
+- **`/` sin sesión:** el inicio del sitio de los cementerios (ver "Sitio
+  público", más abajo), que lleva a cada página; entre ellas, `/tramites` (los
+  tipos de trámite con una plantilla publicada y, para cada uno, "Qué tenés que
+  traer": los documentos de origen concesionario de esas plantillas, sin
+  repetir, y las modalidades) y `/consulta`. Server Components; el único
+  JavaScript es el del formulario. **Con sesión**, `/` redirige como siempre al
+  inicio de cada uno (o a cambiar la contraseña temporal), salvo
+  `/?vista=publica` (la vista previa de la administración); las demás páginas
+  públicas se ven igual con o sin sesión.
+- **`/consulta` y `/consulta/[numero]`:** los 3 pasos y el **formulario de
+  consulta** (número de expediente y código). El QR del
+  comprobante lleva a `/consulta/CEM-…#CODIGO`: el código va en el fragmento,
+  que el navegador no manda al servidor (no queda en ningún log); la página lo
+  lee, lo saca de la barra de direcciones y consulta por POST (Server Action).
+  Nunca por GET ni en la query. `Cache-Control: no-store` y
+  `Referrer-Policy: no-referrer` (`next.config.ts`, y `<meta name="referrer">`
+  por si delante hay un nginx).
+- **Qué responde:** número, tipo de trámite, cementerio, fecha de inicio, el
+  estado en lenguaje del ciudadano ("En trámite", "Esperando el pago en la
+  DIM", "Finalizado: acercate a Mesa de Entradas" [C], "Archivado"; un anulado,
+  "Sin curso: acercate a Mesa de Entradas" [C]), en qué área está (los
+  cementerios por su nombre) y desde qué día, el avance (paso X de N y su
+  nombre), la fecha del último movimiento y "Información orientativa: el
+  expediente oficial es el de papel". **Nunca** personas, DNI o CUIL, ubicación
+  de la sepultura, motivos, observaciones, adjuntos, usuarios ni el historial.
+- **Errores:** número inexistente, código incorrecto o con otra forma, el
+  mismo mensaje: "No encontramos un trámite con ese número y código". El código
+  se compara en tiempo constante.
+- **Límite de intentos, en la base** (vale con varias instancias en Vercel):
+  10 fallidos por IP y 5 por número cada 15 minutos; al llegar, "Hubo
+  demasiados intentos fallidos…" sin buscar nada. Los fallidos van a
+  `auditoria.intentos_consulta` (IP y número; solo inserción para la app) y se
+  borran a los **7 días** (`f_purgar_intentos_consulta()`, con la tarea de los
+  avisos de cada mañana; un intento más nuevo no se puede borrar). Cada consulta correcta queda en `auditoria.accesos`
+  como `consulta_publica`, sin usuario (para las métricas).
+- **El código de consulta:** 8 caracteres de Crockford base32 sin I, L, O ni U
+  (`K7QM-3XZP`), al azar (40 bits), único. Lo genera el alta; los expedientes
+  anteriores lo recibieron en la migración. Lo ve en la ficha quien ve el
+  expediente ("Código de consulta"), con **"Imprimir comprobante"**
+  (`/expedientes/[numero]/imprimir?hoja=comprobante`: media hoja A4 con número,
+  trámite, cementerio, fecha de inicio, el código grande, la dirección de la
+  consulta y el QR; registra `imprimir`), que también se ofrece al terminar el
+  alta, junto a la carátula. **"Regenerar código"** (Mesa de Entradas y el
+  admin, con motivo) da uno nuevo si el concesionario lo perdió o se filtró: el
+  anterior deja de servir y queda `regenerar_codigo_consulta` en
+  `auditoria.accesos` con el motivo. No es un movimiento (no toca el historial
+  ni su cadena de hash). En la base, el código no cambia con un UPDATE (ni de
+  la app ni del owner): solo cuando la transacción lo pide para ese expediente y
+  trae el motivo, y el mismo trigger deja la constancia.
+- **Sin indexar [C]:** la página pública y la consulta llevan
+  `robots: noindex, nofollow` (como el resto) hasta que la Dirección apruebe la
+  publicación. Para publicarla, sacarlo del layout de las páginas públicas,
+  `src/app/(publico)/layout.tsx` (el layout raíz lo sigue poniendo para lo
+  interno).
+- **Pendiente [C] de la Dirección:** los textos de los estados "Finalizado" y
+  "Sin curso", y la aprobación para publicar e indexar la página. Los datos de
+  Mesa de Entradas y el resto del contenido los carga ella misma (ver "Sitio
+  público").
+
+## Sitio público
+
+Desde el 28/10/2026 ([docs/api-dominio.md](docs/api-dominio.md), sección 25;
+diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
+`*_sitio_publico`).
+
+- **Las páginas** (`src/app/(publico)/`; desde el 28/10/2026, una por
+  sección: antes era una sola página con anclas): barra fija con la marca, un
+  enlace por página (Cementerios, Horarios de visita, Recorridos, Trámites,
+  **Consultá tu trámite**, Contacto; la actual, con el subrayado amarillo; en
+  celular, un menú que abre sin JavaScript), el botón de **modo claro u
+  oscuro** e "Ingreso del personal"; pie. Todo sobre un **fondo fijo** (la
+  panorámica de cipreses con un velo, quieta mientras se desplaza el
+  contenido) y con tarjetas de vidrio esmerilado.
+  - **Modo oscuro:** por defecto el del sistema; el botón de la barra (luna y
+    sol) lo alterna y lo recuerda en el navegador (localStorage); si lo elegido
+    coincide con el sistema, vuelve a seguir al sistema. Solo el sitio
+    público: la app interna y el comprobante imprimible no cambian.
+  - **`/` (inicio):** hero de alto completo con el título "Cementerios de San
+    Miguel de Tucumán", "Consultá tu trámite" y "Horarios de visita"; seis
+    accesos, uno por página; las **novedades** (solo si hay vigentes);
+    "Próximos recorridos" (hasta 3 fechas, solo si hay) y una banda corta
+    "Consultá tu trámite" que lleva a `/consulta`.
+  - **Las internas** comparten un encabezado sobre la foto con las migas de
+    pan ("Inicio › Recorridos"), el título de la página y una bajada; el
+    contenido en un panel de lectura casi opaco y, al pie, dos invitaciones a
+    otras páginas: **`/cementerios`** (tarjetas
+    con foto, domicilio, "Cómo llegar"); **`/horarios`** (tabla; en celular,
+    tarjetas; arriba, las novedades vigentes); **`/recorridos`** (la ficha
+    destacada, las demás, las próximas fechas y "Grupos, escuelas e
+    instituciones"); **`/tramites`** (de las plantillas publicadas);
+    **`/consulta`** (los 3 pasos y el formulario); **`/contacto`**
+    (Mesa de Entradas y las preguntas frecuentes en acordeón).
+- **Cómo se carga:** la Dirección (y el admin) entra a **Sitio público**
+  (`/admin/sitio-publico`; en el menú de Dirección, o en Administración): pestañas
+  Cementerios (domicilio, enlace al mapa, descripción, "qué tiene", horarios de
+  lunes a viernes, de sábados, domingos y feriados y de fechas especiales,
+  foto y si se muestra), Recorridos (con sus fechas), Novedades (desde y hasta,
+  inclusive), Contacto (Mesa de Entradas) y Preguntas frecuentes. "Ver la
+  página pública" abre la vista previa del inicio, y cada pestaña ofrece además
+  la página donde se ve lo suyo (Recorridos, `/recorridos`; Contacto y
+  Preguntas, `/contacto`). Cada cambio queda en la auditoría
+  (Administración, Auditoría, cambios de configuración "Sitio: …"). Los
+  operadores no entran.
+- **Reglas:** todo es texto plano (se ve tal cual se escribe: nada de HTML ni
+  Markdown); cada texto tiene un largo máximo; los enlaces de mapa son solo
+  https de Google Maps (`google.com/maps`, `maps.app.goo.gl`) u OpenStreetMap;
+  el de inscripción, https. La foto se elige de las ilustrativas que trae el
+  sistema (`public/imagenes`): **subir fotos propias queda para más adelante**.
+  Lo que no se quiere mostrar se desactiva; solo las fechas de recorrido y las
+  novedades se quitan.
+- **Vacía, como arranca en producción:** los cementerios del catálogo se listan
+  igual, con el nombre (sin domicilio no hay "Cómo llegar"); sin horarios,
+  "Consultá los horarios en Mesa de Entradas" con el contacto; sin recorridos,
+  "Por ahora no hay recorridos programados. Para visitas de grupos o
+  instituciones, escribinos."; sin novedades no hay franja; sin fechas, el
+  inicio no muestra "Próximos recorridos"; sin preguntas no hay acordeón.
+  Nunca "A completar".
+- **Semillas:** la de producción trae solo tres preguntas frecuentes (el código
+  de consulta perdido, que la consulta no reemplaza al expediente y dónde se
+  pagan las tasas); la de desarrollo, además, contenido de ejemplo ficticio
+  ("(dato de prueba)", "(ejemplo)") para ver todas las secciones. En Supabase,
+  `supabase/sql/32_sitio_publico.sql` (ver su README).
+- **Imagen del hero:** `public/imagenes/landing-panoramica-{960,1916}.webp` (la de
+  960 px, generada con sharp, que ya trae Next). `panel-avenida-memorial` sigue
+  en el panel.
 
 ## Ingreso
 
@@ -691,6 +864,19 @@ de un minuto. Cubren:
   la primera vez, no bloquea y respeta "Ahora no" (vuelve al día siguiente) y
   "No volver a mostrar"; "Reiniciar los recorridos"; y en el celular el globo
   es una hoja inferior;
+- la página pública y la consulta (28/10/2026): `/` sin sesión con un solo h1,
+  la banda que lleva a `/consulta` y "Ingreso del personal"; con sesión, `/`
+  redirige como antes; la consulta con un código de la semilla (llegando desde
+  el inicio), la incorrecta con el mismo mensaje (y los encabezados `no-store`
+  y `no-referrer`), `/consulta/NUMERO#CODIGO` que se completa solo, el
+  comprobante con el código y el QR desde la ficha, y `/consulta` en 375 px
+  sin scroll horizontal; el sitio público, página por página (su h1, su
+  título, la barra con la actual marcada, la navegación desde el inicio, 375
+  px sin scroll lateral en todas y las páginas vacías); y el modo oscuro del
+  sitio (el botón alterna, se recuerda al recargar y anda sin localStorage;
+  con el sistema en oscuro arranca en oscuro; 375 px sin scroll lateral en
+  las siete páginas en los dos modos; y el contraste de los tokens del sitio
+  contra sus superficies, en los dos modos);
 - el modo prueba: un admin de prueba propio (CUIL ficticio en
   `PERFILES_PRUEBA_CUILS` de la app de las pruebas) elige "Ver como…
   Liquidación" con el teclado, ve la bandeja de Liquidación con la franja (que

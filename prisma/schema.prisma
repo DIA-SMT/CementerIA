@@ -70,6 +70,9 @@ model Cementerio {
 
   area        Area         @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   expedientes Expediente[]
+  /// Lo que muestra la página pública (28/10/2026, migración *_sitio_publico).
+  sitio       SitioCementerio?
+  recorridos  SitioRecorrido[]
 
   @@map("cementerios")
   @@schema("public")
@@ -239,8 +242,14 @@ model Expediente {
   actualizadoEn        DateTime  @default(now()) @map("actualizado_en") @db.Timestamptz
   /// Bloqueo optimista: +1 en cada acción que inserta un movimiento.
   version              Int       @default(0)
+  /// Código de consulta pública (28/10/2026, migración *_consulta_publica): 8
+  /// caracteres de Crockford base32 sin I, L, O ni U, guardados sin guion (se
+  /// muestra XXXX-XXXX). Lo genera el alta; cambia solo con "Regenerar código
+  /// de consulta", con motivo y constancia (trigger expedientes_codigo_consulta). El
+  /// DEFAULT es para lo que se inserta por SQL (pruebas): el dominio lo pasa siempre.
+  codigoConsulta       String    @unique @default(dbgenerated("f_codigo_consulta_aleatorio()")) @map("codigo_consulta")
 
-  tipoTramite        TipoTramite         @relation(fields: [tipoTramiteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tipoTramite       TipoTramite         @relation(fields: [tipoTramiteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   plantilla          Plantilla           @relation(fields: [plantillaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   expedienteAnterior Expediente?         @relation("ExpedienteReiniciado", fields: [expedienteAnteriorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   reiniciadoEn       Expediente[]        @relation("ExpedienteReiniciado")
@@ -534,10 +543,12 @@ model AuditoriaCambio {
 }
 
 /// Ingresos, aperturas de ficha, vistas de datos completos y de adjuntos,
-/// impresiones y exportaciones.
+/// impresiones y exportaciones. Desde el 28/10/2026, también la consulta
+/// pública correcta (`consulta_publica`, sin usuario) y "Regenerar código de
+/// consulta" (`regenerar_codigo_consulta`, con el motivo en el detalle).
 model AuditoriaAcceso {
   id           BigInt   @id @default(autoincrement())
-  /// NULL en un ingreso rechazado.
+  /// NULL en un ingreso rechazado y en una consulta pública.
   usuarioId    Int?     @map("usuario_id")
   accion       String
   expedienteId BigInt?  @map("expediente_id")
@@ -553,4 +564,157 @@ model AuditoriaAcceso {
   @@index([usuarioId, en])
   @@map("accesos")
   @@schema("auditoria")
+}
+
+/// Intentos fallidos de la consulta pública (/consulta, 28/10/2026). El límite
+/// por IP y por número (src/lib/dominio/publico/consulta.ts) se cuenta acá, en
+/// la base, para que valga con varias instancias. Solo inserción: el trigger
+/// intentos_consulta_proteger no deja modificar ni borrar uno de menos de 7
+/// días, y `f_purgar_intentos_consulta()` borra los más viejos (la tarea diaria). Las consultas correctas van a auditoria.accesos (`consulta_publica`).
+model IntentoConsulta {
+  id        BigInt   @id @default(autoincrement())
+  en        DateTime @default(now()) @db.Timestamptz
+  /// Como en auditoria.accesos: la de X-Real-IP (src/lib/auth/red.ts), o NULL.
+  ip        String?  @db.Inet
+  /// El número canónico que se escribió (`CEM-2026-00042`), o NULL si no tenía forma de número.
+  numero    String?
+  /// fallido (número inexistente, código incorrecto o con otra forma) o bloqueado (llegó al límite).
+  resultado String
+
+  @@index([ip, en])
+  @@index([numero, en])
+  @@map("intentos_consulta")
+  @@schema("auditoria")
+}
+
+// ---------------------------------------------------------------------------
+// Sitio público (migración *_sitio_publico, 28/10/2026)
+// ---------------------------------------------------------------------------
+//
+// El contenido de la página pública (`/`) que carga la Dirección desde
+// /admin/sitio-publico (docs/api-dominio.md, sección 25). Texto plano: la
+// página lo muestra escapado, nada de HTML ni Markdown. Los largos y las URLs
+// los valida src/lib/dominio/sitio/validacion.ts y los repiten CHECKs en la
+// migración. Todo queda en auditoria.cambios (trigger auditar_cambio). Sin
+// datos personales: a lo sumo un teléfono o un correo institucional.
+//
+// La app lee, inserta y actualiza; borra solo fechas de recorrido y novedades.
+// Lo demás se desactiva (`visible`, `activo`, `activa`).
+
+/// Los datos públicos de un cementerio del catálogo, 1 a 1 (sin fila = sin
+/// datos cargados: la página lo lista igual, solo con el nombre). Un campo
+/// NULL no se muestra.
+model SitioCementerio {
+  cementerioId       Int      @id @map("cementerio_id") @db.SmallInt
+  /// false: el cementerio no aparece en la página pública.
+  visible            Boolean  @default(true)
+  domicilio          String?
+  /// https de google.com/maps, maps.app.goo.gl u openstreetmap.org.
+  mapaUrl            String?  @map("mapa_url")
+  descripcion        String?
+  /// "Qué tiene": mausoleos, nichos, sepulturas en parque…
+  queTiene           String?  @map("que_tiene")
+  /// Horarios de visita: lunes a viernes, sábados/domingos/feriados y fechas especiales.
+  horarioSemana      String?  @map("horario_semana")
+  horarioFinDeSemana String?  @map("horario_fin_de_semana")
+  horarioEspecial    String?  @map("horario_especial")
+  /// Una de las imágenes de public/imagenes (lista cerrada: validacion.ts, FOTOS_SITIO).
+  foto               String?
+  creadoEn           DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn      DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  cementerio Cementerio @relation(fields: [cementerioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@map("sitio_cementerios")
+  @@schema("public")
+}
+
+/// Un recorrido histórico (visita guiada).
+model SitioRecorrido {
+  id             Int      @id @default(autoincrement())
+  nombre         String
+  descripcion    String?
+  cementerioId   Int?     @map("cementerio_id") @db.SmallInt
+  /// "Sábados a las 10", texto libre.
+  diasHora       String?  @map("dias_hora")
+  duracion       String?
+  puntoEncuentro String?  @map("punto_encuentro")
+  cupo           String?
+  /// Cómo inscribirse (texto) y, si hay, un enlace https.
+  inscripcion    String?
+  inscripcionUrl String?  @map("inscripcion_url")
+  foto           String?
+  activo         Boolean  @default(true)
+  orden          Int      @default(0) @db.SmallInt
+  creadoEn       DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn  DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  cementerio Cementerio?           @relation(fields: [cementerioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fechas     SitioRecorridoFecha[]
+
+  @@map("sitio_recorridos")
+  @@schema("public")
+}
+
+/// Una fecha de un recorrido. La página muestra las futuras, hasta 6.
+model SitioRecorridoFecha {
+  id          Int      @id @default(autoincrement())
+  recorridoId Int      @map("recorrido_id")
+  fecha       DateTime @db.Timestamptz
+  nota        String?
+  creadoEn    DateTime @default(now()) @map("creado_en") @db.Timestamptz
+
+  recorrido SitioRecorrido @relation(fields: [recorridoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([fecha])
+  @@index([recorridoId, fecha])
+  @@map("sitio_recorrido_fechas")
+  @@schema("public")
+}
+
+/// Una novedad de la página pública (la franja amarilla): horarios especiales,
+/// cortes, fechas nuevas. No confundir con `avisos`, que son los internos.
+/// Vigente de `desde` a `hasta` inclusive (días de Tucumán) si está activa.
+model SitioNovedad {
+  id            Int      @id @default(autoincrement())
+  titulo        String
+  texto         String
+  desde         DateTime @db.Date
+  hasta         DateTime @db.Date
+  activa        Boolean  @default(true)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  @@index([desde, hasta])
+  @@map("sitio_novedades")
+  @@schema("public")
+}
+
+/// El contacto de Mesa de Entradas: una sola fila (id = 1). Un campo NULL no
+/// se muestra.
+model SitioContacto {
+  id            Int      @id @default(1) @db.SmallInt
+  domicilio     String?
+  horario       String?
+  telefono      String?
+  correo        String?
+  mapaUrl       String?  @map("mapa_url")
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  @@map("sitio_contacto")
+  @@schema("public")
+}
+
+/// Una pregunta frecuente (el acordeón de Contacto).
+model SitioPregunta {
+  id            Int      @id @default(autoincrement())
+  pregunta      String
+  respuesta     String
+  orden         Int      @default(0) @db.SmallInt
+  activa        Boolean  @default(true)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  @@map("sitio_preguntas")
+  @@schema("public")
 }

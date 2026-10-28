@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ClipboardList, FileCog, ShieldCheck, Users, type LucideIcon } from "lucide-react";
+import { ArrowRight, ClipboardList, FileCog, Globe, ShieldCheck, Users, type LucideIcon } from "lucide-react";
 import { Aviso } from "@/components/aviso";
 import { EncabezadoPagina } from "@/components/encabezado-pagina";
 import { CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
@@ -17,10 +17,11 @@ const ICONOS: Record<string, LucideIcon> = {
   "/admin/usuarios": Users,
   "/admin/catalogos": ClipboardList,
   "/admin/auditoria": ShieldCheck,
+  "/admin/sitio-publico": Globe,
 };
 
 /**
- * Inicio de Administración (sección 5): las cuatro secciones y lo que está
+ * Inicio de Administración (sección 5): las secciones y lo que está
  * pendiente (borradores sin publicar, años de feriados sin cerrar).
  */
 export default async function PaginaAdmin() {
@@ -32,7 +33,7 @@ export default async function PaginaAdmin() {
   return (
     <section aria-labelledby="titulo-admin" className="space-y-5">
       <PantallaConRecorrido id="admin-inicio" />
-      <EncabezadoPagina id="titulo-admin" titulo="Administración" descripcion="Plantillas de trámite, usuarios, catálogos y auditoría. Los cambios quedan registrados." />
+      <EncabezadoPagina id="titulo-admin" titulo="Administración" descripcion="Plantillas de trámite, usuarios, catálogos, auditoría y el sitio público. Los cambios quedan registrados." />
       {borradores.length > 0 || sinCerrar.length > 0 ? (
         <div data-recorrido="admin-pendiente">
           <Aviso tono="advertencia" titulo={<span role="heading" aria-level={2}>Pendiente</span>}>

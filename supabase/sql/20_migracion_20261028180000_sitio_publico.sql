@@ -1,0 +1,354 @@
+-- Migración 20261028180000_sitio_publico, como cementeria_owner.
+--
+-- GENERADO por `npm run supabase:sql` (scripts/supabase/generar-sql.mjs). No editar a mano:
+-- se cambia la fuente y se vuelve a generar.
+--
+-- Se corre ENTERO y de una sola vez en el SQL Editor de Supabase (rol postgres):
+-- todo el archivo es una única transacción implícita, así que si algo falla no
+-- queda nada a medias. Con psql: psql -1 -v ON_ERROR_STOP=1 -f <archivo>.
+--
+-- Fuente: prisma/migrations/20261028180000_sitio_publico/migration.sql (checksum d09a52be0ec24ae3f71c4c040b889369be1137e2e92ad8af3e3508ebd8fdf16d).
+-- NO es idempotente a propósito: si ya está aplicada, el archivo se niega y no cambia nada.
+
+DO $$
+BEGIN
+  IF current_user <> 'postgres' THEN
+    RAISE EXCEPTION 'Este archivo lo corre el rol postgres de Supabase (SQL Editor), no %', current_user;
+  END IF;
+END
+$$;
+
+-- Si ya está aplicada, se corta acá y no cambia nada.
+DO $$
+BEGIN
+  IF to_regclass('public._prisma_migrations') IS NULL THEN
+    RAISE EXCEPTION 'Falta public._prisma_migrations: corré antes 02_prisma_migrations.sql';
+  END IF;
+END
+$$;
+
+-- postgres toma el rol del dueño SOLO durante este archivo: el GRANT y el
+-- REVOKE del final van en la misma transacción.
+GRANT cementeria_owner TO postgres;
+SET LOCAL ROLE cementeria_owner;
+SET LOCAL search_path = "$user", public;
+DO $$
+BEGIN
+  IF current_user <> 'cementeria_owner' THEN
+    RAISE EXCEPTION 'No se pudo tomar el rol cementeria_owner: ¿se corrió el archivo entero de una sola vez?';
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM public._prisma_migrations WHERE migration_name = '20261028180000_sitio_publico' AND rolled_back_at IS NULL) THEN
+    RAISE EXCEPTION 'La migración 20261028180000_sitio_publico ya está aplicada: no hay nada que hacer (no se cambió nada).';
+  END IF;
+END
+$$;
+-- Como `prisma migrate deploy` con cementeria_deploy: su zona horaria.
+SET LOCAL timezone = 'America/Argentina/Tucuman';
+-- ===== prisma/migrations/20261028180000_sitio_publico/migration.sql (sin cambios) =====
+-- Sitio público (28/10/2026; docs/api-dominio.md, sección 25). El contenido de
+-- la página pública (`/`) que carga la Dirección de Cementerios desde
+-- /admin/sitio-publico: los datos públicos de cada cementerio, los recorridos
+-- históricos y sus fechas, las novedades, el contacto de Mesa de Entradas y las
+-- preguntas frecuentes. Reemplaza a las variables LANDING_* (que no llegaron a
+-- publicarse). Escrita a mano a partir de `prisma migrate diff`:
+--
+--   1. La guarda de dueño, como las anteriores.
+--   2. Las tablas, índices y claves que genera Prisma, con identity (BY
+--      DEFAULT, como los catálogos) en vez de SERIAL: la app no tiene
+--      privilegios sobre secuencias.
+--   3. CHECKs: largos máximos (los mismos de src/lib/dominio/sitio/validacion.ts),
+--      sin caracteres de control (los textos largos admiten saltos de línea),
+--      sin espacios de más en los bordes, las URLs de mapa solo https de
+--      google.com/maps, maps.app.goo.gl u openstreetmap.org, el enlace de
+--      inscripción solo https, el correo con forma de correo, la foto de una
+--      lista cerrada (las imágenes de public/imagenes) y las fechas de una
+--      novedad en orden. La página muestra todo como texto plano escapado:
+--      nada de HTML ni Markdown.
+--   4. sitio_contacto es UNA fila (id = 1).
+--   5. auditar_cambio en las seis tablas, como el resto de la configuración:
+--      cada alta, cambio o baja queda en auditoria.cambios con el antes, el
+--      después, el autor y el motivo.
+--   6. GRANTs mínimos para cementeria_app: lee, inserta y actualiza; borra
+--      solo fechas de recorrido y novedades (lo demás se desactiva).
+--   7. RLS con la política de cementeria_app (como *_rls_defensa).
+--
+-- Sin datos personales: a lo sumo un teléfono o un correo institucional
+-- (docs/borrador-tecnico-art22.md). Las preguntas frecuentes iniciales las
+-- carga la semilla (prisma/semilla/sitio-publico.ts; en Supabase,
+-- 30_semilla_produccion.sql o 32_sitio_publico.sql), no esta migración.
+--
+-- Las migraciones anteriores ya están en main y no se tocan.
+
+DO $$
+BEGIN
+  IF current_user <> 'cementeria_owner' THEN
+    RAISE EXCEPTION 'Las migraciones deben correr como cementeria_owner (vía cementeria_deploy), no como %', current_user;
+  END IF;
+END
+$$;
+
+-- ===========================================================================
+-- 2. Tablas, índices y claves (lo que genera Prisma, con identity)
+-- ===========================================================================
+
+-- CreateTable
+CREATE TABLE "sitio_cementerios" (
+    "cementerio_id" SMALLINT NOT NULL,
+    "visible" BOOLEAN NOT NULL DEFAULT true,
+    "domicilio" TEXT,
+    "mapa_url" TEXT,
+    "descripcion" TEXT,
+    "que_tiene" TEXT,
+    "horario_semana" TEXT,
+    "horario_fin_de_semana" TEXT,
+    "horario_especial" TEXT,
+    "foto" TEXT,
+    "creado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualizado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sitio_cementerios_pkey" PRIMARY KEY ("cementerio_id")
+);
+
+-- CreateTable
+CREATE TABLE "sitio_recorridos" (
+    "id" INTEGER NOT NULL GENERATED BY DEFAULT AS IDENTITY,
+    "nombre" TEXT NOT NULL,
+    "descripcion" TEXT,
+    "cementerio_id" SMALLINT,
+    "dias_hora" TEXT,
+    "duracion" TEXT,
+    "punto_encuentro" TEXT,
+    "cupo" TEXT,
+    "inscripcion" TEXT,
+    "inscripcion_url" TEXT,
+    "foto" TEXT,
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+    "orden" SMALLINT NOT NULL DEFAULT 0,
+    "creado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualizado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sitio_recorridos_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sitio_recorrido_fechas" (
+    "id" INTEGER NOT NULL GENERATED BY DEFAULT AS IDENTITY,
+    "recorrido_id" INTEGER NOT NULL,
+    "fecha" TIMESTAMPTZ NOT NULL,
+    "nota" TEXT,
+    "creado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sitio_recorrido_fechas_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sitio_novedades" (
+    "id" INTEGER NOT NULL GENERATED BY DEFAULT AS IDENTITY,
+    "titulo" TEXT NOT NULL,
+    "texto" TEXT NOT NULL,
+    "desde" DATE NOT NULL,
+    "hasta" DATE NOT NULL,
+    "activa" BOOLEAN NOT NULL DEFAULT true,
+    "creado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualizado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sitio_novedades_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sitio_contacto" (
+    "id" SMALLINT NOT NULL DEFAULT 1,
+    "domicilio" TEXT,
+    "horario" TEXT,
+    "telefono" TEXT,
+    "correo" TEXT,
+    "mapa_url" TEXT,
+    "actualizado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sitio_contacto_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sitio_preguntas" (
+    "id" INTEGER NOT NULL GENERATED BY DEFAULT AS IDENTITY,
+    "pregunta" TEXT NOT NULL,
+    "respuesta" TEXT NOT NULL,
+    "orden" SMALLINT NOT NULL DEFAULT 0,
+    "activa" BOOLEAN NOT NULL DEFAULT true,
+    "creado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actualizado_en" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sitio_preguntas_pkey" PRIMARY KEY ("id")
+);
+
+-- Las fechas futuras de la página (WHERE fecha > now() ORDER BY fecha).
+-- CreateIndex
+CREATE INDEX "sitio_recorrido_fechas_fecha_idx" ON "sitio_recorrido_fechas"("fecha");
+
+-- CreateIndex
+CREATE INDEX "sitio_recorrido_fechas_recorrido_id_fecha_idx" ON "sitio_recorrido_fechas"("recorrido_id", "fecha");
+
+-- CreateIndex
+CREATE INDEX "sitio_novedades_desde_hasta_idx" ON "sitio_novedades"("desde", "hasta");
+
+-- AddForeignKey
+ALTER TABLE "sitio_cementerios" ADD CONSTRAINT "sitio_cementerios_cementerio_id_fkey" FOREIGN KEY ("cementerio_id") REFERENCES "cementerios"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+-- AddForeignKey
+ALTER TABLE "sitio_recorridos" ADD CONSTRAINT "sitio_recorridos_cementerio_id_fkey" FOREIGN KEY ("cementerio_id") REFERENCES "cementerios"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+-- AddForeignKey
+ALTER TABLE "sitio_recorrido_fechas" ADD CONSTRAINT "sitio_recorrido_fechas_recorrido_id_fkey" FOREIGN KEY ("recorrido_id") REFERENCES "sitio_recorridos"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
+
+-- ===========================================================================
+-- 3 y 4. CHECKs
+-- ===========================================================================
+--
+-- Un texto de una línea: entre 1 y N caracteres, sin caracteres de control ni
+-- espacios en los bordes (la app guarda NULL en vez de un texto vacío). Uno
+-- largo admite saltos de línea (\n; la app saca los \r). Las URLs: https, sin
+-- usuario ni puerto, sin espacios, comillas ni < >.
+
+ALTER TABLE public.sitio_cementerios
+  ADD CONSTRAINT sitio_cementerios_domicilio_check
+    CHECK (char_length(domicilio) BETWEEN 1 AND 160 AND domicilio !~ '[[:cntrl:]]' AND domicilio = btrim(domicilio)),
+  ADD CONSTRAINT sitio_cementerios_mapa_url_check
+    CHECK (char_length(mapa_url) <= 500
+           AND mapa_url ~ '^https://((www\.)?google\.com/maps([/?#]|$)|maps\.app\.goo\.gl/|(www\.)?openstreetmap\.org([/?#]|$))'
+           AND mapa_url !~ '[[:space:][:cntrl:]"''<>\\]'),
+  ADD CONSTRAINT sitio_cementerios_descripcion_check
+    CHECK (char_length(descripcion) BETWEEN 1 AND 400 AND translate(descripcion, E'\n', '') !~ '[[:cntrl:]]' AND descripcion = btrim(descripcion)),
+  ADD CONSTRAINT sitio_cementerios_que_tiene_check
+    CHECK (char_length(que_tiene) BETWEEN 1 AND 200 AND que_tiene !~ '[[:cntrl:]]' AND que_tiene = btrim(que_tiene)),
+  ADD CONSTRAINT sitio_cementerios_horario_semana_check
+    CHECK (char_length(horario_semana) BETWEEN 1 AND 120 AND horario_semana !~ '[[:cntrl:]]' AND horario_semana = btrim(horario_semana)),
+  ADD CONSTRAINT sitio_cementerios_horario_fin_de_semana_check
+    CHECK (char_length(horario_fin_de_semana) BETWEEN 1 AND 120 AND horario_fin_de_semana !~ '[[:cntrl:]]'
+           AND horario_fin_de_semana = btrim(horario_fin_de_semana)),
+  ADD CONSTRAINT sitio_cementerios_horario_especial_check
+    CHECK (char_length(horario_especial) BETWEEN 1 AND 160 AND horario_especial !~ '[[:cntrl:]]' AND horario_especial = btrim(horario_especial)),
+  ADD CONSTRAINT sitio_cementerios_foto_check
+    CHECK (foto IN ('panoramica', 'avenida-azul', 'avenida-memorial', 'ingreso-paseo-sereno', 'parque-memorial'));
+
+ALTER TABLE public.sitio_recorridos
+  ADD CONSTRAINT sitio_recorridos_nombre_check
+    CHECK (char_length(nombre) BETWEEN 1 AND 120 AND nombre !~ '[[:cntrl:]]' AND nombre = btrim(nombre)),
+  ADD CONSTRAINT sitio_recorridos_descripcion_check
+    CHECK (char_length(descripcion) BETWEEN 1 AND 600 AND translate(descripcion, E'\n', '') !~ '[[:cntrl:]]' AND descripcion = btrim(descripcion)),
+  ADD CONSTRAINT sitio_recorridos_dias_hora_check
+    CHECK (char_length(dias_hora) BETWEEN 1 AND 120 AND dias_hora !~ '[[:cntrl:]]' AND dias_hora = btrim(dias_hora)),
+  ADD CONSTRAINT sitio_recorridos_duracion_check
+    CHECK (char_length(duracion) BETWEEN 1 AND 60 AND duracion !~ '[[:cntrl:]]' AND duracion = btrim(duracion)),
+  ADD CONSTRAINT sitio_recorridos_punto_encuentro_check
+    CHECK (char_length(punto_encuentro) BETWEEN 1 AND 160 AND punto_encuentro !~ '[[:cntrl:]]' AND punto_encuentro = btrim(punto_encuentro)),
+  ADD CONSTRAINT sitio_recorridos_cupo_check
+    CHECK (char_length(cupo) BETWEEN 1 AND 60 AND cupo !~ '[[:cntrl:]]' AND cupo = btrim(cupo)),
+  ADD CONSTRAINT sitio_recorridos_inscripcion_check
+    CHECK (char_length(inscripcion) BETWEEN 1 AND 300 AND translate(inscripcion, E'\n', '') !~ '[[:cntrl:]]' AND inscripcion = btrim(inscripcion)),
+  ADD CONSTRAINT sitio_recorridos_inscripcion_url_check
+    CHECK (char_length(inscripcion_url) <= 500
+           AND inscripcion_url ~ '^https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+([/?#]|$)'
+           AND inscripcion_url !~ '[[:space:][:cntrl:]"''<>\\]'),
+  ADD CONSTRAINT sitio_recorridos_foto_check
+    CHECK (foto IN ('panoramica', 'avenida-azul', 'avenida-memorial', 'ingreso-paseo-sereno', 'parque-memorial')),
+  ADD CONSTRAINT sitio_recorridos_orden_check CHECK (orden BETWEEN 0 AND 999);
+
+ALTER TABLE public.sitio_recorrido_fechas
+  ADD CONSTRAINT sitio_recorrido_fechas_nota_check
+    CHECK (char_length(nota) BETWEEN 1 AND 120 AND nota !~ '[[:cntrl:]]' AND nota = btrim(nota));
+
+ALTER TABLE public.sitio_novedades
+  ADD CONSTRAINT sitio_novedades_titulo_check
+    CHECK (char_length(titulo) BETWEEN 1 AND 100 AND titulo !~ '[[:cntrl:]]' AND titulo = btrim(titulo)),
+  ADD CONSTRAINT sitio_novedades_texto_check
+    CHECK (char_length(texto) BETWEEN 1 AND 400 AND translate(texto, E'\n', '') !~ '[[:cntrl:]]' AND texto = btrim(texto)),
+  ADD CONSTRAINT sitio_novedades_fechas_check CHECK (hasta >= desde);
+
+ALTER TABLE public.sitio_contacto
+  ADD CONSTRAINT sitio_contacto_una_fila_check CHECK (id = 1),
+  ADD CONSTRAINT sitio_contacto_domicilio_check
+    CHECK (char_length(domicilio) BETWEEN 1 AND 160 AND domicilio !~ '[[:cntrl:]]' AND domicilio = btrim(domicilio)),
+  ADD CONSTRAINT sitio_contacto_horario_check
+    CHECK (char_length(horario) BETWEEN 1 AND 160 AND horario !~ '[[:cntrl:]]' AND horario = btrim(horario)),
+  ADD CONSTRAINT sitio_contacto_telefono_check
+    CHECK (char_length(telefono) BETWEEN 1 AND 80 AND telefono !~ '[[:cntrl:]]' AND telefono = btrim(telefono)),
+  ADD CONSTRAINT sitio_contacto_correo_check
+    CHECK (char_length(correo) BETWEEN 3 AND 120 AND correo ~ '^[^[:space:][:cntrl:]@<>"'']+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$'),
+  ADD CONSTRAINT sitio_contacto_mapa_url_check
+    CHECK (char_length(mapa_url) <= 500
+           AND mapa_url ~ '^https://((www\.)?google\.com/maps([/?#]|$)|maps\.app\.goo\.gl/|(www\.)?openstreetmap\.org([/?#]|$))'
+           AND mapa_url !~ '[[:space:][:cntrl:]"''<>\\]');
+
+ALTER TABLE public.sitio_preguntas
+  ADD CONSTRAINT sitio_preguntas_pregunta_check
+    CHECK (char_length(pregunta) BETWEEN 1 AND 160 AND pregunta !~ '[[:cntrl:]]' AND pregunta = btrim(pregunta)),
+  ADD CONSTRAINT sitio_preguntas_respuesta_check
+    CHECK (char_length(respuesta) BETWEEN 1 AND 800 AND translate(respuesta, E'\n', '') !~ '[[:cntrl:]]' AND respuesta = btrim(respuesta)),
+  ADD CONSTRAINT sitio_preguntas_orden_check CHECK (orden BETWEEN 0 AND 999);
+
+-- ===========================================================================
+-- 5. Auditoría: como el resto de la configuración (reglas_base, auditar_cambio)
+-- ===========================================================================
+
+CREATE TRIGGER auditar_cambio AFTER INSERT OR UPDATE OR DELETE ON public.sitio_cementerios
+  FOR EACH ROW EXECUTE FUNCTION public.auditar_cambio('cementerio_id');
+CREATE TRIGGER auditar_cambio AFTER INSERT OR UPDATE OR DELETE ON public.sitio_recorridos
+  FOR EACH ROW EXECUTE FUNCTION public.auditar_cambio('id');
+CREATE TRIGGER auditar_cambio AFTER INSERT OR UPDATE OR DELETE ON public.sitio_recorrido_fechas
+  FOR EACH ROW EXECUTE FUNCTION public.auditar_cambio('id');
+CREATE TRIGGER auditar_cambio AFTER INSERT OR UPDATE OR DELETE ON public.sitio_novedades
+  FOR EACH ROW EXECUTE FUNCTION public.auditar_cambio('id');
+CREATE TRIGGER auditar_cambio AFTER INSERT OR UPDATE OR DELETE ON public.sitio_contacto
+  FOR EACH ROW EXECUTE FUNCTION public.auditar_cambio('id');
+CREATE TRIGGER auditar_cambio AFTER INSERT OR UPDATE OR DELETE ON public.sitio_preguntas
+  FOR EACH ROW EXECUTE FUNCTION public.auditar_cambio('id');
+
+ALTER TABLE public.sitio_cementerios ENABLE ALWAYS TRIGGER auditar_cambio;
+ALTER TABLE public.sitio_recorridos ENABLE ALWAYS TRIGGER auditar_cambio;
+ALTER TABLE public.sitio_recorrido_fechas ENABLE ALWAYS TRIGGER auditar_cambio;
+ALTER TABLE public.sitio_novedades ENABLE ALWAYS TRIGGER auditar_cambio;
+ALTER TABLE public.sitio_contacto ENABLE ALWAYS TRIGGER auditar_cambio;
+ALTER TABLE public.sitio_preguntas ENABLE ALWAYS TRIGGER auditar_cambio;
+
+-- ===========================================================================
+-- 6. Privilegios de cementeria_app
+-- ===========================================================================
+--
+-- Leer, dar de alta y modificar. Lo que se deja de mostrar se desactiva
+-- (visible, activo, activa); solo una fecha de recorrido y una novedad se
+-- borran (son de corta vida, y el borrado queda en auditoria.cambios).
+GRANT SELECT, INSERT, UPDATE ON
+  public.sitio_cementerios, public.sitio_recorridos, public.sitio_contacto, public.sitio_preguntas
+  TO cementeria_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sitio_recorrido_fechas, public.sitio_novedades TO cementeria_app;
+
+-- ===========================================================================
+-- 7. RLS como en *_rls_defensa: una sola política, para cementeria_app
+-- ===========================================================================
+
+ALTER TABLE public.sitio_cementerios ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cementeria_app ON public.sitio_cementerios AS PERMISSIVE FOR ALL TO cementeria_app USING (true) WITH CHECK (true);
+ALTER TABLE public.sitio_recorridos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cementeria_app ON public.sitio_recorridos AS PERMISSIVE FOR ALL TO cementeria_app USING (true) WITH CHECK (true);
+ALTER TABLE public.sitio_recorrido_fechas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cementeria_app ON public.sitio_recorrido_fechas AS PERMISSIVE FOR ALL TO cementeria_app USING (true) WITH CHECK (true);
+ALTER TABLE public.sitio_novedades ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cementeria_app ON public.sitio_novedades AS PERMISSIVE FOR ALL TO cementeria_app USING (true) WITH CHECK (true);
+ALTER TABLE public.sitio_contacto ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cementeria_app ON public.sitio_contacto AS PERMISSIVE FOR ALL TO cementeria_app USING (true) WITH CHECK (true);
+ALTER TABLE public.sitio_preguntas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY cementeria_app ON public.sitio_preguntas AS PERMISSIVE FOR ALL TO cementeria_app USING (true) WITH CHECK (true);
+-- ===== fin de 20261028180000_sitio_publico =====
+
+-- La fila de Prisma, con su checksum (SHA-256 de migration.sql): después
+-- `prisma migrate deploy` la da por aplicada.
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+VALUES (gen_random_uuid()::text, 'd09a52be0ec24ae3f71c4c040b889369be1137e2e92ad8af3e3508ebd8fdf16d', now(), '20261028180000_sitio_publico', NULL, NULL, now(), 1);
+
+RESET ROLE;
+REVOKE cementeria_owner FROM postgres;

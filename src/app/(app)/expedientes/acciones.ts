@@ -17,6 +17,7 @@ import {
   procesarRecepciones,
   procesarSubtarea,
   procesarIntegridad,
+  procesarRegenerarCodigo,
   procesarVerDatos,
   type EntradaDevolucion,
   type EntradaDocumento,
@@ -27,6 +28,7 @@ import {
   type ResultadoDatosCompletos,
   type ResultadoFlujo,
   type ResultadoLote,
+  type ResultadoRegenerar,
   type ResultadoVerificacion,
 } from "@/lib/presentacion/acciones";
 import {
@@ -88,6 +90,17 @@ export async function verDatosCompletos(numero: string, motivo: string): Promise
 export async function verificarIntegridad(numero: string): Promise<ResultadoVerificacion> {
   const usuario = await exigirUsuario();
   return procesarIntegridad(expedientes, usuario, String(numero), ipDeSolicitud(await headers()));
+}
+
+/**
+ * "Regenerar código de consulta" (28/10/2026): el anterior deja de servir. La
+ * ficha se vuelve a pintar con el código nuevo.
+ */
+export async function regenerarCodigoConsulta(numero: string, motivo: string): Promise<ResultadoRegenerar> {
+  const usuario = await exigirUsuario();
+  const r = await procesarRegenerarCodigo(expedientes, usuario, String(numero), String(motivo ?? ""), ipDeSolicitud(await headers()));
+  if (r.ok) refresh();
+  return r;
 }
 
 /** Aviso de posibles duplicados mientras se carga el alta o la edición. */

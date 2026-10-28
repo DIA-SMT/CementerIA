@@ -224,6 +224,10 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
     await esperarSalud(url, app, logApp);
 
     process.env.E2E_BASE_URL = url;
+    // La base como cementeria_deploy (dueño): tests/e2e/sitio-publico.spec.ts vacía el
+    // contenido del sitio público para ver la página como arranca en producción y
+    // lo restituye al terminar. Los workers la heredan, como E2E_BASE_URL.
+    process.env.E2E_URL_BASE_DUENO = base.urlDeploy;
     console.log(`[e2e] App en ${url} con base efímera en el puerto ${base.puerto} (${Math.round((Date.now() - inicio) / 1000)} s)`);
   } catch (e) {
     await teardown().catch(() => undefined);
