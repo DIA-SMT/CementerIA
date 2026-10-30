@@ -6,9 +6,9 @@ import { expect, test, type Page } from "@playwright/test";
 // elegido coincide con él; sin localStorage alterna igual. 375 px sin
 // desplazamiento lateral en las siete páginas, en los dos modos. Y el
 // contraste de los tokens `pub-*` contra sus superficies, en los dos modos,
-// incluidos los `pub-sobre-foto-*` sobre el velo y el halo con la peor foto
-// posible (el del texto sobre la foto real se mide aparte, con capturas:
-// docs/diseno.md).
+// incluido el texto blanco sobre el velo de las fotos con la peor foto
+// posible (desde el kit institucional del 30/10/2026; el del texto sobre la
+// foto real se mide aparte, con capturas: docs/diseno.md).
 //
 // Solo mira lo que está siempre (la barra, los encabezados): las páginas de
 // contenido las vacía un rato sitio-publico.spec.ts.
@@ -134,10 +134,10 @@ for (const colorScheme of ["light", "dark"] as const) {
  * superficies) en los dos modos. Los colores se leen ya resueltos del
  * navegador (light-dark()); las superficies translúcidas se componen sobre lo
  * peor que puede haber detrás: negro en claro, blanco en oscuro. El texto
- * claro que va directo sobre la foto (`pub-sobre-foto-*`), sobre una foto
- * blanca (lo peor para texto claro, en los dos modos) con el punto más liviano
- * del velo (`pub-velo`) y, debajo de las bajadas, el halo; el de las
- * pastillas, sobre el vidrio de la foto encima de eso.
+ * blanco del hero y de la banda de las internas, sobre una foto blanca (lo
+ * peor para texto claro, en los dos modos) con el punto más liviano del velo
+ * donde hay texto (`pub-velo`); el del cierre, sobre su velo claro con la
+ * peor foto para cada modo. También la banda azul, la barra y el pie.
  */
 for (const colorScheme of ["light", "dark"] as const) {
   test(`los tokens del sitio público llegan a AA (${colorScheme === "light" ? "claro" : "oscuro"})`, async ({ page }) => {
@@ -165,40 +165,54 @@ for (const colorScheme of ["light", "dark"] as const) {
         return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
       };
       const superficie = sobre(resolver("pub-superficie"), peor);
-      const panel = sobre(resolver("pub-panel"), peor);
-      const tinte = sobre(resolver("pub-tinte"), panel);
+      const seccion = sobre(resolver("pub-seccion"), peor);
+      const fondo = sobre(resolver("pub-fondo"), peor);
+      const tinte = sobre(resolver("pub-tinte"), superficie);
       const chip = sobre(resolver("pub-chip"), superficie);
       const errorFondo = sobre(resolver("pub-error-fondo"), superficie);
       const blanco = [255, 255, 255, 1];
+      const negro = [0, 0, 0, 1];
+      // El velo de las fotos con texto blanco encima, sobre una foto blanca (lo peor para el texto claro).
       const velo = sobre(resolver("pub-velo"), blanco);
-      const halo = sobre(resolver("pub-halo"), velo);
-      const vidrioFoto = sobre(resolver("pub-vidrio-foto"), velo);
+      // El velo claro del cierre: en claro, sobre una foto negra; en oscuro, sobre una blanca.
+      const veloCierre = sobre(resolver("pub-velo-cierre"), oscuro ? blanco : negro);
+      const banda = sobre(resolver("pub-banda"), peor);
+      const barra = sobre(resolver("pub-barra"), peor);
+      const pie = sobre(resolver("pub-pie"), peor);
+      const textoSobreAzul = resolver("institucional-texto");
       const pares: Array<[string, number[], number[], number]> = [
         ["texto / superficie", resolver("pub-texto"), superficie, 4.5],
-        ["texto / panel", resolver("pub-texto"), panel, 4.5],
+        ["texto / sección", resolver("pub-texto"), seccion, 4.5],
+        ["texto / fondo", resolver("pub-texto"), fondo, 4.5],
         ["texto-secundario / superficie", resolver("pub-texto-secundario"), superficie, 4.5],
-        ["texto-secundario / panel", resolver("pub-texto-secundario"), panel, 4.5],
+        ["texto-secundario / sección", resolver("pub-texto-secundario"), seccion, 4.5],
+        ["texto-secundario / fondo", resolver("pub-texto-secundario"), fondo, 4.5],
         ["texto-secundario / tinte", resolver("pub-texto-secundario"), tinte, 4.5],
         ["titulo / superficie", resolver("pub-titulo"), superficie, 4.5],
-        ["titulo / panel", resolver("pub-titulo"), panel, 4.5],
+        ["titulo / sección", resolver("pub-titulo"), seccion, 4.5],
+        ["titulo / fondo", resolver("pub-titulo"), fondo, 4.5],
         ["titulo / tinte", resolver("pub-titulo"), tinte, 4.5],
         ["enlace / superficie", resolver("pub-enlace"), superficie, 4.5],
-        ["enlace / panel", resolver("pub-enlace"), panel, 4.5],
+        ["enlace / sección", resolver("pub-enlace"), seccion, 4.5],
+        ["enlace / fondo", resolver("pub-enlace"), fondo, 4.5],
         ["enlace / chip", resolver("pub-enlace"), chip, 4.5],
         ["texto / chip", resolver("pub-texto"), chip, 4.5],
         ["error / error-fondo", resolver("pub-error"), errorFondo, 4.5],
         ["blanco / primario (botón)", blanco, resolver("primario"), 4.5],
         ["borde-control / superficie", resolver("pub-borde-control"), superficie, 3],
         ["foco / superficie", resolver("pub-foco"), superficie, 3],
-        ["foco / panel", resolver("pub-foco"), panel, 3],
-        ["sobre-foto-titulo / velo (h1 y h2, grandes)", resolver("pub-sobre-foto-titulo"), velo, 3],
-        ["sobre-foto-titulo / velo + halo", resolver("pub-sobre-foto-titulo"), halo, 4.5],
-        ["sobre-foto-texto / velo + halo (bajadas)", resolver("pub-sobre-foto-texto"), halo, 4.5],
-        ["sobre-foto-titulo / vidrio-foto (pastillas, botón)", resolver("pub-sobre-foto-titulo"), vidrioFoto, 4.5],
-        ["sobre-foto-texto / vidrio-foto (migas, indicador)", resolver("pub-sobre-foto-texto"), vidrioFoto, 4.5],
-        ["sobre-foto-secundario / vidrio-foto", resolver("pub-sobre-foto-secundario"), vidrioFoto, 4.5],
-        ["sobre-foto-enlace / vidrio-foto", resolver("pub-sobre-foto-enlace"), vidrioFoto, 4.5],
-        ["sobre-foto-foco / velo", resolver("pub-sobre-foto-foco"), velo, 3],
+        ["foco / sección", resolver("pub-foco"), seccion, 3],
+        ["foco / fondo", resolver("pub-foco"), fondo, 3],
+        ["blanco / velo sobre foto blanca (hero, banda de las internas)", blanco, velo, 4.5],
+        ["institucional-texto / velo (aclaración de la imagen)", textoSobreAzul, velo, 4.5],
+        ["texto / velo del cierre", resolver("pub-texto"), veloCierre, 4.5],
+        ["texto-secundario / velo del cierre", resolver("pub-texto-secundario"), veloCierre, 4.5],
+        ["enlace / velo del cierre", resolver("pub-enlace"), veloCierre, 4.5],
+        ["blanco / banda del seguimiento", blanco, banda, 4.5],
+        ["institucional-texto / banda", textoSobreAzul, banda, 4.5],
+        ["institucional-texto / barra", textoSobreAzul, barra, 4.5],
+        ["institucional-texto / pie", textoSobreAzul, pie, 4.5],
+        ["institucional / amarillo (botón de la banda)", resolver("institucional"), resolver("amarillo"), 4.5],
       ];
       return pares.map(([nombre, a, b, minimo]) => ({ nombre, contraste: +contraste(sobre(a, b), b).toFixed(2), minimo })).filter((p) => p.contraste < p.minimo);
     }, colorScheme === "dark");

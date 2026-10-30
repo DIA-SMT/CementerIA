@@ -32,7 +32,9 @@ test("sin sesión, / es el inicio público: un solo h1, la banda que lleva a /co
   // prueba el contenido; acá, solo lo que está siempre, con o sin contenido cargado: ese archivo
   // vacía el sitio un rato).
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1, name: "Cementerios de San Miguel de Tucumán" })).toBeVisible();
+  // Desde el kit institucional (30/10/2026) el h1 es el wordmark y la Dirección; el sitio sigue en el título.
+  await expect(page.getByRole("heading", { level: 1, name: "CementerIA Dirección de Cementerios" })).toBeVisible();
+  await expect(page).toHaveTitle(/Cementerios de San Miguel de Tucumán/);
   // El formulario ya no está en el inicio: la banda y el acceso destacado llevan a /consulta.
   await expect(page.getByRole("form", { name: "Datos del comprobante" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Consultá tu trámite" }).getByRole("link", { name: "Consultar mi trámite" })).toHaveAttribute("href", "/consulta");

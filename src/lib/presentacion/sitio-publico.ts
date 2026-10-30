@@ -86,7 +86,18 @@ export const INVITACIONES: Readonly<Record<RutaInterna, readonly [RutaInterna, R
   "/contacto": ["/consulta", "/tramites"],
 };
 
-/** El nombre del sitio: el `h1` del inicio y el final del `<title>` de cada página interna (lo agrega el layout de `(publico)`). */
+/**
+ * Los tres pasos del seguimiento: "Cómo funciona" en /consulta y la banda del
+ * inicio. Describen lo que ya pasa en Mesa de Entradas (el comprobante con
+ * número, código y QR), sin plazos ni datos inventados.
+ */
+export const PASOS_CONSULTA: ReadonlyArray<{ titulo: string; texto: string }> = [
+  { titulo: "Iniciás el trámite en Mesa de Entradas", texto: "Con la documentación que corresponde." },
+  { titulo: "Te dan un comprobante", texto: "Con el número de expediente y un código de consulta. Guardalo: el código es para vos." },
+  { titulo: "Lo consultás acá o con el QR", texto: "Escribí el número y el código, o escaneá el QR del comprobante con el celular." },
+];
+
+/** El nombre del sitio: el final del `<title>` de cada página interna (lo agrega el layout de `(publico)`). */
 export const TITULO_SITIO = "Cementerios de San Miguel de Tucumán";
 
 /** La vista previa desde Administración: `/?vista=publica` muestra el inicio público aunque haya sesión. */

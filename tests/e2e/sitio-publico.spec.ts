@@ -29,6 +29,8 @@ const PAGINAS = [
 ] as const;
 
 const SITIO = "Cementerios de San Miguel de Tucumán";
+/** El h1 del inicio (kit institucional, 30/10/2026): el wordmark y la Dirección, como texto. */
+const H1_INICIO = "CementerIA Dirección de Cementerios";
 
 async function desborde(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
@@ -79,6 +81,8 @@ async function esPaginaInterna(page: Page, p: (typeof PAGINAS)[number]): Promise
   const otras = page.getByRole("navigation", { name: "También te puede servir" }).getByRole("link");
   await expect(otras).toHaveCount(2);
   for (const href of await otras.evaluateAll((as) => as.map((a) => a.getAttribute("href")))) expect(href).not.toBe(p.ruta);
+  // La foto de la banda del encabezado es la imagen principal: la única con prioridad alta.
+  await expect(page.locator('img[fetchpriority="high"]')).toHaveCount(1);
 }
 
 test("cada página del sitio público con el contenido de ejemplo de la semilla", async ({ page }) => {
@@ -88,7 +92,7 @@ test("cada página del sitio público con el contenido de ejemplo de la semilla"
   const respuesta = await page.goto("/");
   expect(respuesta?.status()).toBe(200);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole("heading", { level: 1, name: SITIO })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: H1_INICIO })).toBeVisible();
   const barra = page.getByRole("banner");
   const secciones = barra.getByRole("navigation", { name: "Secciones" });
   for (const p of PAGINAS) await expect(secciones.getByRole("link", { name: p.etiqueta, exact: true })).toHaveAttribute("href", p.ruta);
@@ -99,6 +103,21 @@ test("cada página del sitio público con el contenido de ejemplo de la semilla"
   await expect(accesos).toHaveCount(6);
   expect(await accesos.evaluateAll((as) => as.map((a) => a.getAttribute("href")))).toEqual(PAGINAS.map((p) => p.ruta));
   await expect(page.locator("[data-novedades]")).toContainText("Horario especial por el Día de los Fieles Difuntos (ejemplo)");
+  // El kit institucional: el logo oficial en la barra (con su alt), una sola imagen con prioridad
+  // alta (el hero) y las demás perezosas; las fotos dicen que son ilustrativas.
+  await expect(barra.getByRole("img", { name: "Ciudad San Miguel de Tucumán" })).toBeVisible();
+  await expect(page.locator('img[fetchpriority="high"]')).toHaveCount(1);
+  expect(await page.locator('main img:not([fetchpriority="high"])').evaluateAll((is) => is.map((i) => i.getAttribute("loading")))).not.toContain("eager");
+  await expect(page.getByRole("region", { name: H1_INICIO })).toContainText("Imagen ilustrativa");
+  await expect(page.getByRole("region", { name: "Espacios de memoria e historia" })).toContainText("Imagen ilustrativa");
+  // Los trámites y los cementerios salen de la base; el contacto de Mesa de Entradas, también.
+  await expect(page.getByRole("region", { name: "Qué trámites se inician en Mesa de Entradas" }).getByRole("link", { name: /Inhumación/ })).toHaveAttribute("href", "/tramites");
+  const cementeriosInicio = page.getByRole("region", { name: "Cementerios municipales" });
+  await expect(cementeriosInicio.getByRole("listitem")).toHaveCount(3);
+  await expect(cementeriosInicio).toContainText("Las fotos son ilustrativas.");
+  await expect(page.getByRole("region", { name: "Mesa de Entradas de la Dirección de Cementerios" })).toContainText("0381 400-0000 (dato de prueba)");
+  // El seguimiento en tres pasos, los mismos de /consulta.
+  await expect(page.getByRole("region", { name: "Consultá tu trámite" }).getByRole("listitem")).toHaveCount(3);
   const proximos = page.getByRole("region", { name: "Próximos recorridos" });
   await expect(proximos.locator("[data-proximas-fechas] > li")).toHaveCount(3);
   await expect(proximos.getByRole("link", { name: "Ver todos los recorridos" })).toHaveAttribute("href", "/recorridos");
@@ -187,12 +206,12 @@ test("desde el inicio se llega a cada página por su acceso, y la barra marca la
   await esPaginaInterna(page, PAGINAS[1]);
   await page.getByRole("navigation", { name: "Migas de pan" }).getByRole("link", { name: "Inicio" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("heading", { level: 1, name: SITIO })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: H1_INICIO })).toBeVisible();
   await page.getByRole("navigation", { name: "Accesos rápidos" }).getByRole("link", { name: /^Consultá tu trámite/ }).click();
   await expect(page).toHaveURL(/\/consulta$/);
   // Las anclas viejas ya no existen: /#consulta es el inicio, sin nada roto.
   await page.goto("/#consulta");
-  await expect(page.getByRole("heading", { level: 1, name: SITIO })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: H1_INICIO })).toBeVisible();
 });
 
 test("Dirección cambia un horario desde Administración y se ve en /horarios; un operador no entra", async ({ page, browser }) => {
@@ -231,7 +250,7 @@ test("Dirección cambia un horario desde Administración y se ve en /horarios; u
 
   // Con sesión, el inicio público es la vista previa; las páginas internas se ven igual que sin sesión.
   await page.goto("/?vista=publica");
-  await expect(page.getByRole("heading", { level: 1, name: SITIO })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: H1_INICIO })).toBeVisible();
   await page.goto("/horarios");
   await expect(page.getByRole("table", { name: "Horarios de visita de cada cementerio" }).getByRole("row", { name: /Cementerio del Norte/ })).toContainText(horario);
   const anonimo = await browser.newContext();
@@ -291,11 +310,15 @@ test("las páginas vacías, como arrancan en producción: cada una dice qué hac
 
     // El inicio: los seis accesos siguen; sin novedades ni fechas, ni la franja ni el adelanto.
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1, name: SITIO })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: H1_INICIO })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Accesos rápidos" }).getByRole("link")).toHaveCount(6);
     await expect(page.locator("[data-novedades]")).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Próximos recorridos" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Consultar mi trámite" })).toBeVisible();
+    // Sin fechas, el patrimonio lleva a la página de recorridos; sin fotos ni contacto, nada de eso.
+    await expect(page.getByRole("region", { name: "Espacios de memoria e historia" }).getByRole("link", { name: "Recorridos históricos", exact: true })).toHaveAttribute("href", "/recorridos");
+    await expect(page.getByRole("main")).not.toContainText("Las fotos son ilustrativas");
+    await expect(page.getByRole("region", { name: "Mesa de Entradas de la Dirección de Cementerios" })).not.toContainText("dato de prueba");
 
     // Cementerios: los del catálogo, solo con el nombre; sin domicilio, sin "Cómo llegar".
     await page.goto("/cementerios");

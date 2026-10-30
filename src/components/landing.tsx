@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, CalendarDays, ChevronDown, Clock3, ExternalLink, MapPin, Megaphone, Search, Users } from "lucide-react";
-import { ChipPublico, CONTENEDOR_PUBLICO as CONTENEDOR, FOCO_PUBLICO as FOCO, FOCO_SOBRE_FOTO, ICONOS_PAGINAS } from "@/components/publico";
+import { ArrowRight, CalendarDays, Clock3, ExternalLink, FileText, MapPin, Megaphone, Phone, Search, Users } from "lucide-react";
+import { Wordmark } from "@/components/marca-municipal";
+import { CONTENEDOR_PUBLICO as CONTENEDOR, FOCO_OSCURO, FOCO_PUBLICO as FOCO, FotoDeFondo, ICONOS_PAGINAS, type FotoKit } from "@/components/publico";
 import type { DatosLanding } from "@/lib/dominio/publico/landing";
 import type { CementerioPublico, ContactoSitio, ContenidoSitioPublico, FechaRecorridoPublica, FotoSitio, RecorridoPublico } from "@/lib/dominio/sitio";
 import {
@@ -11,44 +12,46 @@ import {
   PAGINAS_PUBLICAS,
   parrafosDe,
   partesFechaRecorrido,
-  TITULO_SITIO,
+  PASOS_CONSULTA,
 } from "@/lib/presentacion/sitio-publico";
 
 /**
- * El contenido de las páginas públicas (28/10/2026; docs/diseno.md, "Página
- * pública"). El inicio (`/`): el hero de alto completo, los seis accesos, las
- * novedades, el adelanto de los próximos recorridos y la banda de la
- * consulta, todo sobre el fondo fijo. Las páginas internas: los cementerios,
- * los horarios de visita, los recorridos, los trámites y el contacto con las
- * preguntas frecuentes (la consulta está en src/app/(publico)/consulta/), que
- * van dentro del panel de lectura. Server Components, sin JavaScript.
+ * El contenido de las páginas públicas (docs/diseno.md, "Página pública").
+ * El inicio (`/`), como el moodboard aprobado del kit institucional
+ * (30/10/2026): el hero con la foto y el velo, los seis accesos que se apoyan
+ * en su borde, las novedades, el patrimonio (con los próximos recorridos), los
+ * trámites, la banda del seguimiento en tres pasos, los cementerios y el
+ * cierre con el contacto. Las páginas internas: los cementerios, los horarios
+ * de visita, los recorridos, los trámites y el contacto con las preguntas
+ * frecuentes (la consulta está en src/app/(publico)/consulta/). Server
+ * Components, sin JavaScript.
  *
- * Claro y oscuro: solo tokens `pub-*` (src/app/globals.css). Sobre la foto,
- * vidrio: las tarjetas en `.vidrio` (claro en claro) y `.vidrio-azul`; las
- * pastillas y los botones chicos en `.vidrio-foto`; el texto que va directo
- * encima, en `pub-sobre-foto-*` (claro en los dos modos: el velo es azul).
- * Dentro del panel, superficies opacas.
+ * Claro y oscuro: solo tokens `pub-*` (src/app/globals.css). Sobre las fotos
+ * (con velo) y la banda azul, texto blanco.
  *
  * En las internas el `h1` es el del encabezado (PaginaInterna, en
  * ./publico.tsx): acá los títulos empiezan en `h2`.
  *
  * El contenido lo carga la Dirección (/admin/sitio-publico) y en producción
- * arranca vacío: cada página muestra solo lo cargado y, si no hay nada, dice
- * a dónde ir. Todo el texto de la base va como texto (React lo escapa): nada
- * de HTML ni Markdown.
+ * arranca vacío: cada sección muestra solo lo cargado y, si no hay nada, no
+ * sale o dice a dónde ir. Nada de cifras, beneficios ni datos de ejemplo: lo
+ * que no está en la base no se dice. Todo el texto de la base va como texto
+ * (React lo escapa): nada de HTML ni Markdown.
  */
-
-const FOCO_OSCURO = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-celeste";
 
 const BOTON_BASE = "inline-flex min-h-10 items-center gap-1.5 rounded-control border px-3.5 py-2 text-sm font-semibold transition-colors duration-150";
 const BOTON = `${BOTON_BASE} ${FOCO}`;
 const BOTON_PRIMARIO = `${BOTON} border-primario bg-primario text-white hover:border-primario-oscuro hover:bg-primario-oscuro`;
-const BOTON_SECUNDARIO = `${BOTON} border-pub-borde bg-pub-superficie text-pub-titulo hover:border-pub-enlace hover:bg-pub-chip`;
+const BOTON_SECUNDARIO = `${BOTON} border-pub-borde-control bg-pub-superficie text-pub-titulo hover:border-pub-enlace hover:bg-pub-chip`;
 const TITULO_TARJETA = "text-[1.1875rem] font-bold text-pub-titulo";
-/** Una tarjeta dentro del panel de lectura: opaca, con borde y sombra suave. */
-const TARJETA = "rounded-[14px] border border-pub-borde bg-pub-superficie";
+/** Una tarjeta: opaca, con borde y sombra suave. */
+const TARJETA = "rounded-2xl border border-pub-borde bg-pub-superficie";
 /** Un enlace dentro del texto. */
 const ENLACE = `rounded-sm text-pub-enlace underline underline-offset-2 ${FOCO}`;
+/** El `h2` de cada sección del inicio. */
+const TITULO_SECCION = "mt-2 text-balance text-[1.625rem] font-extrabold leading-tight tracking-tight text-pub-titulo sm:text-[2rem]";
+/** El ritmo vertical de las secciones del inicio. */
+const SECCION = "py-14 sm:py-20";
 
 // ---------------------------------------------------------------------------
 // Piezas
@@ -91,24 +94,30 @@ function Parrafos({ texto, className }: { texto: string | null; className: strin
 }
 
 /**
- * El encabezado de una sección del inicio: el antetítulo (la pastilla de
- * vidrio), el `h2` claro sobre el halo (va directo sobre la foto, que se
- * desplaza detrás: el halo asegura el contraste en cualquier posición) y, a la
- * derecha, un enlace (si hay, en `.vidrio-foto`). Mismo ritmo en todas las
- * secciones.
+ * El encabezado de una sección del inicio: el antetítulo (con su filete), el
+ * `h2` y, a la derecha, un enlace (si hay). Mismo ritmo en todas.
  */
 function EncabezadoSeccion({ id, antetitulo, titulo, children }: { id: string; antetitulo: string; titulo: string; children?: React.ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-      <div className="relative isolate max-w-[60ch]">
-        <span aria-hidden="true" className="halo-publico absolute -inset-x-6 -inset-y-5 -z-10 rounded-[40px]" />
-        <ChipPublico>{antetitulo}</ChipPublico>
-        <h2 id={id} className="mt-2.5 text-[1.5rem] font-bold leading-tight tracking-tight text-pub-sobre-foto-titulo sm:text-[1.875rem]">
+    <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="max-w-[60ch]">
+        <p className="antetitulo-publico">{antetitulo}</p>
+        <h2 id={id} className={TITULO_SECCION}>
           {titulo}
         </h2>
       </div>
       {children}
     </div>
+  );
+}
+
+/** "Ver todos…": el enlace de una sección, con la flecha. */
+function EnlaceSeccion({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className={`group inline-flex min-h-10 items-center gap-1.5 rounded-control px-1 text-sm font-semibold text-pub-enlace hover:underline ${FOCO}`}>
+      {children}
+      <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-salida group-hover:translate-x-0.5" aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -165,17 +174,16 @@ function EnlaceContacto({ children = "Ver contacto" }: { children?: React.ReactN
 
 /**
  * Las próximas fechas de los recorridos: la cajita con el día (monoespaciada)
- * y el mes, el recorrido, el día completo y la hora. `superficie`: vidrio
- * sobre la foto (el inicio) u opaca dentro del panel (/recorridos).
+ * y el mes, el recorrido, el día completo y la hora.
  */
-function ListaFechas({ fechas, className, superficie }: { fechas: FechaRecorridoPublica[]; className: string; superficie: "vidrio" | "panel" }) {
+function ListaFechas({ fechas, className }: { fechas: FechaRecorridoPublica[]; className: string }) {
   return (
     <ul className={className} data-proximas-fechas="">
       {fechas.map((f) => {
         const p = partesFechaRecorrido(f.fecha);
         return (
-          <li key={f.id} className={`flex items-center gap-3.5 rounded-xl px-3.5 py-3 ${superficie === "vidrio" ? "vidrio" : "border border-pub-borde bg-pub-superficie"}`}>
-            <span aria-hidden="true" className="w-14 shrink-0 rounded-[10px] bg-institucional py-1.5 text-center leading-tight text-white ring-1 ring-celeste/30">
+          <li key={f.id} className={`flex items-center gap-3.5 px-3.5 py-3 ${TARJETA}`}>
+            <span aria-hidden="true" className="w-14 shrink-0 rounded-[10px] bg-institucional py-1.5 text-center leading-tight text-white">
               <span className="block font-mono text-xl font-bold tabular-nums">{p.dia}</span>
               <span className="text-[0.6875rem] uppercase tracking-[0.1em] text-amarillo">{p.mes}</span>
             </span>
@@ -196,8 +204,8 @@ function ListaFechas({ fechas, className, superficie }: { fechas: FechaRecorrido
 
 /**
  * Las novedades vigentes: una franja por novedad, con el borde amarillo. En
- * el inicio, en vidrio y con su título visible; en /horarios, dentro del
- * panel, con el título solo para lectores.
+ * el inicio con su título visible; en /horarios, con el título solo para
+ * lectores.
  */
 function Novedades({ novedades, className, enInicio = false }: { novedades: ContenidoSitioPublico["novedades"]; className: string; enInicio?: boolean }) {
   if (novedades.length === 0) return null;
@@ -212,10 +220,7 @@ function Novedades({ novedades, className, enInicio = false }: { novedades: Cont
       )}
       <div className="space-y-2.5">
         {novedades.map((n) => (
-          <div
-            key={n.id}
-            className={`flex items-start gap-3 rounded-xl border-l-4 border-l-amarillo px-4 py-3.5 ${enInicio ? "vidrio" : "border border-pub-borde bg-pub-superficie"}`}
-          >
+          <div key={n.id} className={`flex items-start gap-3 border-l-4 border-l-amarillo px-4 py-3.5 shadow-pub ${TARJETA}`}>
             <Megaphone className="mt-0.5 h-5 w-5 shrink-0 text-pub-advertencia" aria-hidden="true" />
             <div className="min-w-0 max-w-[75ch] text-[0.9375rem] text-pub-texto">
               <p className="font-bold text-pub-titulo">{n.titulo}</p>
@@ -229,77 +234,92 @@ function Novedades({ novedades, className, enInicio = false }: { novedades: Cont
 }
 
 // ---------------------------------------------------------------------------
-// Inicio: hero, accesos, novedades, próximos recorridos y la consulta
+// Inicio
 // ---------------------------------------------------------------------------
 
+/** Las fotos del inicio: conceptuales, del kit (decorativas, o con "imagen ilustrativa"). */
+const FOTO_HERO: FotoKit = {
+  src: "/assets/cementeria/hero-landing.webp",
+  chica: "/assets/cementeria/hero-landing-960.webp",
+  ancho: 1916,
+  alto: 821,
+  posicion: "68% 60%",
+};
+const FOTO_PATRIMONIO: FotoKit = {
+  src: "/assets/cementeria/banner-patrimonio.webp",
+  chica: "/assets/cementeria/banner-patrimonio-960.webp",
+  ancho: 1672,
+  alto: 941,
+  posicion: "50% 45%",
+};
+const FOTO_CIERRE: FotoKit = { src: "/assets/cementeria/fondo-suave.webp", ancho: 1672, alto: 941, posicion: "50% 50%" };
+
 /**
- * El hero: alto completo (la pantalla menos la barra), sobre el fondo fijo.
- * El antetítulo en una pastilla de vidrio, el `h1`, el filete, la bajada y
- * los dos llamados ("Consultá tu trámite" primario, "Horarios de visita"
- * secundario, en `.vidrio-foto`), en los colores claros de
- * `pub-sobre-foto-*` y sobre el halo que asegura el contraste en cualquier
- * ancho (docs/diseno.md). En claro, el primario lleva un filete blanco para
- * despegarse del velo azul. Abajo, el indicador para bajar (un enlace a los
- * accesos) y la línea celeste que cierra el hero.
+ * El hero: la panorámica (la imagen principal de la página: carga con
+ * prioridad alta) bajo el velo, 16:9 en escritorio (hasta el alto de la
+ * ventana) y del alto de su contenido en celular. El `h1` es el wordmark
+ * "CementerIA" y "Dirección de Cementerios" (texto HTML, no imagen), con la
+ * bajada, los dos llamados ("Consultá tu trámite" y "Ver trámites": las dos
+ * rutas existen) y la aclaración de que la imagen es ilustrativa. El texto
+ * entra con `aparecer` (opacidad y 8 px de desplazamiento, escalonado; nada
+ * con prefers-reduced-motion). Abajo queda lugar para los accesos, que se
+ * apoyan en el borde.
  */
 export function Hero() {
   return (
-    <section aria-labelledby="titulo-inicio" className="relative flex min-h-[calc(100svh-4rem)] flex-col">
-      <div className={`${CONTENEDOR} flex flex-1 flex-col items-center justify-center pb-10 pt-14 text-center sm:pt-16`}>
-        <div className="relative isolate mx-auto max-w-[52rem]">
-          <span aria-hidden="true" className="halo-publico absolute -inset-x-8 -inset-y-8 -z-10 rounded-[56px] sm:-inset-x-14" />
-          <ChipPublico className="px-3.5 py-1.5">Municipalidad de San Miguel de Tucumán</ChipPublico>
-          <h1 id="titulo-inicio" className="mx-auto mt-5 text-balance text-[2.125rem] font-extrabold leading-[1.05] tracking-tight text-pub-sobre-foto-titulo sm:text-5xl lg:text-[3.75rem]">
-            {TITULO_SITIO}
+    <section
+      aria-labelledby="titulo-inicio"
+      className="relative isolate flex flex-col overflow-hidden bg-institucional lg:aspect-video lg:max-h-[calc(100svh-4.5rem)] lg:min-h-[38rem]"
+    >
+      <FotoDeFondo foto={FOTO_HERO} sizes="100vw" prioridad className="-z-10" />
+      <div aria-hidden="true" className="velo-hero -z-10" />
+      <div
+        className={`${CONTENEDOR} flex flex-1 flex-col justify-center pb-28 pt-14 sm:pb-32 sm:pt-20 lg:pb-36 lg:pt-12`}
+      >
+        <div className="max-w-[36rem]">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-white motion-safe:animate-aparecer">Municipalidad de San Miguel de Tucumán</p>
+          <h1 id="titulo-inicio" className="mt-4 text-white motion-safe:animate-aparecer motion-safe:[animation-delay:60ms]">
+            <Wordmark className="block text-[3.25rem] leading-[0.95] sm:text-7xl lg:text-[5.25rem]" />{" "}
+            <span className="mt-2 block text-[1.625rem] font-semibold leading-tight tracking-tight sm:text-[2.25rem] lg:text-[2.5rem]">Dirección de Cementerios</span>
           </h1>
-          <span aria-hidden="true" className="mx-auto mt-5 block h-1 w-16 rounded-full bg-amarillo" />
-          <p className="mx-auto mt-5 max-w-[56ch] text-pretty text-base font-medium text-pub-sobre-foto-texto sm:text-[1.1875rem]">
+          <span aria-hidden="true" className="mt-5 block h-1 w-16 rounded-full bg-amarillo" />
+          <p className="mt-5 max-w-[46ch] text-pretty text-base font-medium text-[#e6eef9] motion-safe:animate-aparecer motion-safe:[animation-delay:120ms] sm:text-lg">
             Horarios de visita, recorridos por el patrimonio, trámites y seguimiento de expedientes, en un solo lugar.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3 motion-safe:animate-aparecer motion-safe:[animation-delay:180ms]">
             <Link
               href="/consulta"
-              className={`inline-flex min-h-12 items-center gap-2 rounded-control bg-primario px-5 text-[0.9375rem] font-semibold text-white shadow-[0_8px_24px_rgb(15_104_255/0.35)] ring-1 ring-white/45 transition-colors duration-150 hover:bg-primario-oscuro pub-oscuro:ring-0 ${FOCO_SOBRE_FOTO}`}
+              className={`inline-flex min-h-12 items-center gap-2 rounded-full bg-primario px-6 text-[0.9375rem] font-semibold text-white shadow-[0_8px_24px_rgb(0_107_255/0.35)] transition-colors duration-150 hover:bg-primario-oscuro ${FOCO_OSCURO}`}
             >
               <Search className="h-4 w-4" aria-hidden="true" />
               Consultá tu trámite
             </Link>
             <Link
-              href="/horarios"
-              className={`vidrio-foto inline-flex min-h-12 items-center gap-2 rounded-control px-5 text-[0.9375rem] font-semibold text-pub-sobre-foto-titulo transition-colors duration-150 hover:border-pub-sobre-foto-enlace ${FOCO_SOBRE_FOTO}`}
+              href="/tramites"
+              className={`inline-flex min-h-12 items-center gap-2 rounded-full border border-white/70 px-6 text-[0.9375rem] font-semibold text-white transition-colors duration-150 hover:bg-white/10 ${FOCO_OSCURO}`}
             >
-              <Clock3 className="h-4 w-4 text-pub-sobre-foto-enlace" aria-hidden="true" />
-              Horarios de visita
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Ver trámites
             </Link>
           </div>
+          <p className="mt-6 text-xs text-institucional-texto">Imagen ilustrativa generada con IA.</p>
         </div>
       </div>
-      <div className="flex justify-center pb-6">
-        <a
-          href="#accesos"
-          className={`vidrio-foto group inline-flex items-center gap-2 rounded-full py-1.5 pl-3.5 pr-2 text-xs font-semibold uppercase tracking-[0.14em] text-pub-sobre-foto-texto ${FOCO_SOBRE_FOTO}`}
-        >
-          Explorá el sitio
-          <span aria-hidden="true" className="grid h-6 w-6 place-items-center rounded-full bg-celeste/14 text-pub-sobre-foto-enlace transition-transform duration-150 group-hover:translate-y-0.5">
-            <ChevronDown className="h-4 w-4" />
-          </span>
-        </a>
-      </div>
-      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-celeste/70 to-transparent" />
+      <span aria-hidden="true" className="filete-celeste" />
     </section>
   );
 }
 
 /**
- * Los seis accesos (uno por página, en el orden de la barra), en vidrio, y
- * debajo las novedades vigentes. "Consultá tu trámite", destacada en vidrio
- * azul con el ícono amarillo.
+ * Los seis accesos (uno por página, en el orden de la barra): tarjetas
+ * opacas que se apoyan en el borde del hero, con el ícono en un círculo
+ * `primario` (blanco encima, 4,62:1). "Consultá tu trámite", destacada en la
+ * banda azul con el ícono amarillo. Debajo, las novedades vigentes.
  */
 export function AccesosYNovedades({ novedades }: { novedades: ContenidoSitioPublico["novedades"] }) {
   return (
-    <div className={`${CONTENEDOR} pt-14 sm:pt-20`}>
-      <nav id="accesos" aria-label="Accesos rápidos" className="scroll-mt-20">
-        <EncabezadoSeccion id="titulo-secciones" antetitulo="Secciones" titulo="Todo lo que necesitás, en un lugar" />
+    <div className={`${CONTENEDOR} relative z-10 -mt-20 sm:-mt-24`}>
+      <nav id="accesos" aria-label="Accesos rápidos" className="scroll-mt-24">
         <ul className="grid gap-3 min-[560px]:grid-cols-2 lg:grid-cols-3 lg:gap-4">
           {NAVEGACION_PUBLICA.map(({ ruta, destacada }) => {
             const { titulo, resumen } = PAGINAS_PUBLICAS[ruta];
@@ -308,24 +328,23 @@ export function AccesosYNovedades({ novedades }: { novedades: ContenidoSitioPubl
               <li key={ruta}>
                 <Link
                   href={ruta}
-                  className={`group flex h-full items-start gap-3.5 rounded-2xl p-5 transition-[translate,border-color] duration-150 hover:-translate-y-0.5 ${
-                    destacada ? `vidrio-azul ${FOCO_OSCURO}` : `vidrio text-pub-texto hover:border-pub-enlace ${FOCO}`
+                  className={`tarjeta-enlace group flex h-full items-start gap-4 rounded-2xl border p-5 shadow-pub-elevada ${
+                    destacada ? `border-white/10 bg-pub-banda ${FOCO_OSCURO}` : `border-pub-borde bg-pub-superficie hover:border-pub-enlace ${FOCO}`
                   }`}
                 >
                   <span
                     aria-hidden="true"
-                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ring-1 ${destacada ? "bg-white/10 text-amarillo ring-white/15" : "bg-pub-chip text-pub-enlace ring-pub-borde"}`}
+                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-full ${destacada ? "bg-amarillo text-institucional" : "bg-primario text-white"}`}
                   >
                     <Icono className="h-[22px] w-[22px]" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block text-base font-bold leading-tight ${destacada ? "text-white" : "text-pub-titulo"}`}>{titulo}</span>
-                    <span className={`mt-1 block text-[0.875rem] leading-snug ${destacada ? "text-institucional-texto" : "text-pub-texto-secundario"}`}>{resumen}</span>
+                    <span className={`mt-1 block text-[0.875rem] leading-snug ${destacada ? "text-institucional-texto" : "text-pub-texto-secundario"}`}>
+                      {resumen}
+                    </span>
                   </span>
-                  <ArrowRight
-                    className={`mt-0.5 h-4 w-4 shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 ${destacada ? "text-amarillo" : "text-pub-enlace"}`}
-                    aria-hidden="true"
-                  />
+                  <ArrowRight className={`flecha mt-0.5 h-4 w-4 shrink-0 ${destacada ? "text-amarillo" : "text-pub-enlace"}`} aria-hidden="true" />
                 </Link>
               </li>
             );
@@ -337,49 +356,232 @@ export function AccesosYNovedades({ novedades }: { novedades: ContenidoSitioPubl
   );
 }
 
-/** "Próximos recorridos": hasta tres fechas y el enlace a la página. Sin fechas, no se muestra. */
-export function AdelantoRecorridos({ fechas }: { fechas: FechaRecorridoPublica[] }) {
-  if (fechas.length === 0) return null;
+/**
+ * El patrimonio: a la izquierda el texto (genérico y verdadero: qué hay en el
+ * sitio, sin afirmar nada que no esté en la base) y, si hay, los próximos
+ * recorridos (hasta tres); a la derecha, `banner-patrimonio` con "Imagen
+ * ilustrativa" (no es un cementerio de Tucumán).
+ */
+export function Patrimonio({ fechas }: { fechas: FechaRecorridoPublica[] }) {
   return (
-    <section aria-labelledby="titulo-proximos" className={`${CONTENEDOR} pt-14 sm:pt-20`}>
-      <EncabezadoSeccion id="titulo-proximos" antetitulo="Patrimonio" titulo="Próximos recorridos">
-        <Link href="/recorridos" className={`vidrio-foto ${BOTON_BASE} text-pub-sobre-foto-titulo hover:border-pub-sobre-foto-enlace ${FOCO_SOBRE_FOTO}`}>
-          Ver todos los recorridos
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
-      </EncabezadoSeccion>
-      <ListaFechas fechas={fechas.slice(0, 3)} className="grid gap-3 md:grid-cols-3" superficie="vidrio" />
+    <section aria-labelledby="titulo-patrimonio" className={`mt-14 bg-pub-seccion sm:mt-20 ${SECCION}`}>
+      <div className={`${CONTENEDOR} grid items-start gap-10 lg:grid-cols-[1fr_1.05fr] lg:gap-14`}>
+        <div>
+          <p className="antetitulo-publico">Patrimonio</p>
+          <h2 id="titulo-patrimonio" className={TITULO_SECCION}>
+            Espacios de memoria e historia
+          </h2>
+          <p className="mt-4 max-w-[58ch] text-pretty text-[1.0625rem] leading-relaxed text-pub-texto-secundario">
+            Los cementerios municipales son parte de la historia de San Miguel de Tucumán. En este sitio encontrás cuándo visitarlos, los
+            recorridos guiados que publica la Dirección y cómo hacer cada trámite.
+          </p>
+          {fechas.length > 0 ? (
+            <section aria-labelledby="titulo-proximos" className="mt-8">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 id="titulo-proximos" className="flex items-center gap-2 text-lg font-bold text-pub-titulo">
+                  <CalendarDays className="h-5 w-5 text-pub-enlace" aria-hidden="true" />
+                  Próximos recorridos
+                </h3>
+                <EnlaceSeccion href="/recorridos">Ver todos los recorridos</EnlaceSeccion>
+              </div>
+              <ListaFechas fechas={fechas.slice(0, 3)} className="grid gap-2.5" />
+            </section>
+          ) : (
+            <p className="mt-6">
+              <Link href="/recorridos" className={BOTON_PRIMARIO}>
+                Recorridos históricos
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </p>
+          )}
+        </div>
+        <figure>
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-institucional shadow-pub-elevada">
+            <FotoDeFondo foto={FOTO_PATRIMONIO} sizes="(min-width: 1024px) 560px, 100vw" />
+            <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1.5 bg-linear-to-r from-amarillo via-celeste to-primario" />
+          </div>
+          <figcaption className="mt-3 text-xs text-pub-texto-secundario">Imagen ilustrativa generada con IA: no corresponde a un cementerio en particular.</figcaption>
+        </figure>
+      </div>
     </section>
   );
 }
 
 /**
- * La banda corta de la consulta: a `/consulta`, donde están los pasos y el
- * formulario. En vidrio azul, con el anillo celeste y la trama, dentro del
- * contenedor (a todo el ancho se pegaría al pie, del mismo azul).
+ * Los trámites del inicio: hasta cuatro de las plantillas publicadas (los de
+ * siempre, de la base) y "Ver todos los trámites". Sin datos (la base no
+ * respondió o no hay publicados), no sale.
+ */
+export function TramitesInicio({ datos }: { datos: DatosLanding | null }) {
+  if (!datos || datos.tramites.length === 0) return null;
+  return (
+    <section aria-labelledby="titulo-tramites" className={SECCION}>
+      <div className={CONTENEDOR}>
+        <EncabezadoSeccion id="titulo-tramites" antetitulo="Trámites" titulo="Qué trámites se inician en Mesa de Entradas">
+          <EnlaceSeccion href="/tramites">Ver todos los trámites</EnlaceSeccion>
+        </EncabezadoSeccion>
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {datos.tramites.slice(0, 4).map((t) => (
+            <li key={t.codigo}>
+              <Link href="/tramites" className={`tarjeta-enlace group flex h-full items-start gap-3.5 p-4 shadow-pub hover:border-pub-enlace ${TARJETA} ${FOCO}`}>
+                <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-pub-chip text-pub-enlace">
+                  <FileText className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold leading-tight text-pub-titulo">{t.nombre}</span>
+                  <span className="mt-1 block text-[0.8125rem] leading-snug text-pub-texto-secundario">Requisitos y qué traer</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * La banda del seguimiento: azul institucional, los tres pasos de la consulta
+ * (los mismos de /consulta) y "Consultar mi trámite" en amarillo (texto
+ * institucional encima). El `h2` es "Consultá tu trámite" (la región la
+ * nombra).
  */
 export function BandaConsulta() {
   return (
-    <section aria-labelledby="titulo-banda-consulta" className={`${CONTENEDOR} py-14 sm:py-20`}>
-      <div className="vidrio-azul isolate flex flex-wrap items-center justify-between gap-x-10 gap-y-5 overflow-hidden rounded-[20px] px-6 py-8 sm:px-10 sm:py-10">
-        <span aria-hidden="true" className="pointer-events-none absolute -right-[120px] -top-[140px] -z-10 hidden h-[360px] w-[360px] rounded-full border border-celeste/20 sm:block" />
-        <span aria-hidden="true" className="pointer-events-none absolute -right-[60px] -top-[80px] -z-10 hidden h-[240px] w-[240px] rounded-full border border-celeste/10 sm:block" />
-        <div className="max-w-[60ch]">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8fd6fb]">Seguimiento en línea</p>
-          <h2 id="titulo-banda-consulta" className="mt-1.5 text-[1.5rem] font-bold tracking-tight text-white sm:text-[1.875rem]">
-            Consultá tu trámite
-          </h2>
-          <p className="mt-2 text-institucional-texto">
-            Con el número de expediente y el código de consulta del comprobante que te dieron en Mesa de Entradas, o escaneando su QR.
-          </p>
+    <section aria-labelledby="titulo-banda-consulta" className="relative isolate overflow-hidden bg-pub-banda text-white">
+      <span aria-hidden="true" className="pointer-events-none absolute -right-32 -top-40 -z-10 hidden h-[26rem] w-[26rem] rounded-full border border-celeste/20 sm:block" />
+      <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 -z-10 hidden h-[17rem] w-[17rem] rounded-full border border-celeste/10 sm:block" />
+      <div className={`${CONTENEDOR} py-14 sm:py-16`}>
+        <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+          <div className="max-w-[44ch]">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8fd6fb]">Seguimiento de expedientes</p>
+            <h2 id="titulo-banda-consulta" className="mt-2 text-[1.75rem] font-extrabold leading-tight tracking-tight sm:text-[2rem]">
+              Consultá tu trámite
+            </h2>
+            <p className="mt-3 text-institucional-texto">Con el número de expediente y el código de consulta del comprobante, o escaneando su QR.</p>
+          </div>
+          <Link
+            href="/consulta"
+            className={`inline-flex min-h-11 items-center gap-2 rounded-full bg-amarillo px-5 py-2.5 text-[0.9375rem] font-bold text-institucional transition-colors duration-150 hover:bg-white ${FOCO_OSCURO}`}
+          >
+            Consultar mi trámite
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
         </div>
-        <Link
-          href="/consulta"
-          className={`inline-flex min-h-11 items-center gap-2 rounded-control bg-amarillo px-5 py-2.5 text-[0.9375rem] font-bold text-institucional transition-colors duration-150 hover:bg-white ${FOCO_OSCURO}`}
-        >
-          Consultar mi trámite
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </Link>
+        <ol className="mt-10 grid gap-4 md:grid-cols-3">
+          {PASOS_CONSULTA.map((p, i) => (
+            <li key={p.titulo} className="flex items-start gap-3.5 rounded-2xl border border-white/12 bg-white/[0.06] p-4">
+              <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primario font-mono text-lg font-extrabold text-white ring-4 ring-primario/25">
+                {i + 1}
+              </span>
+              <span className="min-w-0">
+                <strong className="block leading-snug text-white">{p.titulo}</strong>
+                <span className="mt-1 block text-[0.9375rem] text-institucional-texto">{p.texto}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Los cementerios del inicio: hasta tres, con la foto que eligió la Dirección
+ * (ilustrativa, y lo dice) o la franja institucional, el nombre y el
+ * domicilio, y "Ver todos los cementerios". Sin cementerios (la base no
+ * respondió), no sale.
+ */
+export function CementeriosInicio({ cementerios }: { cementerios: CementerioPublico[] }) {
+  if (cementerios.length === 0) return null;
+  const tres = cementerios.slice(0, 3);
+  return (
+    <section aria-labelledby="titulo-cementerios-inicio" className={`bg-pub-seccion ${SECCION}`}>
+      <div className={CONTENEDOR}>
+        <EncabezadoSeccion id="titulo-cementerios-inicio" antetitulo="Nuestros cementerios" titulo="Cementerios municipales">
+          <EnlaceSeccion href="/cementerios">Ver todos los cementerios</EnlaceSeccion>
+        </EncabezadoSeccion>
+        <ul className="grid gap-5 md:grid-cols-3">
+          {tres.map((c) => (
+            <li key={c.id}>
+              <Link href="/cementerios" className={`tarjeta-enlace group flex h-full flex-col overflow-hidden shadow-pub hover:border-pub-enlace ${TARJETA} ${FOCO}`}>
+                {c.foto ? (
+                  <Foto foto={c.foto} className="aspect-video w-full object-cover" />
+                ) : (
+                  <span aria-hidden="true" className="flex h-3 w-full bg-institucional">
+                    <span className="ml-5 h-full w-12 bg-amarillo" />
+                  </span>
+                )}
+                <span className="flex flex-1 items-start justify-between gap-3 p-5">
+                  <span className="min-w-0">
+                    <span className="block text-lg font-bold leading-tight text-pub-titulo">{c.nombre}</span>
+                    {c.domicilio ? <span className="mt-1 block text-[0.875rem] text-pub-texto-secundario">{c.domicilio}</span> : null}
+                  </span>
+                  <ArrowRight className="flecha mt-1 h-4 w-4 shrink-0 text-pub-enlace" aria-hidden="true" />
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {tres.some((c) => c.foto) ? <p className="mt-4 text-xs text-pub-texto-secundario">Las fotos son ilustrativas.</p> : null}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * El cierre: sobre `fondo-suave` (decorativa) con un velo claro (oscuro en
+ * modo oscuro) casi opaco, dónde y cuándo atiende Mesa de Entradas (solo lo
+ * cargado) y el enlace al contacto y las preguntas frecuentes.
+ */
+export function Cierre({ contacto }: { contacto: ContactoSitio | null }) {
+  const telefono = hrefTelefono(contacto?.telefono ?? null);
+  return (
+    <section aria-labelledby="titulo-cierre" className="relative isolate overflow-hidden border-t border-pub-borde">
+      <FotoDeFondo foto={FOTO_CIERRE} sizes="100vw" className="-z-10" />
+      <div aria-hidden="true" className="absolute inset-0 -z-10 bg-pub-velo-cierre" />
+      <div className={`${CONTENEDOR} grid gap-8 py-14 sm:py-16 md:grid-cols-[1fr_auto] md:items-center`}>
+        <div className="max-w-[60ch]">
+          <p className="antetitulo-publico">Atención al público</p>
+          <h2 id="titulo-cierre" className={TITULO_SECCION}>
+            Mesa de Entradas de la Dirección de Cementerios
+          </h2>
+          <p className="mt-3 text-pub-texto-secundario">Ahí se inician los trámites, se entrega el comprobante y se atienden las consultas.</p>
+          {contacto && (contacto.domicilio || contacto.horario || contacto.telefono) ? (
+            <ul className="mt-5 grid gap-2 text-[0.9375rem] text-pub-texto">
+              {contacto.domicilio ? (
+                <li className="flex gap-2.5">
+                  <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-pub-enlace" aria-hidden="true" />
+                  <span>{contacto.domicilio}</span>
+                </li>
+              ) : null}
+              {contacto.horario ? (
+                <li className="flex gap-2.5">
+                  <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-pub-enlace" aria-hidden="true" />
+                  <span>{contacto.horario}</span>
+                </li>
+              ) : null}
+              {contacto.telefono ? (
+                <li className="flex gap-2.5">
+                  <Phone className="mt-0.5 h-5 w-5 shrink-0 text-pub-enlace" aria-hidden="true" />
+                  {telefono ? (
+                    <a href={telefono} className={ENLACE}>
+                      {contacto.telefono}
+                    </a>
+                  ) : (
+                    <span>{contacto.telefono}</span>
+                  )}
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/contacto" className={`${BOTON_PRIMARIO} min-h-11 rounded-full px-5`}>
+            <Users className="h-4 w-4" aria-hidden="true" />
+            Contacto y preguntas frecuentes
+          </Link>
+        </div>
       </div>
     </section>
   );
@@ -650,7 +852,7 @@ export function ContenidoRecorridos({ sitio }: { sitio: ContenidoSitioPublico })
           {sitio.fechas.length === 0 ? (
             <p className={`px-4 py-3 text-[0.9375rem] text-pub-texto-secundario ${TARJETA}`}>Todavía no hay fechas programadas. Consultá en Mesa de Entradas.</p>
           ) : (
-            <ListaFechas fechas={sitio.fechas} className="grid gap-2.5" superficie="panel" />
+            <ListaFechas fechas={sitio.fechas} className="grid gap-2.5" />
           )}
         </section>
         <TarjetaGrupos contacto={sitio.contacto} />

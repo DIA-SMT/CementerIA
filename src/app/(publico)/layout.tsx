@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FondoPublico, PiePublico, SaltarAlContenido } from "@/components/publico";
+import { PiePublico, SaltarAlContenido } from "@/components/publico";
 import { ScriptTema } from "@/components/tema-publico";
 import { TITULO_SITIO } from "@/lib/presentacion/sitio-publico";
 
@@ -12,13 +12,15 @@ import { TITULO_SITIO } from "@/lib/presentacion/sitio-publico";
  * Pone lo que no depende de la página, dentro del contenedor del sitio
  * (`.sitio-publico`, el que lleva el modo claro u oscuro en `data-tema`):
  * el script que pone el modo guardado antes de pintar (ScriptTema, primero),
- * el fondo fijo, "Saltar al contenido" (el primer foco) y el pie. El modo va
+ * "Saltar al contenido" (el primer foco) y el pie. (Hasta el kit
+ * institucional del 30/10/2026 había además un fondo fijo con la foto: ahora
+ * cada página pone su foto en el hero o en la banda de su encabezado.) El modo va
  * en el contenedor y no en <html>: el layout raíz es el de la app interna, que
  * no tiene modo oscuro, y React no lo pisa al remontar en desarrollo.
  * `suppressHydrationWarning`: el script le cambia el atributo antes de
- * hidratar. `overflow-x-clip`: los halos difusos que se salen del contenedor
- * no dan desplazamiento lateral (`clip` no crea contenedor de desplazamiento:
- * la barra sigue fija).
+ * hidratar. `overflow-x-clip`: lo decorativo que se sale del contenedor (los
+ * anillos de la banda) no da desplazamiento lateral (`clip` no crea
+ * contenedor de desplazamiento: la barra sigue fija).
  *
  * La barra, en cambio, la pone cada página con su ruta (`BarraPublica
  * actual=…`, o `PaginaInterna`): un layout no recibe la ruta ni se vuelve a
@@ -36,7 +38,6 @@ export default function LayoutPublico({ children }: { children: React.ReactNode 
   return (
     <div data-sitio-publico="" suppressHydrationWarning className="sitio-publico relative isolate flex min-h-full flex-1 flex-col overflow-x-clip">
       <ScriptTema />
-      <FondoPublico />
       <SaltarAlContenido />
       {children}
       <PiePublico />

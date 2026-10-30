@@ -108,61 +108,52 @@
 }
 
 /*
- * El sitio público (src/app/(publico)/, docs/diseno.md "Página pública",
- * 28/10/2026): claro y oscuro. Tokens propios (`pub-*`): la app interna no
- * los usa y no cambia. Cada uno lleva sus dos valores con light-dark(), que
- * resuelve según el `color-scheme` del contenedor `.sitio-publico`: el del
- * sistema por defecto, o el que eligió la persona con el botón de la barra
- * (`data-tema="claro" | "oscuro"`, src/components/tema-publico.tsx). Los
- * contrastes de cada par están medidos en docs/diseno.md (y los vuelve a
- * medir tests/e2e/sitio-publico-tema.spec.ts): si se cambia un tono, medir.
+ * El sitio público (src/app/(publico)/, docs/diseno.md "Página pública"):
+ * claro y oscuro. Desde el kit institucional (30/10/2026) sigue el moodboard
+ * aprobado: barra azul institucional con el logo, hero con foto y velo,
+ * secciones lisas que alternan blanco y `fondo`, una banda azul para el
+ * seguimiento y el pie azul. Tokens propios (`pub-*`): la app interna no los
+ * usa. Cada uno lleva sus dos valores con light-dark(), que resuelve según el
+ * `color-scheme` del contenedor `.sitio-publico`: el del sistema por defecto,
+ * o el que eligió la persona con el botón de la barra (`data-tema="claro" |
+ * "oscuro"`, src/components/tema-publico.tsx). Los contrastes de cada par
+ * están medidos en docs/diseno.md (y los vuelve a medir
+ * tests/e2e/sitio-publico-tema.spec.ts): si se cambia un tono, medir.
  */
 @theme {
-  --color-pub-fondo: light-dark(#f4f7fb, #07111f); /* debajo de la foto, mientras carga */
+  --color-pub-fondo: light-dark(#f4f7fb, #07111f); /* el fondo de la página y de las secciones alternas */
+  --color-pub-seccion: light-dark(#ffffff, #0b182c); /* las secciones blancas del inicio */
   --color-pub-texto: light-dark(#172b4d, #e8eef7);
   --color-pub-texto-secundario: light-dark(#4a5568, #b3c2d6);
   --color-pub-titulo: light-dark(#0f2f5d, #ffffff);
   --color-pub-enlace: light-dark(#0b53cc, #8ecbff); /* enlaces, íconos y antetítulos */
   --color-pub-borde: light-dark(#d5deea, rgb(142 182 232 / 0.22));
   --color-pub-borde-control: light-dark(#7c8798, #7f93b0); /* 3:1 contra el campo (WCAG 1.4.11) */
-  --color-pub-foco: light-dark(#0f68ff, #5cc8ff);
-  --color-pub-superficie: light-dark(#ffffff, #0f1f38); /* tarjetas dentro del panel, campos */
+  --color-pub-foco: light-dark(#006bff, #5cc8ff);
+  --color-pub-superficie: light-dark(#ffffff, #0f1f38); /* tarjetas, campos */
   --color-pub-tinte: light-dark(#eef3fa, #16294a); /* cabecera de tabla, cajitas */
-  --color-pub-chip: light-dark(#e8f2ff, rgb(56 178 246 / 0.14));
-  --color-pub-panel: light-dark(rgb(248 250 253 / 0.96), rgb(8 18 34 / 0.94)); /* panel de lectura, casi opaco */
-  --color-pub-vidrio: light-dark(rgb(255 255 255 / 0.84), rgb(10 24 46 / 0.66)); /* en claro, más opaco: detrás está el velo azul */
-  --color-pub-vidrio-opaco: light-dark(#f8fafd, #0c1a31); /* sin backdrop-filter */
-  --color-pub-vidrio-borde: light-dark(rgb(255 255 255 / 0.8), rgb(142 182 232 / 0.2));
-  --color-pub-azul: light-dark(rgb(15 47 93 / 0.92), rgb(22 64 138 / 0.86)); /* vidrio azul: la tarjeta destacada y la banda */
-  --color-pub-barra: light-dark(rgb(15 47 93 / 0.86), rgb(5 13 28 / 0.82));
-  --color-pub-barra-solida: light-dark(#0f2f5d, #08142a); /* el menú desplegado del celular */
-  --color-pub-pie: light-dark(rgb(15 47 93 / 0.95), rgb(4 10 22 / 0.95));
-  --color-pub-advertencia: light-dark(#8a4b00, #f4c400);
+  --color-pub-chip: light-dark(#e8f2ff, rgb(50 178 246 / 0.14));
+  --color-pub-barra: light-dark(#0f2f5d, #08142a); /* la barra fija y su menú del celular */
+  --color-pub-banda: light-dark(#0f2f5d, #0d2546); /* la banda del seguimiento y la tarjeta destacada */
+  --color-pub-pie: light-dark(#0b2447, #040a16);
+  --color-pub-advertencia: light-dark(#8a4b00, #f4d900);
   --color-pub-error: light-dark(#b42318, #ffb4ab);
   --color-pub-error-fondo: light-dark(#fdecec, rgb(180 35 24 / 0.2));
   --color-pub-error-borde: light-dark(#f2b8b5, rgb(255 180 171 / 0.4));
   --color-pub-info-borde: light-dark(#b5d3ff, rgb(142 203 255 / 0.32));
   /*
-   * Lo que va directo sobre la foto (el hero, los encabezados de sección del
-   * inicio, el encabezado de las internas) y sus pastillas: claro en los dos
-   * modos, porque el velo es azul en claro y azul noche en oscuro. En oscuro
-   * dan lo mismo que pub-titulo, pub-texto, pub-texto-secundario, pub-enlace,
-   * pub-foco y pub-vidrio; en claro, sobre el velo azul institucional.
-   * pub-velo (el punto más liviano del velo) y pub-halo los usa también
-   * tests/e2e/sitio-publico-tema.spec.ts para medir este texto sobre la peor
-   * foto posible (blanca).
+   * El velo de las fotos (el hero del inicio y la banda de las internas):
+   * azul institucional en claro, azul noche en oscuro. `pub-velo` es su punto
+   * MÁS LIVIANO donde hay texto: el texto blanco encima se midió con una foto
+   * blanca debajo (lo peor posible) y llega a AA en cualquier foto. Donde no
+   * hay texto (la derecha del hero en escritorio) el velo se aclara.
    */
-  --color-pub-sobre-foto-titulo: light-dark(#ffffff, #ffffff);
-  --color-pub-sobre-foto-texto: light-dark(#e6eef9, #e8eef7);
-  --color-pub-sobre-foto-secundario: light-dark(#c7d6eb, #b3c2d6);
-  --color-pub-sobre-foto-enlace: light-dark(#a9dcff, #8ecbff);
-  --color-pub-sobre-foto-foco: light-dark(#ffffff, #5cc8ff); /* en claro, blanco: el celeste no llegaba a 3:1 contra el velo sobre el empedrado */
-  --color-pub-vidrio-foto: light-dark(rgb(15 47 93 / 0.62), rgb(10 24 46 / 0.66)); /* pastillas y botones sobre la foto */
-  --color-pub-vidrio-foto-opaco: light-dark(#1d3d69, #0c1a31); /* sin backdrop-filter */
-  --color-pub-vidrio-foto-borde: light-dark(rgb(255 255 255 / 0.22), rgb(142 182 232 / 0.2));
-  --color-pub-velo: light-dark(rgb(15 47 93 / 0.55), rgb(5 13 28 / 0.66)); /* el punto más liviano del velo (arriba) */
-  --color-pub-halo: light-dark(rgb(15 47 93 / 0.38), rgb(5 13 28 / 0.32));
+  --color-pub-velo: light-dark(rgb(15 47 93 / 0.8), rgb(5 13 28 / 0.84));
+  --color-pub-velo-suave: light-dark(rgb(15 47 93 / 0.3), rgb(5 13 28 / 0.45));
+  /* El velo claro del cierre (sobre fondo-suave): texto oscuro en claro, claro en oscuro. */
+  --color-pub-velo-cierre: light-dark(rgb(244 247 251 / 0.86), rgb(7 17 31 / 0.88));
   --shadow-pub: 0 1px 2px light-dark(rgb(15 47 93 / 0.06), rgb(0 0 0 / 0.3)), 0 10px 30px light-dark(rgb(15 47 93 / 0.1), rgb(0 0 0 / 0.35));
+  --shadow-pub-elevada: 0 2px 4px light-dark(rgb(15 47 93 / 0.08), rgb(0 0 0 / 0.35)), 0 18px 40px light-dark(rgb(15 47 93 / 0.16), rgb(0 0 0 / 0.45));
 }
 
 /*
@@ -300,7 +291,7 @@
   /* La barra de desplazamiento y lo que asoma al estirar la página, del mismo modo. */
   html:has(.sitio-publico) {
     color-scheme: light dark;
-    /* Lo que se lleva a la vista (el indicador del hero, el foco al tabular) no queda bajo la barra fija. */
+    /* Lo que se lleva a la vista (el foco al tabular, "Saltar al contenido") no queda bajo la barra fija. */
     scroll-padding-top: 5rem;
   }
   html:has(.sitio-publico[data-tema="claro"]) {
@@ -320,182 +311,47 @@
 
 @layer components {
   /*
-   * El fondo fijo (FondoPublico, src/components/publico.tsx): una capa con
-   * position: fixed detrás de todo, con la foto, el velo y la trama. No es
-   * background-attachment: fixed, que iOS no respeta y repinta en cada
-   * desplazamiento: la capa se compone una vez y el contenido pasa por encima.
-   * 100lvh (el alto con la barra del navegador escondida): en el celular no
-   * cambia de tamaño cuando la barra aparece o desaparece.
+   * El velo de las fotos con texto blanco encima (src/components/landing.tsx
+   * y publico.tsx). `.velo-hero`: en celular y tablet, parejo (el texto ocupa
+   * todo el ancho); en escritorio, sólido en la mitad izquierda, donde va el
+   * texto, y se aclara hacia la derecha para que se vea la foto. Abajo se
+   * oscurece para los accesos que se apoyan encima. `.velo-banda`: parejo (las
+   * internas). El texto se midió sobre la parte más liviana (docs/diseno.md):
+   * si se cambia, volver a medir.
    */
-  .fondo-publico {
-    position: fixed;
-    inset: 0 0 auto 0;
-    height: 100vh;
-    height: 100lvh;
-    z-index: -1;
-    overflow: hidden;
-    background-color: var(--color-pub-fondo);
-    pointer-events: none;
-  }
-  .fondo-publico > img {
+  .velo-hero,
+  .velo-banda {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: 50% 60%;
+    background: var(--color-pub-velo);
   }
-  /*
-   * El velo: un tinte parejo en toda la capa, más denso hacia el centro y
-   * abajo. En claro, azul institucional (#0F2F5D) a media opacidad: la foto
-   * se ve con color y el texto que va directo encima es claro
-   * (`pub-sobre-foto-*`); en oscuro, azul noche, más profundo. Como el fondo
-   * es fijo, cualquier texto directo sobre la foto cae sobre algún punto del
-   * velo según el desplazamiento: por eso en claro no se aclara hacia abajo.
-   * El contraste de ese texto (el hero, los encabezados de sección, el de las
-   * internas) se midió con este velo y el halo (docs/diseno.md): si se
-   * cambia, volver a medir.
-   */
-  .velo-publico {
+  @media (width >= 64rem) {
+    .velo-hero {
+      background:
+        linear-gradient(to top, var(--color-pub-velo) 0%, transparent 32%),
+        linear-gradient(
+          to right,
+          var(--color-pub-velo) 0%,
+          var(--color-pub-velo) 56%,
+          light-dark(rgb(15 47 93 / 0.55), rgb(5 13 28 / 0.66)) 74%,
+          var(--color-pub-velo-suave) 100%
+        );
+    }
+  }
+  /* Un filete celeste que se apaga hacia los costados: cierra el hero y las bandas. */
+  .filete-celeste {
     position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(
-        ellipse 70% 60% at 50% 42%,
-        light-dark(rgb(15 47 93 / 0.3), rgb(5 13 28 / 0.35)),
-        light-dark(rgb(15 47 93 / 0.15), rgb(5 13 28 / 0.15)) 60%,
-        transparent 85%
-      ),
-      linear-gradient(
-        to bottom,
-        var(--color-pub-velo) 0%,
-        light-dark(rgb(15 47 93 / 0.57), rgb(5 13 28 / 0.74)) 50%,
-        light-dark(rgb(15 47 93 / 0.64), rgb(5 13 28 / 0.9)) 100%
-      );
-  }
-  /* La trama: una grilla fina celeste, apenas visible, que se apaga hacia el centro y el pie. */
-  .trama-publica {
-    position: absolute;
-    inset: 0;
-    background-image:
-      linear-gradient(to right, light-dark(rgb(142 203 255 / 0.12), rgb(56 178 246 / 0.09)) 1px, transparent 1px),
-      linear-gradient(to bottom, light-dark(rgb(142 203 255 / 0.12), rgb(56 178 246 / 0.09)) 1px, transparent 1px);
-    background-size: 48px 48px;
-    background-position: center top;
-    mask-image: radial-gradient(ellipse 85% 70% at 50% 0%, #000 20%, transparent 75%);
-  }
-
-  /*
-   * Vidrio esmerilado: translúcido, con desenfoque, un filete claro con brillo
-   * (el degradé del borde va en ::before, enmascarado al borde) y sombra
-   * suave. Sin backdrop-filter, opaco. Para tarjetas chicas y la barra: el
-   * panel de lectura de las internas (casi opaco) no desenfoca nada.
-   */
-  .vidrio,
-  .vidrio-azul {
-    position: relative;
-    border: 1px solid var(--color-pub-vidrio-borde);
-    background-color: var(--color-pub-vidrio);
-    box-shadow:
-      inset 0 1px 0 light-dark(rgb(255 255 255 / 0.85), rgb(255 255 255 / 0.06)),
-      var(--shadow-pub);
-    -webkit-backdrop-filter: blur(12px) saturate(1.3);
-    backdrop-filter: blur(12px) saturate(1.3);
-  }
-  .vidrio-azul {
-    border-color: light-dark(rgb(255 255 255 / 0.18), rgb(142 182 232 / 0.22));
-    background-color: var(--color-pub-azul);
-    color: #fff;
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.12),
-      var(--shadow-pub);
-  }
-  .vidrio::before,
-  .vidrio-azul::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      light-dark(rgb(255 255 255 / 0.95), rgb(142 203 255 / 0.35)),
-      transparent 38%,
-      transparent 62%,
-      rgb(56 178 246 / 0.4)
-    );
-    mask:
-      linear-gradient(#000 0 0) content-box exclude,
-      linear-gradient(#000 0 0);
+    inset: auto 0 0 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgb(50 178 246 / 0.7), transparent);
     pointer-events: none;
   }
-  /*
-   * Vidrio sobre la foto: las pastillas (antetítulos, migas), el botón
-   * secundario del hero, "Explorá el sitio" y el enlace de las secciones.
-   * En claro, azul institucional translúcido con el texto claro, como el velo
-   * (una pastilla blanca competía con el botón primario); en oscuro, igual que
-   * `.vidrio`.
-   */
-  .vidrio-foto {
-    position: relative;
-    border: 1px solid var(--color-pub-vidrio-foto-borde);
-    background-color: var(--color-pub-vidrio-foto);
-    box-shadow:
-      inset 0 1px 0 light-dark(rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.06)),
-      var(--shadow-pub);
-    -webkit-backdrop-filter: blur(12px) saturate(1.3);
-    backdrop-filter: blur(12px) saturate(1.3);
-  }
-  .vidrio-foto::before {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      light-dark(rgb(255 255 255 / 0.3), rgb(142 203 255 / 0.35)),
-      transparent 38%,
-      transparent 62%,
-      rgb(56 178 246 / 0.4)
-    );
-    mask:
-      linear-gradient(#000 0 0) content-box exclude,
-      linear-gradient(#000 0 0);
-    pointer-events: none;
-  }
-  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .vidrio {
-      background-color: var(--color-pub-vidrio-opaco);
-    }
-    .vidrio-azul {
-      background-color: light-dark(#0f2f5d, #0d264e);
-    }
-    .vidrio-foto {
-      background-color: var(--color-pub-vidrio-foto-opaco);
-    }
-  }
 
-  /* El panel de lectura de las páginas internas: casi opaco, para listas y tablas. */
-  .panel-lectura {
-    border-radius: var(--radius-panel);
-    border: 1px solid var(--color-pub-vidrio-borde);
-    background-color: var(--color-pub-panel);
-    box-shadow: var(--shadow-pub);
-  }
-
-  /*
-   * El halo detrás del texto que va directo sobre la foto: así el contraste
-   * no depende de qué parte quede detrás. Del color del velo (azul
-   * institucional en claro, azul noche en oscuro), sin brillo.
-   */
-  .halo-publico {
-    background: var(--color-pub-halo);
-    filter: blur(48px);
-  }
-
-  /* El antetítulo: mayúsculas espaciadas, como un rótulo. */
+  /* El antetítulo: mayúsculas espaciadas con un filete delante, como un rótulo. */
   .antetitulo-publico {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
     font-size: 0.75rem;
     line-height: 1rem;
     font-weight: 700;
@@ -503,23 +359,46 @@
     text-transform: uppercase;
     color: var(--color-pub-enlace);
   }
+  .antetitulo-publico::before {
+    content: "";
+    width: 1.5rem;
+    height: 2px;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+
+  /*
+   * Tarjeta enlazada: al pasar o enfocar sube 2 px y gana sombra (transform y
+   * sombra, nada que mueva el layout). La flecha de adentro (`.flecha`) se
+   * corre 2 px.
+   */
+  .tarjeta-enlace {
+    transition:
+      transform var(--duracion-media) var(--ease-salida),
+      box-shadow var(--duracion-media) var(--ease-salida),
+      border-color var(--duracion-corta) ease;
+  }
+  .tarjeta-enlace:hover,
+  .tarjeta-enlace:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pub-elevada);
+  }
+  .tarjeta-enlace .flecha {
+    transition: transform var(--duracion-media) var(--ease-salida);
+  }
+  .tarjeta-enlace:hover .flecha,
+  .tarjeta-enlace:focus-visible .flecha {
+    transform: translateX(2px);
+  }
 }
 
 /*
  * El foco en el sitio público: el anillo (2 px, separado 2 px) lleva por
  * dentro un filete del color de la superficie (blanco en claro, azul noche en
- * oscuro), así contrasta 3:1 aunque detrás quede una parte oscura (o clara) de
- * la foto. Fuera de las capas: gana sobre la sombra del vidrio solo mientras
- * hay foco.
+ * oscuro), así contrasta 3:1 aunque detrás quede la foto o la banda azul.
  */
 .sitio-publico :focus-visible:not(main) {
   box-shadow: 0 0 0 2px light-dark(#ffffff, #050d1c);
-}
-
-@media print {
-  .fondo-publico {
-    display: none;
-  }
 }
 
 /* Movimiento reducido: sin transiciones ni animaciones. */
@@ -531,6 +410,13 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  /* Las tarjetas enlazadas no suben al pasar: queda la sombra y el borde. */
+  .tarjeta-enlace:hover,
+  .tarjeta-enlace:focus-visible,
+  .tarjeta-enlace:hover .flecha,
+  .tarjeta-enlace:focus-visible .flecha {
+    transform: none;
   }
 }
 
