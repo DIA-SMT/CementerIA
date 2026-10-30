@@ -27,7 +27,7 @@ export default async function PaginaPlantillas() {
     <section aria-labelledby="titulo-plantillas" className="space-y-4">
       <PantallaConRecorrido id="admin-plantillas" />
       <div className="flex flex-wrap items-center justify-between gap-2" data-recorrido="plantillas-encabezado">
-        <h1 id="titulo-plantillas" className="text-2xl font-semibold tracking-tight text-texto">
+        <h1 id="titulo-plantillas" className="text-2xl font-bold tracking-tight text-institucional">
           Plantillas de trámite
         </h1>
         <BotonNuevaPlantilla tiposTramite={tiposTramite} />

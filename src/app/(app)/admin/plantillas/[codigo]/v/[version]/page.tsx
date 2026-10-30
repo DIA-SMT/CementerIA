@@ -50,7 +50,7 @@ export default async function PaginaVersionPlantilla(props: PageProps<"/admin/pl
         </Link>
       </p>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1" data-recorrido="editor-cabecera">
-        <h1 id="titulo-version" className="text-2xl font-semibold tracking-tight text-texto">
+        <h1 id="titulo-version" className="text-2xl font-bold tracking-tight text-institucional">
           {v.nombre} <span className="font-mono text-base font-normal text-texto-secundario">· {v.codigo} v{v.version}</span>
         </h1>
         <span className={`insignia ring-1 ring-inset ${v.estado === "publicada" ? "bg-exito-fondo text-exito ring-exito-borde" : v.estado === "borrador" ? "bg-advertencia-fondo text-advertencia ring-advertencia-borde" : "bg-fondo text-texto-secundario ring-borde"}`}>

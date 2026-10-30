@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { ArrowRight, ChartColumnIncreasing, FileText, History, Library, TriangleAlert, Users, type LucideIcon } from "lucide-react";
+import { Archive, ArrowRight, Ban, ChartColumnIncreasing, CircleCheck, FileText, FolderOpen, History, Hourglass, Library, TriangleAlert, Users, type LucideIcon } from "lucide-react";
 import { BotonImprimir } from "@/components/boton-imprimir";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CONTROL, CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
 import { ICONO_PANTALLA } from "@/components/iconos-modulos";
@@ -9,7 +9,7 @@ import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { expedientes, type FilaPanel, type FilaPlazoPanel, type Lista, type MovimientoPanel } from "@/lib/dominio/expedientes/servidor";
 import { navegacionPara, puedeVerPantalla, SECCIONES_ADMIN } from "@/lib/dominio/navegacion";
-import { formatearFecha, formatearFechaHora, formatearSegunPrecision } from "@/lib/fechas";
+import { formatearFecha, formatearFechaHora, formatearSegunPrecision, inicioDelDiaEnTucuman, ZONA_TUCUMAN } from "@/lib/fechas";
 import { rutaFicha } from "@/lib/presentacion/enlaces";
 import { mostrarPlazo } from "@/lib/presentacion/estados";
 import { textoDias } from "@/lib/presentacion/flujo";
@@ -17,6 +17,20 @@ import { enlaceConteo, leerFiltrosPanel, textoCantidad, textoMes } from "@/lib/p
 import { COLOR_ESTADO, ETIQUETA_ESTADO, etiquetaMovimiento } from "@/lib/presentacion/textos";
 
 export const metadata: Metadata = { title: "Panel" };
+
+/** El ícono de cada estado en las tarjetas de conteo (kit institucional): decorativo, el nombre va escrito. */
+const ICONO_ESTADO: Record<keyof typeof ETIQUETA_ESTADO, LucideIcon> = {
+  en_tramite: FolderOpen,
+  espera_pago_dim: Hourglass,
+  concluido: CircleCheck,
+  archivado: Archive,
+  anulado: Ban,
+};
+
+function IconoEstado({ estado }: { estado: keyof typeof ICONO_ESTADO }) {
+  const Icono = ICONO_ESTADO[estado];
+  return <Icono className="h-5 w-5" />;
+}
 
 /**
  * Panel (sección 5, `/panel`): el inicio de Dirección y del admin, y lo puede
@@ -47,11 +61,11 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
   return (
     <section aria-labelledby="titulo-pantalla" className="@container space-y-6 print:space-y-4 print:text-[11px]">
       <PantallaConRecorrido id="panel" />
-      <Portada accesos={accesosRapidos(navegacionPara(usuario))} />
+      <Portada nombre={usuario.nombre} hoy={panel.hoy} accesos={accesosRapidos(navegacionPara(usuario))} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 id="titulo-pantalla" className="text-2xl font-semibold tracking-tight text-texto print:text-xl">
+          <h1 id="titulo-pantalla" className="text-2xl font-bold tracking-tight text-institucional print:text-xl">
             Panel
           </h1>
           <p className="mt-0.5 text-sm text-texto-secundario">
@@ -133,13 +147,19 @@ export default async function PaginaPanel(props: PageProps<"/panel">) {
               <Link
                 href={enlaceConteo(c.busqueda) ?? "/expedientes"}
                 prefetch={false}
-                className={`tarjeta block h-full p-4 transition duration-150 hover:border-primario hover:shadow-elevada ${CLASE_FOCO} print:p-2`}
+                className={`tarjeta group flex h-full items-start gap-3 p-4 transition-[border-color,box-shadow,transform] duration-200 ease-salida hover:-translate-y-0.5 hover:border-primario hover:shadow-elevada motion-reduce:hover:translate-y-0 ${CLASE_FOCO} print:p-2`}
               >
-                <span className={`insignia max-w-full whitespace-normal ring-1 ring-inset ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
-                <span className="mt-2 block text-3xl font-semibold tracking-tight text-institucional tabular-nums print:text-lg">
-                  {c.cantidad.toLocaleString("es-AR")}
+                {/* El ícono del estado, en el color de su insignia (decorativo: el nombre está escrito). */}
+                <span aria-hidden="true" className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ring-1 ring-inset print:hidden ${COLOR_ESTADO[c.estado]}`}>
+                  <IconoEstado estado={c.estado} />
                 </span>
-                <span className="sr-only"> expedientes: ver en la búsqueda</span>
+                <span className="min-w-0">
+                  <span className={`insignia max-w-full whitespace-normal ring-1 ring-inset ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
+                  <span className="mt-1.5 block text-3xl font-semibold tracking-tight text-institucional tabular-nums print:text-lg">
+                    {c.cantidad.toLocaleString("es-AR")}
+                  </span>
+                  <span className="sr-only"> expedientes: ver en la búsqueda</span>
+                </span>
               </Link>
             </li>
           ))}
@@ -221,14 +241,21 @@ function accesosRapidos(items: ReturnType<typeof navegacionPara>): AccesoRapido[
     );
 }
 
+/** "jueves 30 de octubre de 2026", en hora de Tucumán: la fecha del banner. */
+const FORMATO_FECHA_LARGA = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA_TUCUMAN, weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
 /**
- * La portada: banda panorámica con la foto de la avenida (decorativa, `alt`
- * vacío) bajo un velo azul que deja el texto blanco con contraste AA, la marca
- * y los accesos rápidos. No sale en el papel.
+ * El banner de bienvenida (kit institucional, 30/10/2026; antes, la portada):
+ * compacto, con `hero-dashboard` (conceptual, decorativa, `alt=""`) bajo un
+ * velo azul parejo, más denso a la izquierda, donde va el texto (blanco: más
+ * de 7:1 aunque la foto fuera blanca, docs/diseno.md). El saludo con el
+ * nombre de quien entró, la Dirección, la fecha de hoy y los accesos rápidos.
+ * Nada de cifras: los números del panel van abajo, los del dominio. No sale en
+ * el papel.
  */
-function Portada({ accesos }: { accesos: AccesoRapido[] }) {
+function Portada({ nombre, hoy, accesos }: { nombre: string; hoy: string; accesos: AccesoRapido[] }) {
   return (
-    <div className="relative overflow-hidden rounded-panel bg-institucional shadow-tarjeta print:hidden">
+    <div data-banner-bienvenida="" className="relative isolate overflow-hidden rounded-panel bg-institucional shadow-elevada print:hidden">
       {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
       <img
         src="/assets/cementeria/hero-dashboard-960.webp"
@@ -238,31 +265,34 @@ function Portada({ accesos }: { accesos: AccesoRapido[] }) {
         height={941}
         alt=""
         loading="eager"
+        fetchPriority="high"
         decoding="async"
-        className="absolute inset-0 h-full w-full object-cover object-[50%_40%]"
+        className="absolute inset-0 -z-10 h-full w-full object-cover object-[50%_45%]"
       />
-      <div aria-hidden="true" className="absolute inset-0 bg-linear-to-r from-institucional/95 via-institucional/90 to-institucional/75 lg:via-institucional/80 lg:to-institucional/35" />
-      <div className="relative flex flex-col gap-5 px-5 py-6 sm:px-8 lg:flex-row lg:items-end lg:justify-between lg:gap-8 lg:py-7">
-        <div className="lg:shrink-0">
-          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-white">
-            Municipalidad de San Miguel de Tucumán
+      <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-r from-institucional/95 via-institucional/88 to-institucional/80" />
+      <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1 bg-linear-to-r from-amarillo via-celeste to-primario" />
+      <div className="flex flex-col gap-5 px-5 py-6 sm:px-8 lg:py-7">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+          <div className="motion-safe:animate-aparecer">
+            <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-institucional-texto">Dirección de Cementerios</p>
+            <p className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-[1.75rem]">Hola, {nombre}</p>
+          </div>
+          <p className="text-sm text-institucional-texto first-letter:uppercase">
+            <time dateTime={hoy}>{FORMATO_FECHA_LARGA.format(inicioDelDiaEnTucuman(hoy))}</time>
           </p>
-          <p className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">CementerIA</p>
-          <p className="text-sm text-white sm:text-base">Dirección de Cementerios</p>
-          <span aria-hidden="true" className="mt-3 block h-1 w-12 rounded-full bg-amarillo" />
         </div>
         {accesos.length > 0 ? (
           <nav aria-label="Accesos rápidos" data-recorrido="panel-accesos">
-            <ul className="flex flex-wrap gap-2 lg:justify-end">
+            <ul className="flex flex-wrap gap-2">
               {accesos.map(({ href, etiqueta, Icono }) => (
                 <li key={href}>
                   <Link
                     href={href}
-                    className={`group inline-flex min-h-10 items-center gap-2 rounded-control bg-white px-3.5 py-2 text-sm font-medium text-institucional shadow-xs transition-colors duration-150 hover:bg-superficie-azul focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white`}
+                    className="group inline-flex min-h-10 items-center gap-2 rounded-control bg-white px-3.5 py-2 text-sm font-medium text-institucional shadow-xs transition-[background-color,transform] duration-200 ease-salida hover:-translate-y-px hover:bg-superficie-azul focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                   >
                     <Icono className="h-4 w-4 text-primario-oscuro" aria-hidden="true" />
                     {etiqueta}
-                    <ArrowRight className="h-3.5 w-3.5 text-texto-secundario transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
+                    <ArrowRight className="h-3.5 w-3.5 text-texto-secundario transition-transform duration-200 ease-salida group-hover:translate-x-0.5" aria-hidden="true" />
                   </Link>
                 </li>
               ))}
@@ -273,6 +303,8 @@ function Portada({ accesos }: { accesos: AccesoRapido[] }) {
     </div>
   );
 }
+
+
 
 // ---------------------------------------------------------------------------
 // Bloques y tablas

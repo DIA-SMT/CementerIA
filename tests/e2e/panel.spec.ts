@@ -55,3 +55,34 @@ test("como Dirección, un número del panel lleva a la búsqueda filtrada", asyn
   await page.getByRole("link", { name: numero, exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: numero })).toBeVisible();
 });
+
+test("como Dirección, el panel arranca con el banner de bienvenida: saludo, fecha, los accesos del rol y ninguna cifra inventada", async ({ page }) => {
+  await entrarComo(page, "direccion");
+  // El logo oficial va en la barra lateral (sobre el azul institucional), con su alt.
+  await expect(page.getByRole("img", { name: "Ciudad San Miguel de Tucumán" })).toBeVisible();
+
+  const banner = page.locator("[data-banner-bienvenida]");
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText("Hola, Prueba");
+  await expect(banner).toContainText("Dirección de Cementerios");
+  await expect(banner.locator("time")).toHaveAttribute("datetime", /^\d{4}-\d{2}-\d{2}$/);
+  // La foto del kit es la imagen principal de la pantalla.
+  const foto = banner.locator("img");
+  await expect(foto).toHaveAttribute("fetchpriority", "high");
+  await expect(foto).toHaveAttribute("src", /\/assets\/cementeria\/hero-dashboard/);
+  // Fuera de la fecha, el banner no muestra números: las cifras del panel son las del dominio, abajo.
+  expect(
+    await banner.evaluate((b) => {
+      const copia = b.cloneNode(true) as HTMLElement;
+      copia.querySelectorAll("time").forEach((t) => t.remove());
+      return /\d/.test(copia.textContent ?? "");
+    }),
+  ).toBe(false);
+  // Los accesos son los módulos del menú del rol, menos el panel: ni uno más.
+  const accesos = await banner.getByRole("navigation", { name: "Accesos rápidos" }).getByRole("link").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+  const menu = await page.getByRole("navigation", { name: "Principal" }).getByRole("link").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+  expect(accesos.length).toBeGreaterThan(0);
+  expect(accesos).toEqual(menu.filter((href) => href !== "/panel"));
+  // Los conteos por estado siguen llevando a la búsqueda.
+  await expect(page.getByRole("region", { name: /^Expedientes por estado/ }).getByRole("link").first()).toHaveAttribute("href", /\/expedientes/);
+});

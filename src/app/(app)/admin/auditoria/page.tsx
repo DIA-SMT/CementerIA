@@ -43,7 +43,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
   return (
     <section aria-labelledby="titulo-auditoria" className="space-y-4">
       <PantallaConRecorrido id="admin-auditoria" />
-      <h1 id="titulo-auditoria" className="text-2xl font-semibold tracking-tight text-texto">
+      <h1 id="titulo-auditoria" className="text-2xl font-bold tracking-tight text-institucional">
         Auditoría
       </h1>
       <nav aria-label="Vista de la auditoría" data-recorrido="auditoria-vistas">

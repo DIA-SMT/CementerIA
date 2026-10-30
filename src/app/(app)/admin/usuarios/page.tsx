@@ -27,7 +27,7 @@ export default async function PaginaUsuarios() {
     <section aria-labelledby="titulo-usuarios" className="space-y-4">
       <PantallaConRecorrido id="admin-usuarios" />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 id="titulo-usuarios" className="text-2xl font-semibold tracking-tight text-texto">
+        <h1 id="titulo-usuarios" className="text-2xl font-bold tracking-tight text-institucional">
           Usuarios
         </h1>
         <BotonAltaUsuario areas={areas} />

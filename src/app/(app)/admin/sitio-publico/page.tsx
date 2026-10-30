@@ -52,7 +52,7 @@ export default async function PaginaSitioPublico(props: PageProps<"/admin/sitio-
       <PantallaConRecorrido id="admin-sitio-publico" />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 id="titulo-sitio" className="text-2xl font-semibold tracking-tight text-texto">
+          <h1 id="titulo-sitio" className="text-2xl font-bold tracking-tight text-institucional">
             Sitio público
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-texto-secundario">

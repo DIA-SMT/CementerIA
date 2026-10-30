@@ -56,7 +56,7 @@ export default async function PaginaCatalogos(props: PageProps<"/admin/catalogos
   return (
     <section aria-labelledby="titulo-catalogos" className="space-y-4">
       <PantallaConRecorrido id="admin-catalogos" />
-      <h1 id="titulo-catalogos" className="text-2xl font-semibold tracking-tight text-texto">
+      <h1 id="titulo-catalogos" className="text-2xl font-bold tracking-tight text-institucional">
         Catálogos
       </h1>
       <nav aria-label="Catálogos" data-recorrido="catalogos-pestanas">
