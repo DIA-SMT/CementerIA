@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { ICONO_PANTALLA } from "@/components/iconos-modulos";
-import { MarcaMunicipal } from "@/components/marca-municipal";
+import { LogoMunicipal, Wordmark } from "@/components/marca-municipal";
 import {
   CONSULTA_BARRA_AUTO_COLAPSADA,
   cookiePreferenciaBarra,
@@ -105,7 +105,18 @@ export function BarraLateral({
           onPointerEnter={() => setSinGlobo(false)}
           className={`group/item relative -m-1 rounded-control p-1 ${FOCO_OSCURO}`}
         >
-          <MarcaMunicipal variante="oscura" claseTexto="barra-colapsada:sr-only" />
+          {/* El logo oficial (va sobre el azul institucional) y el wordmark. En el
+              celular, en una fila con la franja; en escritorio, el logo arriba. Con
+              la barra contraída, el logo entero achicado al ancho de la franja (con
+              su proporción) y los textos solo para lectores de pantalla. */}
+          <span className="flex items-center gap-3 lg:flex-col lg:items-start lg:gap-3 barra-colapsada:gap-0">
+            <LogoMunicipal alto={36} className="w-[92px]! lg:w-[110px]! barra-colapsada:w-14!" />
+            <span aria-hidden="true" className="h-8 w-px bg-white/25 lg:hidden" />
+            <span className="flex min-w-0 flex-col leading-tight barra-colapsada:sr-only">
+              <Wordmark className="text-base lg:text-lg" />
+              <span className="hidden text-xs font-medium text-institucional-texto min-[400px]:block">Dirección de Cementerios</span>
+            </span>
+          </span>
           <Globo>CementerIA · inicio</Globo>
         </Link>
         <button

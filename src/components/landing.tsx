@@ -56,7 +56,7 @@ const ENLACE = `rounded-sm text-pub-enlace underline underline-offset-2 ${FOCO}`
 
 function Foto({ foto, className }: { foto: FotoSitio; className: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes.
+    // eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets.
     <img
       src={foto.chica}
       srcSet={`${foto.chica} 960w, ${foto.grande} ${foto.anchoGrande}w`}

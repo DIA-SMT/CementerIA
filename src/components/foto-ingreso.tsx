@@ -8,13 +8,13 @@
 export function FotoIngreso() {
   return (
     <div className="relative h-24 shrink-0 overflow-hidden sm:h-36 lg:h-auto lg:w-[57%]">
-      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
       <img
-        src="/imagenes/ingreso-paseo-sereno-960.webp"
-        srcSet="/imagenes/ingreso-paseo-sereno-960.webp 960w, /imagenes/ingreso-paseo-sereno-1600.webp 1600w"
+        src="/assets/cementeria/login-patrimonio-960.webp"
+        srcSet="/assets/cementeria/login-patrimonio-960.webp 960w, /assets/cementeria/login-patrimonio.webp 1672w"
         sizes="(min-width: 1024px) 57vw, 100vw"
-        width={1600}
-        height={900}
+        width={1672}
+        height={941}
         alt=""
         loading="eager"
         fetchPriority="high"

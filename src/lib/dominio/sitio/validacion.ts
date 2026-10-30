@@ -46,7 +46,7 @@ export const LARGOS = {
 export const MAXIMO_FECHAS_PROXIMAS = 6;
 
 // ---------------------------------------------------------------------------
-// Fotos: una lista cerrada de las imágenes de public/imagenes
+// Fotos: una lista cerrada de las imágenes de public/assets/cementeria
 // ---------------------------------------------------------------------------
 
 export interface FotoSitio {
@@ -64,15 +64,22 @@ export interface FotoSitio {
 /**
  * Las fotos que se pueden elegir para un cementerio o un recorrido. Subir fotos
  * propias queda para más adelante (README, "Sitio público"): por ahora, una
- * de estas, que ya están en public/imagenes con su versión de 960 px.
+ * de estas, que están en public/assets/cementeria con su versión de 960 px.
+ * Son imágenes conceptuales generadas con IA (public/assets/cementeria/LEEME.md),
+ * no fotos de un cementerio en particular: el `alt` dice "ilustrativa".
+ *
+ * Las claves son las del CHECK de la migración *_sitio_publico y no cambian
+ * (las guardadas en la base siguen valiendo): desde el kit institucional del
+ * 30/10/2026 apuntan a los archivos del kit, que son las mismas imágenes.
+ * Sumar otra (las nuevas del kit) necesita una migración que amplíe el CHECK.
  */
 export const FOTOS_SITIO: readonly FotoSitio[] = [
   {
     clave: "panoramica",
     etiqueta: "Panorámica con cipreses",
     alt: "Paseo de mausoleos con cipreses y cielo despejado (foto ilustrativa)",
-    chica: "/imagenes/landing-panoramica-960.webp",
-    grande: "/imagenes/landing-panoramica-1916.webp",
+    chica: "/assets/cementeria/hero-landing-960.webp",
+    grande: "/assets/cementeria/hero-landing.webp",
     anchoGrande: 1916,
     altoGrande: 821,
   },
@@ -80,37 +87,37 @@ export const FOTOS_SITIO: readonly FotoSitio[] = [
     clave: "avenida-azul",
     etiqueta: "Avenida de mausoleos",
     alt: "Avenida de mausoleos (foto ilustrativa)",
-    chica: "/imagenes/avenida-azul-960.webp",
-    grande: "/imagenes/avenida-azul-1600.webp",
-    anchoGrande: 1600,
-    altoGrande: 900,
+    chica: "/assets/cementeria/banner-patrimonio-960.webp",
+    grande: "/assets/cementeria/banner-patrimonio.webp",
+    anchoGrande: 1672,
+    altoGrande: 941,
   },
   {
     clave: "avenida-memorial",
     etiqueta: "Avenida memorial",
     alt: "Avenida arbolada entre monumentos (foto ilustrativa)",
-    chica: "/imagenes/panel-avenida-memorial-960.webp",
-    grande: "/imagenes/panel-avenida-memorial-1600.webp",
-    anchoGrande: 1600,
-    altoGrande: 900,
+    chica: "/assets/cementeria/hero-dashboard-960.webp",
+    grande: "/assets/cementeria/hero-dashboard.webp",
+    anchoGrande: 1672,
+    altoGrande: 941,
   },
   {
     clave: "ingreso-paseo-sereno",
     etiqueta: "Ingreso con paseo arbolado",
     alt: "Ingreso con paseo arbolado (foto ilustrativa)",
-    chica: "/imagenes/ingreso-paseo-sereno-960.webp",
-    grande: "/imagenes/ingreso-paseo-sereno-1600.webp",
-    anchoGrande: 1600,
-    altoGrande: 900,
+    chica: "/assets/cementeria/login-patrimonio-960.webp",
+    grande: "/assets/cementeria/login-patrimonio.webp",
+    anchoGrande: 1672,
+    altoGrande: 941,
   },
   {
     clave: "parque-memorial",
     etiqueta: "Cementerio parque",
     alt: "Cementerio parque con césped y árboles (foto ilustrativa)",
-    chica: "/imagenes/parque-memorial-960.webp",
-    grande: "/imagenes/parque-memorial-1600.webp",
-    anchoGrande: 1600,
-    altoGrande: 900,
+    chica: "/assets/cementeria/feature-ambiental-960.webp",
+    grande: "/assets/cementeria/feature-ambiental.webp",
+    anchoGrande: 1672,
+    altoGrande: 941,
   },
 ];
 

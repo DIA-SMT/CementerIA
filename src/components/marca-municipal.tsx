@@ -1,108 +1,123 @@
 /**
- * Marca de CementerIA: el lugar del logo municipal y los textos
- * "CementerIA" / "Dirección de Cementerios" / "Municipalidad de San Miguel de
- * Tucumán".
+ * Marca de CementerIA: el logo oficial de la Municipalidad ("Ciudad San
+ * Miguel de Tucumán") y el wordmark "CementerIA" con "Dirección de
+ * Cementerios" (docs/diseno.md, "Marca").
  *
- * TODAVÍA NO HAY LOGO OFICIAL. Mientras tanto se muestra un monograma
- * tipográfico "SMT", con borde punteado a propósito: es provisorio y no
- * pretende ser un escudo ni un isotipo. Para poner el oficial (docs/diseno.md,
- * "Marca"):
+ * El logo (public/assets/cementeria/logo-municipal.png, 910 × 297) es el que
+ * entregó el usuario con el kit institucional del 30/10/2026: no se redibuja
+ * ni se recolorea. Su texto viene en BLANCO sobre transparente, así que va
+ * solo sobre superficies azules u oscuras (la barra pública, el panel de la
+ * foto del ingreso, la barra lateral y el pie). En una superficie clara va
+ * dentro de un bloque azul institucional (`variante="clara"`): nunca suelto
+ * sobre blanco, donde el texto desaparece. Siempre con su proporción.
  *
- * 1. Copiar el archivo que entregue Comunicación a `public/imagenes/marca/`
- *    (SVG si lo hay; si no, PNG o WebP de al menos 160 px de alto). Si hay una
- *    versión para fondo oscuro, también.
- * 2. Completar `LOGO_OFICIAL` acá abajo con las rutas y la proporción.
- *
- * No hace falta tocar nada más: la barra lateral, el ingreso y las demás
- * pantallas usan este componente.
+ * El wordmark es texto HTML: "Cementer" + "IA" destacada, en celeste sobre
+ * el azul (5,57:1) y en `primario` sobre blanco (4,62:1; el celeste ahí da
+ * 2,38 y no llega).
  */
 
-interface LogoOficial {
-  /** Para fondos claros (ingreso, encabezados blancos). */
-  claro: string;
-  /** Para el azul institucional (barra lateral). Si no hay, se usa `claro`. */
-  oscuro?: string;
-  /** Ancho / alto del archivo, para reservar el lugar sin saltos. */
-  proporcion: number;
-}
-
-/** Hoy vacío: no hay logo oficial disponible. */
-const LOGO_OFICIAL: LogoOficial | null = null;
+/** El archivo y su tamaño real (ancho / alto, para reservar el lugar sin saltos). */
+export const LOGO_MUNICIPAL = {
+  src: "/assets/cementeria/logo-municipal.png",
+  ancho: 910,
+  alto: 297,
+  alt: "Ciudad San Miguel de Tucumán",
+} as const;
 
 type Variante = "clara" | "oscura";
 
-const ESTILOS: Record<Variante, { sistema: string; detalle: string; monograma: string }> = {
-  clara: {
-    sistema: "text-institucional",
-    detalle: "text-texto-secundario",
-    monograma: "border-borde-control text-institucional bg-white",
-  },
-  oscura: {
-    sistema: "text-white",
-    detalle: "text-institucional-texto",
-    monograma: "border-institucional-texto/70 text-white bg-white/5",
-  },
-};
+/**
+ * El logo oficial. `alto` en px (el ancho sale de la proporción). Con
+ * `variante="clara"` va dentro de un bloque azul institucional. `decorativo`
+ * deja el `alt` vacío cuando al lado ya está escrito el nombre (por ejemplo,
+ * dentro de un enlace que ya se llama "CementerIA…"). `className` va en la
+ * imagen (la barra lateral contraída la achica al ancho de la franja).
+ */
+export function LogoMunicipal({
+  variante = "oscura",
+  alto = 40,
+  decorativo = false,
+  className = "",
+}: {
+  variante?: Variante;
+  alto?: number;
+  decorativo?: boolean;
+  className?: string;
+}) {
+  const ancho = Math.round((alto * LOGO_MUNICIPAL.ancho) / LOGO_MUNICIPAL.alto);
+  const imagen = (
+    // eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets.
+    <img
+      src={LOGO_MUNICIPAL.src}
+      alt={decorativo ? "" : LOGO_MUNICIPAL.alt}
+      width={ancho}
+      height={alto}
+      decoding="async"
+      className={`block h-auto max-w-full shrink-0 ${className}`}
+      style={{ width: ancho }}
+    />
+  );
+  if (variante === "oscura") return imagen;
+  return <span className="inline-flex shrink-0 rounded-control bg-institucional px-3 py-2 shadow-tarjeta">{imagen}</span>;
+}
 
-/** El lugar del logo: el oficial si está configurado; si no, el monograma provisorio. */
-export function LogoMunicipal({ variante = "clara", tamano = 40 }: { variante?: Variante; tamano?: number }) {
-  if (LOGO_OFICIAL) {
-    const src = variante === "oscura" ? (LOGO_OFICIAL.oscuro ?? LOGO_OFICIAL.claro) : LOGO_OFICIAL.claro;
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image; es un archivo estático de public/.
-      <img
-        src={src}
-        alt=""
-        height={tamano}
-        width={Math.round(tamano * LOGO_OFICIAL.proporcion)}
-        className="shrink-0"
-        style={{ height: tamano, width: "auto" }}
-      />
-    );
-  }
+/**
+ * "CementerIA" como texto: "IA" en celeste sobre fondos oscuros y en
+ * `primario` sobre claros. El nombre accesible es la palabra entera (el span
+ * de "IA" no la corta).
+ */
+export function Wordmark({ variante = "oscura", className = "" }: { variante?: Variante; className?: string }) {
   return (
-    <span
-      aria-hidden="true"
-      data-logo-provisorio=""
-      title="Lugar reservado para el logo oficial"
-      className={`inline-flex shrink-0 items-center justify-center rounded-control border border-dashed font-semibold tracking-wide ${ESTILOS[variante].monograma}`}
-      style={{ width: tamano, height: tamano, fontSize: Math.round(tamano * 0.3) }}
-    >
-      SMT
+    <span className={`font-extrabold tracking-tight ${variante === "oscura" ? "text-white" : "text-institucional"} ${className}`}>
+      Cementer<span className={variante === "oscura" ? "text-celeste" : "text-primario"}>IA</span>
     </span>
   );
 }
 
+const DETALLE: Record<Variante, string> = {
+  clara: "text-texto-secundario",
+  oscura: "text-institucional-texto",
+};
+
 /**
  * Logo y textos. `titulo` pone "CementerIA" como `<h1>` (el ingreso); si no,
- * va como texto. `detalle`: "completo" agrega la Municipalidad. `claseTexto`
- * va en el bloque de textos (la barra lateral colapsada lo deja solo para
- * lectores de pantalla y queda el monograma).
+ * va como texto. `disposicion`: "fila" (logo, filete y textos en línea: la
+ * barra pública, el pie) o "columna" (el logo arriba: la barra lateral, el
+ * ingreso). `detalle`: "completo" agrega la Municipalidad. `claseTexto` va en
+ * el bloque de textos (la barra lateral contraída lo deja solo para lectores
+ * de pantalla) y `claseLogo` en la imagen.
  */
 export function MarcaMunicipal({
   variante = "clara",
   tamano = "normal",
   titulo = false,
-  detalle = "completo",
+  detalle = "breve",
+  disposicion = "columna",
   claseTexto = "",
+  claseLogo = "",
 }: {
   variante?: Variante;
   tamano?: "normal" | "grande";
   titulo?: boolean;
   detalle?: "completo" | "breve";
+  disposicion?: "fila" | "columna";
   claseTexto?: string;
+  claseLogo?: string;
 }) {
-  const e = ESTILOS[variante];
   const grande = tamano === "grande";
   const Sistema = titulo ? "h1" : "span";
+  const fila = disposicion === "fila";
   return (
-    <div className={`flex items-center ${grande ? "gap-4" : "gap-3"}`}>
-      <LogoMunicipal variante={variante} tamano={grande ? 56 : 40} />
+    <div className={fila ? "flex items-center gap-3 sm:gap-4" : `flex flex-col items-start ${grande ? "gap-5" : "gap-3"}`}>
+      <LogoMunicipal variante={variante} alto={grande ? 44 : fila ? 34 : 36} decorativo={false} className={claseLogo} />
+      {fila ? <span aria-hidden="true" className={`hidden h-9 w-px sm:block ${variante === "oscura" ? "bg-white/25" : "bg-borde"} ${claseTexto}`} /> : null}
       <div className={`flex min-w-0 flex-col leading-tight ${claseTexto}`}>
-        <Sistema className={`${grande ? "text-3xl" : "text-lg"} font-bold tracking-tight ${e.sistema}`}>CementerIA</Sistema>
-        <span className={`${grande ? "text-base" : "text-xs"} font-medium ${e.detalle}`}>Dirección de Cementerios</span>
+        <Sistema className={grande ? "text-[2rem] leading-none sm:text-[2.25rem]" : "text-lg leading-tight"}>
+          <Wordmark variante={variante} />
+        </Sistema>
+        <span className={`${grande ? "mt-1.5 text-base" : "text-xs"} font-medium ${DETALLE[variante]}`}>Dirección de Cementerios</span>
         {detalle === "completo" ? (
-          <span className={`${grande ? "text-sm" : "text-[0.6875rem]"} ${e.detalle}`}>Municipalidad de San Miguel de Tucumán</span>
+          <span className={`${grande ? "text-sm" : "text-[0.6875rem]"} ${DETALLE[variante]}`}>Municipalidad de San Miguel de Tucumán</span>
         ) : null}
       </div>
     </div>

@@ -16,16 +16,17 @@
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas, monospace;
 
-  /* Marca. */
+  /* Marca: la paleta del kit institucional del 30/10/2026 (#006BFF, #32B2F6,
+     #F4D900, #0F2F5D, #F4F7FB y blanco). Contrastes en docs/diseno.md. */
   --color-institucional: #0f2f5d; /* azul institucional oscuro: barra lateral, títulos destacados */
   --color-institucional-hover: #163b70; /* hover sobre la barra lateral */
   --color-institucional-activo: #1a4683; /* ítem activo de la barra lateral */
   --color-institucional-texto: #c7d6eb; /* texto secundario sobre el azul institucional */
-  --color-primario: #0f68ff; /* botones primarios, foco, acentos */
+  --color-primario: #006bff; /* botones primarios, foco, acentos: blanco encima 4,62:1 */
   --color-primario-oscuro: #0b53cc; /* hover del primario; enlaces y texto azul sobre fondos tintados */
-  --color-celeste: #38b2f6; /* decorativo; como texto o ícono, solo sobre el azul institucional */
+  --color-celeste: #32b2f6; /* decorativo; como texto o ícono, solo sobre el azul institucional (5,57:1) */
   --color-superficie-azul: #e8f2ff; /* fondos tintados, chips informativos, ítems activos claros */
-  --color-amarillo: #f4c400; /* acento municipal: nunca como texto sobre blanco */
+  --color-amarillo: #f4d900; /* acento municipal: nunca como texto sobre blanco (1,40:1) */
 
   /* Neutros. */
   --color-fondo: #f4f7fb;
@@ -44,7 +45,7 @@
   --color-exito-solido: #15803d;
   --color-advertencia: #8a4b00;
   --color-advertencia-fondo: #fff4d6;
-  --color-advertencia-borde: #f4c400;
+  --color-advertencia-borde: #f4d900;
   --color-error: #b42318;
   --color-error-fondo: #fdecec;
   --color-error-borde: #f2b8b5;
@@ -61,6 +62,28 @@
   /* Sombras ligeras, teñidas del azul institucional. */
   --shadow-tarjeta: 0 1px 2px rgb(15 47 93 / 0.05), 0 1px 3px rgb(15 47 93 / 0.07);
   --shadow-elevada: 0 4px 12px rgb(15 47 93 / 0.08), 0 1px 3px rgb(15 47 93 / 0.06);
+  --shadow-destacada: 0 12px 32px rgb(15 47 93 / 0.14), 0 2px 6px rgb(15 47 93 / 0.08);
+
+  /* Movimiento (docs/diseno.md, "Movimiento"): de 140 a 240 ms, solo
+     transform y opacity (nada que mueva el layout). `ease-salida` es la curva
+     de las entradas y los hover (`ease-salida`, `duration-[var(--duracion-media)]`).
+     Con prefers-reduced-motion la regla de abajo los deja en 0,01 ms. */
+  --ease-salida: cubic-bezier(0.2, 0, 0, 1);
+  --duracion-corta: 140ms;
+  --duracion-media: 200ms;
+  --duracion-larga: 240ms;
+  --animate-aparecer: aparecer var(--duracion-larga) var(--ease-salida) both;
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /*

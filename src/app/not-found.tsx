@@ -19,9 +19,9 @@ export default function NoEncontrada() {
       <div className="w-full max-w-md space-y-6">
         <MarcaMunicipal />
         <div className="tarjeta overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
           <img
-            src="/imagenes/parque-memorial-960.webp"
+            src="/assets/cementeria/feature-ambiental-960.webp"
             width={960}
             height={540}
             alt=""

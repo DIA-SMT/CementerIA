@@ -229,13 +229,13 @@ function accesosRapidos(items: ReturnType<typeof navegacionPara>): AccesoRapido[
 function Portada({ accesos }: { accesos: AccesoRapido[] }) {
   return (
     <div className="relative overflow-hidden rounded-panel bg-institucional shadow-tarjeta print:hidden">
-      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
       <img
-        src="/imagenes/panel-avenida-memorial-960.webp"
-        srcSet="/imagenes/panel-avenida-memorial-960.webp 960w, /imagenes/panel-avenida-memorial-1600.webp 1600w"
+        src="/assets/cementeria/hero-dashboard-960.webp"
+        srcSet="/assets/cementeria/hero-dashboard-960.webp 960w, /assets/cementeria/hero-dashboard.webp 1672w"
         sizes="(min-width: 1024px) calc(100vw - 20rem), 100vw"
-        width={1600}
-        height={900}
+        width={1672}
+        height={941}
         alt=""
         loading="eager"
         decoding="async"

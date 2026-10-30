@@ -25,13 +25,13 @@ export default async function LayoutAdmin({ children }: { children: React.ReactN
   return (
     <div className="space-y-5">
       <div className="relative overflow-hidden rounded-tarjeta bg-institucional shadow-tarjeta print:hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
         <img
-          src="/imagenes/avenida-azul-960.webp"
-          srcSet="/imagenes/avenida-azul-960.webp 960w, /imagenes/avenida-azul-1600.webp 1600w"
+          src="/assets/cementeria/banner-patrimonio-960.webp"
+          srcSet="/assets/cementeria/banner-patrimonio-960.webp 960w, /assets/cementeria/banner-patrimonio.webp 1672w"
           sizes="(min-width: 1024px) calc(100vw - 20rem), 100vw"
-          width={1600}
-          height={900}
+          width={1672}
+          height={941}
           alt=""
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover object-[50%_55%]"

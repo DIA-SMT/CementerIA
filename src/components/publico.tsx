@@ -59,10 +59,10 @@ export function SaltarAlContenido() {
 export function FondoPublico() {
   return (
     <div aria-hidden="true" className="fondo-publico">
-      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
       <img
-        src="/imagenes/landing-panoramica-960.webp"
-        srcSet="/imagenes/landing-panoramica-960.webp 960w, /imagenes/landing-panoramica-1916.webp 1916w"
+        src="/assets/cementeria/hero-landing-960.webp"
+        srcSet="/assets/cementeria/hero-landing-960.webp 960w, /assets/cementeria/hero-landing.webp 1916w"
         sizes="100vw"
         width={1916}
         height={821}

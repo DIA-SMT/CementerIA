@@ -173,16 +173,17 @@ describe("qué se muestra", () => {
     expect(r.map((x) => x.fecha.toISOString().slice(0, 10))).toEqual(["2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08"]);
   });
 
-  it("las fotos: claves únicas y archivos de public/imagenes", () => {
+  it("las fotos: claves únicas y archivos de public/assets/cementeria", () => {
     expect(new Set(FOTOS_SITIO.map((f) => f.clave)).size).toBe(FOTOS_SITIO.length);
     for (const f of FOTOS_SITIO) {
-      expect(f.chica).toMatch(/^\/imagenes\/[a-z0-9-]+-960\.webp$/);
-      expect(f.grande).toMatch(/^\/imagenes\/[a-z0-9-]+-\d{4}\.webp$/);
+      expect(f.chica).toMatch(/^\/assets\/cementeria\/[a-z0-9-]+-960\.webp$/);
+      // La grande es el original del kit; la chica, su versión de 960 px.
+      expect(f.grande).toBe(f.chica.replace("-960.webp", ".webp"));
       expect(f.alt).toMatch(/ilustrativa/);
       expect(existsSync(path.join("public", f.chica)), f.chica).toBe(true);
       expect(existsSync(path.join("public", f.grande)), f.grande).toBe(true);
     }
-    expect(fotoSitio("panoramica")?.grande).toBe("/imagenes/landing-panoramica-1916.webp");
+    expect(fotoSitio("panoramica")?.grande).toBe("/assets/cementeria/hero-landing.webp");
     expect(fotoSitio("no-existe")).toBeNull();
     expect(fotoSitio(null)).toBeNull();
   });

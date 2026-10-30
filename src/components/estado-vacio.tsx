@@ -4,11 +4,17 @@ import type { LucideIcon } from "lucide-react";
  * Estado vacío: ícono, una frase y, si suma, una ayuda o una acción. Compacto
  * (densidad administrativa): no agranda la pantalla.
  *
- * `imagen` pone de fondo una de las fotos preparadas (public/imagenes) como
- * banda angosta y decorativa (`alt=""`), bajo un velo blanco casi opaco: el
- * texto se lee sobre blanco (texto 14,1:1; secundario 5,62:1). Ver
- * docs/diseno.md, "Imágenes".
+ * `imagen` pone de fondo una de las fotos del kit (public/assets/cementeria)
+ * como banda angosta y decorativa (`alt=""`), bajo un velo blanco casi opaco:
+ * el texto se lee sobre blanco (texto 14,1:1; secundario 5,62:1). Ver
+ * docs/diseno.md, "Imágenes". Las claves son las de siempre (las usan la
+ * bandeja y la búsqueda); cada una apunta a la versión de 960 px del kit.
  */
+const IMAGEN_VACIO = {
+  "parque-memorial": "/assets/cementeria/feature-ambiental-960.webp",
+  "avenida-azul": "/assets/cementeria/banner-patrimonio-960.webp",
+} as const;
+
 export function EstadoVacio({
   icono: Icono,
   titulo,
@@ -19,16 +25,16 @@ export function EstadoVacio({
   icono: LucideIcon;
   titulo: React.ReactNode;
   children?: React.ReactNode;
-  imagen?: "parque-memorial" | "avenida-azul";
+  imagen?: keyof typeof IMAGEN_VACIO;
   className?: string;
 }) {
   return (
     <div className={`tarjeta relative overflow-hidden ${className}`}>
       {imagen ? (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/imagenes. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets. */}
           <img
-            src={`/imagenes/${imagen}-960.webp`}
+            src={IMAGEN_VACIO[imagen]}
             width={960}
             height={540}
             alt=""
