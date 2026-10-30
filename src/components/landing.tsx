@@ -269,7 +269,9 @@ export function Hero() {
   return (
     <section
       aria-labelledby="titulo-inicio"
-      className="relative isolate flex flex-col overflow-hidden bg-institucional lg:aspect-video lg:max-h-[calc(100svh-4.5rem)] lg:min-h-[38rem]"
+      // Alto 16:9 del ancho, topado por la pantalla. No `aspect-video` + `max-h`: con el alto topado, el navegador
+      // achica el ancho para sostener la proporción y en pantallas anchas la foto no llega al borde derecho.
+      className="relative isolate flex w-full flex-col overflow-hidden bg-institucional lg:h-[min(56.25vw,calc(100svh-4.5rem))] lg:min-h-[38rem]"
     >
       <FotoDeFondo foto={FOTO_HERO} sizes="100vw" prioridad className="-z-10" />
       <div aria-hidden="true" className="velo-hero -z-10" />
