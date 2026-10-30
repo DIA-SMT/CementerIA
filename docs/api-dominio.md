@@ -2482,7 +2482,7 @@ otra vida (un cementerio puede no tener nada cargado).
   `esUrlMapa` y el CHECK dicen lo mismo. El correo, con forma de correo.
 - **Fotos:** una clave de `FOTOS_SITIO` (`panoramica`, `avenida-azul`,
   `avenida-memorial`, `ingreso-paseo-sereno`, `parque-memorial`): las
-  imágenes de `public/imagenes` con su versión de 960 px. Lista cerrada, en el
+  imágenes de `public/assets/cementeria` (conceptuales, del kit institucional) con su versión de 960 px. Lista cerrada, en el
   código y en el CHECK. **Subir fotos propias queda para más adelante.**
 - **Auditoría:** `auditar_cambio` (ALWAYS) en las seis: cada alta, cambio o baja
   queda en `auditoria.cambios` con el antes, el después, el autor y el motivo,

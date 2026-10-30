@@ -17,6 +17,146 @@ usuario y contraseña, porque el ingreso era solo con Cidituc; desde el
 27/10/2026 el ingreso es con usuario y contraseña propios: ver "Ingreso con
 usuario y contraseña").
 
+## Kit institucional (30/10/2026)
+
+El usuario aprobó un kit visual: un moodboard (sitio público, ingreso y
+panel), el logo oficial de la Municipalidad, 12 imágenes conceptuales
+generadas con IA y la paleta `#006BFF`, `#32B2F6`, `#F4D900`, `#0F2F5D`,
+`#F4F7FB` y blanco. Se aplicó en cinco fases (rama `rediseno-kit-visual`),
+sin cambios de base, rutas, autenticación, permisos, acciones ni tipos.
+
+| Fase | Qué |
+|---|---|
+| A | Paleta del kit en los tokens, tokens de movimiento, logo oficial (`MarcaMunicipal`, `LogoMunicipal`, `Wordmark`), imágenes en `public/assets/cementeria/` (adiós `public/imagenes/`) |
+| B | Sitio público como el moodboard: barra y pie azules con el logo, hero 16:9, accesos, patrimonio, trámites, seguimiento en pasos, cementerios y cierre; bandas con foto en las internas |
+| C | Ingreso dividido 55/45 con el logo sobre la foto; en el celular, el formulario primero |
+| D | Banner de bienvenida del panel, íconos en los conteos, encabezados de pantalla con el antetítulo del sitio |
+| E | Estados, responsive, accesibilidad, contraste medido y estas notas |
+
+**Lo que no se tomó del moodboard**, y por qué (los textos y cifras del
+moodboard son de ejemplo):
+
+- Las cifras (124, 28, 56, 8): el panel muestra solo los números del dominio,
+  con el estilo nuevo; el banner de bienvenida no tiene ninguna.
+- "CUIL o correo electrónico", "Recordarme" y "¿Olvidaste tu contraseña?": el
+  campo sigue como estaba ("CUIL o correo", que es lo que acepta hoy el
+  ingreso propio) y no hay "recordarme" ni recuperación por correo (el
+  blanqueo lo hace un administrador, y la ayuda lo dice).
+- Los trámites "Solicitud de nicho" y "Traslado" y los menús "Documentación",
+  "Reportes" y "Configuración": no existen. Los trámites y cementerios salen de
+  la base; la barra lateral y los accesos son los de `navegacionPara()`.
+- "Gestión transparente", "Patrimonio histórico", "Atención cercana" y los
+  textos que afirman hechos: el bloque de patrimonio dice solo qué hay en el
+  sitio ("cuándo visitarlos, los recorridos guiados que publica la Dirección
+  y cómo hacer cada trámite").
+- La barra lateral blanca del moodboard: queda azul institucional, porque el
+  logo oficial tiene el texto blanco y va solo sobre azul.
+- "Gestión / Patrimonio / Comunidad" sobre la foto del panel: el banner dice
+  "Hola, <nombre>", la Dirección y la fecha.
+
+### Marca y logo
+
+- `public/assets/cementeria/logo-municipal.png`, 910 × 297 (el kit decía 900
+  × 298; el archivo mide eso), el aportado por el usuario, sin redibujar ni
+  recolorear. `alt="Ciudad San Miguel de Tucumán"`.
+- **Solo sobre azul u oscuro**: la barra pública, el panel de la foto del
+  ingreso (y la franja azul del celular), la barra lateral y el pie. En una
+  superficie clara, `LogoMunicipal variante="clara"` lo pone dentro de un
+  bloque azul institucional (`/sin-acceso`, la 404, `/dev/login`).
+- Proporción siempre: el alto define el ancho. En la barra lateral contraída
+  se achica entero a 56 px de ancho (no se recorta).
+- **Wordmark** (`Wordmark`): "Cementer" + "IA" como texto HTML; "IA" en
+  `celeste` sobre azul (5,57:1) y en `primario` sobre blanco (4,62:1, texto
+  grande). Es el `h1` del inicio ("CementerIA Dirección de Cementerios") y
+  del ingreso ("CementerIA").
+
+### Movimiento
+
+Tokens en `@theme`: `--ease-salida` (`cubic-bezier(0.2, 0, 0, 1)`),
+`--duracion-corta` 140 ms, `--duracion-media` 200 ms, `--duracion-larga` 240
+ms y la animación `aparecer` (opacidad de 0 a 1 y 8 px de desplazamiento
+vertical, 240 ms). Se usan:
+
+- `motion-safe:animate-aparecer`: el texto del hero (escalonado de a 60 ms),
+  el encabezado de las internas, la tarjeta del ingreso y el saludo del panel.
+  Solo al cargar: nada aparece al desplazarse (las capturas y las mediciones
+  de contraste ven todo).
+- `.tarjeta-enlace` (sitio público): sube 2 px y gana sombra al pasar o
+  enfocar; su `.flecha` se corre 2 px. Las tarjetas de conteo del panel y los
+  accesos del banner, igual (1 a 2 px).
+- Solo `transform`, `opacity`, sombras y colores: nada cambia el layout.
+- `prefers-reduced-motion: reduce`: la regla global deja animaciones y
+  transiciones en 0,01 ms y las tarjetas no suben. El ícono que gira en
+  "Ingresando…" queda quieto.
+
+### Contraste (resumen; WCAG 2.1 AA)
+
+Pares de color (fórmula de luminancia de WCAG; las superficies translúcidas,
+compuestas sobre lo peor que puede haber detrás):
+
+| Texto / elemento | Fondo | Contraste | Mínimo | Dónde |
+|---|---|---|---|---|
+| blanco | `primario` #006BFF | 4,62 | 4,5 | Botones primarios (app y sitio) |
+| `primario` #006BFF | blanco · `fondo` | 4,62 · 4,30 | 3 | Anillo de foco |
+| `primario-oscuro` #0B53CC | blanco · `fondo` · #E8F2FF | 6,72 · 6,26 · 5,95 | 4,5 | Enlaces, antetítulos de pantalla |
+| `celeste` #32B2F6 | `institucional` #0F2F5D | 5,57 | 4,5 | "IA" del wordmark, foco en la barra lateral |
+| `institucional` #0F2F5D | `amarillo` #F4D900 | 9,32 | 4,5 | "Consultar mi trámite", pastilla "por vencer" |
+| `amarillo` #F4D900 | blanco | 1,42 | — | **Nunca como texto**: filetes y rellenos |
+| `institucional-texto` #C7D6EB | #0F2F5D · `pub-pie` #0B2447 | 8,99 · 10,49 | 4,5 | Barra lateral, barra pública, pie |
+| blanco | `pub-banda` #0F2F5D · #0D2546 (oscuro) | 13,25 · 15,33 | 4,5 | Banda del seguimiento |
+| `pub-texto` | `pub-seccion` · `pub-fondo` | 14,10 · 13,12 (claro); 15,24 · 16,23 (oscuro) | 4,5 | Secciones del sitio |
+| `pub-texto-secundario` | `pub-seccion` · `pub-fondo` | 7,53 · 7,00 (claro); 9,11 · 10,46 (oscuro) | 4,5 | Bajadas y ayudas |
+| `pub-enlace` | `pub-fondo` · `pub-superficie` | 6,26 · 6,72 (claro); 10,94 · 9,53 (oscuro) | 4,5 | Enlaces y antetítulos del sitio |
+| `pub-foco` | `pub-superficie` | 4,62 (claro); 8,76 (oscuro) | 3 | Foco en el sitio |
+| `pub-borde-control` | `pub-superficie` | 3,64 (claro); 5,26 (oscuro) | 3 | Campos de la consulta |
+| blanco | `pub-velo` sobre una foto **blanca** | 7,18 (claro); 12,56 (oscuro) | 4,5 | Hero y bandas de las internas, peor caso teórico |
+| `institucional-texto` | `pub-velo` sobre una foto blanca | 4,87 (claro); 8,52 (oscuro) | 4,5 | "Imagen ilustrativa…", migas |
+| `pub-texto-secundario` · `pub-enlace` | `pub-velo-cierre` (claro sobre foto negra) | 5,08 · 4,54 | 4,5 | Cierre del inicio |
+| `pub-texto-secundario` · `pub-enlace` | `pub-velo-cierre` (oscuro sobre foto blanca) | 7,62 · 7,97 | 4,5 | Cierre del inicio |
+| `texto-secundario` #5F6878 | `fondo` · #E8F2FF | 5,23 · 4,97 | 4,5 | App |
+
+Los pares del sitio los vuelve a medir `tests/e2e/sitio-publico-tema.spec.ts`
+en los dos modos (incluidos el velo, la banda, la barra, el pie y el
+amarillo).
+
+**Texto sobre las fotos reales**, medido en el navegador (build de
+producción, Chromium): cada texto se vuelve transparente (y los bordes) y se
+toma el píxel de fondo más desfavorable detrás de su caja (el más claro para
+texto claro); el peor por grupo y ancho. El 4,62 del hero es el botón
+"Consultá tu trámite" (blanco sobre `primario`); el resto del hero da más.
+
+| Texto | Claro 390 · 768 · 1440 | Oscuro 390 · 768 · 1440 |
+|---|---|---|
+| Hero del inicio (antetítulo, h1, bajada, botones, aclaración) | 4,62 · 4,62 · 4,62 | 4,62 · 4,62 · 4,62 |
+| Cierre del inicio (velo claro) | 5,92 · 5,43 · 5,87 | 7,58 · 7,58 · 7,58 |
+| Banda de /cementerios | 5,02 · 5,07 · 5,24 | 8,75 · 8,75 · 8,99 |
+| Banda de /horarios | 4,85 · 4,85 · 5,31 | 8,50 · 8,50 · 9,10 |
+| Banda de /recorridos | 4,85 · 4,91 · 4,94 | 8,50 · 8,54 · 8,62 |
+| Banda de /tramites | 4,86 · 4,85 · 4,86 | 8,50 · 8,50 · 8,50 |
+| Banda de /consulta | 5,02 · 4,85 · 4,89 | 8,77 · 8,50 · 8,56 |
+| Banda de /contacto | 5,00 · 5,82 · 5,64 | 8,62 · 9,67 · 9,49 |
+| Ingreso: panel de la foto (solo escritorio) | — · — · 5,27 | (sin modo oscuro) |
+| Banner del panel | 5,91 · 5,14 · 5,15 | (sin modo oscuro) |
+
+En las bandas, el peor es siempre el separador "›" y la página actual de las
+migas (`institucional-texto` y blanco); los títulos dan más de 6. Si se
+cambia una foto o un velo, volver a medir.
+
+### Accesibilidad y responsive
+
+- Un solo `h1` por página; las imágenes decorativas con `alt=""` y las de
+  contenido (cementerios, recorridos) con "foto ilustrativa" en el `alt`; el
+  logo con su nombre.
+- Foco visible: blanco sobre la barra, las bandas y la foto (más de 6:1 contra
+  el velo), `pub-foco` en el sitio, `primario` en la app, con el filete del
+  color de la superficie en el sitio público.
+- Sin desplazamiento lateral en 390, 768, 720 (1440 al 200 % de zoom) y 1440
+  en las siete páginas públicas, el ingreso, el panel, la bandeja, el alta, la
+  búsqueda, la ficha y /admin/sitio-publico (medido con `scrollWidth`); los
+  e2e lo vuelven a medir en 375 en el sitio y en 390 en el ingreso.
+- Los recorridos guiados siguen apuntando a sus anclas: ninguna
+  `data-recorrido` se quitó (el banner del panel conserva `panel-accesos`).
+
 ## Tokens
 
 En `src/app/globals.css`, dentro de `@theme`: cada `--color-x` es una clase de
@@ -28,11 +168,11 @@ Tailwind (`bg-x`, `text-x`, `border-x`, `ring-x`…).
 | `institucional-hover` | `#163B70` | Hover en la barra lateral |
 | `institucional-activo` | `#1A4683` | Ítem activo de la barra lateral |
 | `institucional-texto` | `#C7D6EB` | Texto secundario sobre el azul institucional |
-| `primario` | `#0F68FF` | Botón primario, anillo de foco, acentos |
+| `primario` | `#006BFF` (kit; antes `#0F68FF`) | Botón primario, anillo de foco, acentos |
 | `primario-oscuro` | `#0B53CC` | Hover del primario, enlaces, texto azul sobre fondos tintados |
-| `celeste` | `#38B2F6` | Decorativo; como texto, ícono o foco solo sobre el azul institucional |
+| `celeste` | `#32B2F6` (kit; antes `#38B2F6`) | Decorativo; como texto, ícono o foco solo sobre el azul institucional; la "IA" del wordmark sobre azul |
 | `superficie-azul` | `#E8F2FF` | Fondos tintados, hover de botones secundarios |
-| `amarillo` | `#F4C400` | Acento municipal: barra del ítem activo, filete de la portada, pastilla "por vencer". **Nunca texto sobre blanco** |
+| `amarillo` | `#F4D900` (kit; antes `#F4C400`) | Acento municipal: barra del ítem activo, filetes, pastilla "por vencer", botón de la banda del seguimiento (con texto `institucional`). **Nunca texto sobre blanco** |
 | `fondo` | `#F4F7FB` | Fondo de la aplicación, encabezado de tablas |
 | `superficie` | `#FFFFFF` | Tarjetas, encabezado, controles |
 | `texto` | `#172B4D` | Texto principal |
@@ -40,7 +180,7 @@ Tailwind (`bg-x`, `text-x`, `border-x`, `ring-x`…).
 | `borde` | `#DCE3EC` | Bordes decorativos de tarjetas y tablas |
 | `borde-control` | `#7C8798` | Borde de inputs, selects y botones secundarios |
 | `exito` / `-fondo` / `-borde` / `-solido` | `#166534` / `#EAF7EE` / `#9FD3B1` / `#15803D` | Concluido, en término |
-| `advertencia` / `-fondo` / `-borde` | `#8A4B00` / `#FFF4D6` / `#F4C400` | Espera de pago, por vencer, avisos |
+| `advertencia` / `-fondo` / `-borde` | `#8A4B00` / `#FFF4D6` / `#F4D900` | Espera de pago, por vencer, avisos |
 | `error` / `-fondo` / `-borde` | `#B42318` / `#FDECEC` / `#F2B8B5` | Anulado, vencido, errores |
 | `error-hover` | `#912018` | Hover del botón rojo (`CLASE_BOTON_PELIGRO`); agregado en la segunda etapa |
 | `info` / `-fondo` / `-borde` | `#0B53CC` / `#E8F2FF` / `#B5D3FF` | En trámite, avisos informativos |
@@ -53,12 +193,16 @@ Radios: `rounded-control` 8 px (controles y botones), `rounded-tarjeta` 12 px,
 
 - `#6B7280` (gris de texto) da 4,4993:1 sobre el fondo `#F4F7FB` (no llega a
   4,5) y 4,28:1 sobre `#E8F2FF`. Se oscureció a **`#5F6878`**.
-- `#0F68FF` llega a AA sobre blanco (4,73) y con texto blanco encima (4,73),
-  pero no sobre el fondo (4,40) ni sobre `#E8F2FF` (4,18). Para enlaces y
-  texto azul se usa **`#0B53CC`** (`primario-oscuro`), que llega en todos.
-- El amarillo `#F4C400` sobre blanco da 1,65: solo como relleno o filete, y
-  con texto `institucional` encima (8,04).
-- El celeste `#38B2F6` sobre blanco da 2,37: solo sobre el azul institucional.
+- Desde el kit institucional (30/10/2026) la paleta es la del kit: `#006BFF`,
+  `#32B2F6`, `#F4D900`, `#0F2F5D`, `#F4F7FB` y blanco. Las cifras de abajo
+  son las de la paleta nueva (sección "Kit institucional").
+- `#006BFF` llega a AA sobre blanco (4,62) y con texto blanco encima (4,62),
+  pero no sobre el fondo (4,30) ni sobre `#E8F2FF`. Para enlaces y texto
+  azul se usa **`#0B53CC`** (`primario-oscuro`), que llega en todos. La
+  única excepción es la "IA" del wordmark sobre blanco (4,62, texto grande).
+- El amarillo `#F4D900` sobre blanco da 1,42: solo como relleno o filete, y
+  con texto `institucional` encima (9,32).
+- El celeste `#32B2F6` sobre blanco da 2,38: solo sobre el azul institucional (5,57).
 - Los bordes de control necesitan 3:1 (WCAG 1.4.11): `#DCE3EC` da 1,29, así
   que los controles usan `#7C8798` (3,64). `#DCE3EC` queda para bordes
   decorativos de tarjetas, que no son la única señal de nada.
@@ -79,9 +223,9 @@ texto normal y 3:1 para texto grande (≥ 24 px, o ≥ 18,7 px en negrita),
 | `texto-secundario` #5F6878 | `superficie-azul` #E8F2FF | 4,97 | 4,5 | Hover de filas |
 | ~~#6B7280~~ (original) | `fondo` #F4F7FB | 4,4993 | 4,5 | **No llega**: reemplazado |
 | ~~#6B7280~~ (original) | #E8F2FF | 4,28 | 4,5 | **No llega**: reemplazado |
-| blanco | `primario` #0F68FF | 4,73 | 4,5 | Botón primario |
-| `primario` #0F68FF | blanco | 4,73 | 4,5 / 3 | Anillo de foco, íconos |
-| ~~`primario` #0F68FF~~ | `fondo` / #E8F2FF | 4,40 / 4,18 | 4,5 | **No se usa como texto ahí** |
+| blanco | `primario` #006BFF | 4,62 | 4,5 | Botón primario |
+| `primario` #006BFF | blanco | 4,62 | 4,5 / 3 | Anillo de foco, íconos, "IA" del wordmark (grande) |
+| `primario` #006BFF | `fondo` #F4F7FB | 4,30 | 3 | Anillo de foco sobre el fondo (no se usa como texto ahí) |
 | `primario-oscuro` #0B53CC | blanco | 6,72 | 4,5 | Enlaces |
 | `primario-oscuro` #0B53CC | #E8F2FF | 5,95 | 4,5 | Hover de botón secundario, chip "En trámite" |
 | blanco | `primario-oscuro` #0B53CC | 6,72 | 4,5 | Hover del botón primario |
@@ -90,12 +234,12 @@ texto normal y 3:1 para texto grande (≥ 24 px, o ≥ 18,7 px en negrita),
 | `institucional-texto` #C7D6EB | `institucional` #0F2F5D | 8,99 | 4,5 | Ítems y textos de la barra |
 | `institucional-texto` #C7D6EB | `institucional-hover` #163B70 | 7,52 | 4,5 | Ítem en hover (pasa a blanco: 11,09) |
 | blanco | `institucional-activo` #1A4683 | 9,34 | 4,5 | Ítem activo |
-| `celeste` #38B2F6 | `institucional` #0F2F5D | 5,59 | 3 | Anillo de foco en la barra |
-| `celeste` #38B2F6 | `institucional-activo` #1A4683 | 3,94 | 3 | Ícono del ítem activo |
-| `amarillo` #F4C400 | `institucional` #0F2F5D | 8,04 | 3 | Barra del ítem activo (no es texto) |
-| `institucional` #0F2F5D | `amarillo` #F4C400 | 8,04 | 4,5 | Pastilla "Plazos DIM por vencer" |
-| ~~`amarillo`~~ #F4C400 | blanco | 1,65 | — | **Nunca como texto** |
-| ~~`celeste`~~ #38B2F6 | blanco | 2,37 | — | **Nunca como texto ni ícono sobre blanco** |
+| `celeste` #32B2F6 | `institucional` #0F2F5D | 5,57 | 3 / 4,5 | Anillo de foco en la barra; "IA" del wordmark |
+| `celeste` #32B2F6 | `institucional-activo` #1A4683 | 3,93 | 3 | Ícono del ítem activo |
+| `amarillo` #F4D900 | `institucional` #0F2F5D | 9,32 | 3 | Barra del ítem activo (no es texto) |
+| `institucional` #0F2F5D | `amarillo` #F4D900 | 9,32 | 4,5 | Pastilla "Plazos DIM por vencer", "Consultar mi trámite" |
+| ~~`amarillo`~~ #F4D900 | blanco | 1,42 | — | **Nunca como texto** |
+| ~~`celeste`~~ #32B2F6 | blanco | 2,38 | — | **Nunca como texto ni ícono sobre blanco** |
 | `exito` #166534 | `exito-fondo` #EAF7EE | 6,46 | 4,5 | Chip "Concluido", "En término" |
 | `advertencia` #8A4B00 | `advertencia-fondo` #FFF4D6 | 6,21 | 4,5 | Avisos, "Espera de pago", "Por vencer", Por confirmar > 0 |
 | `error` #B42318 | `error-fondo` #FDECEC | 5,76 | 4,5 | Errores, "Anulado", "Vencido" |
@@ -120,7 +264,8 @@ texto normal y 3:1 para texto grande (≥ 24 px, o ≥ 18,7 px en negrita),
 | blanco | `texto` #172B4D | 14,10 | 4,5 | Globos (tooltips) de la barra lateral contraída |
 | `institucional-texto` #C7D6EB | `institucional` #0F2F5D | 8,99 | 3 | Ícono del botón "Contraer menú" / "Expandir menú" |
 
-**Texto sobre fotos.** Medido en la app (Chromium, el píxel de fondo más claro
+**Texto sobre fotos.** (Medición de la primera etapa, con las fotos y velos de
+entonces; la vigente, desde el 30/10/2026, está en "Kit institucional".) Medido en la app (Chromium, el píxel de fondo más claro
 detrás de cada línea, con el texto oculto: el peor caso), en 390, 768, 1024 y
 1440 px de ancho:
 
@@ -226,19 +371,52 @@ Agregados en la segunda etapa:
 
 ## Marca
 
-`src/components/marca-municipal.tsx` (`MarcaMunicipal` y `LogoMunicipal`).
-**No hay logo oficial**: se muestra un monograma "SMT" con borde punteado,
-claramente provisorio (no es un escudo ni un isotipo). Para poner el oficial:
+`src/components/marca-municipal.tsx`: `LogoMunicipal`, `Wordmark` y
+`MarcaMunicipal`. Desde el 30/10/2026 hay **logo oficial**
+(`public/assets/cementeria/logo-municipal.png`): ver "Kit institucional",
+"Marca y logo". Antes había un monograma "SMT" provisorio, que ya no existe.
 
-1. Copiar el archivo de Comunicación a `public/imagenes/marca/` (SVG si lo
-   hay; si no, PNG o WebP de al menos 160 px de alto), y si existe una versión
-   para fondo oscuro, también.
-2. Completar `LOGO_OFICIAL` en ese archivo (`claro`, `oscuro` y
-   `proporcion`).
+## Imágenes
 
-La barra lateral, el ingreso, `/sin-acceso` y `/dev/login` lo toman de ahí.
+En `public/assets/cementeria/` (antes `public/imagenes/`, que ya no existe):
+las 12 del kit, **conceptuales generadas con IA** (`manifest.json` del kit:
+`conceptual_generated_not_actual_site_photo`), no fotos de cementerios de
+Tucumán. La procedencia de cada una está en
+`public/assets/cementeria/LEEME.md`. Se usan con `<img>` común (nginx tiene
+cerrado `/_next/image`), `srcset`/`sizes` cuando hay versión de 960 px,
+`width` y `height`, `decoding="async"`, `loading="eager"` y
+`fetchpriority="high"` **solo** en la imagen principal de cada pantalla y
+`loading="lazy"` en las demás. Donde se ven como foto, dicen "Imagen
+ilustrativa generada con IA" (hero, patrimonio, panel de la foto del
+ingreso) o "foto ilustrativa" en el `alt` (cementerios y recorridos).
+
+| Archivo | Peso (original / 960) | Uso |
+|---|---|---|
+| `hero-landing` | 229 KB / 69 KB | Hero del inicio (prioridad alta); banda de /consulta; foto "panoramica" de la administración. Es la misma panorámica que la vieja `landing-panoramica-1916.webp`, que se quitó |
+| `login-patrimonio` | 274 KB / 92 KB | Ingreso y /cambiar-clave (solo escritorio: en el celular no se descarga); banda de /contacto; foto "ingreso-paseo-sereno" |
+| `hero-dashboard` | 101 KB / 38 KB | Banner de bienvenida del panel (prioridad alta); banda de /tramites; foto "avenida-memorial" |
+| `banner-patrimonio` | 223 KB / 92 KB | Patrimonio del inicio; banda de /cementerios; banda de Administración; vacío de la búsqueda; foto "avenida-azul" |
+| `feature-ambiental` | 441 KB / 107 KB | Banda de /horarios; vacío de "Por confirmar"; la 404; foto "parque-memorial". Pesa más de 300 KB: su 960 se generó con sharp (calidad 72) |
+| `feature-recorridos` | 159 KB | Banda de /recorridos (bajo el velo parejo: el mapa dibujado no se lee) |
+| `fondo-suave` | 97 KB | Cierre del inicio, bajo el velo claro |
+| `hero-alternativo`, `feature-expedientes`, `feature-gestion`, `feature-ubicaciones`, `banner-tramites` | 220–255 KB | **Sin uso**: traen interfaces y mapas dibujados encima (paneles, "Expedientes", pines) que podrían leerse como pantallas o ubicaciones reales. Quedan en el repositorio por si la Dirección los quiere para algo puramente decorativo |
+
+Las versiones de 960 de `hero-landing`, `login-patrimonio`, `hero-dashboard`
+y `banner-patrimonio` son las que el repositorio ya tenía de esas mismas
+imágenes (se movieron y renombraron, no son bytes nuevos).
+
+Las fotos que elige la Dirección para cada cementerio y recorrido
+(`sitio_cementerios.foto`, `sitio_recorridos.foto`) son una lista cerrada con
+un CHECK en la base (`FOTOS_SITIO`, en `src/lib/dominio/sitio/validacion.ts`).
+Sus claves no cambiaron (`panoramica`, `avenida-azul`, `avenida-memorial`,
+`ingreso-paseo-sereno`, `parque-memorial`): ahora apuntan a los archivos del
+kit. Sumar las nuevas a esa lista necesita una migración que amplíe el CHECK:
+**no se hizo** (pendiente si la Dirección lo pide).
 
 ## Pantallas de la primera etapa
+
+(El ingreso y la portada del panel cambiaron con el kit institucional del
+30/10/2026: ver esa sección.)
 
 - **Ingreso (`/login`)**: dividido en escritorio (foto con velo azul a la
   izquierda, 57 % del ancho; panel sobre degradado azul muy claro a la
@@ -262,29 +440,6 @@ La barra lateral, el ingreso, `/sin-acceso` y `/dev/login` lo toman de ahí.
   el panel; para el admin, las secciones de Administración). Debajo, el panel
   de siempre con tarjetas y tablas del sistema nuevo. Todos los números son los
   del dominio. La portada no sale en el papel.
-
-## Imágenes
-
-En `public/imagenes/`, WebP en dos anchos (1600 y 960 px), convertidas una sola
-vez con sharp desde los PNG de 1672×941 del paquete (el moodboard no se
-publica: es solo referencia). Se usan con `<img>` común, `srcset`/`sizes`,
-`alt=""` (son decorativas) y `decoding="async"`: nginx tiene cerrado
-`/_next/image`.
-
-| Archivo | Peso (1600 / 960) | Uso |
-|---|---|---|
-| `ingreso-paseo-sereno-*.webp` | 198 KB / 92 KB (calidad 78) | Ingreso (`loading="eager"`, `fetchpriority="high"`) |
-| `panel-avenida-memorial-*.webp` | 79 KB / 38 KB | Portada del panel |
-| `avenida-azul-*.webp` | 182 KB / 92 KB | Banda de Administración (bajo el velo de la portada) y estado vacío de la búsqueda |
-| `parque-memorial-*.webp` | 273 KB / 118 KB (calidad 70) | Estado vacío de "Por confirmar" en la bandeja y franja de "No encontrada" |
-
-Las dos que quedaban preparadas se usan desde la segunda etapa, siempre como
-decorado (`alt=""`), en el ancho de 960 salvo la banda de Administración (con
-`srcset`) y nunca con texto encima, salvo la banda, que lleva el mismo velo
-`from-institucional/95 via-institucional/90 to-institucional/75` medido para
-la portada del panel en celular y tablet (texto blanco ≥ 7:1). En los estados
-vacíos la foto ocupa el 40 % derecho bajo un velo blanco y el texto queda a la
-izquierda, sobre blanco.
 
 ## Pantallas de la segunda etapa
 
@@ -510,7 +665,7 @@ Filtros y agrupación del bloque Historial (`historial-filtrable.tsx`) y
 - **Grupos**: título del tramo `text-sm font-semibold text-institucional` con
   filete `border-borde`, el detalle (fechas y días hábiles) en
   `texto-secundario` con `tabular-nums` e insignia "Está acá" en `primario`
-  (blanco encima, 4,73:1). En papel, la insignia va con borde y sin relleno.
+  (blanco encima, 4,62:1). En papel, la insignia va con borde y sin relleno.
 - **Verificar integridad**: botón compacto en el título del bloque; el
   resultado ocupa la fila de abajo, en `exito` sobre `exito-fondo` (6,46:1) o
   `error` sobre `error-fondo` (5,76:1), con ícono de escudo y el hash en
@@ -539,7 +694,7 @@ en `src/lib/presentacion/graficos.ts` (pura, con tests).
   (decorativas) y el eje en `borde-control`. Una barra con valor mayor que 0
   tiene siempre un mínimo visible.
 - **Colores** (relleno, WCAG 1.4.11 pide 3:1 contra el blanco): la serie
-  principal en `primario` (4,73:1), la segunda (o lo destacado, como el cuello
+  principal en `primario` (4,62:1), la segunda (o lo destacado, como el cuello
   de botella) en `institucional` (13,25:1) y la línea de base ("antes del
   sistema") en gris `borde-control` (3,64:1). El validador de paletas marca a
   `institucional` como muy oscuro y poco saturado para una paleta categórica;
@@ -701,7 +856,7 @@ nuevos.
 - **El recorrido**: una capa transparente tapa la página (no deja hacer clic;
   un clic devuelve el foco al globo); el elemento del paso queda **recortado**
   sobre un velo `institucional` al 45 % (la sombra de 200vmax del recorte) con
-  un anillo blanco de 3 px y otro `primario` de 2 px (4,73:1 contra el blanco).
+  un anillo blanco de 3 px y otro `primario` de 2 px (4,62:1 contra el blanco).
   El **globo** (22 rem, `rounded-panel`, `shadow-elevada`) va debajo del
   elemento, o arriba, a la derecha o a la izquierda, según el lugar; con un
   elemento más alto que la ventana (una sección entera) se resalta su parte de
@@ -906,175 +1061,99 @@ del botón del modo. Del boceto **no** pasan a la app la marca amarilla
 "Boceto", las píldoras "A completar" ni las tres recomendaciones "A validar"
 de los horarios.
 
-### Sistema visual: "armonía + tech"
+### Sistema visual (kit institucional, 30/10/2026)
 
-Sobrio e institucional, con la paleta de siempre (`institucional` #0F2F5D,
-`primario` #0F68FF, `celeste` #38B2F6, blanco, `fondo` #F4F7FB y el acento
-`amarillo` #F4C400) y un detalle técnico discreto: nada de neón ni gradientes
-chillones.
+Hasta el 30/10/2026 el sitio tenía un fondo fijo con la foto, vidrio
+esmerilado y halos ("armonía + tech"). Con el kit pasó al moodboard
+aprobado: superficies lisas, la foto solo donde hay velo y piezas reales en
+el DOM (nada de paneles dibujados sobre las fotos).
 
-- **Fondo completo y fijo** (`FondoPublico`, en el layout, igual en todas las
-  páginas): una capa `position: fixed` detrás de todo (`.fondo-publico`,
-  `z-index: -1` dentro del contenedor `isolate` del sitio) con
-  `landing-panoramica-{960,1916}.webp` (`srcset`, `sizes="100vw"`, `alt=""`,
-  `fetchpriority="high"`, `object-fit: cover`, `object-position: 50% 60%`), el
-  **velo** (`.velo-publico`) y la **trama** (`.trama-publica`). El contenido
-  se desplaza encima y la foto queda quieta; ya no termina a mitad de los
-  accesos. **No** es `background-attachment: fixed` (iOS no lo respeta y
-  repinta en cada desplazamiento): la capa se compone una vez. Alto `100lvh`
-  (con `100vh` de respaldo): en el celular no cambia de tamaño cuando aparece
-  o se esconde la barra del navegador. Sin parallax ni animación (nada que
-  apagar con `prefers-reduced-motion`), sin `will-change` (no hizo falta) y
-  sin desenfoque sobre la foto entera. Al imprimir, no sale.
-- **Velo:** un tinte parejo en toda la capa, más denso hacia el centro y
-  abajo. En claro (desde el 28/10/2026, variante "B" elegida por el usuario:
-  la elipse blanca de antes lavaba la foto), **azul institucional** #0F2F5D
-  de 55 a 64 % hacia abajo (55 → 57 → 64 %; el 55 % de arriba es el token
-  `pub-velo`) y una elipse detrás del centro (30 → 15 → 0 %, 70 × 60 % en
-  50 % 42 %): la foto se ve con color y nitidez, más liviana que en oscuro, y
-  el texto que va directo encima es claro (`pub-sobre-foto-*`). **No se
-  aclara hacia abajo:** el fondo es fijo y cualquier texto directo sobre la
-  foto cae, según el desplazamiento, en cualquier punto del velo. En oscuro,
-  azul noche (#050D1C) de 66 a 90 % hacia abajo, y una elipse algo más oscura
-  detrás del centro.
-- **Trama:** una grilla de 48 px con líneas de 1 px en #8ECBFF al 12 % (claro,
-  sobre el velo azul) o `celeste` al 9 % (oscuro), con una máscara que la
-  deja solo arriba y se apaga hacia el centro.
-- **Vidrio esmerilado** (`.vidrio`, `.vidrio-azul`, en `globals.css`):
-  translúcido (`pub-vidrio`: blanco al 84 % en claro, azul noche al 66 % en
-  oscuro), `backdrop-filter: blur(12px) saturate(1.3)`, borde de 1 px claro
-  (`pub-vidrio-borde`), un **filete con brillo** (un degradé en `::before`,
-  blanco arriba a la izquierda y celeste abajo a la derecha, enmascarado al
-  borde), un brillo interior de 1 px arriba y la sombra suave `shadow-pub`.
-  `.vidrio-azul` es el azul institucional (al 92 % en claro; #16408A al 86 %
-  en oscuro) con texto blanco: la tarjeta destacada "Consultá tu trámite" y la
-  banda de la consulta. **Sin `backdrop-filter`** (`@supports not`), opacos
-  (`pub-vidrio-opaco`). Se usa para lo chico sobre la foto: la barra, los
-  accesos, las novedades, las fechas y las invitaciones (claros en claro;
-  sobre el velo azul, el borde blanco y la sombra los despegan).
-  `.vidrio-foto` es el de las **pastillas y los botones chicos sobre la foto**
-  (los antetítulos, las migas, "Horarios de visita" del hero, "Explorá el
-  sitio" y "Ver todos los recorridos"): en claro, azul institucional al 62 %
-  (`pub-vidrio-foto`, borde blanco al 22 % y el filete con brillo más tenue, opaco #1D3D69) con el texto claro
-  (`pub-sobre-foto-*`), del color del velo; en oscuro, igual que `.vidrio`.
-  Se eligió el vidrio azul y no uno blanco más opaco: uno blanco sobre el velo
-  azul le ganaba al botón primario y cortaba el tono de la foto.
-- **Panel de lectura** (`.panel-lectura`): el contenido de las internas,
-  casi opaco (`pub-panel`: #F8FAFD al 96 % en claro; #081222 al 94 % en
-  oscuro), radio de 16 px, sin desenfoque (no hace falta y no cuesta). Dentro,
-  tarjetas opacas (`pub-superficie`, borde `pub-borde`).
-- **Halo** (`.halo-publico`, token `pub-halo`): una mancha difusa
-  (`blur(48px)`, azul institucional al 38 % en claro, sin brillo blanco; azul
-  noche al 32 % en oscuro) detrás del texto que va directo sobre la foto: el
-  hero, el `h2` de cada sección del inicio y el encabezado de las internas. El contenido se desplaza sobre una foto fija, así que lo
-  que queda detrás cambia al bajar: el halo asegura el contraste en cualquier
-  posición (medido abajo).
-- **Antetítulo en pastilla** (`ChipPublico`): `.vidrio-foto` con el texto
-  `pub-sobre-foto-titulo`, `rounded-full`, el punto
-  `celeste` con un anillo y mayúsculas espaciadas (0,12 → 0,16 em, 11 → 12
-  px, negrita). Dentro del panel, el antetítulo va sin pastilla
-  (`.antetitulo-publico`, `pub-enlace`).
-- **Monoespaciada** (`font-mono`, cifras tabulares): los números de
-  expediente (el campo y el resultado de la consulta), las fechas del
-  resultado y el día de las cajitas de fechas.
-- **Línea celeste:** un filete de 1 px (`celeste` al 70 %, que se apaga hacia
-  los costados) cierra el hero.
-- **Foco:** anillo de 2 px separado 2 px (`pub-foco`: `primario` en claro,
-  #5CC8FF en oscuro; `celeste` sobre la barra y el vidrio azul) y, por dentro,
-  un filete del color de la superficie (blanco en claro, #050D1C en oscuro)
-  con `box-shadow`: así contrasta 3:1 aunque detrás quede una parte oscura (o
-  clara) de la foto. Fuera de las capas, para ganarle a la sombra del vidrio
-  mientras hay foco. Lo que va directo sobre la foto (los botones del hero,
-  "Explorá el sitio", "Ver todos los recorridos", las migas) lleva el foco
-  `pub-sobre-foto-foco` (blanco en claro, #5CC8FF en oscuro: sobre el velo
-  azul ni el `primario` ni el celeste llegaban a 3:1 en las partes claras
-  de la foto).
-- **Anchos de lectura:** bajadas en 56–62 ch, los `h2` en 60 ch, novedades y
-  respuestas del acordeón en 70–75 ch. Contenedor de 72 rem (`max-w-6xl`) con
-  16 → 24 px de margen. Ritmo vertical del inicio: 56 px entre secciones en
-  celular y 80 px desde `sm`; cada sección con el mismo encabezado
-  (`EncabezadoSeccion`: pastilla, `h2` de 24 → 30 px y, a la derecha, su
-  enlace).
-- **Contenedor del sitio:** `.sitio-publico` (en el layout) con
-  `overflow-x: clip` (los halos no generan desplazamiento lateral; `clip` no
-  crea contenedor de desplazamiento y la barra sigue fija).
+- **Barra** (`BarraPublica`, `sticky`, `pub-barra`, 72 px): el logo oficial
+  y, al lado, el wordmark y "Dirección de Cementerios" (en el celular y entre
+  1280 y 1535 px solo para lectores de pantalla, para que entren los
+  enlaces); las seis páginas (la actual con fondo y el subrayado amarillo;
+  "Consultá tu trámite" destacada), el botón del modo e "Ingreso del
+  personal" en blanco. Por debajo de `xl`, el menú `<details>` de siempre.
+- **Inicio**, en este orden:
+  1. **Hero** 16:9 en escritorio (hasta el alto de la ventana) y del alto del
+     contenido en el celular: `hero-landing` bajo `.velo-hero` (parejo en el
+     celular; sólido en la mitad izquierda y más liviano a la derecha en
+     escritorio), "Municipalidad de San Miguel de Tucumán", el `h1`
+     ("CementerIA" y "Dirección de Cementerios"), el filete amarillo, la
+     bajada, "Consultá tu trámite" (primario) y "Ver trámites" (borde blanco)
+     y "Imagen ilustrativa generada con IA."
+  2. **Accesos** (`nav` "Accesos rápidos"): las seis páginas en tarjetas
+     opacas que se apoyan en el borde del hero (ícono en un círculo
+     `primario`; "Consultá tu trámite" en azul con el ícono amarillo).
+  3. **Novedades** vigentes (si hay).
+  4. **Patrimonio** (`pub-seccion`): texto genérico, los próximos
+     recorridos (hasta tres; si no hay, "Recorridos históricos") y
+     `banner-patrimonio` con su aclaración.
+  5. **Trámites**: hasta cuatro de las plantillas publicadas (de la base) y
+     "Ver todos los trámites". Sin datos, no sale.
+  6. **Seguimiento** (`pub-banda`): "Consultá tu trámite", los tres pasos
+     (`PASOS_CONSULTA`, los mismos de /consulta) y "Consultar mi trámite" en
+     amarillo.
+  7. **Cementerios** (`pub-seccion`): hasta tres del catálogo con la foto que
+     eligió la Dirección (o la franja institucional), el domicilio y "Ver
+     todos los cementerios".
+  8. **Cierre**: `fondo-suave` bajo `pub-velo-cierre`, Mesa de Entradas con
+     lo cargado (domicilio, horario, teléfono) y "Contacto y preguntas
+     frecuentes".
+- **Páginas internas** (`PaginaInterna`): una banda con la foto de la página
+  (`FOTO_BANDA` en `publico.tsx`, la imagen principal) bajo `.velo-banda`,
+  con las migas, el `h1`, el filete y la bajada en blanco; el contenido sobre
+  `pub-fondo` (tarjetas `pub-superficie`); "También te puede servir" sobre
+  `pub-seccion`. El contenido de cada página no cambió (`landing.tsx`).
+- **Pie** (`pub-pie`): el logo, el wordmark, la Dirección y la
+  Municipalidad, las seis páginas, la DIA e "Ingreso del personal".
+- **Contenedor**: `max-w-6xl`, 16 → 24 px de margen; secciones de 56 → 80 px.
 
 ### Tokens del sitio público (claro / oscuro)
 
-Propios del sitio (`pub-*`, en el `@theme` de `globals.css`): la app interna
-no los usa y no cambia. Cada uno lleva sus dos valores con `light-dark()`,
-que resuelve según el `color-scheme` de `.sitio-publico`.
+Propios del sitio (`pub-*`, en el `@theme` de `globals.css`), con
+`light-dark()` según el `color-scheme` de `.sitio-publico`. La app interna no
+los usa.
 
 | Token | Claro | Oscuro | Uso |
 |---|---|---|---|
-| `pub-fondo` | #F4F7FB | #07111F | Debajo de la foto mientras carga; fondo del `body` |
-| `pub-texto` | #172B4D | #E8EEF7 | Texto |
-| `pub-texto-secundario` | #4A5568 | #B3C2D6 | Texto secundario (más oscuro que el `texto-secundario` de la app: va sobre vidrio) |
+| `pub-fondo` | #F4F7FB | #07111F | Fondo de la página y de las secciones alternas |
+| `pub-seccion` | #FFFFFF | #0B182C | Secciones blancas del inicio, invitaciones |
+| `pub-superficie` | #FFFFFF | #0F1F38 | Tarjetas y campos |
+| `pub-texto` / `-secundario` | #172B4D / #4A5568 | #E8EEF7 / #B3C2D6 | Texto |
 | `pub-titulo` | #0F2F5D | #FFFFFF | Títulos |
 | `pub-enlace` | #0B53CC | #8ECBFF | Enlaces, íconos y antetítulos |
-| `pub-borde` | #D5DEEA | #8EB6E8 al 22 % | Bordes de tarjetas y tablas |
-| `pub-borde-control` | #7C8798 | #7F93B0 | Borde de los campos (3:1, WCAG 1.4.11) |
-| `pub-foco` | #0F68FF | #5CC8FF | Anillo de foco |
-| `pub-superficie` | #FFFFFF | #0F1F38 | Tarjetas dentro del panel, campos |
-| `pub-tinte` | #EEF3FA | #16294A | Cabecera de tabla |
-| `pub-chip` | #E8F2FF | `celeste` al 14 % | Chips, cajitas de ícono, resultado de la consulta |
-| `pub-panel` | #F8FAFD al 96 % | #081222 al 94 % | Panel de lectura |
-| `pub-vidrio` / `-opaco` | blanco al 84 % / #F8FAFD | #0A182E al 66 % / #0C1A31 | Vidrio / sin `backdrop-filter` |
-| `pub-vidrio-borde` | blanco al 80 % | #8EB6E8 al 20 % | Borde del vidrio y del panel |
-| `pub-azul` | #0F2F5D al 92 % | #16408A al 86 % | Vidrio azul (destacada, banda) |
-| `pub-barra` / `-solida` | #0F2F5D al 86 % / #0F2F5D | #050D1C al 82 % / #08142A | Barra / menú desplegado del celular |
-| `pub-pie` | #0F2F5D al 95 % | #040A16 al 95 % | Pie |
-| `pub-advertencia` | #8A4B00 | `amarillo` #F4C400 | Megáfono de las novedades |
-| `pub-error` / `-fondo` / `-borde` | #B42318 / #FDECEC / #F2B8B5 | #FFB4AB / #B42318 al 20 % / #FFB4AB al 40 % | Error de la consulta |
-| `pub-info-borde` | #B5D3FF | #8ECBFF al 32 % | Borde del resultado de la consulta |
-| `pub-sobre-foto-titulo` | #FFFFFF | #FFFFFF | Texto directo sobre la foto: `h1` del hero y de las internas, `h2` de sección; texto de las pastillas y del botón secundario del hero |
-| `pub-sobre-foto-texto` | #E6EEF9 | #E8EEF7 | Bajadas sobre la foto, la página actual de las migas, "Explorá el sitio" |
-| `pub-sobre-foto-secundario` | #C7D6EB | #B3C2D6 | El separador de las migas |
-| `pub-sobre-foto-enlace` | #A9DCFF | #8ECBFF | "Inicio" en las migas, íconos y borde al pasar en `.vidrio-foto` |
-| `pub-sobre-foto-foco` | #FFFFFF | #5CC8FF | Foco de lo que va sobre la foto |
-| `pub-vidrio-foto` / `-opaco` / `-borde` | #0F2F5D al 62 % / #1D3D69 / blanco al 22 % | como `pub-vidrio` | Vidrio de las pastillas y los botones chicos sobre la foto |
-| `pub-velo` | #0F2F5D al 55 % | #050D1C al 66 % | El punto más liviano del velo (arriba) |
-| `pub-halo` | #0F2F5D al 38 % | #050D1C al 32 % | El halo |
-
-El `amarillo` (filetes, cajitas de los pasos, "Consultar mi trámite", el
-subrayado de la página actual) y el `primario` de los botones son los mismos
-en los dos modos. Los `pub-sobre-foto-*` dan en oscuro lo mismo que
-`pub-titulo`, `pub-texto`, `pub-texto-secundario`, `pub-enlace` y
-`pub-foco`: el modo oscuro no cambió con el velo azul del claro.
+| `pub-borde` / `-control` | #D5DEEA / #7C8798 | #8EB6E8 al 22 % / #7F93B0 | Bordes |
+| `pub-foco` | #006BFF | #5CC8FF | Anillo de foco |
+| `pub-tinte` / `pub-chip` | #EEF3FA / #E8F2FF | #16294A / celeste al 14 % | Cabecera de tabla, cajitas |
+| `pub-barra` | #0F2F5D | #08142A | Barra y su menú |
+| `pub-banda` | #0F2F5D | #0D2546 | Banda del seguimiento, acceso destacado |
+| `pub-pie` | #0B2447 | #040A16 | Pie |
+| `pub-velo` | #0F2F5D al 80 % | #050D1C al 84 % | Velo de las fotos donde hay texto |
+| `pub-velo-suave` | #0F2F5D al 30 % | #050D1C al 45 % | Derecha del hero en escritorio (sin texto) |
+| `pub-velo-cierre` | #F4F7FB al 86 % | #07111F al 88 % | Velo del cierre (texto oscuro en claro) |
+| `pub-advertencia`, `pub-error*`, `pub-info-borde` | como antes | como antes | Novedades y consulta |
 
 ### Modo oscuro
 
-- **Elección:** por defecto, el del sistema (`prefers-color-scheme`): sin nada
-  elegido, `.sitio-publico` no lleva `data-tema` y tiene `color-scheme: light
-  dark`. El **botón de la barra** (`BotonTema`, luna en claro y sol en oscuro,
-  por CSS con la variante `pub-oscuro:`; `aria-label="Modo oscuro"` y
-  `aria-pressed`) alterna y lo guarda en `localStorage`
-  (`cementeria.sitio-publico.tema`, con `try/catch`). Si lo elegido coincide
-  con el sistema, se borra lo guardado y el sitio vuelve a seguir al sistema.
-  Sin `localStorage`, alterna igual mientras dure la página.
-- **Sin parpadeo:** `ScriptTema`, el primer hijo del contenedor en el layout,
-  es un `<script>` en línea que lee lo guardado y pone `data-tema` en el
-  contenedor mientras el navegador lee el HTML, antes de pintar. Es el patrón
-  de la guía de Next 16 ("Preventing flash before hydration"): `text/plain` en
-  el cliente (React no lo vuelve a ejecutar ni avisa) y
-  `suppressHydrationWarning` en el contenedor. Va en el contenedor del layout
-  público y **no** en `<html>`/`<head>`: el layout raíz es el de la app
-  interna (que no tiene modo oscuro), y en desarrollo React vuelve a poner los
-  atributos de `<html>` al remontar. `html:has(.sitio-publico[data-tema])`
-  lleva el `color-scheme` a la barra de desplazamiento y al fondo del `body`.
-  Al llegar al sitio desde la app (navegación del cliente, sin script), el
-  botón aplica lo guardado en un `useLayoutEffect`. Ni nginx ni
-  `next.config.ts` ponen `script-src` en la CSP: no hace falta nonce (si algún
-  día se agrega, el script necesita uno).
-- **En oscuro:** el velo azul noche más profundo, el vidrio oscuro
-  translúcido, el texto claro, la barra y el pie casi negros, el `amarillo`
-  conservado. Los formularios de la consulta (campos con `pub-*`, no
-  `CLASE_CONTROL`), la tabla de horarios, el acordeón de preguntas y las migas
-  andan en los dos modos.
-- **No cambian:** la app interna, `/login` y el comprobante imprimible (es de
-  la app). Lo prueba `tests/e2e/sitio-publico-tema.spec.ts`.
+Sin cambios de comportamiento: por defecto el del sistema; el botón de la
+barra (`BotonTema`) alterna y lo guarda en `localStorage`
+(`cementeria.sitio-publico.tema`, con `try/catch`) y vuelve a "sistema" si lo
+elegido coincide; `ScriptTema` pone `data-tema` en el contenedor antes de
+pintar (sin parpadeo; patrón "Preventing flash before hydration" de Next 16).
+En oscuro cambian las superficies y los textos; el velo de las fotos es azul
+noche y más denso; la barra y el pie, casi negros; el amarillo y los botones
+`primario` son los mismos. La app interna, `/login` y el comprobante no
+tienen modo oscuro. Lo prueba `tests/e2e/sitio-publico-tema.spec.ts`.
+
 
 ### Las páginas
+
+Estructura y contenido de cada página (28/10/2026). Desde el kit institucional
+(30/10/2026), la barra, el inicio, el encabezado de las internas y el pie
+son los de "Sistema visual (kit institucional)" (arriba): lo que sigue vale
+para el contenido de cada página, que no cambió; lo que dice de vidrio, halo
+o fondo fijo es de la versión anterior.
 
 - **Layout (`src/app/(publico)/layout.tsx`):** el contenedor `.sitio-publico`
   con el script del modo, el fondo fijo, "Saltar al contenido", la página y
@@ -1193,95 +1272,16 @@ en los dos modos. Los `pub-sobre-foto-*` dan en oscuro lo mismo que
 
 ### Rendimiento
 
-Una sola imagen (la del fondo, en todas las páginas, la misma URL: queda en
-caché), sin `will-change` y sin desenfoque sobre la foto entera: solo los
-elementos chicos de vidrio y la barra. Medido desplazando el inicio y
-`/recorridos` cuadro a cuadro (`requestAnimationFrame`, 12 px por cuadro) en
-Chromium: **con la GPU** (D3D11), 1440 px y 375 px con la CPU 4× más lenta, la
-mediana y el p95 en 16,7 ms (60 cuadros por segundo), salvo uno o dos cuadros
-al empezar (la primera decodificación). Con el renderizado por software del
-modo sin pantalla, en 1440 px el inicio pierde un cuadro de cada cinco
-(33 ms) por el `backdrop-filter`; sin el desenfoque no pierde ninguno: si en
-las PC de la oficina se nota, bajar a `blur(8px)` o quitarlo de los accesos
-(el vidrio tiene respaldo opaco).
+Una imagen principal por página (hero o banda) con `fetchpriority="high"`;
+las demás perezosas. En el celular, `srcset` con la versión de 960 px donde
+la hay. Sin fondo fijo, sin `backdrop-filter` ni desenfoques: lo que antes
+costaba cuadros al desplazar (docs de la versión del 28/10) ya no está.
+`overflow-x: clip` en el contenedor (los anillos decorativos de la banda).
 
-### Contraste (WCAG 2.1 AA, los dos modos)
+### Contraste del sitio público
 
-**Tokens contra sus superficies** (las translúcidas compuestas sobre lo peor
-que puede haber detrás: negro en claro, blanco en oscuro; los
-`pub-sobre-foto-*`, que son claros, sobre una foto **blanca** con el punto más
-liviano del velo, `pub-velo`, y encima el halo o el vidrio de la foto). Lo
-vuelve a medir `tests/e2e/sitio-publico-tema.spec.ts`.
-
-| Par | Claro | Oscuro | Mínimo |
-|---|---|---|---|
-| `pub-texto` / `pub-superficie` · `pub-panel` | 14,10 · 12,35 | 14,14 · 14,00 | 4,5 |
-| `pub-texto-secundario` / superficie · panel · `pub-tinte` | 7,53 · 6,59 · 6,75 | 9,11 · 9,02 · 8,00 | 4,5 |
-| `pub-titulo` / panel · tinte | 11,61 · 11,88 | 16,32 · 14,48 | 4,5 |
-| `pub-enlace` / superficie · panel · `pub-chip` | 6,72 · 5,89 · 5,95 | 9,53 · 9,43 · 7,41 | 4,5 |
-| `pub-error` / `pub-error-fondo` | 5,76 | 8,99 | 4,5 |
-| blanco / `primario` (botones) | 4,73 | 4,73 | 4,5 |
-| `pub-borde-control` / superficie | 3,64 | 5,26 | 3 |
-| `pub-foco` / superficie · panel | 4,73 · 4,14 | 8,76 · 8,68 | 3 |
-| `pub-sobre-foto-titulo` / velo · velo + halo | 3,40 · 5,60 | 6,39 · 9,64 | 3 · 4,5 |
-| `pub-sobre-foto-texto` / velo + halo (bajadas) | 4,79 | 8,27 | 4,5 |
-| `pub-sobre-foto-titulo` · `-texto` / `pub-vidrio-foto` | 7,87 · 6,73 | 13,25 · 11,36 | 4,5 |
-| `pub-sobre-foto-secundario` · `-enlace` / `pub-vidrio-foto` | 5,34 · 5,39 | 7,32 · 7,66 | 4,5 |
-| `pub-sobre-foto-foco` / velo | 3,40 | 3,40 | 3 |
-
-**Texto sobre la foto y sobre el vidrio**, medido como antes, con el texto
-transparente: el píxel de fondo **más oscuro** (texto oscuro, claro) o **más
-claro** (texto claro, oscuro) detrás de cada línea. Como el fondo es fijo, lo
-que queda detrás cambia al desplazar: se midió cada página bajando de a un
-tercio de la ventana (360 × 780, 768 × 1024 y 1440 × 900) y se guardó el peor
-de cada línea (2116 mediciones, todo el texto visible de las siete páginas y
-la consulta con resultado). El peor por grupo:
-
-| Texto | Claro 360 | Claro 768 | Claro 1440 | Oscuro 360 | Oscuro 768 | Oscuro 1440 |
-|---|---|---|---|---|---|---|
-| Barra: enlaces y bajada de la marca | 5,90 | 5,90 | 5,90 | 9,18 | 9,08 | 9,39 |
-| Hero: antetítulo (pastilla `.vidrio-foto`) | 10,25 | 10,38 | 10,42 | 16,10 | 16,31 | 16,33 |
-| Hero: título `h1` | 6,06 | 6,47 | 6,36 | 11,94 | 11,53 | 11,16 |
-| Hero: bajada | 5,53 | 5,54 | 5,77 | 9,97 | 10,16 | 10,62 |
-| Hero: "Horarios de visita" (`.vidrio-foto`) e indicador | 7,94 | 8,00 | 8,00 | 13,36 | 13,36 | 13,36 |
-| Inicio: pastillas de sección | 9,79 | 9,64 | 9,63 | 15,77 | 15,23 | 15,23 |
-| Inicio: `h2` de sección (sobre el halo) | 5,21 | 4,99 | 5,18 | 9,81 | 9,58 | 9,84 |
-| Inicio: tarjetas de vidrio (accesos, novedad, fechas) | 5,26 | 5,49 | 5,01 | 6,77 | 6,66 | 6,85 |
-| Banda de la consulta (vidrio azul) | 7,74 | 6,26 | 7,76 | 6,34 | 5,43 | 6,63 |
-| Internas: migas (pastilla `.vidrio-foto`) | 7,09 | 7,18 | 7,18 | 9,23 | 9,32 | 9,32 |
-| Internas: título `h1` | 6,13 | 6,47 | 6,46 | 11,24 | 11,56 | 11,81 |
-| Internas: bajada | 4,74 | 5,19 | 5,28 | 9,31 | 9,74 | 10,00 |
-| Internas: "También te puede servir" | 9,10 | 9,77 | 9,75 | 15,58 | 16,52 | 16,49 |
-| Pie | 8,53 | 8,53 | 8,53 | 13,33 | 13,36 | 13,36 |
-| El peor de todo el texto de cada página interna | 4,73 | 4,73 | 4,73 | 4,73 | 4,73 | 4,73 |
-
-Medido el 28/10/2026 con el velo azul del modo claro (el oscuro no cambió:
-sus valores son los de antes, con las décimas del barrido). El 4,73 de la
-última fila es siempre el blanco sobre el `primario` de los botones ("Cómo
-llegar", "Consultar"), igual en los dos modos; lo demás del panel queda en
-4,84 o más en claro (las bajadas de /tramites y /consulta en 360 px y el chip
-del cementerio de /recorridos, 4,90; con el velo blanco de antes era 5,90: el
-panel es casi opaco y detrás ahora hay azul) y 7,45 o más en oscuro.
-
-**Foco sobre la foto** (el anillo contra los píxeles de 1 a 4 px por fuera,
-con el texto transparente, en tres posiciones de desplazamiento; 360, 768 y
-1440): en claro, con el anillo blanco, de 4,45 ("Ver todos los recorridos")
-a 6,80 ("Consultá tu trámite"), y 3,39 el de "Inicio" en las migas (el anillo
-cae sobre el filete de la pastilla); en oscuro, de 5,12 a 7,05, y 3,22 el de
-las migas. Con el celeste #5CC8FF en claro, "Explorá el sitio" y "Ver todos
-los recorridos" quedaban en 2,4–2,6 sobre la parte del empedrado: por eso el
-foco sobre la foto es blanco en claro. Con el filete con brillo de 50 % de la
-pastilla, el de las migas daba 2,24: bajó a 30 % (y el borde, de 30 a 22 %).
-Las tarjetas de vidrio claras pasaron de blanco al 76 a 84 % en claro: sobre el
-velo azul, el texto secundario de la tarjeta de Contacto quedaba en 4,43. Se corrigió en el
-camino: el antetítulo `celeste` de la banda (4,39 en 1440 y 3,97 en 360, en
-claro) pasó a #8FD6FB; los anillos celestes de la banda cruzaban el texto en
-el celular (4,29) y ahora van desde `sm` y más tenues; el vidrio azul subió de
-90 a 92 % (claro) y de 80 a 86 % (oscuro). Los `h2` de sección del inicio no
-tenían halo en la primera versión: sobre la foto fija dependían de la
-posición; ahora llevan el halo y la pastilla. Si se cambia la foto, el velo,
-el halo, el vidrio o un token, volver a medir (el script de medición está
-descripto arriba: captura, texto transparente, peor píxel por línea).
+En "Kit institucional", "Contraste (resumen)": los pares de tokens en los dos
+modos y el texto sobre las fotos reales en 390, 768 y 1440.
 
 ## Capturas
 
@@ -1299,6 +1299,15 @@ propio):
 `login-1440.png`, `panel-direccion-1440.png`, `nuevo-formulario-error-1440.png`
 y `ficha-1440.png`. Las demás pesan unos 16 MB, están en `.gitignore` y se
 regeneran con el arnés de e2e cuando hacen falta.
+
+**Kit institucional (30/10/2026)**: las cuatro de referencia se regeneraron con
+el diseño nuevo (build de producción con `NODE_ENV=test` y el login simulado,
+contra la base local con la semilla; el formulario con errores, apretando
+"Guardar" vacío: no crea nada). Las del resto del kit (inicio en 1440 claro y
+oscuro y en 390, cementerios, consulta, ingreso en 1440 y 390, panel, bandeja,
+nuevo expediente y ficha) quedaron fuera del repositorio, en la carpeta de
+trabajo de la sesión. Las demás de esta tabla son de antes del kit: muestran
+la paleta y la marca viejas.
 
 | Pantalla | Archivos |
 |---|---|
@@ -1326,7 +1335,16 @@ página completa del formulario la barra de acciones se ve en su lugar, al pie.
 
 ## Pendientes
 
-- **Logo oficial** cuando lo entregue Comunicación (ver "Marca").
+- **Fotos reales**: las imágenes del kit son conceptuales (generadas con IA).
+  Cuando la Dirección tenga fotos oficiales autorizadas, reemplazarlas (y, si
+  se quieren nuevas opciones para cementerios y recorridos, ampliar el CHECK
+  de `foto` con una migración: ver "Imágenes").
+- **Imágenes del kit sin uso**: `hero-alternativo`, `feature-expedientes`,
+  `feature-gestion`, `feature-ubicaciones` y `banner-tramites` traen
+  interfaces y mapas dibujados; no se usan para no confundirlas con pantallas
+  o ubicaciones reales.
+- **Barra lateral contraída**: el logo entero achicado a 56 px de ancho se lee
+  poco (no se recorta para no alterar la marca).
 - **Imprimibles**: siguen con Inter; revisar si conviene otra fuente para el
   papel.
 - **Grilla de transcripción en 1280 con la barra expandida**: entra sin

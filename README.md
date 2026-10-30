@@ -78,7 +78,15 @@ con el antes y el después, filtrados, paginados y con CSV registrado como
 
 Rediseño visual, primera etapa: tokens de color y tipografía (Inter
 autoalojada), componentes base, ingreso, barra lateral y panel. Tokens, tabla de
-contrastes, marca provisoria y pendientes en [docs/diseno.md](docs/diseno.md).
+contrastes, marca y pendientes en [docs/diseno.md](docs/diseno.md).
+
+Kit institucional (30/10/2026; [docs/diseno.md](docs/diseno.md), "Kit
+institucional"): la paleta del kit (`#006BFF`, `#32B2F6`, `#F4D900`,
+`#0F2F5D`), el **logo oficial** de la Municipalidad (solo sobre azul), el sitio
+público como el moodboard aprobado, el ingreso dividido 55/45 y el banner de
+bienvenida del panel. Las imágenes están en `public/assets/cementeria/` y son
+**conceptuales, generadas con IA** (procedencia en
+`public/assets/cementeria/LEEME.md`). Sin cambios de base ni de lógica.
 
 Historial (26/10/2026; [docs/api-dominio.md](docs/api-dominio.md), sección
 19): la **cadena de hash** que la propuesta dejaba para la fase 2 (migración
@@ -683,7 +691,8 @@ diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
   Markdown); cada texto tiene un largo máximo; los enlaces de mapa son solo
   https de Google Maps (`google.com/maps`, `maps.app.goo.gl`) u OpenStreetMap;
   el de inscripción, https. La foto se elige de las ilustrativas que trae el
-  sistema (`public/imagenes`): **subir fotos propias queda para más adelante**.
+  sistema (`public/assets/cementeria`, conceptuales generadas con IA): **subir
+  fotos propias queda para más adelante**.
   Lo que no se quiere mostrar se desactiva; solo las fechas de recorrido y las
   novedades se quitan.
 - **Vacía, como arranca en producción:** los cementerios del catálogo se listan
@@ -698,9 +707,9 @@ diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
   pagan las tasas); la de desarrollo, además, contenido de ejemplo ficticio
   ("(dato de prueba)", "(ejemplo)") para ver todas las secciones. En Supabase,
   `supabase/sql/32_sitio_publico.sql` (ver su README).
-- **Imagen del hero:** `public/imagenes/landing-panoramica-{960,1916}.webp` (la de
-  960 px, generada con sharp, que ya trae Next). `panel-avenida-memorial` sigue
-  en el panel.
+- **Imagen del hero:** `public/assets/cementeria/hero-landing.webp` y su versión
+  de 960 px (`hero-landing-960.webp`). Cada página interna tiene su foto del
+  kit en la banda del encabezado; el panel usa `hero-dashboard`.
 
 ## Ingreso
 
