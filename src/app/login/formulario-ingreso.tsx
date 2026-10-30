@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, LogIn, TriangleAlert } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, LogIn, TriangleAlert } from "lucide-react";
 import { CLASE_BOTON_PRIMARIO, CLASE_CONTROL, CLASE_FOCO } from "@/components/formulario";
 import { accionIngresar, type EstadoIngreso } from "./acciones";
 
@@ -102,8 +102,10 @@ export function FormularioIngreso({ volver }: { volver: string | null }) {
         </div>
       </div>
 
+      {/* Mientras se envía: deshabilitado, "Ingresando…" y un ícono que gira (con
+          prefers-reduced-motion la regla global lo deja quieto). */}
       <button type="submit" disabled={pendiente} className={`${CLASE_BOTON_PRIMARIO} min-h-11 w-full text-[0.9375rem]`}>
-        <LogIn className="h-4 w-4" aria-hidden="true" />
+        {pendiente ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogIn className="h-4 w-4" aria-hidden="true" />}
         {pendiente ? "Ingresando…" : "Ingresar"}
       </button>
 

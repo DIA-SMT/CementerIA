@@ -5,8 +5,8 @@ import { connection } from "next/server";
 import { ArrowLeft, LogOut } from "lucide-react";
 import { Aviso } from "@/components/aviso";
 import { CLASE_BOTON_SECUNDARIO, CLASE_ENLACE } from "@/components/formulario";
-import { FotoIngreso } from "@/components/foto-ingreso";
-import { MarcaMunicipal } from "@/components/marca-municipal";
+import { FotoIngreso, FranjaMarcaIngreso } from "@/components/foto-ingreso";
+import { Wordmark } from "@/components/marca-municipal";
 import { BotonRecorrido } from "@/components/recorrido/botones";
 import { InvitacionRecorrido } from "@/components/recorrido/invitacion";
 import { PantallaConRecorrido, ProveedorRecorridos } from "@/components/recorrido/proveedor";
@@ -49,12 +49,18 @@ export default async function PaginaCambiarClave({ searchParams }: { searchParam
       <main className="flex flex-1 flex-col bg-white lg:flex-row">
         <PantallaConRecorrido id="cambiar-clave" />
         <FotoIngreso />
+        <FranjaMarcaIngreso />
 
-        <div className="flex flex-1 items-center justify-center bg-linear-to-b from-superficie-azul/70 to-white px-4 py-10 sm:px-8 lg:py-12">
-          <div className="w-full max-w-md space-y-7">
-            <MarcaMunicipal tamano="grande" titulo />
+        <div className="flex flex-1 items-start justify-center bg-linear-to-b from-superficie-azul/70 to-white px-4 py-8 sm:px-8 sm:py-12 lg:items-center lg:py-12">
+          <div className="w-full max-w-md space-y-6">
+            <div>
+              <h1 className="text-[2.25rem] leading-none sm:text-[2.5rem]">
+                <Wordmark variante="clara" />
+              </h1>
+              <p className="mt-2 text-base font-medium text-texto-secundario">Dirección de Cementerios</p>
+            </div>
 
-            <div className="tarjeta space-y-5 p-6 sm:p-7">
+            <div className="tarjeta space-y-5 border-t-4 border-t-primario p-6 shadow-elevada sm:p-7">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold text-texto">Cambiar contraseña</h2>

@@ -119,3 +119,40 @@ test("un usuario de la semilla entra con la contraseña de desarrollo; una incor
   await ingresar(page, tributario.cuil, CLAVE_DESARROLLO);
   await expect(page).toHaveURL(/\/bandeja/);
 });
+
+test("el ingreso del kit institucional: 55/45 con el logo sobre la foto en escritorio; en el celular, el formulario primero y sin descargar la foto", async ({ page }) => {
+  // Escritorio: la foto a la izquierda (55 %), con el logo oficial y la prioridad alta; el formulario a la derecha.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/login");
+  const foto = page.locator("[data-panel-foto]");
+  await expect(foto).toBeVisible();
+  await expect(foto.getByRole("img", { name: "Ciudad San Miguel de Tucumán" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "CementerIA" })).toBeVisible();
+  const cajaFoto = (await foto.boundingBox())!;
+  const cajaForm = (await page.locator("[data-panel-ingreso]").boundingBox())!;
+  expect(cajaFoto.x).toBe(0);
+  expect(cajaFoto.width / 1440).toBeGreaterThan(0.53);
+  expect(cajaFoto.width / 1440).toBeLessThan(0.57);
+  expect(cajaForm.x).toBeGreaterThanOrEqual(cajaFoto.x + cajaFoto.width - 1);
+  const imagen = foto.locator("picture img");
+  await expect(imagen).toHaveAttribute("fetchpriority", "high");
+  await expect.poll(() => imagen.evaluate((i: HTMLImageElement) => i.currentSrc)).toContain("/assets/cementeria/login-patrimonio");
+
+  // Celular: la franja con el logo y enseguida el formulario, entero a la vista; la foto ni se descarga.
+  const celular = await page.context().newPage();
+  await celular.setViewportSize({ width: 390, height: 844 });
+  await celular.goto("/login");
+  await expect(celular.locator("[data-panel-foto]")).toBeHidden();
+  await expect(celular.getByRole("img", { name: "Ciudad San Miguel de Tucumán" })).toBeVisible();
+  const ingresar = (await celular.getByRole("button", { name: "Ingresar", exact: true }).boundingBox())!;
+  expect(ingresar.y + ingresar.height).toBeLessThanOrEqual(844);
+  expect(await celular.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  expect(await celular.evaluate(() => performance.getEntriesByType("resource").some((r) => r.name.includes("login-patrimonio")))).toBe(false);
+  // El comportamiento es el de siempre: el mismo mensaje y el CUIL conservado.
+  await celular.getByLabel("CUIL o correo").fill("20-12345678-6");
+  await celular.getByLabel("Contraseña", { exact: true }).fill("no es la contraseña");
+  await celular.getByRole("button", { name: "Ingresar", exact: true }).click();
+  await expect(celular.getByRole("alert").filter({ hasText: MENSAJE })).toBeVisible();
+  await expect(celular.getByLabel("CUIL o correo")).toHaveValue("20-12345678-6");
+  await celular.close();
+});

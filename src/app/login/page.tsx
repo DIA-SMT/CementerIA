@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { CircleCheck, LogIn, ShieldCheck, TriangleAlert } from "lucide-react";
 import { CLASE_BOTON_SECUNDARIO, CLASE_ENLACE } from "@/components/formulario";
-import { FotoIngreso } from "@/components/foto-ingreso";
-import { MarcaMunicipal } from "@/components/marca-municipal";
+import { FotoIngreso, FranjaMarcaIngreso } from "@/components/foto-ingreso";
+import { Wordmark } from "@/components/marca-municipal";
 import { destinoSeguro } from "@/lib/auth/destino";
 import { textoDeError } from "@/lib/auth/errores";
 import { hostnameDeSolicitud } from "@/lib/auth/red";
@@ -35,6 +35,14 @@ function conDestino(ruta: string, destino: string | null): string {
  * El ingreso con Cidituc está en pausa: su botón (que apunta a GET
  * /auth/ingresar) aparece solo con CIDITUC_HABILITADO=1, como alternativa
  * debajo del formulario. El código sigue entero para reactivarlo.
+ *
+ * Diseño (kit institucional, 30/10/2026; docs/diseno.md, "Ingreso"): en
+ * escritorio, dividido 55/45, la foto con el logo a la izquierda y el
+ * formulario a la derecha; en tablet y celular, una franja con el logo y
+ * enseguida el formulario (la foto no se muestra). Del moodboard NO se toman
+ * "Recordarme" ni "¿Olvidaste tu contraseña?" (no existen: el blanqueo lo
+ * hace un administrador, y así lo dice la ayuda) ni "CUIL o correo
+ * electrónico" (el campo y los mensajes siguen como estaban).
  */
 export default async function PaginaLogin({ searchParams }: { searchParams: Promise<Parametros> }) {
   // Todo lo de abajo depende del request (cookie, entorno, host): nada que
@@ -62,15 +70,21 @@ export default async function PaginaLogin({ searchParams }: { searchParams: Prom
   return (
     <main className="flex flex-1 flex-col bg-white lg:flex-row">
       <FotoIngreso />
+      <FranjaMarcaIngreso />
 
-      <div className="flex flex-1 items-center justify-center bg-linear-to-b from-superficie-azul/70 to-white px-4 py-10 sm:px-8 lg:py-12">
-        <div className="w-full max-w-md space-y-7">
-          <MarcaMunicipal tamano="grande" titulo />
+      <div data-panel-ingreso="" className="flex flex-1 items-start justify-center bg-linear-to-b from-superficie-azul/70 to-white px-4 py-8 sm:px-8 sm:py-12 lg:items-center lg:py-12">
+        <div className="w-full max-w-md space-y-6 motion-safe:animate-aparecer">
+          <div>
+            <h1 className="text-[2.25rem] leading-none sm:text-[2.5rem]">
+              <Wordmark variante="clara" />
+            </h1>
+            <p className="mt-2 text-base font-medium text-texto-secundario">Dirección de Cementerios</p>
+          </div>
 
-          <div className="tarjeta space-y-5 p-6 sm:p-7">
+          <div className="tarjeta space-y-5 border-t-4 border-t-primario p-6 shadow-elevada sm:p-7">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold text-texto">Ingresar</h2>
-              <p className="text-sm text-texto-secundario">Seguimiento de expedientes de la Dirección de Cementerios.</p>
+              <p className="text-sm text-texto-secundario">Ingresá para acceder al seguimiento de expedientes.</p>
             </div>
 
             {error ? (
