@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { BIENVENIDA, RECORRIDOS, recorridoDePantalla } from "@/lib/presentacion/recorridos/contenido";
 import {
   diaLocal,
@@ -81,6 +81,8 @@ export function ProveedorRecorridos({
 }) {
   const pantalla = useSyncExternalStore(suscribir, pantallaActual, sinPantallaEnServidor);
   const [activo, setActivo] = useState<RecorridoActivo | null>(null);
+  // Pedido y todavía sin pasos: mientras, la invitación se va (ver `iniciar`).
+  const [iniciando, setIniciando] = useState(false);
   // Una sola invitación por vista: si contestó la de bienvenida, la de la
   // pantalla espera a la próxima (no se encadenan).
   const [contestadaEn, setContestadaEn] = useState<number | null>(null);
@@ -96,13 +98,22 @@ export function ProveedorRecorridos({
   const idInvitacion = useSyncExternalStore(suscribir, leerInvitacion, sinPantallaEnServidor);
 
   const invitacion = useMemo<Invitacion | null>(() => {
-    if (!idInvitacion || !pantalla || activo || contestadaEn === pantalla.vista) return null;
+    if (!idInvitacion || !pantalla || activo || iniciando || contestadaEn === pantalla.vista) return null;
     const recorrido = idInvitacion === BIENVENIDA.id ? BIENVENIDA : recorridoDePantalla(idInvitacion);
     return { recorrido, bienvenida: recorrido.id === BIENVENIDA.id };
-  }, [idInvitacion, pantalla, activo, contestadaEn]);
+  }, [idInvitacion, pantalla, activo, iniciando, contestadaEn]);
 
   const iniciar = useCallback(
     (recorrido: Recorrido, origen: HTMLElement | null) => {
+      registrarDecision(almacenDelNavegador(), usuarioId, recorrido, "empezado", diaLocal(new Date()));
+      // Al cerrarlo no aparece otra invitación en esta misma vista (por ejemplo, la bienvenida después del "?").
+      const actual = pantallaActual();
+      // Primero se va la invitación (en el DOM, ya): mientras está, ocupa el
+      // rincón de Migue y su burbuja no se ve, y el paso "migue" se saltearía.
+      flushSync(() => {
+        if (actual) setContestadaEn(actual.vista);
+        setIniciando(true);
+      });
       let elegido = recorrido;
       let pasos = resolverPasos(recorrido, perfil, (ancla) => buscarAncla(ancla) !== null);
       // Nada para mostrar en este momento (raro: una pantalla vacía): la bienvenida.
@@ -110,10 +121,7 @@ export function ProveedorRecorridos({
         elegido = BIENVENIDA;
         pasos = resolverPasos(BIENVENIDA, perfil, (ancla) => buscarAncla(ancla) !== null);
       }
-      registrarDecision(almacenDelNavegador(), usuarioId, recorrido, "empezado", diaLocal(new Date()));
-      // Al cerrarlo no aparece otra invitación en esta misma vista (por ejemplo, la bienvenida después del "?").
-      const actual = pantallaActual();
-      if (actual) setContestadaEn(actual.vista);
+      setIniciando(false);
       setActivo({ recorrido: elegido, pasos, origen });
       avisar();
     },

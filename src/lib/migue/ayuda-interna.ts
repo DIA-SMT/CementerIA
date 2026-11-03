@@ -27,10 +27,11 @@ type Pregunta = readonly [pregunta: string, paso: string];
 
 const PREGUNTAS: Partial<Record<IdPantallaRecorrido | "bienvenida", readonly Pregunta[]>> = {
   bienvenida: [
-    ["¿Qué tengo en el menú?", "modulos"],
+    ["¿Cómo se mueve un expediente?", "circuito"],
+    ["¿Qué me toca hacer a mí?", "tu-trabajo"],
+    ["¿Cómo se cuentan los días?", "dias"],
     ["¿Cómo busco un expediente?", "buscador"],
     ["¿Qué es «Por confirmar»?", "por-confirmar"],
-    ["¿Para qué sirve la campana?", "avisos"],
   ],
   bandeja: [
     ["¿Cómo confirmo que recibí un expediente?", "confirmar"],
@@ -43,6 +44,7 @@ const PREGUNTAS: Partial<Record<IdPantallaRecorrido | "bienvenida", readonly Pre
     ["¿Qué falta para dar el pase?", "faltan"],
     ["¿Cómo doy el pase o lo devuelvo?", "acciones"],
     ["¿Dónde veo en qué paso está?", "paso-area"],
+    ["¿Para qué es el código de consulta?", "codigo"],
     ["¿Cómo marco la documentación?", "documentacion"],
     ["¿Qué es «Verificar integridad»?", "historial"],
   ],
@@ -66,6 +68,7 @@ const PREGUNTAS: Partial<Record<IdPantallaRecorrido | "bienvenida", readonly Pre
   transcripcion: [
     ["¿Cómo paso una ficha de papel al sistema?", "cabecera"],
     ["¿Cómo cargo los pases de la ficha?", "pases"],
+    ["¿Y si el papel no dice la fecha de una subtarea?", "subtareas"],
     ["¿Cómo termino la carga histórica?", "terminar"],
   ],
   panel: [

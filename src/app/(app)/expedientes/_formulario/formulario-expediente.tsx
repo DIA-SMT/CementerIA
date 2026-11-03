@@ -578,7 +578,7 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </Seccion>
       ) : null}
 
-      <Seccion numero={numeroDe("observaciones")} titulo="Observaciones y fecha de inicio">
+      <Seccion numero={numeroDe("observaciones")} titulo="Observaciones y fecha de inicio" recorrido="form-inicio">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <Campo ruta="observaciones" etiqueta="Observaciones" errores={err("observaciones")} className="lg:col-span-2">
             <textarea

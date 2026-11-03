@@ -208,6 +208,8 @@ export function ChatMigue({
           ref={botonRef}
           type="button"
           data-migue-burbuja=""
+          // Ancla de la bienvenida (recorridos guiados): solo la del sistema.
+          data-recorrido={piel === "interno" ? "migue" : undefined}
           aria-label="Abrir el chat con Migue, el asistente de la Dirección de Cementerios"
           aria-expanded={false}
           aria-controls={`${id}-panel`}

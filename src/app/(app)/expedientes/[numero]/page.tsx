@@ -172,7 +172,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
             <Dato titulo="N° municipal">{ficha.numeroMunicipal ?? "—"}</Dato>
             {/* 28/10/2026: el código para la consulta pública (/consulta), que va en el comprobante del concesionario. */}
             <Dato titulo="Código de consulta">
-              <span data-codigo-consulta="" className="font-mono tracking-wider">
+              <span data-codigo-consulta="" data-recorrido="ficha-codigo-consulta" className="font-mono tracking-wider">
                 {formatearCodigoConsulta(ficha.codigoConsulta)}
               </span>
               <span className="block text-xs text-texto-secundario">Para seguir el trámite desde la página pública</span>

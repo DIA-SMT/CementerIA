@@ -14,44 +14,67 @@ import type { Recorrido } from "./motor";
 export const BIENVENIDA: Recorrido = {
   id: "bienvenida",
   nombre: "Bienvenida",
-  version: 2,
+  // 3 (03/11/2026): cómo se mueve un expediente, qué le toca a cada uno, los días hábiles y Migue.
+  version: 3,
   pasos: [
     {
       id: "hola",
       titulo: "Te damos la bienvenida a CementerIA",
       texto:
-        "Acá se sigue cada expediente de la Dirección de Cementerios, desde que entra por Mesa de Entradas hasta que se archiva. En un minuto te mostramos dónde está cada cosa.",
+        "CementerIA reemplaza la ficha de papel de los pases. El papel sigue viajando entre las áreas, pero cada movimiento queda registrado: quién lo tuvo, desde cuándo y qué se hizo. Así se sabe siempre dónde está un expediente y qué le falta.",
+    },
+    {
+      id: "circuito",
+      titulo: "Cómo se mueve un expediente",
+      texto:
+        "Mesa de Entradas lo da de alta e imprime la carátula. Cada área lo recibe (confirma que tiene el papel), hace lo suyo y le da pase a la siguiente, o lo devuelve con el motivo si algo está mal. En el último paso se concluye y después se archiva en una caja.",
+    },
+    {
+      id: "tu-trabajo",
+      titulo: "Lo que te toca a vos",
+      texto: {
+        mesa: "Das de alta lo que llega al mostrador, imprimís la carátula y el comprobante con el código de consulta, y das el primer pase. También pasás al sistema las fichas viejas de papel y archivás lo que vuelve concluido.",
+        operador:
+          "Todos los días: confirmá lo que te llega cuando tengas el papel, hacé las subtareas y marcá los documentos de tu paso, y dale pase al área siguiente. Si algo está mal, devolvelo con el motivo. Atendé primero lo demorado y lo devuelto.",
+        direccion:
+          "Mirás todo el circuito sin tocar nada: cuántos expedientes tiene cada área, cuáles se demoran, qué plazos de la DIM vencen y cómo evolucionan los tiempos. Podés abrir cualquier expediente, pero no das pases ni lo modificás.",
+        admin:
+          "Te ocupás de la configuración: las plantillas de cada trámite, los usuarios, los catálogos (áreas, cementerios, feriados) y el sitio público. Los expedientes los trabajan las áreas. Cada cambio queda registrado en Auditoría.",
+      },
+    },
+    {
+      id: "dias",
+      titulo: "Los días se cuentan hábiles",
+      texto:
+        "Las demoras y los plazos cuentan días hábiles: sin fines de semana ni feriados. Cada paso tiene un límite; si un expediente lo pasa, sale demorado, en rojo. Un pase que nadie confirma en 2 días hábiles también queda marcado.",
     },
     {
       id: "modulos",
       ancla: ["barra-modulos", "menu-celular"],
       titulo: "Los módulos",
       texto: {
-        operador: "En el menú tenés lo de todos los días: la Bandeja con el trabajo de tu área, Buscar y el Panel.",
-        mesa: "En el menú tenés lo de todos los días: la Bandeja, Nuevo expediente para dar de alta, Buscar y el Panel.",
-        direccion: "En el menú tenés el Panel con el estado de todo el circuito, las Métricas de gestión, Buscar y el Sitio público.",
-        admin: "En el menú tenés el Panel, las Métricas, Buscar y Administración (plantillas, usuarios, catálogos, auditoría y sitio público).",
+        operador:
+          "En el menú tenés la Bandeja (el trabajo de tu área, por pestañas), Buscar (cualquier expediente, aunque no sea de tu área) y el Panel (cómo está todo el circuito). El botón de abajo achica el menú a íconos.",
+        mesa: "En el menú tenés la Bandeja, Nuevo expediente para el alta del mostrador, Buscar y el Panel. Las fichas viejas de papel que se están pasando al sistema están en la Bandeja, pestaña Carga histórica.",
+        direccion:
+          "En el menú tenés el Panel con el estado de todo el circuito, las Métricas de gestión con tiempos y tendencias, Buscar para abrir cualquier expediente y el Sitio público.",
+        admin: "En el menú tenés el Panel, las Métricas, Buscar y Administración: plantillas, usuarios, catálogos, auditoría y sitio público.",
       },
-    },
-    {
-      id: "contraer",
-      ancla: "barra-contraer",
-      titulo: "Más lugar en la pantalla",
-      texto:
-        "Con este botón achicás el menú a una franja de íconos. Si pasás el mouse por un ícono, aparece su nombre. La computadora se acuerda de cómo lo dejaste.",
     },
     {
       id: "buscador",
       ancla: "buscador-global",
       titulo: "Buscar desde cualquier pantalla",
-      texto: "Escribí un N° de expediente, un DNI, un padrón o un apellido y apretá Enter. Con un número de expediente completo, abre la ficha directo.",
+      texto:
+        "Escribí un N° de expediente (CEM-2026-42 o 42/2026), un DNI, un CUIT, un padrón o un apellido y apretá Enter. Con un número de expediente completo abre la ficha directo; si no, muestra todo lo que coincide.",
     },
     {
       id: "por-confirmar",
       ancla: "por-confirmar",
       titulo: "Lo que llegó a tu área",
       texto: {
-        operador: "Este contador dice cuántos expedientes le pasaron a tu área y nadie confirmó todavía. Si hay, se pone amarillo. Tocalo para verlos.",
+        operador:
+          "Cuántos expedientes le mandaron a tu área y nadie confirmó todavía. Si hay, se pone amarillo: tocalo para verlos. Confirmá cuando tengas el papel en la mano; hasta entonces sigue figurando en el área que lo mandó.",
       },
     },
     {
@@ -59,8 +82,16 @@ export const BIENVENIDA: Recorrido = {
       ancla: "campana-avisos",
       titulo: "Los avisos",
       texto: {
-        operador: "La campana te avisa cuando llega un expediente, cuando te devuelven uno o cuando un plazo está por vencer. El número es lo que no leíste.",
+        operador:
+          "La campana te avisa cuando llega un expediente, cuando te devuelven uno o cuando un plazo está por vencer o venció. El número es lo que no leíste; tocá un aviso para abrir el expediente.",
       },
+    },
+    {
+      id: "migue",
+      ancla: "migue",
+      titulo: "Migue, el asistente",
+      texto:
+        "Migue contesta las dudas de la pantalla en la que estás y te busca datos: «¿dónde está el 42/2026?», «¿qué tengo demorado?». Solo consulta, no cambia nada. Si te tapa algo, arrastralo a otro lugar.",
     },
     {
       id: "ayuda",
@@ -74,21 +105,22 @@ export const BIENVENIDA: Recorrido = {
 const BANDEJA: Recorrido = {
   id: "bandeja",
   nombre: "Bandeja",
-  version: 1,
+  // 2 (03/11/2026): más detalle en cada parte y la carga histórica.
+  version: 2,
   pasos: [
     {
       id: "pestanas",
       ancla: "bandeja-pestanas",
       titulo: "Tu bandeja, por pestañas",
       texto:
-        "Por confirmar: lo que le pasaron a tu área. En mi área: lo que tienen que trabajar. Afuera: lo que siguen ustedes pero está en la DIM o en un cementerio. El número dice cuántos hay en cada una.",
+        "Por confirmar: lo que le mandaron a tu área y todavía no recibieron. En mi área: lo que ya tienen y hay que trabajar. Afuera: lo que siguen ustedes pero está en la DIM o en un cementerio. El número dice cuántos hay en cada una.",
     },
     {
       id: "confirmar",
       ancla: ["bandeja-lote", "bandeja-confirmar", "bandeja-pestana-por_confirmar"],
       titulo: "Confirmar la recepción",
       texto:
-        "Cuando tengas el papel en la mano, confirmá que lo recibiste: con Confirmar, de a uno, o marcando varios y tocando Confirmar seleccionados. Hasta que no lo confirmás, sigue figurando en el área que lo mandó.",
+        "Cuando tengas el papel en la mano, confirmá que lo recibiste: con Confirmar, de a uno, o marcando varios y tocando Confirmar seleccionados. Queda anotado quién y cuándo. Hasta que lo confirmás, sigue figurando en el área que lo mandó.",
     },
     {
       id: "pase-rapido",
@@ -102,31 +134,34 @@ const BANDEJA: Recorrido = {
       ancla: ["bandeja-demorado", "bandeja-dias"],
       titulo: "Días en el área",
       texto:
-        "Son días hábiles desde que llegó a tu área. Si pasa el límite de ese paso, se pone en rojo con un relojito y dice demorado: conviene atenderlo primero.",
+        "Son días hábiles desde que llegó a tu área (en una ficha de papel, desde que se terminó de cargar). Cada paso tiene su límite: si lo pasa, se pone en rojo con un relojito y dice demorado. Atendé esos primero.",
     },
     {
       id: "devuelto",
       ancla: "bandeja-devuelto",
       titulo: "Devueltos, en rojo",
-      texto: "Si otra área te devuelve un expediente, la fila se pinta de rojo y dice quién lo devolvió y por qué.",
+      texto:
+        "Si otra área te devuelve un expediente, la fila se pinta de rojo y dice quién lo devolvió y por qué. Corregí lo que dice el motivo y volvé a darle pase.",
     },
     {
       id: "plazos",
       ancla: "bandeja-pestana-plazos",
       titulo: "Plazos de la DIM",
-      texto: "Los expedientes que esperan el pago en la DIM, con su vencimiento: en ámbar si faltan 5 días hábiles o menos, en rojo si ya venció.",
+      texto:
+        "Los que esperan el pago en la DIM, con su vencimiento: en ámbar si faltan 5 días hábiles o menos, en rojo si ya venció. Si vence sin pago, Mesa de Entradas puede archivarlo y abrir uno nuevo vinculado.",
     },
     {
       id: "carga-historica",
       ancla: "bandeja-pestana-carga_historica",
       titulo: "Carga histórica",
-      texto: "Los expedientes que empezaron antes del sistema. Transcribí la ficha de papel y terminá la carga para que sigan el circuito como los demás.",
+      texto:
+        "Las fichas de papel de antes del sistema que se están pasando. Mientras la carga está abierta no se dan pases ni se archiva: se copia el papel y al final se toca Terminar carga histórica. Desde ahí sigue como cualquier otro.",
     },
     {
       id: "abrir",
       ancla: "bandeja-abrir",
       titulo: "Abrir la ficha",
-      texto: "Con Abrir (o tocando el número) ves la ficha completa: qué falta, los documentos, el historial y el botón para dar el pase.",
+      texto: "Con Abrir (o tocando el número) ves la ficha completa: qué falta para avanzar, los documentos, el historial y los botones para dar el pase o devolverlo.",
     },
   ],
 };
@@ -134,27 +169,38 @@ const BANDEJA: Recorrido = {
 const FICHA: Recorrido = {
   id: "ficha",
   nombre: "Ficha del expediente",
-  version: 1,
+  // 2 (03/11/2026): más detalle, y el código de consulta.
+  version: 2,
   pasos: [
     {
       id: "cabecera",
       ancla: "ficha-cabecera",
       titulo: "El expediente",
-      texto: "Arriba está el número, el estado (En trámite, Concluido, Archivado…) y las alertas, como Devuelto o Sin confirmar.",
+      texto:
+        "Arriba están el número, el estado (En trámite, Espera de pago en la DIM, Concluido, Archivado o Anulado) y las alertas: Devuelto, Sin confirmar recepción, Plazo por vencer, Carga histórica abierta…",
     },
     {
       id: "paso-area",
       ancla: "ficha-paso-area",
       titulo: "En qué paso está y quién lo tiene",
-      texto: "Paso actual dice en qué parte del trámite va. Área actual, qué área tiene el papel ahora y desde cuándo.",
+      texto:
+        "Paso actual: en qué parte del trámite va. Área actual: quién tiene el papel ahora y desde cuándo. Si dice Sin confirmar la recepción, el papel salió del área anterior y nadie avisó todavía que llegó.",
+    },
+    {
+      id: "codigo",
+      ancla: "ficha-codigo-consulta",
+      titulo: "El código de consulta",
+      texto:
+        "Va en el comprobante que se le da a la persona: con el número y este código sigue el trámite desde la página pública, sin venir a preguntar. Si lo pierde o lo conoce alguien que no debe, Mesa de Entradas lo cambia por otro.",
     },
     {
       id: "faltan",
       ancla: "ficha-faltan",
       titulo: "Qué falta para avanzar",
       texto: {
-        operador: "Lo que hay que hacer antes de dar el pase. Cada renglón tiene su botón para resolverlo ahí mismo.",
-        todos: "Lo que el área tiene que resolver antes de dar el pase al paso siguiente.",
+        operador:
+          "Lo que tu área tiene que resolver antes de dar el pase: subtareas, documentos y datos del trámite. Cada renglón tiene su botón para resolverlo ahí mismo. Cuando no falta nada, ya se puede dar el pase.",
+        todos: "Lo que el área que lo tiene debe resolver antes de dar el pase al paso siguiente: subtareas, documentos y datos del trámite.",
       },
     },
     {
@@ -162,7 +208,7 @@ const FICHA: Recorrido = {
       ancla: "ficha-acciones-paso",
       titulo: "Dar pase o devolver",
       texto:
-        "Dar pase lo manda al paso siguiente. Si todavía falta algo, el botón se pone ámbar y dice Faltan N: al tocarlo te muestra qué. Devolver lo manda para atrás, siempre con el motivo.",
+        "Dar pase lo manda al paso siguiente. Si todavía falta algo, el botón se pone ámbar y dice Faltan N: al tocarlo te muestra qué. Devolver lo manda a un paso anterior, siempre con el motivo, que le llega como aviso al área.",
     },
     {
       id: "recorrido",
@@ -187,7 +233,7 @@ const FICHA: Recorrido = {
       ancla: "ficha-historial",
       titulo: "El historial",
       texto:
-        "Todo lo que pasó con el expediente, en orden. Podés filtrar por tipo o por paso. Verificar integridad comprueba que nadie haya tocado el historial a escondidas.",
+        "Todo lo que pasó, en orden, con quién y cuándo; lo copiado del papel dice de dónde salió. Nada se borra: un error se corrige con un movimiento nuevo. Podés filtrar por tipo o por paso, y Verificar integridad comprueba que nadie lo haya alterado.",
     },
     {
       id: "imprimir",
@@ -233,7 +279,8 @@ const NUEVO: Recorrido = {
 const FORMULARIO: Recorrido = {
   id: "expediente-formulario",
   nombre: "Formulario del expediente",
-  version: 1,
+  // 2 (03/11/2026): la fecha de inicio y las fichas de papel; el contacto opcional en esas.
+  version: 2,
   pasos: [
     {
       id: "tramite",
@@ -253,7 +300,7 @@ const FORMULARIO: Recorrido = {
       ancla: "form-personas",
       titulo: "Las personas",
       texto:
-        "El titular y, si el trámite lo pide, las demás personas. Cada una puede ser persona física (con DNI) o jurídica (con CUIT y razón social). Marcá cuál es el contacto: tiene que tener teléfono o correo.",
+        "El titular y, si el trámite lo pide, las demás personas. Cada una puede ser persona física (con DNI) o jurídica (con CUIT y razón social). Marcá cuál es el contacto, con teléfono o correo; en una ficha de papel vieja es opcional.",
     },
     {
       id: "extras",
@@ -268,6 +315,14 @@ const FORMULARIO: Recorrido = {
       texto: "Marcá lo que te entregan hoy en el mostrador. Lo que no marques queda pendiente y se puede marcar después en la ficha.",
     },
     {
+      id: "inicio",
+      ancla: "form-inicio",
+      titulo: "Fecha de inicio y fichas de papel",
+      texto: {
+        mesa: "Si el trámite empezó hace unos días, poné la fecha real (hasta 30 días atrás). Si es una ficha vieja de papel, marcá Expediente iniciado antes del sistema: acepta fechas desde 1950, pide la fuente y después se transcriben sus pases.",
+      },
+    },
+    {
       id: "guardar",
       ancla: "form-guardar",
       titulo: "Guardar",
@@ -280,7 +335,8 @@ const FORMULARIO: Recorrido = {
 const BUSQUEDA: Recorrido = {
   id: "busqueda",
   nombre: "Buscar expedientes",
-  version: 1,
+  // 2 (03/11/2026): el filtro de los cargados del papel.
+  version: 2,
   pasos: [
     {
       id: "caja",
@@ -293,7 +349,8 @@ const BUSQUEDA: Recorrido = {
       id: "filtros",
       ancla: "busqueda-filtros",
       titulo: "Filtros",
-      texto: "Para acotar: estado, tipo de trámite, plantilla, área, fechas y cementerio. El número al lado dice cuántos filtros estás usando.",
+      texto:
+        "Para acotar: estado, tipo de trámite, plantilla, área, fechas y cementerio, o solo los cargados del papel. El número al lado dice cuántos filtros estás usando. Desde el Panel, cada número abre esta lista ya filtrada.",
     },
     {
       id: "resultados",
@@ -325,32 +382,36 @@ const BUSQUEDA: Recorrido = {
 const TRANSCRIPCION: Recorrido = {
   id: "transcripcion",
   nombre: "Transcribir la ficha de papel",
-  version: 1,
+  // 2 (03/11/2026): más detalle; "Cómo terminó" no ofrece anulado; el reloj desde el fin de la carga.
+  version: 2,
   pasos: [
     {
       id: "cabecera",
       ancla: "transcripcion-cabecera",
       titulo: "Pasar el papel al sistema",
-      texto: "Esta pantalla es para los expedientes que empezaron antes del sistema: copiás lo que dice la ficha de papel para que el historial quede completo.",
+      texto:
+        "Para los expedientes que empezaron antes del sistema: copiás lo que dice la ficha de papel, tal cual y con sus fechas, para que el historial quede completo. Mientras la carga está abierta no se dan pases ni se archiva.",
     },
     {
       id: "pases",
       ancla: "transcripcion-grilla",
       titulo: "Los pases de la ficha",
       texto:
-        "Una fila por pase, con la fecha y el paso al que llegó el papel. Enter baja a la fila siguiente (en la última, agrega otra). Al final, Registrar guarda todas juntas.",
+        "Una fila por pase: la fecha, el paso al que llegó el papel y la fuente. Si vuelve a un paso anterior es una devolución y lleva motivo. Enter baja a la fila siguiente (en la última, agrega otra); Registrar guarda todas juntas.",
     },
     {
       id: "subtareas",
       ancla: "transcripcion-subtareas",
       titulo: "Las subtareas",
-      texto: "Tildá lo que el papel dice que ya se hizo, con la fecha que figura ahí.",
+      texto:
+        "Tildá lo que el papel dice que ya se hizo, con la fecha que figura ahí. Si el papel no dice cuándo, dejá la fecha vacía: se toma el día en que llegó a ese paso.",
     },
     {
       id: "final",
       ancla: "transcripcion-estado",
       titulo: "Cómo terminó",
-      texto: "Si según el papel el trámite ya terminó, indicalo acá: concluido, archivado (con la caja) o anulado.",
+      texto:
+        "Si según el papel el trámite ya terminó, registralo acá con su fecha: concluido (solo desde el último paso) o archivado, con la caja. Si se archivó sin concluir, pide el motivo. Si sigue en trámite, no toques nada acá.",
     },
     {
       id: "foto",
@@ -362,7 +423,8 @@ const TRANSCRIPCION: Recorrido = {
       id: "terminar",
       ancla: "transcripcion-terminar",
       titulo: "Terminar la carga",
-      texto: "Cuando terminaste de copiar todo, terminá la carga histórica: desde ahí el expediente sigue el circuito como cualquier otro.",
+      texto:
+        "Cuando copiaste todo, tocá Terminar carga histórica. Desde ahí sigue el circuito como cualquier otro, y la demora y los plazos empiezan a contar ese día, no desde la fecha vieja del papel. Queda con la etiqueta Del papel.",
     },
   ],
 };
@@ -370,7 +432,8 @@ const TRANSCRIPCION: Recorrido = {
 const PANEL: Recorrido = {
   id: "panel",
   nombre: "Panel",
-  version: 1,
+  // 2 (03/11/2026): qué es demorado y sin confirmar, y qué hacer con eso.
+  version: 2,
   pasos: [
     {
       id: "accesos",
@@ -388,13 +451,14 @@ const PANEL: Recorrido = {
       id: "estados",
       ancla: "panel-estados",
       titulo: "Expedientes por estado",
-      texto: "Cuántos hay en trámite, esperando el pago, concluidos y archivados. Tocá un número para ver la lista en la búsqueda.",
+      texto:
+        "Cuántos hay en trámite, esperando el pago en la DIM, concluidos y archivados. Tocá un número para ver la lista en la búsqueda, ya filtrada; desde ahí se abre cada ficha.",
     },
     {
       id: "matriz",
       ancla: "panel-matriz",
       titulo: "Dónde están",
-      texto: "Los que están en trámite, por área y por tipo de trámite. Cada número lleva a la lista.",
+      texto: "Los que están en trámite, por área y por tipo de trámite: muestra dónde se acumula el trabajo. Cada número lleva a la lista de esos expedientes.",
     },
     {
       id: "plazos",
@@ -406,7 +470,8 @@ const PANEL: Recorrido = {
       id: "demorados",
       ancla: "panel-demorados",
       titulo: "Demorados y sin confirmar",
-      texto: "Los que pasaron más días de lo esperado en un área y los pases que nadie confirmó después de 2 días hábiles.",
+      texto:
+        "Demorados: los que pasaron el límite de días hábiles de su paso, con el área que los tiene. Sin confirmar: pases que nadie recibió en 2 días hábiles; puede ser un papel que se quedó en el camino. Conviene preguntarle al área.",
     },
     {
       id: "imprimir",

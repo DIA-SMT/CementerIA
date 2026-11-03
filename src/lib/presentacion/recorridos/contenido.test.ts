@@ -5,9 +5,9 @@ import { anclasDe, PERFILES, resolverPasos, textoPara } from "./motor";
 const TODOS = [BIENVENIDA, ...Object.values(RECORRIDOS)];
 
 describe("contenido de los recorridos", () => {
-  it.each(TODOS.map((r) => [r.id, r] as const))("%s: de 4 a 8 pasos, ids únicos y versión positiva", (_id, r) => {
+  it.each(TODOS.map((r) => [r.id, r] as const))("%s: de 4 a 10 pasos, ids únicos y versión positiva", (_id, r) => {
     expect(r.pasos.length).toBeGreaterThanOrEqual(4);
-    expect(r.pasos.length).toBeLessThanOrEqual(8);
+    expect(r.pasos.length).toBeLessThanOrEqual(10);
     expect(new Set(r.pasos.map((p) => p.id)).size).toBe(r.pasos.length);
     expect(Number.isInteger(r.version) && r.version > 0).toBe(true);
     expect(r.nombre.trim()).not.toBe("");

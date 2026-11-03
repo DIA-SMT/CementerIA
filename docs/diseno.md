@@ -844,8 +844,10 @@ nuevos.
   tarjeta); en el alta, la tarjeta se apoya arriba de la barra de acciones fija
   (mide su alto con un `ResizeObserver`) y el espacio va antes de la barra.
   Borde `info-borde`, ícono `Compass` en un círculo `superficie-azul`.
-- La **bienvenida** general (el menú y cómo contraerlo, el buscador, "Por
-  confirmar", la campana y el "?") se ofrece **una sola vez**, en la primera
+- La **bienvenida** general (qué es el sistema, cómo se mueve un expediente,
+  lo que le toca a cada perfil, los días hábiles, el menú, el buscador, "Por
+  confirmar", la campana, Migue y el "?"; 03/11/2026, versión 3) se ofrece
+  **una sola vez**, en la primera
   pantalla después del primer ingreso, con "Empezar" y "Ahora no" (cualquier
   respuesta la cierra). Una sola invitación por vista: si se contestó la
   bienvenida (o se abrió un recorrido con el "?"), la siguiente espera a la
@@ -947,7 +949,7 @@ con `todos` como comodín; un perfil sin texto no ve el paso.
 - `src/lib/presentacion/recorridos/motor.ts`: lo puro (perfiles, textos por
   perfil, qué pasos se muestran, lo recordado, la invitación). Con tests.
 - `src/lib/presentacion/recorridos/contenido.ts`: los recorridos. Con tests
-  (de 4 a 8 pasos, ids únicos, anclas válidas, textos por rol).
+  (de 4 a 10 pasos, ids únicos, anclas válidas, textos por rol).
 - `src/components/recorrido/`: `proveedor.tsx` (`ProveedorRecorridos`, en la
   cáscara y en `/cambiar-clave`, y `PantallaConRecorrido`, la marca de cada
   página), `invitacion.tsx`, `globo.tsx` (el recorrido en curso),
@@ -970,11 +972,11 @@ con `todos` como comodín; un perfil sin texto no ve el paso.
    todos }`). Corto: título de hasta 60 caracteres, texto de hasta 280 (lo
    controla el test), en castellano llano, sin jerga técnica.
 3. **Subir la `version`** del recorrido, para que se vuelva a invitar.
-4. `npm test` (el contenido tiene sus reglas: de 4 a 8 pasos).
+4. `npm test` (el contenido tiene sus reglas: de 4 a 10 pasos).
 
 **Un recorrido** para una pantalla nueva:
 
-1. Escribirlo en `contenido.ts` (de 4 a 8 pasos, `version: 1`) y sumarlo a
+1. Escribirlo en `contenido.ts` (de 4 a 10 pasos, `version: 1`) y sumarlo a
    `RECORRIDOS` con su id.
 2. En la página, `<PantallaConRecorrido id="<id>" />` (de
    `@/components/recorrido/proveedor`; no dibuja nada). Si la página cambia de
