@@ -248,7 +248,8 @@ describe("lo que ve la página pública: solo lo activo, lo visible y lo vigente
       const r = await contenidoSitioPublico(tx, ahora);
       expect(r.cementerios.map((c) => c.id)).not.toContain(jardin);
       expect(r.cementerios.map((c) => c.id)).toEqual(expect.arrayContaining([oeste, norte]));
-      expect(r.cementerios.find((c) => c.id === oeste)).toMatchObject({ horarioFinDeSemana: "De 8 a 13", foto: { clave: "panoramica" } });
+      // La foto, resuelta (30/10/2026): la del kit, ilustrativa y con sus dos anchos.
+      expect(r.cementerios.find((c) => c.id === oeste)).toMatchObject({ horarioFinDeSemana: "De 8 a 13", foto: { src: "/assets/cementeria/hero-landing-960.webp", ilustrativa: true } });
       expect(r.hayHorarios).toBe(true);
       expect(r.recorridos.map((x) => x.nombre)).toEqual(["Activo (it)"]);
       expect(r.fechas).toHaveLength(6);

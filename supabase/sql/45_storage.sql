@@ -1,4 +1,4 @@
--- Bucket PRIVADO de adjuntos en Supabase Storage (solo para el despliegue en Vercel). Idempotente.
+-- Buckets PRIVADOS de Supabase Storage, adjuntos y sitio-publico (solo para el despliegue en Vercel). Idempotente.
 --
 -- GENERADO por `npm run supabase:sql` (scripts/supabase/generar-sql.mjs). No editar a mano:
 -- se cambia la fuente y se vuelve a generar.
@@ -8,12 +8,14 @@
 -- queda nada a medias. Con psql: psql -1 -v ON_ERROR_STOP=1 -f <archivo>.
 --
 -- Fuente: scripts/supabase/sql/storage.sql
--- Lo usa la app con ADJUNTOS_ALMACEN=supabase (docs/despliegue-vercel.md). En el
--- servidor municipal los adjuntos van al disco y este bucket queda vacío.
+-- Los usa la app con ADJUNTOS_ALMACEN=supabase (docs/despliegue-vercel.md). En el
+-- servidor municipal los adjuntos y las fotos van al disco y estos buckets quedan vacíos.
 
--- Bucket de adjuntos en Supabase Storage (ADJUNTOS_ALMACEN=supabase: el
--- despliegue en Vercel, docs/despliegue-vercel.md). Corre como el rol postgres
--- de Supabase (SQL Editor o preparar.mjs). Idempotente.
+-- Buckets de Supabase Storage (ADJUNTOS_ALMACEN=supabase: el despliegue en
+-- Vercel, docs/despliegue-vercel.md): `adjuntos` y, desde el 30/10/2026,
+-- `sitio-publico` (las fotos que sube la Dirección para la página pública).
+-- Corre como el rol postgres de Supabase (SQL Editor o preparar.mjs).
+-- Idempotente: se puede volver a correr entero.
 --
 -- PRIVADO (public = false): no hay URL pública de ningún objeto. SIN POLÍTICAS
 -- en storage.objects ni storage.buckets: con RLS habilitado (lo trae
@@ -26,6 +28,14 @@
 -- Límites del bucket, además de los de la app (que vuelve a medir y a mirar
 -- los magic bytes al confirmar): 10 MB (10485760 bytes) y solo PDF, JPEG y
 -- PNG por Content-Type.
+--
+-- `sitio-publico`, igual de PRIVADO y sin políticas aunque las fotos sean
+-- públicas: las sirve la app (GET /sitio/fotos/<id>/<versión>-<ancho>.webp,
+-- solo las activas, con caché larga para el CDN de Vercel), así que una foto
+-- dada de baja deja de verse y nada se puede listar. El navegador sube el
+-- original (JPEG, PNG o WebP, hasta 15 MB = 15728640 bytes) a tmp/<uuid> con
+-- una URL firmada; la app lo procesa (sharp), guarda dos WebP sin metadatos en
+-- fotos/<uuid>/ y borra el original.
 --
 -- El rol postgres de Supabase puede escribir storage.buckets: los servicios
 -- crean el esquema storage con privilegios por defecto para postgres, y la
@@ -51,6 +61,13 @@ ON CONFLICT (id) DO UPDATE
        file_size_limit = EXCLUDED.file_size_limit,
        allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('sitio-publico', 'sitio-publico', false, 15728640, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO UPDATE
+   SET public = false,
+       file_size_limit = EXCLUDED.file_size_limit,
+       allowed_mime_types = EXCLUDED.allowed_mime_types;
+
 -- Las políticas no se tocan acá (no se borra nada que haya creado otro), pero
 -- si hay alguna, que se vea: 99_verificar.sql la marca en falso.
 DO $$
@@ -59,7 +76,7 @@ DECLARE
 BEGIN
   SELECT count(*) INTO n FROM pg_policies WHERE schemaname = 'storage' AND tablename IN ('objects', 'buckets');
   IF n > 0 THEN
-    RAISE WARNING 'Hay % política(s) en storage.objects o storage.buckets: el bucket adjuntos no tiene que tener ninguna. Revisalas en Storage → Policies.', n;
+    RAISE WARNING 'Hay % política(s) en storage.objects o storage.buckets: los buckets adjuntos y sitio-publico no tienen que tener ninguna. Revisalas en Storage → Policies.', n;
   END IF;
 END
 $$;

@@ -42,7 +42,11 @@ export type CodigoErrorDominio =
    * está en uso (una clave de ubicación con expedientes, un área con usuarios o
    * en una plantilla publicada, el último administrador activo).
    */
-  | "en_uso";
+  | "en_uso"
+  /** Sitio público (30/10/2026): la foto subida no sirve (tipo, tamaño, medidas o no se puede leer). */
+  | "imagen_invalida"
+  /** Sitio público (30/10/2026): ya hay 200 fotos activas. */
+  | "limite_alcanzado";
 
 export interface ErrorCampo {
   /** Dónde: `personas[1].dni`, `ubicacion.lote`. Vacía si es del formulario entero. */

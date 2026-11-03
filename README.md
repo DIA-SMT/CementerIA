@@ -200,6 +200,15 @@ los cementerios, una página por sección (`/`, `/cementerios`, `/horarios`,
 la **Dirección** desde `/admin/sitio-publico`, sin tocar código ni variables de
 entorno.
 
+Fotos propias del sitio (30/10/2026; [docs/api-dominio.md](docs/api-dominio.md),
+sección 25.7; migración `*_sitio_fotos`): la Dirección sube sus fotos (JPG,
+PNG o WebP de hasta 15 MB, con texto alternativo obligatorio) en la pestaña
+**Fotos** de `/admin/sitio-publico` y las elige para cada cementerio o
+recorrido junto a las ilustrativas. El servidor las procesa con **sharp**
+(magic bytes, orientación, dos WebP de 960 y 1920 px sin metadatos: ni GPS ni
+cámara) y las sirve `/sitio/fotos/…` con caché larga; en la página no dicen
+"ilustrativa". Se dan de baja, no se borran. Ver "Sitio público", más abajo.
+
 Stack: Next.js 16.4 (App Router), React 19, TypeScript 5 estricto, Tailwind 4,
 Prisma 7.9 con `@prisma/adapter-pg`, PostgreSQL 15, zod 4 y jose 6. Antes de
 tocar código de Next, leer [AGENTS.md](AGENTS.md): Next 16 cambia APIs y
@@ -290,7 +299,7 @@ Solo datos ficticios en desarrollo y staging.
 | `npm run db:local:detener` | Lo detiene |
 | `npm run db:reset` | Base vacía, migraciones (`prisma migrate deploy`) y semilla |
 | `npm run db:seed` | Solo la semilla. Idempotente: crea lo que falta y no toca lo que existe |
-| `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`tmp/` del almacén: `<ADJUNTOS_DIR>/tmp/` o Supabase Storage) de más de 24 h (`-- --horas N` para otra antigüedad) |
+| `npm run adjuntos:barrer` | Borra los temporales de adjuntos (`tmp/` del almacén: `<ADJUNTOS_DIR>/tmp/` o Supabase Storage) de más de 24 h (`-- --horas N` para otra antigüedad). Desde el 30/10/2026, también los de las fotos del sitio (`sitio-publico/tmp/` o el bucket `sitio-publico`) |
 | `npm run empaquetar` | Arma el paquete de despliegue (build standalone, migraciones y CLI de Prisma) desde el último commit, en `build/paquetes/`. Ver [docs/despliegue.md](docs/despliegue.md) |
 | `npm run db:verificar-restauracion` | Controla una base restaurada (conteos, dueños, triggers, cadena de hash, sha256 de adjuntos). Lo usa `scripts/restaurar-prueba.sh` |
 | `npm run historial:verificar` | Verifica la cadena de hash del historial de todos los expedientes y lo registra en `auditoria.accesos` como SISTEMA (`-- --sin-registro` para no registrar). Sale con 1 si hay alguno roto |
@@ -317,8 +326,9 @@ prisma/
                            (26/10/2026, a mano: la cadena de hash del historial),
                            *_avisos (26/10/2026: avisos, preferencias y corridas),
                            *_rls_defensa y *_login_propio (27/10/2026),
-                           *_consulta_publica (28/10/2026: código de consulta e intentos) y
-                           *_sitio_publico (28/10/2026: el contenido de la página pública)
+                           *_consulta_publica (28/10/2026: código de consulta e intentos),
+                           *_sitio_publico (28/10/2026: el contenido de la página pública) y
+                           *_sitio_fotos (30/10/2026: las fotos propias del sitio)
   seed.ts, semilla/        semilla: áreas, catálogos, cementerios, feriados,
                            usuarios ficticios, las 4 plantillas de la sección 4 y
                            las 2 de inhumación (27/10/2026); las preguntas frecuentes
@@ -362,7 +372,10 @@ src/
                            los del tiempo y lo que ve cada usuario); publico/ (28/10/2026:
                            la consulta pública y los trámites de la página pública); sitio/
                            (28/10/2026: el contenido de la página que carga la Dirección). Ver docs/api-dominio.md
-  lib/adjuntos/            tipos por magic bytes y el almacén en disco (AlmacenAdjuntos)
+  lib/adjuntos/            tipos por magic bytes y el almacén en disco (AlmacenAdjuntos);
+                           desde el 30/10/2026 también el de las fotos del sitio (fabrica.ts)
+  lib/imagenes/            30/10/2026: las fotos del sitio público, qué se acepta (tipos.ts,
+                           puro) y su procesamiento con sharp (procesar.ts)
   lib/presentacion/        lógica de las pantallas, sin Next: modelo del formulario, parámetros
                            del buscador, URL del QR, enlace wa.me, textos, la lógica de las
                            Server Actions (acciones.ts) y, semana 3, "Faltan N", pestañas y
@@ -681,7 +694,8 @@ diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
   Cementerios (domicilio, enlace al mapa, descripción, "qué tiene", horarios de
   lunes a viernes, de sábados, domingos y feriados y de fechas especiales,
   foto y si se muestra), Recorridos (con sus fechas), Novedades (desde y hasta,
-  inclusive), Contacto (Mesa de Entradas) y Preguntas frecuentes. "Ver la
+  inclusive), Contacto (Mesa de Entradas), Preguntas frecuentes y, desde el
+  30/10/2026, Fotos (las propias: ver abajo). "Ver la
   página pública" abre la vista previa del inicio, y cada pestaña ofrece además
   la página donde se ve lo suyo (Recorridos, `/recorridos`; Contacto y
   Preguntas, `/contacto`). Cada cambio queda en la auditoría
@@ -691,8 +705,8 @@ diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
   Markdown); cada texto tiene un largo máximo; los enlaces de mapa son solo
   https de Google Maps (`google.com/maps`, `maps.app.goo.gl`) u OpenStreetMap;
   el de inscripción, https. La foto se elige de las ilustrativas que trae el
-  sistema (`public/assets/cementeria`, conceptuales generadas con IA): **subir
-  fotos propias queda para más adelante**.
+  sistema (`public/assets/cementeria`, conceptuales generadas con IA) o de las
+  que subió la Dirección (abajo).
   Lo que no se quiere mostrar se desactiva; solo las fechas de recorrido y las
   novedades se quitan.
 - **Vacía, como arranca en producción:** los cementerios del catálogo se listan
@@ -707,6 +721,28 @@ diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
   pagan las tasas); la de desarrollo, además, contenido de ejemplo ficticio
   ("(dato de prueba)", "(ejemplo)") para ver todas las secciones. En Supabase,
   `supabase/sql/32_sitio_publico.sql` (ver su README).
+- **Fotos propias** (30/10/2026; [docs/api-dominio.md](docs/api-dominio.md),
+  25.7): en la pestaña **Fotos**, "Subir una foto" (JPG, PNG o WebP, hasta
+  15 MB, 600 px de ancho o más, proporción entre 1:2 y 4:1; **texto
+  alternativo** obligatorio de 5 a 200 caracteres y crédito opcional), con la
+  nota "No subas fotos donde se reconozcan personas ni nombres en lápidas sin
+  autorización". Hasta **200 activas**; la misma foto no se sube dos veces.
+  Cada una con su miniatura, dónde se usa, "Editar texto" y "Dar de baja"
+  (no se borra; si está en uso avisa dónde y, al confirmar, esos quedan sin
+  foto). En Cementerios y Recorridos, el selector "Foto" las agrupa en
+  "Fotos de la Dirección" e "Ilustrativas", con vista previa.
+  - **El servidor nunca sirve el archivo como llegó:** sharp mira los magic
+    bytes (GIF, SVG y HEIC no), lo orienta según el EXIF y lo re-codifica a
+    **WebP en 960 y 1920 px, sin metadatos** (EXIF, GPS, cámara, perfil); el
+    original no se guarda. Se guardan ancho, alto, bytes y sha256.
+  - **Dónde:** el mismo almacén que los adjuntos (`ADJUNTOS_ALMACEN`): en el
+    disco, `<ADJUNTOS_DIR>/sitio-publico/`; en Vercel, el bucket privado
+    `sitio-publico` de Supabase Storage (el navegador sube directo con una
+    URL firmada, como los adjuntos). Las sirve `GET /sitio/fotos/<id>/<versión>-<960|1920>.webp`:
+    solo las activas, `image/webp`, `immutable` y `nosniff`; lo demás, 404.
+  - **En la página:** `srcset` de los dos anchos, `width`/`height`, `lazy`;
+    sin "ilustrativa" (las del kit lo siguen diciendo) y con "Foto: <crédito>"
+    al pie, si lo cargaron.
 - **Imagen del hero:** `public/assets/cementeria/hero-landing.webp` y su versión
   de 960 px (`hero-landing-960.webp`). Cada página interna tiene su foto del
   kit en la banda del encabezado; el panel usa `hero-dashboard`.
@@ -921,7 +957,7 @@ Documentadas una por una en [.env.example](.env.example).
 | `CIDITUC_API_URL` | Backend contra el que se valida el token; https en producción |
 | `CIDITUC_CA_PEM` | Opcional: certificado intermedio que reemplaza al embebido |
 | `ADJUNTOS_DIR` | Carpeta de los adjuntos, fuera del webroot. Obligatoria y absoluta en producción; en desarrollo, `./.data/adjuntos` |
-| `ADJUNTOS_ALMACEN` | `disco` (por defecto, `ADJUNTOS_DIR`) o `supabase` (Supabase Storage, bucket privado `adjuntos`: Vercel) |
+| `ADJUNTOS_ALMACEN` | `disco` (por defecto, `ADJUNTOS_DIR`) o `supabase` (Supabase Storage, buckets privados `adjuntos` y, desde el 30/10/2026, `sitio-publico` para las fotos del sitio: Vercel). Las fotos del sitio van al mismo almacén (en el disco, `<ADJUNTOS_DIR>/sitio-publico/`) |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Con `ADJUNTOS_ALMACEN=supabase`: el origen del proyecto y la clave **secreta** del servidor (`sb_secret_…`, solo en `apikey`; nunca llega al navegador) |
 | `CRON_SECRET` | Vercel Cron: `Authorization: Bearer` de `/api/cron/*` (32 caracteres o más; obligatoria en Vercel) |
 | `ENCABEZADOS_SEGURIDAD` | `app` (en el build): los encabezados de seguridad desde Next fuera de Vercel, para un hosting sin nginx |

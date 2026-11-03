@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ServicioSitio } from "@/lib/dominio/sitio";
+import { textoUsos, type ServicioSitio } from "@/lib/dominio/sitio";
 import type { UsuarioPermisos } from "@/lib/dominio/permisos";
 import { leerEntrada, vacioANull } from "./acciones";
 import type { ResultadoAdmin } from "./acciones-admin";
@@ -27,6 +27,9 @@ const EntradaSitio = z.discriminatedUnion("accion", [
   z.object({ accion: z.literal("quitar_novedad"), id: Id, motivo: Motivo }),
   z.object({ accion: z.literal("contacto"), datos: Datos, motivo: Motivo }),
   z.object({ accion: z.literal("pregunta"), datos: Datos, motivo: Motivo }),
+  // Fotos subidas (30/10/2026): corregir el texto y dar de baja. La subida es un Route Handler (/api/sitio/fotos).
+  z.object({ accion: z.literal("foto"), datos: Datos, motivo: Motivo }),
+  z.object({ accion: z.literal("baja_foto"), id: z.string().max(64), confirmarUso: z.boolean().optional(), motivo: Motivo }),
 ]);
 export type EntradaSitioAdmin = z.input<typeof EntradaSitio>;
 
@@ -67,6 +70,19 @@ export async function procesarSitio(servicio: ServicioSitio, usuario: UsuarioPer
       case "pregunta": {
         const r = await servicio.guardarPregunta(usuario, d.datos, motivo);
         return { ok: true, repetido: r.repetido, mensaje: r.repetido ? SIN_CAMBIOS : r.creado ? "Pregunta agregada." : "Pregunta guardada." };
+      }
+      case "foto": {
+        const r = await servicio.guardarFoto(usuario, d.datos, motivo);
+        return { ok: true, repetido: r.repetido, mensaje: r.repetido ? SIN_CAMBIOS : "Texto de la foto guardado." };
+      }
+      case "baja_foto": {
+        const r = await servicio.bajaFoto(usuario, { id: d.id, confirmarUso: d.confirmarUso }, motivo);
+        if (r.repetido) return { ok: true, repetido: true, mensaje: "Esa foto ya estaba dada de baja." };
+        return {
+          ok: true,
+          repetido: false,
+          mensaje: r.sinFoto.length > 0 ? `Foto dada de baja. Quedaron sin foto: ${textoUsos(r.sinFoto)}.` : "Foto dada de baja: ya no se muestra ni se puede elegir.",
+        };
       }
     }
   } catch (e) {

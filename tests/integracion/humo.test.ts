@@ -26,6 +26,8 @@ const TABLAS_ESPERADAS = [
   // 28/10/2026 (*_sitio_publico): el contenido de la página pública.
   "public.sitio_cementerios",
   "public.sitio_contacto",
+  // 30/10/2026 (*_sitio_fotos): las fotos propias del sitio.
+  "public.sitio_fotos",
   "public.sitio_novedades",
   "public.sitio_preguntas",
   "public.sitio_recorrido_fechas",
@@ -36,7 +38,7 @@ const TABLAS_ESPERADAS = [
 ];
 
 describe("humo: la base efímera quedó como en producción", () => {
-  it("aplicó todas las migraciones, tiene las 23 tablas y todas son de cementeria_owner", async () => {
+  it("aplicó todas las migraciones, tiene las 24 tablas y todas son de cementeria_owner", async () => {
     const carpetas = (await readdir(path.join(process.cwd(), "prisma", "migrations"), { withFileTypes: true }))
       .filter((d) => d.isDirectory())
       .map((d) => d.name)

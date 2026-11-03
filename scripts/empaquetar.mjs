@@ -45,6 +45,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { esBinarioSharpLinux, ponerSharpLinux } from "./lib/sharp-linux.mjs";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SALIDA = path.join(RAIZ, "build", "paquetes");
@@ -416,10 +417,15 @@ async function main() {
       if (n.startsWith("schema-engine-") && n !== motor) rmSync(path.join(dirEngines, n), { force: true });
     }
 
-    // sharp es del optimizador de imágenes de Next, que la app no usa (los
-    // adjuntos los sirve un Route Handler y nginx corta /_next/image). Si el
-    // trazado lo trajo, sería el binario de la máquina de build.
-    for (const p of [["sharp"], ["@img"]]) rmSync(path.join(paquete, "node_modules", ...p), { recursive: true, force: true });
+    // sharp (30/10/2026): lo usa la app para procesar las fotos del sitio
+    // público (src/lib/imagenes/procesar.ts); el optimizador de Next sigue sin
+    // usarse (nginx corta /_next/image). El trazado trae sharp con el binario
+    // de ESTA máquina: para el servidor van los de Linux x64, con la versión
+    // y el integrity del package-lock (scripts/lib/sharp-linux.mjs, npm pack).
+    if (opciones.destino === "linux") {
+      const lock = JSON.parse(readFileSync(path.join(fuente, "package-lock.json"), "utf8"));
+      console.log(`  sharp para Linux: ${ponerSharpLinux(lock, path.join(paquete, "node_modules")).join(", ")}`);
+    }
 
     // Scripts de operación.
     const scripts = path.join(paquete, "scripts");
@@ -453,7 +459,7 @@ async function main() {
     const envs = archivos.filter((a) => /(^|\/)\.env(\.|$)/.test(a) && !a.startsWith("deploy/"));
     if (envs.length > 0) throw new Error(`El paquete tiene archivos .env: ${envs.join(", ")}`);
     const nativos = archivos.filter((a) => /\.(node|dll|exe|so|dylib)$/.test(a) && !a.endsWith(`/${motor}`));
-    if (opciones.destino === "linux" && nativos.some((a) => !a.endsWith(".so"))) {
+    if (opciones.destino === "linux" && nativos.some((a) => !a.endsWith(".so") && !esBinarioSharpLinux(a))) {
       throw new Error(`El paquete tiene binarios de otra plataforma:\n  ${nativos.join("\n  ")}`);
     }
     if (nativos.length > 0) console.log(`  Binarios nativos (revisar): ${nativos.join(", ")}`);

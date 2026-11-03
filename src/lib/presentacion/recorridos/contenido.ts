@@ -754,13 +754,14 @@ const ADMIN_AUDITORIA: Recorrido = {
 const ADMIN_SITIO_PUBLICO: Recorrido = {
   id: "admin-sitio-publico",
   nombre: "Sitio público",
-  version: 1,
+  // 2 (30/10/2026): la pestaña Fotos.
+  version: 2,
   pasos: [
     {
       id: "pestanas",
       ancla: "sitio-pestanas",
       titulo: "Lo que ve cualquier persona",
-      texto: "Cementerios con sus horarios, recorridos con sus fechas, novedades, el contacto de Mesa de Entradas y las preguntas frecuentes.",
+      texto: "Cementerios con sus horarios, recorridos con sus fechas, novedades, el contacto de Mesa de Entradas, las preguntas frecuentes y las fotos propias.",
     },
     {
       id: "contenido",

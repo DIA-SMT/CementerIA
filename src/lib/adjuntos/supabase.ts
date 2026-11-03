@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ArchivoMuyGrande, crearMedidor, RE_ID, RE_RUTA, TemporalAusente, type AlmacenAdjuntos, type ArchivoRecibido } from "./almacen";
+import { ArchivoMuyGrande, crearMedidor, RE_ID, RE_RUTA, TemporalAusente, type AlmacenAdjuntos, type ArchivoRecibido, type OpcionesAlmacen } from "./almacen";
 import { detectarTipo } from "./tipos";
 
 /**
@@ -38,7 +38,7 @@ const TMP = "tmp";
 const LIMITE_LISTA = 1000;
 const LIMITE_BORRADO = 100;
 
-export interface OpcionesSupabase {
+export interface OpcionesSupabase extends OpcionesAlmacen {
   /** SUPABASE_URL: `https://<ref>.supabase.co`. */
   url: string;
   /** SUPABASE_SECRET_KEY. */
@@ -48,6 +48,12 @@ export interface OpcionesSupabase {
   fetch?: typeof fetch;
   /** Límite de las operaciones que no transfieren el archivo (firmar, mover, borrar, listar). */
   timeoutMs?: number;
+  /**
+   * El Content-Type con el que se sube un archivo por la app, mirando sus
+   * primeros bytes; null = no se sube (el dominio lo rechaza). Por defecto, el
+   * de los adjuntos (PDF, JPG o PNG); las fotos del sitio suben WebP.
+   */
+  tipoDe?: (cabecera: Uint8Array) => string | null;
 }
 
 /** Una respuesta de Storage que no es la esperada. El mensaje no lleva la clave ni la URL firmada. */
@@ -106,11 +112,6 @@ function temporal(id: string): string {
   return `${TMP}/${id}`;
 }
 
-function definitivo(ruta: string): string {
-  // La ruta sale de la base, pero igual se controla: nunca fuera de AAAA/MM/<uuid>.
-  if (!RE_RUTA.test(ruta)) throw new Error("Ruta de adjunto inválida");
-  return ruta;
-}
 
 /** Lee `contenido` con el medidor; si se pasa del máximo, cancela el resto. */
 async function medir(contenido: ReadableStream<Uint8Array>, maxBytes: number, alPedazo?: (parte: Uint8Array) => void) {
@@ -138,6 +139,14 @@ export function crearAlmacenSupabase(o: OpcionesSupabase): AlmacenAdjuntos {
   const pedir = o.fetch ?? globalThis.fetch;
   const timeoutMs = o.timeoutMs ?? 30_000;
   const clave = encabezadosClave(o.clave);
+  const rutaValida = o.rutaValida ?? RE_RUTA;
+  const tipoDe = o.tipoDe ?? ((cabecera: Uint8Array) => detectarTipo(cabecera)?.mime ?? null);
+
+  function definitivo(ruta: string): string {
+    // La ruta sale de la base, pero igual se controla: nunca fuera de AAAA/MM/<uuid> (o la forma de este almacén).
+    if (!rutaValida.test(ruta)) throw new Error("Ruta de adjunto inválida");
+    return ruta;
+  }
 
   /** Una operación de control (JSON de ida y vuelta, con límite de tiempo). */
   async function control(metodo: string, ruta: string, cuerpo?: unknown): Promise<Response> {
@@ -196,12 +205,12 @@ export function crearAlmacenSupabase(o: OpcionesSupabase): AlmacenAdjuntos {
       const partes: Uint8Array[] = [];
       const medidor = await medir(contenido, maxBytes, (p) => partes.push(p));
       const archivo = medidor.resultado(id);
-      const tipo = detectarTipo(archivo.cabecera);
+      const tipo = tipoDe(archivo.cabecera);
       // Vacío o de otro tipo: el dominio lo rechaza (y llama a descartar, que no falla).
       if (archivo.bytes === 0 || tipo === null) return archivo;
       const r = await pedir(`${base}/object/${encodeURIComponent(bucket)}/${enUrl(temporal(id))}`, {
         method: "POST",
-        headers: { ...clave, "Content-Type": tipo.mime, "x-upsert": "false" },
+        headers: { ...clave, "Content-Type": tipo, "x-upsert": "false" },
         body: Buffer.concat(partes),
         cache: "no-store",
       });
@@ -287,6 +296,27 @@ export function crearAlmacenSupabase(o: OpcionesSupabase): AlmacenAdjuntos {
         throw error;
       }
       return archivo;
+    },
+
+    async leerTemporal(id, maxBytes) {
+      const ruta = temporal(id);
+      const r = await bajar(ruta);
+      if (!r || !r.body) throw new TemporalAusente();
+      const descartarlo = () => borrarObjetos([ruta]).catch(() => 0);
+      const n = largo(r);
+      if (n !== null && n > maxBytes) {
+        await r.body.cancel().catch(() => undefined);
+        await descartarlo();
+        throw new ArchivoMuyGrande(maxBytes);
+      }
+      const partes: Uint8Array[] = [];
+      try {
+        await medir(r.body as ReadableStream<Uint8Array>, maxBytes, (p) => partes.push(p));
+      } catch (error) {
+        if (error instanceof ArchivoMuyGrande) await descartarlo();
+        throw error;
+      }
+      return Buffer.concat(partes);
     },
   };
 }

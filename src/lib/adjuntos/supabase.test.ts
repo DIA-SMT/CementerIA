@@ -174,3 +174,39 @@ describe("barrido de temporales", () => {
     expect(falso.objetos.size).toBe(0);
   });
 });
+
+describe("las fotos del sitio (30/10/2026): otro bucket, otras rutas, WebP", () => {
+  const WEBP = new Uint8Array([...new TextEncoder().encode("RIFF"), 0x24, 0, 0, 0, ...new TextEncoder().encode("WEBPVP8 "), 1, 2, 3, 4]);
+  const RUTA_FOTO = /^fotos\/[0-9a-f-]{36}\/(960|1920)\.webp$/;
+
+  it("sube la versión WebP con su tipo, la mueve a fotos/<uuid>/960.webp y no acepta una ruta de adjunto", async () => {
+    await falso.cerrar();
+    falso = await levantarStorageFalso({ bucket: "sitio-publico", limiteBytes: 15 * 1024 * 1024, tipos: ["image/jpeg", "image/png", "image/webp"] });
+    const fotos = crearAlmacenSupabase({
+      url: falso.url,
+      clave: falso.clave,
+      bucket: "sitio-publico",
+      rutaValida: RUTA_FOTO,
+      tipoDe: (c) => (c[0] === 0x52 ? "image/webp" : null),
+    });
+    const a = await fotos.recibir(flujo(WEBP), 1000);
+    const id = randomUUID();
+    await fotos.confirmar(a, `fotos/${id}/960.webp`);
+    expect(falso.objetos.get(`fotos/${id}/960.webp`)?.tipo).toBe("image/webp");
+    expect(await leerTodo((await fotos.abrir(`fotos/${id}/960.webp`)).contenido)).toEqual(WEBP);
+    await expect(fotos.abrir(rutaParaAdjunto(new Date(), id))).rejects.toThrow(/Ruta de adjunto inválida/);
+    await expect(fotos.abrir(`fotos/${id}/480.webp`)).rejects.toThrow(/Ruta de adjunto inválida/);
+    // Y el almacén de adjuntos no acepta una ruta de foto.
+    await expect(almacen.abrir(`fotos/${id}/960.webp`)).rejects.toThrow(/Ruta de adjunto inválida/);
+  });
+
+  it("leerTemporal devuelve el original entero (y lo borra si pasa del máximo)", async () => {
+    const id = randomUUID();
+    falso.poner(`tmp/${id}`, PNG);
+    expect(new Uint8Array(await almacen.leerTemporal!(id, 1000))).toEqual(PNG);
+    expect(falso.objetos.has(`tmp/${id}`)).toBe(true);
+    await expect(almacen.leerTemporal!(id, PNG.length - 1)).rejects.toBeInstanceOf(ArchivoMuyGrande);
+    expect(falso.objetos.has(`tmp/${id}`)).toBe(false);
+    await expect(almacen.leerTemporal!(randomUUID(), 1000)).rejects.toBeInstanceOf(TemporalAusente);
+  });
+});

@@ -4,12 +4,14 @@ import { ExternalLink } from "lucide-react";
 import { clasePestana } from "@/components/pestanas";
 import { CLASE_BOTON_SECUNDARIO } from "@/components/formulario";
 import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
+import { modoDeSubida } from "@/lib/adjuntos/config";
 import { exigirPantalla } from "@/lib/auth/sesion";
 import { RUTA_SITIO_PUBLICO } from "@/lib/dominio/navegacion";
 import { FOTOS_SITIO } from "@/lib/dominio/sitio";
 import { sitio } from "@/lib/dominio/sitio/servidor";
 import { PAGINAS_PUBLICAS, RUTA_VISTA_PUBLICA, type RutaInterna } from "@/lib/presentacion/sitio-publico";
-import { PestanaCementerios, PestanaContacto, PestanaNovedades, PestanaPreguntas, PestanaRecorridos } from "./pestanas";
+import { PestanaFotos } from "./fotos";
+import { PestanaCementerios, PestanaContacto, PestanaNovedades, PestanaPreguntas, PestanaRecorridos, type OpcionesFoto } from "./pestanas";
 
 export const metadata: Metadata = { title: "Sitio público" };
 
@@ -20,6 +22,8 @@ const PESTANAS: ReadonlyArray<{ id: string; etiqueta: string; pagina: RutaIntern
   { id: "novedades", etiqueta: "Novedades", pagina: null },
   { id: "contacto", etiqueta: "Contacto", pagina: "/contacto" },
   { id: "preguntas", etiqueta: "Preguntas frecuentes", pagina: "/contacto" },
+  // 30/10/2026: las fotos propias (se ven donde se eligen: Cementerios y Recorridos).
+  { id: "fotos", etiqueta: "Fotos", pagina: "/cementerios" },
 ];
 type Pestana = (typeof PESTANAS)[number];
 
@@ -33,7 +37,8 @@ function leerPestana(v: string | string[] | undefined): Pestana {
  * contenido de la página pública que carga la Dirección. Pestañas Cementerios
  * (domicilio, mapa, descripción, horarios de visita, foto y si se muestra),
  * Recorridos (con sus fechas), Novedades, Contacto (Mesa de Entradas) y
- * Preguntas frecuentes. La pestaña vive en la URL. Para la Dirección y el
+ * Preguntas frecuentes, y desde el 30/10/2026 Fotos (subir las propias: ./fotos.tsx,
+ * docs/api-dominio.md, sección 25.7). La pestaña vive en la URL. Para la Dirección y el
  * admin (permiso `editar_sitio_publico`); cada cambio queda en
  * auditoria.cambios. "Ver la página pública" abre `/?vista=publica`, el inicio
  * igual que sin sesión, y cada pestaña ofrece además la página donde se ve lo
@@ -44,7 +49,10 @@ export default async function PaginaSitioPublico(props: PageProps<"/admin/sitio-
   const usuario = await exigirPantalla("sitio_publico");
   const { id: pestana, pagina } = leerPestana((await props.searchParams).pestana);
   const contenido = await sitio.contenidoAdmin(usuario);
-  const fotos = FOTOS_SITIO.map((f) => ({ clave: f.clave, etiqueta: f.etiqueta }));
+  const fotos: OpcionesFoto = {
+    subidas: contenido.fotos.map((f) => ({ id: f.id, alt: f.alt, src: f.src })),
+    kit: FOTOS_SITIO.map((f) => ({ clave: f.clave, etiqueta: f.etiqueta, src: f.chica })),
+  };
   const cementerios = contenido.cementerios.map((c) => ({ id: c.cementerioId, nombre: c.nombre }));
 
   return (
@@ -56,8 +64,8 @@ export default async function PaginaSitioPublico(props: PageProps<"/admin/sitio-
             Sitio público
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-texto-secundario">
-            Lo que ve cualquier persona en la página de los cementerios: datos y horarios de cada cementerio, recorridos, novedades, contacto y
-            preguntas frecuentes. Se muestra como texto, tal cual se escribe. Lo que queda vacío no aparece. Cada cambio queda en la auditoría.
+            Lo que ve cualquier persona en la página de los cementerios: datos y horarios de cada cementerio, recorridos, novedades, contacto,
+            preguntas frecuentes y las fotos. Se muestra como texto, tal cual se escribe. Lo que queda vacío no aparece. Cada cambio queda en la auditoría.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2" data-recorrido="sitio-ver">
@@ -91,6 +99,7 @@ export default async function PaginaSitioPublico(props: PageProps<"/admin/sitio-
         {pestana === "novedades" ? <PestanaNovedades filas={contenido.novedades} /> : null}
         {pestana === "contacto" ? <PestanaContacto contacto={contenido.contacto} /> : null}
         {pestana === "preguntas" ? <PestanaPreguntas filas={contenido.preguntas} /> : null}
+        {pestana === "fotos" ? <PestanaFotos filas={contenido.fotos} dadasDeBaja={contenido.fotosDadasDeBaja} modo={modoDeSubida()} /> : null}
       </div>
     </section>
   );

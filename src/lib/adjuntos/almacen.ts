@@ -86,6 +86,20 @@ export interface AlmacenAdjuntos {
    * @throws TemporalAusente si no existe (el navegador no llegó a subirlo)
    */
   inspeccionarTemporal?(id: string, maxBytes: number): Promise<ArchivoRecibido>;
+  /**
+   * Como `inspeccionarTemporal()`, pero devuelve el contenido entero (las fotos
+   * del sitio, que se decodifican en memoria: 15 MB como máximo). No lo borra.
+   *
+   * @throws ArchivoMuyGrande si supera `maxBytes` (y lo borra)
+   * @throws TemporalAusente si no existe
+   */
+  leerTemporal?(id: string, maxBytes: number): Promise<Uint8Array>;
+}
+
+/** Opciones de un almacén que no es el de los adjuntos (las fotos del sitio, 30/10/2026). */
+export interface OpcionesAlmacen {
+  /** Qué rutas definitivas acepta. Por defecto, las de un adjunto (`AAAA/MM/<uuid>`). */
+  rutaValida?: RegExp;
 }
 
 export class ArchivoMuyGrande extends Error {
@@ -187,15 +201,16 @@ async function borrarSiExiste(ruta: string): Promise<void> {
  * El almacenamiento en disco. No toca el disco al crearse (lo crea perezoso
  * el primer `recibir()`): `next build` importa el servidor sin la carpeta.
  */
-export function crearAlmacenEnDisco(raiz: string): AlmacenAdjuntos {
+export function crearAlmacenEnDisco(raiz: string, opciones: OpcionesAlmacen = {}): AlmacenAdjuntos {
   const carpetaTmp = join(raiz, "tmp");
+  const rutaValida = opciones.rutaValida ?? RE_RUTA;
   const temporal = (id: string): string => {
     if (!RE_ID.test(id)) throw new Error("Id de adjunto inválido");
     return join(carpetaTmp, id);
   };
   const definitivo = (ruta: string): string => {
     // La ruta sale de la base, pero igual se controla: nunca fuera de la raíz.
-    if (!RE_RUTA.test(ruta)) throw new Error("Ruta de adjunto inválida");
+    if (!rutaValida.test(ruta)) throw new Error("Ruta de adjunto inválida");
     return join(raiz, ...ruta.split("/"));
   };
 

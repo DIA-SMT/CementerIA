@@ -45,6 +45,19 @@ const nextConfig: NextConfig = {
   output: enVercel ? undefined : "standalone",
   // "X-Powered-By: Next.js": no hace falta anunciarlo (en el servidor municipal nginx ya lo saca).
   poweredByHeader: false,
+  // Las fotos del sitio público (30/10/2026) se procesan con sharp en las dos
+  // rutas de subida. El rastreo de archivos copia el binario de sharp
+  // (@img/sharp-<plataforma>/lib/*.node) pero no las bibliotecas de libvips que
+  // ese binario carga por su cuenta (libvips-*.dll en Windows,
+  // @img/sharp-libvips-linux-x64/lib/*.so en Linux y en Vercel): sin esto, en
+  // el paquete standalone o en la función de Vercel sharp no carga
+  // (ERR_DLOPEN_FAILED). Va solo lo de la plataforma donde se construye (npm
+  // instala únicamente esa). Docs: next.config.js "output",
+  // outputFileTracingIncludes.
+  outputFileTracingIncludes: {
+    "/api/sitio/fotos": ["./node_modules/@img/sharp-*/**/*"],
+    "/api/sitio/fotos/confirmar": ["./node_modules/@img/sharp-*/**/*"],
+  },
   // La app es 100 % autenticada y dinámica: cada página lee la cookie de sesión
   // y no hay nada que prerenderizar (sección 6, "Stack"). Con Cache Components
   // cada lectura de cookies() fuera de un <Suspense> rompe el build.

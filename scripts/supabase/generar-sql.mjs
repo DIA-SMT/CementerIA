@@ -18,7 +18,8 @@
 //   31_inhumacion.sql y 32_sitio_publico.sql (lo que la semilla agregó
 //   después, para una base que ya tiene la anterior: ver INCREMENTALES),
 //   40_cierre_api.sql, 45_storage.sql
-//   (el bucket privado de adjuntos), 99_verificar.sql
+//   (los buckets privados de adjuntos y, desde el 30/10/2026, de las fotos del
+//   sitio público), 99_verificar.sql
 // En supabase/sql/.local/ (ignorado por git), solo si .env.supabase.local
 // tiene SUPABASE_ADMIN_URL (y ADMIN_INICIAL_CUIL para el admin):
 //   05_claves.sql (ALTER ROLE … PASSWORD con verificadores SCRAM: las claves
@@ -654,10 +655,10 @@ export async function generar() {
   versionados.set(
     "45_storage.sql",
     archivoSimple(
-      "Bucket PRIVADO de adjuntos en Supabase Storage (solo para el despliegue en Vercel). Idempotente.",
+      "Buckets PRIVADOS de Supabase Storage, adjuntos y sitio-publico (solo para el despliegue en Vercel). Idempotente.",
       "storage.sql",
-      "-- Lo usa la app con ADJUNTOS_ALMACEN=supabase (docs/despliegue-vercel.md). En el\n" +
-        "-- servidor municipal los adjuntos van al disco y este bucket queda vacío.",
+      "-- Los usa la app con ADJUNTOS_ALMACEN=supabase (docs/despliegue-vercel.md). En el\n" +
+        "-- servidor municipal los adjuntos y las fotos van al disco y estos buckets quedan vacíos.",
     ),
   );
   versionados.set("99_verificar.sql", archivoVerificar());

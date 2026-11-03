@@ -45,6 +45,11 @@ describe("matcher del proxy", () => {
     "/admin/recorridos",
     "/admin/sitio-publico?pestana=recorridos",
     "/panel/contacto",
+    // 30/10/2026: solo /sitio/fotos y /api/sitio/fotos quedan afuera.
+    "/sitio",
+    "/sitio/fotosx",
+    "/api/sitio/otra-cosa",
+    "/api/sitio/fotosx",
   ])("corre en %s", (url) => {
     expect(corre(url)).toBe(true);
   });
@@ -87,6 +92,13 @@ describe("matcher del proxy", () => {
     "/consulta",
     "/consulta/",
     "/consulta/CEM-2026-00012",
+    // 30/10/2026: las fotos del sitio (públicas) y su subida (se autentica sola; hasta 15 MB).
+    "/sitio/fotos/3f2a1b4c-0000-4000-8000-000000000001/0123456789abcdef-960.webp",
+    "/sitio/fotos/no-existe",
+    "/api/sitio/fotos",
+    "/api/sitio/fotos?alt=x",
+    "/api/sitio/fotos/autorizar",
+    "/api/sitio/fotos/confirmar",
   ])("no corre en %s", (url) => {
     expect(corre(url)).toBe(false);
   });

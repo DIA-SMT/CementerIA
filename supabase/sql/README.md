@@ -46,8 +46,8 @@ El de los números, mezclando las dos carpetas: 00, 01, 02, .local/05, 20_*, 30,
 (el 30 ya trae todo), pero se pueden correr igual.
 
 **¿Es la base que ya está en uso** (con todo hasta `*_login_propio` y la
-inhumación)? Entonces no es este orden completo: ver "La base en uso: qué
-correr ahora (28/10/2026)", más abajo.
+inhumación)? Entonces no es este orden completo: ver "Las fotos del sitio
+(30/10/2026): qué correr en la base en uso", más abajo.
 
 Cada archivo se pega **entero** en el SQL Editor y se ejecuta **de una sola
 vez** (Run): todo el archivo es una única transacción, y si algo falla no queda
@@ -65,8 +65,8 @@ nada a medias. Con psql: `psql -1 -v ON_ERROR_STOP=1 -f <archivo>`.
 | 6c | `32_sitio_publico.sql` | Solo lo que la semilla agregó el 28/10/2026: las 3 preguntas frecuentes iniciales de la página pública (`sitio_preguntas`). Busca por el texto de la pregunta y deja que la base ponga los ids. Va **después** de la migración `*_sitio_publico` (antes, se niega: falta la tabla). Lo demás del sitio arranca vacío: lo carga la Dirección | Sí (una pregunta que ya existe, por su texto, no se toca) |
 | 7 | `.local/35_admin_inicial.sql` | El administrador inicial (`ADMIN_INICIAL_CUIL`) con el hash de su contraseña temporal y `debe_cambiar_clave`. Si ya existe con contraseña, no lo toca; si existe sin, le pone la temporal | Sí |
 | 8 | `40_cierre_api.sql` | Les saca todo a `anon`, `authenticated` y `service_role` sobre las tablas, secuencias y funciones de `public` y `auditoria`, y los privilegios por defecto | Sí |
-| 8b | `45_storage.sql` | El bucket **privado** `adjuntos` de Supabase Storage (10 MB, PDF/JPEG/PNG, sin políticas). Solo lo usa el despliegue en Vercel ([docs/despliegue-vercel.md](../../docs/despliegue-vercel.md)); controles 19 y 20 de `99_verificar.sql` | Sí |
-| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; el 24 (28/10/2026), si las 6 tablas del sitio público tienen RLS, auditoría y los privilegios mínimos; el 25, si están las preguntas frecuentes iniciales. Como los otros que leen datos, el 21 y el 25 salen en null con `postgres` y los hace `npm run supabase:verificar` | Sí, las veces que haga falta |
+| 8b | `45_storage.sql` | Los buckets **privados** de Supabase Storage, sin políticas: `adjuntos` (10 MB, PDF/JPEG/PNG) y, desde el 30/10/2026, `sitio-publico` (las fotos del sitio público: 15 MB, JPEG/PNG/WebP). Solo los usa el despliegue en Vercel ([docs/despliegue-vercel.md](../../docs/despliegue-vercel.md)); controles 19, 20 y 27 de `99_verificar.sql` | Sí (crea lo que falta y deja los dos como deben estar) |
+| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; el 24 (28/10/2026), si las 6 tablas del sitio público tienen RLS, auditoría y los privilegios mínimos; el 25, si están las preguntas frecuentes iniciales; el 26 (30/10/2026), si `sitio_fotos` tiene RLS, auditoría, su protección y ningún DELETE para la app (y los cementerios y recorridos, su control de la foto); el 27, si el bucket `sitio-publico` es privado y con sus límites. Como los otros que leen datos, el 21 y el 25 salen en null con `postgres` y los hace `npm run supabase:verificar` | Sí, las veces que haga falta |
 
 Los archivos que corren como dueño hacen `GRANT cementeria_owner TO postgres`,
 `SET LOCAL ROLE cementeria_owner` y, al final, `REVOKE`: `postgres` no queda
@@ -150,6 +150,47 @@ base vacía, el orden completo de arriba (el 30 ya las trae y el 31 no hace nada
 Si la migración nueva crea tablas, tiene que habilitarles RLS y crear la
 política de `cementeria_app` (ver la migración `*_rls_defensa`):
 `tests/integracion/rls.test.ts` falla si falta.
+
+### Las fotos del sitio (30/10/2026): qué correr en la base en uso
+
+Agrega `20_migracion_20261030120000_sitio_fotos.sql` (la tabla `sitio_fotos` con
+RLS, auditoría y sin DELETE para la app; `foto_id` en `sitio_cementerios` y
+`sitio_recorridos`, con el CHECK de una sola foto y los triggers
+`sitio_fotos_proteger` y `sitio_foto_activa`: docs/api-dominio.md, 25.7) y
+cambia `45_storage.sql` (el bucket privado `sitio-publico`) y
+`99_verificar.sql` (controles 26 y 27). La semilla no cambia. En el SQL
+Editor, cada archivo entero y de una sola vez, **en este orden exacto**:
+
+**A. Si en la base ya se aplicó lo del 28/10/2026** (`*_consulta_publica`,
+`*_sitio_publico` y `32_sitio_publico.sql`; en el panel, Table Editor muestra
+`sitio_preguntas`):
+
+1. `20_migracion_20261030120000_sitio_fotos.sql`: una sola vez (repetida, se
+   niega y no cambia nada). No toca lo cargado: los cementerios y recorridos
+   siguen con la foto ilustrativa que tenían.
+2. `45_storage.sql` (idempotente): crea el bucket `sitio-publico` y deja
+   `adjuntos` como estaba.
+3. `40_cierre_api.sql` (idempotente): hay una tabla y dos funciones nuevas.
+4. `99_verificar.sql`: nada en falso; en verde el 26 ("sitio público: fotos
+   con RLS, auditoría y sin DELETE") y el 27 ("Storage: bucket sitio-publico
+   privado").
+
+**B. Si lo del 28/10/2026 todavía no se aplicó**: primero los pasos 1 a 3 de
+"La base en uso: qué correr ahora (28/10/2026)" (consulta pública, sitio
+público y `32_sitio_publico.sql`) y después los cuatro de A. El 40 y el 99,
+una sola vez, al final.
+
+**Después**, redesplegar la app en Vercel (en ese orden: la versión anterior
+convive con la base migrada; la nueva no anda sin la migración). En Vercel
+**no** se agrega ninguna variable: las fotos usan `ADJUNTOS_ALMACEN`,
+`SUPABASE_URL` y `SUPABASE_SECRET_KEY`, las mismas de los adjuntos. Si el
+SQL Editor rechazara el `INSERT` en `storage.buckets`, el bucket se crea
+desde el panel (docs/despliegue-vercel.md, sección 2). Probado en `npm run
+supabase:probar`, simulador D: sobre la base con todo lo anterior (contenido
+del sitio cargado con fotos del kit y el 45 viejo, sin el bucket nuevo), la
+migración, el 45 dos veces, el 40 y el 99 en verde, con el contenido intacto.
+Con conexión desde la máquina, en lugar de todo esto: `npm run
+supabase:preparar`.
 
 ### La base en uso: qué correr ahora (28/10/2026)
 

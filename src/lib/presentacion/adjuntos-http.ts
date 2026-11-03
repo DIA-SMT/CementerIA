@@ -57,11 +57,11 @@ export function statusDeError(codigo: string): number {
   }
 }
 
-function json(cuerpo: unknown, status: number): Response {
+export function json(cuerpo: unknown, status: number): Response {
   return Response.json(cuerpo, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 }
 
-async function descartarCuerpo(request: Request): Promise<void> {
+export async function descartarCuerpo(request: Request): Promise<void> {
   await request.body?.cancel().catch(() => undefined);
 }
 
@@ -123,12 +123,12 @@ export async function responderSubida(
 /** El cuerpo JSON de autorizar y confirmar es chico: más que esto no es nuestro. */
 const MAXIMO_JSON = 16 * 1024;
 
-function errorJson(codigo: string, mensaje: string, status: number): Response {
+export function errorJson(codigo: string, mensaje: string, status: number): Response {
   return json({ ok: false, codigo, mensaje, errores: [] }, status);
 }
 
 /** Los controles comunes de las dos llamadas: sesión, origen y un JSON chico. */
-async function leerPedidoJson(usuario: UsuarioPermisos | null, request: Request): Promise<{ ok: true; cuerpo: Record<string, unknown> } | { ok: false; respuesta: Response }> {
+export async function leerPedidoJson(usuario: UsuarioPermisos | null, request: Request): Promise<{ ok: true; cuerpo: Record<string, unknown> } | { ok: false; respuesta: Response }> {
   if (!usuario) {
     await descartarCuerpo(request);
     return { ok: false, respuesta: errorJson("sin_sesion", "Tu sesión venció: volvé a ingresar.", 401) };

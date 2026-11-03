@@ -40,7 +40,13 @@ export const LARGOS = {
   pregunta: 160,
   respuesta: 800,
   url: 500,
+  // Fotos subidas (30/10/2026, *_sitio_fotos).
+  altFoto: 200,
+  creditoFoto: 200,
 } as const;
+
+/** El texto alternativo de una foto subida: al menos esto (que diga qué se ve). */
+export const MINIMO_ALT_FOTO = 5;
 
 /** Como máximo, cuántas fechas próximas de recorridos muestra la página. */
 export const MAXIMO_FECHAS_PROXIMAS = 6;
@@ -62,9 +68,9 @@ export interface FotoSitio {
 }
 
 /**
- * Las fotos que se pueden elegir para un cementerio o un recorrido. Subir fotos
- * propias queda para más adelante (README, "Sitio público"): por ahora, una
- * de estas, que están en public/assets/cementeria con su versión de 960 px.
+ * Las fotos ilustrativas que se pueden elegir para un cementerio o un
+ * recorrido, además de las que sube la Dirección (30/10/2026, pestaña Fotos:
+ * ./fotos.ts). Están en public/assets/cementeria con su versión de 960 px.
  * Son imágenes conceptuales generadas con IA (public/assets/cementeria/LEEME.md),
  * no fotos de un cementerio en particular: el `alt` dice "ilustrativa".
  *
@@ -252,6 +258,20 @@ const Foto = z
   .transform((v) => (v ?? "").trim() || null)
   .refine((v) => v === null || CLAVES_FOTO.includes(v), "Elegí una de las fotos de la lista");
 
+/** Un uuid (el id de una foto subida), como lo escribe la base: minúsculas. */
+export const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+const FotoId = z
+  .string()
+  .nullish()
+  .transform((v) => (v ?? "").trim().toLowerCase() || null)
+  .refine((v) => v === null || RE_UUID.test(v), "Elegí una de las fotos de la lista");
+
+/** O una ilustrativa del kit (`foto`) o una subida (`fotoId`): nunca las dos (también CHECK). */
+function unaSolaFoto(d: { foto: string | null; fotoId: string | null }, ctx: z.RefinementCtx): void {
+  if (d.foto !== null && d.fotoId !== null) ctx.addIssue({ code: "custom", path: ["foto"], message: "Elegí una sola foto" });
+}
+
 const Orden = z.int("Un número entero").min(0, "0 o más").max(999, "Hasta 999");
 const Id = z.int().positive();
 const Fecha = z
@@ -274,7 +294,8 @@ export const EntradaCementerioSitio = z.object({
   horarioFinDeSemana: linea(LARGOS.horario),
   horarioEspecial: linea(LARGOS.horarioEspecial),
   foto: Foto,
-});
+  fotoId: FotoId,
+}).superRefine(unaSolaFoto);
 export type EntradaCementerioSitio = z.input<typeof EntradaCementerioSitio>;
 export type DatosCementerioSitio = z.output<typeof EntradaCementerioSitio>;
 
@@ -290,9 +311,10 @@ export const EntradaRecorrido = z.object({
   inscripcion: parrafos(LARGOS.inscripcion),
   inscripcionUrl: UrlHttps,
   foto: Foto,
+  fotoId: FotoId,
   activo: z.boolean(),
   orden: Orden,
-});
+}).superRefine(unaSolaFoto);
 export type EntradaRecorrido = z.input<typeof EntradaRecorrido>;
 
 export const EntradaFechaRecorrido = z.object({
@@ -341,6 +363,29 @@ export const EntradaPregunta = z.object({
   activa: z.boolean(),
 });
 export type EntradaPregunta = z.input<typeof EntradaPregunta>;
+
+// Fotos subidas (30/10/2026; docs/api-dominio.md, sección 25.7)
+
+/** El texto alternativo: obligatorio, de 5 a 200 caracteres, en una línea. */
+const AltFoto = linea(LARGOS.altFoto)
+  .refine((v): v is string => v !== null, "Escribí qué se ve en la foto (para quien no la puede ver)")
+  .refine((v) => v === null || v.length >= MINIMO_ALT_FOTO, `Al menos ${MINIMO_ALT_FOTO} caracteres`)
+  .transform((v) => v as string);
+
+/** Lo que acompaña a una foto nueva (el archivo va aparte). */
+export const EntradaFotoSitio = z.object({
+  alt: AltFoto,
+  credito: linea(LARGOS.creditoFoto),
+});
+export type EntradaFotoSitio = z.input<typeof EntradaFotoSitio>;
+
+/** Corregir el texto alternativo o el crédito de una foto ya subida. */
+export const EntradaEditarFoto = z.object({
+  id: z.string().refine((v) => RE_UUID.test(v), "Foto inválida"),
+  alt: AltFoto,
+  credito: linea(LARGOS.creditoFoto),
+});
+export type EntradaEditarFoto = z.input<typeof EntradaEditarFoto>;
 
 /** Lee una entrada con su esquema; si no pasa, el error de validación con cada campo. */
 export function leerEntradaSitio<T extends z.ZodType>(esquema: T, valor: unknown): z.output<T> {

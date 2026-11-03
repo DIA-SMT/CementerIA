@@ -1,6 +1,7 @@
 import { fechaDesdeDb, fechaParaDb, hoyEnTucuman } from "@/lib/fechas";
 import type { ContactoSitio, LectorSitio } from "./admin";
-import { fechasProximas, fotoSitio, MAXIMO_FECHAS_PROXIMAS, novedadVigente, type FotoSitio } from "./validacion";
+import { imagenDeFila, type ImagenSitio } from "./imagenes";
+import { fechasProximas, MAXIMO_FECHAS_PROXIMAS, novedadVigente } from "./validacion";
 
 /**
  * Lo que muestran las páginas públicas (`/`, `/cementerios`, `/horarios`…)
@@ -9,7 +10,9 @@ import { fechasProximas, fotoSitio, MAXIMO_FECHAS_PROXIMAS, novedadVigente, type
  * Arranca vacío en producción: cada parte dice qué hacer cuando no hay nada.
  *
  * - Cementerios: siempre los activos del catálogo, salvo los que la Dirección
- *   marcó como no visibles; de cada uno, solo lo cargado.
+ *   marcó como no visibles; de cada uno, solo lo cargado. La foto, resuelta
+ *   (./imagenes.ts): la subida por la Dirección (si sigue activa) o la
+ *   ilustrativa del kit.
  * - Recorridos: los activos, por orden; las fechas que vienen de esos
  *   recorridos, hasta 6, de la más cercana a la más lejana.
  * - Novedades: las activas y vigentes hoy (día de Tucumán).
@@ -27,7 +30,7 @@ export interface CementerioPublico {
   horarioSemana: string | null;
   horarioFinDeSemana: string | null;
   horarioEspecial: string | null;
-  foto: FotoSitio | null;
+  foto: ImagenSitio | null;
 }
 
 export interface RecorridoPublico {
@@ -41,7 +44,7 @@ export interface RecorridoPublico {
   cupo: string | null;
   inscripcion: string | null;
   inscripcionUrl: string | null;
-  foto: FotoSitio | null;
+  foto: ImagenSitio | null;
 }
 
 export interface FechaRecorridoPublica {
@@ -75,6 +78,9 @@ export interface ContenidoSitioPublico {
   preguntas: PreguntaPublica[];
 }
 
+/** Lo que se lee de una foto subida para mostrarla (nunca la ruta del almacén ni quién la subió). */
+const FOTO_SUBIDA = { id: true, alt: true, credito: true, ancho: true, alto: true, sha256: true, activa: true } as const;
+
 export async function contenidoSitioPublico(
   leer: Pick<LectorSitio, "cementerio" | "sitioRecorrido" | "sitioRecorridoFecha" | "sitioNovedad" | "sitioContacto" | "sitioPregunta">,
   ahora: Date = new Date(),
@@ -83,12 +89,12 @@ export async function contenidoSitioPublico(
   const cementerios = await leer.cementerio.findMany({
     where: { activo: true, OR: [{ sitio: { is: null } }, { sitio: { is: { visible: true } } }] },
     orderBy: { id: "asc" },
-    include: { sitio: true },
+    include: { sitio: { include: { fotoSubida: { select: FOTO_SUBIDA } } } },
   });
   const recorridos = await leer.sitioRecorrido.findMany({
     where: { activo: true },
     orderBy: [{ orden: "asc" }, { id: "asc" }],
-    include: { cementerio: { select: { nombre: true } } },
+    include: { cementerio: { select: { nombre: true } }, fotoSubida: { select: FOTO_SUBIDA } },
   });
   const fechas = await leer.sitioRecorridoFecha.findMany({
     where: { fecha: { gt: ahora }, recorrido: { activo: true } },
@@ -115,7 +121,7 @@ export async function contenidoSitioPublico(
     horarioSemana: c.sitio?.horarioSemana ?? null,
     horarioFinDeSemana: c.sitio?.horarioFinDeSemana ?? null,
     horarioEspecial: c.sitio?.horarioEspecial ?? null,
-    foto: fotoSitio(c.sitio?.foto),
+    foto: imagenDeFila(c.sitio?.foto, c.sitio?.fotoSubida),
   }));
   const datosContacto = contacto
     ? { domicilio: contacto.domicilio, horario: contacto.horario, telefono: contacto.telefono, correo: contacto.correo, mapaUrl: contacto.mapaUrl }
@@ -135,7 +141,7 @@ export async function contenidoSitioPublico(
       cupo: r.cupo,
       inscripcion: r.inscripcion,
       inscripcionUrl: r.inscripcionUrl,
-      foto: fotoSitio(r.foto),
+      foto: imagenDeFila(r.foto, r.fotoSubida),
     })),
     fechas: fechasProximas(fechas, ahora).map((f) => ({
       id: f.id,

@@ -22,6 +22,7 @@ import {
   quitarNovedad,
   type DependenciasSitio,
 } from "./admin";
+import { autorizarSubidaFoto, bajaFotoSitio, confirmarSubidaFoto, guardarFotoSitio, subirFotoSitio } from "./fotos";
 import { contenidoSitioPublico } from "./lectura";
 
 export function crearServicioSitio(deps: DependenciasSitio) {
@@ -39,6 +40,14 @@ export function crearServicioSitio(deps: DependenciasSitio) {
     quitarNovedad: (usuario: UsuarioPermisos, id: number, motivo?: string | null) => quitarNovedad(deps, usuario, id, motivo ?? null),
     guardarContacto: (usuario: UsuarioPermisos, entrada: unknown, motivo?: string | null) => guardarContacto(deps, usuario, entrada, motivo ?? null),
     guardarPregunta: (usuario: UsuarioPermisos, entrada: unknown, motivo?: string | null) => guardarPregunta(deps, usuario, entrada, motivo ?? null),
+    // Fotos subidas (30/10/2026; ./fotos.ts).
+    /** Por la app (el disco, o un servidor sin el límite de Vercel): el original entero en memoria. */
+    subirFoto: (usuario: UsuarioPermisos, original: Uint8Array, entrada: unknown, motivo?: string | null) => subirFotoSitio(deps, usuario, original, entrada, motivo ?? null),
+    /** Subida directa a Supabase Storage: la URL firmada hacia tmp/<uuid>. */
+    autorizarSubidaFoto: (usuario: UsuarioPermisos, entrada: unknown, bytes: number | null) => autorizarSubidaFoto(deps, usuario, entrada, bytes),
+    confirmarSubidaFoto: (usuario: UsuarioPermisos, idTemporal: string, entrada: unknown, motivo?: string | null) => confirmarSubidaFoto(deps, usuario, idTemporal, entrada, motivo ?? null),
+    guardarFoto: (usuario: UsuarioPermisos, entrada: unknown, motivo?: string | null) => guardarFotoSitio(deps, usuario, entrada, motivo ?? null),
+    bajaFoto: (usuario: UsuarioPermisos, entrada: { id: string; confirmarUso?: boolean }, motivo?: string | null) => bajaFotoSitio(deps, usuario, entrada, motivo ?? null),
   };
 }
 
@@ -56,5 +65,8 @@ export type {
   LectorSitio,
   ResultadoSitio,
 } from "./admin";
+export type { DependenciasFotos, FilaFoto, ResultadoFoto, UsoFoto } from "./fotos";
+export { textoUsos } from "./fotos";
+export * from "./imagenes";
 export type { CementerioPublico, ContenidoSitioPublico, FechaRecorridoPublica, NovedadPublica, PreguntaPublica, RecorridoPublico } from "./lectura";
 export * from "./validacion";

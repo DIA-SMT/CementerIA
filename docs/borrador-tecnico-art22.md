@@ -207,6 +207,16 @@ Es una vía de acceso nueva, desde internet y sin usuario: la página `/consulta
 
 La Dirección de Cementerios carga desde la herramienta lo que muestra la página pública: domicilio, horarios de visita y descripción de cada cementerio, recorridos históricos con sus fechas, novedades, preguntas frecuentes y el contacto de Mesa de Entradas. **No son datos personales**: es información institucional. Lo único que podría acercarse es un teléfono o un correo de contacto, que tienen que ser **institucionales** (el de Mesa de Entradas), nunca los de un empleado; la pantalla lo recuerda. Cada cambio queda en el registro de cambios de configuración, con quién lo hizo y cuándo. Lo pueden cargar solo la Dirección y el administrador.
 
+**Fotos de la página pública** (agregado el 30/10/2026)
+
+Desde el 30/10/2026 la Dirección también puede subir fotos propias para los cementerios y los recorridos de la página pública. Esas fotos **son públicas**: cualquier persona las ve sin ingresar, y pueden quedar guardadas en su navegador o copiarse. Por eso **no deben contener datos personales**: ni personas que se puedan reconocer ni nombres legibles en lápidas, placas o nichos, salvo que haya autorización. La pantalla de carga lo recuerda ("No subas fotos donde se reconozcan personas ni nombres en lápidas sin autorización") y la responsabilidad de elegir la foto es de quien la sube.
+
+Lo que hace la herramienta, para no publicar más de lo que se ve:
+- Quita todos los datos ocultos del archivo antes de publicarlo (ubicación GPS, marca y modelo de la cámara, fecha, perfil de color): la foto se vuelve a generar en el servidor y el archivo original no se guarda.
+- Cada foto tiene un texto que la describe (para quien no puede verla), que también es público.
+- Una foto se puede **dar de baja**: deja de mostrarse en la página y de ofrecerse para elegir. No se borra de la herramienta (queda registrada, con quién la subió, cuándo y quién la dio de baja), pero la dirección pública de la foto deja de responder; un navegador que ya la había descargado, o la red de distribución del hosting por hasta un día, pueden seguir teniendo una copia.
+- Las fotos no forman parte del archivo de expedientes: no se relacionan con ningún trámite ni persona.
+
 **Integridad del historial**
 - La base de datos impide modificar o borrar el historial, incluso ante un error de la aplicación.
 - El único que puede alterarlo es un administrador del servidor de base de datos (superusuario), que es del Área de Sistemas. Para que una alteración así se detecte, se pide a Sistemas que registre los cambios de estructura y las sesiones de cualquier usuario distinto de la aplicación, y se compara contra los backups.
@@ -231,6 +241,7 @@ La Dirección de Cementerios carga desde la herramienta lo que muestra la págin
 | Copias digitales de documentos | Sin propuesta | **A definir** (pregunta 10) |
 | Registro de accesos | 24 meses | Propuesto, a confirmar |
 | Intentos fallidos de la consulta pública (IP y número consultado) | 7 días; se borran solos todos los días | Diseño (28/10/2026) |
+| Fotos de la página pública (no son datos del archivo de expedientes; no deben tener datos personales) | Mientras se usen; dadas de baja, quedan registradas (no se sirven) | Diseño (30/10/2026) |
 | Registro de cambios de configuración | Sin propuesta | **A definir** |
 | Backups | 30 copias diarias y 12 mensuales: los datos suprimidos desaparecen de todas las copias en alrededor de 12 meses | Propuesto, a confirmar |
 | Logs del servidor de base de datos | Los define el Área de Sistemas | A informar por Sistemas |

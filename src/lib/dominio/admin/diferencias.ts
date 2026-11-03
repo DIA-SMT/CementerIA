@@ -29,6 +29,8 @@ export const ETIQUETA_TABLA: Record<string, string> = {
   sitio_novedades: "Sitio: novedad",
   sitio_contacto: "Sitio: contacto",
   sitio_preguntas: "Sitio: pregunta frecuente",
+  // 30/10/2026 (*_sitio_fotos).
+  sitio_fotos: "Sitio: foto",
 };
 
 export const ETIQUETA_OPERACION: Record<string, string> = { I: "Alta", U: "Cambio", D: "Baja" };
@@ -91,6 +93,16 @@ const ETIQUETA_COLUMNA: Record<string, string> = {
   correo: "Correo",
   pregunta: "Pregunta",
   respuesta: "Respuesta",
+  // Fotos subidas (30/10/2026).
+  foto_id: "Foto subida",
+  ruta: "Ruta en el almacén",
+  alt: "Texto alternativo",
+  credito: "Crédito",
+  ancho: "Ancho (px)",
+  alto: "Alto (px)",
+  bytes: "Bytes",
+  sha256: "SHA-256",
+  subida_por: "Subida por",
   actualizado_en: "Actualizado el",
 };
 
@@ -235,6 +247,8 @@ export function descripcionRegistro(tabla: string, registroId: string, antes: un
       return typeof f.fecha === "string" ? `Fecha ${textoValor("fecha", f.fecha)} (recorrido #${String(f.recorrido_id)})` : `#${registroId}`;
     case "sitio_contacto":
       return "Mesa de Entradas";
+    case "sitio_fotos":
+      return typeof f.alt === "string" ? `Foto «${f.alt}»` : `Foto ${registroId}`;
     default:
       return typeof f.codigo === "string" ? `${f.codigo}${typeof f.nombre === "string" ? ` (${f.nombre})` : ""}` : `#${registroId}`;
   }

@@ -76,6 +76,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  * - las tareas programadas de Vercel Cron, /api/cron/*: no hay sesión (llama
  *   Vercel) y cada ruta exige Authorization: Bearer CRON_SECRET
  *   (src/lib/cron/autorizacion.ts).
+ * - las fotos del sitio público (30/10/2026): GET /sitio/fotos/<id>/<archivo>,
+ *   públicas y sin sesión (la mayoría ya quedaba afuera por terminar en
+ *   .webp; el prefijo deja afuera también los 404), y su subida, POST
+ *   /api/sitio/fotos (hasta 15 MB en streaming: el proxy no tiene que tocar
+ *   ese cuerpo) con …/autorizar y …/confirmar, que se autentican solas con
+ *   getUsuarioActual(), como la subida de adjuntos.
  * - el refresco de la campana, GET /api/avisos/resumen: si pasara por acá, la
  *   pregunta automática de cada 60 s renovaría la sesión y los 60 minutos de
  *   inactividad no vencerían nunca. La ruta verifica la sesión sin renovarla.
@@ -86,6 +92,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
  */
 export const config = {
   matcher: [
-    "/((?!$|(?:cementerios|horarios|recorridos|tramites|consulta|contacto)(?:/|$)|_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|api/avisos/resumen(?:/|$)|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
+    "/((?!$|(?:cementerios|horarios|recorridos|tramites|consulta|contacto)(?:/|$)|_next/static/|_next/image(?:/|$)|favicon\\.ico$|login(?:/|$)|auth/|dev/login(?:/|$)|sin-acceso(?:/|$)|api/salud(?:/|$)|api/expedientes/[^/]+/adjuntos(?:/|$)|sitio/fotos(?:/|$)|api/sitio/fotos(?:/|$)|api/avisos/resumen(?:/|$)|api/cron/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest|woff2?)$).*)",
   ],
 };

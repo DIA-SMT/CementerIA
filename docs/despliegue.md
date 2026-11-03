@@ -311,7 +311,320 @@ Qué cumple cada pedido de A4:
 | Pedido | Dónde |
 |---|---|
 | No registrar la query string de `/auth/callback` | `conf.d/cementeria-log.conf`: el formato `cementeria` no tiene query string **en ninguna ruta** (tampoco la del buscador, que lleva nombres y CUIL) ni Referer. En `location = /auth/callback`, el `error_log` solo registra lo crítico, porque un error de nginx escribe el request entero |
-| `client_max_body_size 12m` solo en la subida | `location ~ ^/api/expedientes/[^/]+/adjuntos$`, con `proxy_request_buffering off` (el Route Handler lee en streaming). El resto, `2m` |
+| `client_max_body_size 12m` solo en la subida | `location ~ ^/api/expedientes/[^/]+/adjuntos# Despliegue de CementerIA: staging y producción
+
+> Runbook para el **Área de Sistemas** y el **equipo de la Dirección de IA**.
+> Fuente: `docs/propuesta-mvp.md`, sección 6 ("Hosting", "Backups",
+> "Autenticación", "Adjuntos", "Ley 25.326") y sección 2 ("Roles de base");
+> `docs/pedidos-dia-1.md` (pedidos A, B y C).
+> Todavía no hay servidores: todo lo que sigue está listo para usarse cuando
+> Sistemas entregue las VM. Lo que falta para poder hacerlo está en la sección 1.
+>
+> **La base del MVP va en Supabase** (decisión del 27/10/2026): ver la
+> [sección 18](#18-base-en-supabase). Las secciones 4, 12 y 13 describen la base
+> en el servidor municipal que preveía la propuesta.
+>
+> **La app se despliega en Vercel** (decisión del 27/10/2026), con los
+> adjuntos en Supabase Storage y las tareas en Vercel Cron: ver
+> [docs/despliegue-vercel.md](despliegue-vercel.md). Este runbook (nginx,
+> systemd, disco) sigue valiendo para el servidor municipal: las dos variantes
+> salen del mismo código y se eligen por configuración (`ADJUNTOS_ALMACEN`,
+> `VERCEL`).
+
+Cada paso dice quién lo hace: **[S]** Sistemas, **[D]** Dirección de IA.
+Lo que va entre `<…>` o `__…__` se reemplaza (ver `docs/pedidos-dia-1.md`,
+"Lo que hay que completar").
+
+## Índice
+
+0. [Cómo queda](#0-cómo-queda)
+1. [Qué falta de los pedidos del día 1](#1-qué-falta-de-los-pedidos-del-día-1)
+2. [Requisitos del servidor](#2-requisitos-del-servidor)
+3. [Usuarios, directorios y permisos](#3-usuarios-directorios-y-permisos)
+4. [Base de datos y roles](#4-base-de-datos-y-roles)
+5. [Variables de entorno](#5-variables-de-entorno)
+6. [nginx](#6-nginx)
+7. [Unidades de systemd](#7-unidades-de-systemd)
+8. [El paquete](#8-el-paquete)
+9. [Primer despliegue](#9-primer-despliegue)
+10. [Actualizaciones](#10-actualizaciones)
+11. [Rollback](#11-rollback)
+12. [Backups](#12-backups)
+13. [Prueba mensual de restauración](#13-prueba-mensual-de-restauración)
+14. [Rotación de SESSION_SECRET y de claves](#14-rotación-de-session_secret-y-de-claves)
+15. [Checklist posterior a cada despliegue](#15-checklist-posterior-a-cada-despliegue)
+16. [Staging](#16-staging)
+17. [Probar el paquete en local](#17-probar-el-paquete-en-local)
+18. [Base en Supabase](#18-base-en-supabase)
+
+Despliegue en Vercel: [docs/despliegue-vercel.md](despliegue-vercel.md).
+
+---
+
+## 0. Cómo queda
+
+```
+ PC de la red municipal
+        │ https (443)
+        ▼
+ nginx  ── TLS municipal, default_server 444, sin query string en el log,
+        │  12m solo en la subida de adjuntos, encabezados de seguridad
+        │ http://127.0.0.1:3010            (staging: 127.0.0.1:3011)
+        ▼
+ cementeria.service ── node server.js (paquete standalone, usuario cementeria)
+        │                    │
+        │                    └── /var/lib/cementeria/adjuntos   (AAAA/MM/<uuid>, 0440)
+        ▼
+ PostgreSQL 15 (base cementeria, rol cementeria_app)
+        ▲
+        │ 02:00  cementeria-backup.timer ── pg_dump -Fc + adjuntos ── restic ──► servidor de backup
+        │ 03:30  cementeria-historial.timer ── verifica la cadena de hash del historial
+        │ 04:30  cementeria-adjuntos-tmp.timer ── borra tmp/ de más de 24 h
+        │ 06:00  cementeria-avisos.timer ── avisos por tiempo (plazos DIM, sin confirmar, demorados)
+```
+
+| Qué | Dónde |
+|---|---|
+| Código (una carpeta por versión) | `/opt/cementeria/releases/cementeria-<versión>/` |
+| Versión en uso / la anterior | `/opt/cementeria/actual` y `/opt/cementeria/anterior` (enlaces) |
+| Entorno de la app (secretos) | `/etc/cementeria/cementeria.env` |
+| Entorno del backup (secretos) | `/etc/cementeria/backup.env` |
+| Adjuntos | `/var/lib/cementeria/adjuntos/` |
+| Dump mientras se sube | `/var/backups/cementeria/` (se borra al terminar) |
+| Caché de Next | `/var/cache/cementeria/` (la crea systemd) |
+| Logs de la app y de los timers | journald: `journalctl -u cementeria`, `-u cementeria-backup`, `-u cementeria-adjuntos-tmp`, `-u cementeria-historial`, `-u cementeria-avisos` |
+| Logs de nginx | `/var/log/nginx/cementeria-{access,error}.log` |
+
+Los archivos de configuración están versionados en `deploy/` y viajan dentro
+del paquete:
+
+| Archivo | Va en |
+|---|---|
+| `deploy/systemd/cementeria.service` | `/etc/systemd/system/` |
+| `deploy/systemd/cementeria-backup.{service,timer}` | `/etc/systemd/system/` |
+| `deploy/systemd/cementeria-adjuntos-tmp.{service,timer}` | `/etc/systemd/system/` |
+| `deploy/systemd/cementeria-historial.{service,timer}` | `/etc/systemd/system/` |
+| `deploy/systemd/cementeria-avisos.{service,timer}` | `/etc/systemd/system/` |
+| `deploy/systemd/staging/*` | `/etc/systemd/system/` (solo en la VM de staging) |
+| `deploy/nginx/conf.d/cementeria-log.conf` | `/etc/nginx/conf.d/` |
+| `deploy/nginx/snippets/cementeria-*.conf` | `/etc/nginx/snippets/` |
+| `deploy/nginx/00-cementeria-default.conf` | `/etc/nginx/sites-available/` (+ enlace en `sites-enabled/`) |
+| `deploy/nginx/cementeria.conf` / `cementeria-staging.conf` | `/etc/nginx/sites-available/` (+ enlace) |
+| `deploy/env/*.env.ejemplo` | modelos de `/etc/cementeria*/…` |
+| `deploy/desplegar.sh` | se corre desde el paquete (o la copia que deja `npm run empaquetar`) |
+| `deploy/prisma.config.mjs` | `npm run empaquetar` lo pone en la raíz del paquete |
+| `scripts/backup.sh`, `scripts/restaurar-prueba.sh`, `scripts/verificar-restauracion.mjs`, `scripts/roles.sql` | dentro del paquete, en `scripts/` |
+
+---
+
+## 1. Qué falta de los pedidos del día 1
+
+Nada de esto lo puede resolver la Dirección de IA sola. Mientras falte, el
+paso que lo necesita queda bloqueado.
+
+| Pedido | Qué falta | Bloquea |
+|---|---|---|
+| A1 | Las VM (Ubuntu 24.04, Node 24, nginx), el acceso SSH del responsable y el permiso para instalar las unidades. **Nuevo:** confirmar el puerto de staging (acá se propone **3011**) | Todo |
+| A2 | Base `cementeria` con dueño `cementeria_owner`, `scripts/roles.sql` corrido, claves de `cementeria_app` y `cementeria_deploy` entregadas por canal seguro, `pg_hba.conf`; el clúster aparte para staging; quién tiene el superusuario | Primer despliegue |
+| A3 | Salida HTTPS de las VM a `estadisticas.smt.gob.ar:5000` | Ingreso con Cidituc |
+| A4 | **Los nombres de dominio** (`__DOMINIO_PROD__`, `__DOMINIO_STAGING__`), DNS y certificado con la cadena completa. Si el nginx es de Sistemas, que aplique `deploy/nginx/` (sección 6) | nginx, `APP_URL`, pedido B1 |
+| A5 | Acceso solo desde la red municipal (rangos para el `allow` de nginx, o el firewall) | Piloto |
+| A6 | `log_statement = 'ddl'` y pgaudit | Primer dato real |
+| A7 | Destino del repositorio restic (`<SERVIDOR_BACKUP>`, protocolo, espacio), **el rol del `pg_dump`** (sección 4 propone `cementeria_backup`), quién custodia la clave de restic, y dónde levantar la instancia efímera de restauración | Backups, primer dato real |
+| A8 | pgBackRest (opcional) | No bloquea: sin él, RPO de 24 h |
+| B1 | Claves `cementeria` y `cementeria-staging` en el derivador **desplegado**, con `/auth/callback` | Ingreso. Producción no tiene alternativa; staging puede usar `AUTH_DEV_LOGIN_STAGING` |
+| C1 | Acto del art. 22 publicado | Datos reales en producción (si no, piloto como simulacro en staging) |
+| C2 | Retenciones (backups: 30 diarias y 12 mensuales propuestas) y si la prueba de restauración puede hacerse con datos reales | Configurar la retención como definitiva; prueba con datos reales |
+
+Además, en la **máquina de build** [D]: el motor de migraciones de Prisma
+para Linux (sección 8, "Una sola vez").
+
+---
+
+## 2. Requisitos del servidor
+
+**[S]** En cada VM (producción y staging):
+
+| Paquete | Para qué | Cómo se verifica |
+|---|---|---|
+| Ubuntu 24.04 LTS | — | `lsb_release -d` |
+| Node.js 24 LTS, en `/usr/bin/node` | La app y los scripts. Solo el runtime: en el servidor no se usa npm | `node --version` → v24.x |
+| nginx (1.24 de Ubuntu) | TLS y proxy | `nginx -v` |
+| `curl`, `tar` | `deploy/desplegar.sh` | — |
+| `restic` (0.16 o posterior; `apt install restic`) | Backups (solo producción) | `restic version` |
+| `postgresql-client` (`pg_dump` y `pg_restore` 15 o posterior) | Backups (solo producción) | `pg_dump --version` |
+
+Si Node queda instalado en otra ruta (por ejemplo `/usr/local/bin/node`), hay
+que cambiar `ExecStart=` en las unidades.
+
+`pg_dump` tiene que ser de la misma versión que el servidor o más nuevo. El de
+Ubuntu 24.04 es el 16 y sirve para PostgreSQL 15; el dump que genera se
+restaura con `pg_restore` 16 o posterior (sección 13).
+
+**Instancia de restauración** (donde Sistemas indique, pedido A7): los
+binarios del **servidor** PostgreSQL 15 (`postgresql-15` de PGDG, en
+`/usr/lib/postgresql/15/bin`), `restic` y Node 24, y disco para el dump, la
+base restaurada y los adjuntos. Con datos reales, disco cifrado.
+
+---
+
+## 3. Usuarios, directorios y permisos
+
+**[S]** En la VM de producción:
+
+```bash
+# Usuario del servicio: sin shell ni home.
+sudo adduser --system --group --no-create-home --home /nonexistent --shell /usr/sbin/nologin cementeria
+# Usuario del backup: lee los adjuntos por el grupo cementeria; su home guarda
+# la clave SSH del servidor de backup (si el repositorio es sftp:).
+sudo adduser --system --group --home /var/lib/cementeria-backup --shell /usr/sbin/nologin cementeria-backup
+sudo usermod -aG cementeria cementeria-backup
+
+sudo install -d -o root -g root -m 0755 /opt/cementeria /opt/cementeria/releases
+sudo install -d -o root -g root -m 0700 /etc/cementeria
+sudo install -d -o cementeria -g cementeria -m 0750 /var/lib/cementeria /var/lib/cementeria/adjuntos
+sudo install -d -o cementeria-backup -g cementeria-backup -m 0700 /var/backups/cementeria
+```
+
+| Ruta | Dueño | Modo | Por qué |
+|---|---|---|---|
+| `/opt/cementeria/releases/*` | root | 0755 / archivos 0644 | El servicio lee el código pero no puede modificarlo |
+| `/etc/cementeria/*.env` | root | 0600 | systemd los lee como root antes de bajar de usuario; el proceso de la app no puede leer el archivo |
+| `/var/lib/cementeria/adjuntos` | cementeria:cementeria | 0750 | Fuera del webroot. La app crea carpetas 0750 y archivos 0440; el grupo (el backup) solo lee |
+| `/var/lib/cementeria/adjuntos/tmp` | cementeria | 0700 (lo crea la app) | Subidas en curso: no se respaldan |
+| `/var/backups/cementeria` | cementeria-backup | 0700 | El dump vive acá solo mientras se sube |
+
+`ProtectSystem=strict` en las unidades deja todo el sistema de archivos de solo
+lectura para el servicio, salvo `ReadWritePaths=` (los adjuntos) y la caché.
+
+---
+
+## 4. Base de datos y roles
+
+**[S]** Pedido A2. Como superusuario del clúster de producción:
+
+```bash
+# 1. Roles (idempotente; no lleva contraseñas). Ver el encabezado de scripts/roles.sql.
+psql -h <host> -U postgres -d postgres -v ON_ERROR_STOP=1 -f scripts/roles.sql
+```
+
+```sql
+-- 2. Claves, sin que queden en el historial de la consola.
+\password cementeria_app
+\password cementeria_deploy
+
+-- 3. La base, como la deja scripts/db-init.sql en desarrollo (sin la shadow).
+CREATE DATABASE cementeria OWNER cementeria_owner ENCODING 'UTF8' TEMPLATE template0;
+ALTER DATABASE cementeria SET timezone TO 'America/Argentina/Tucuman';
+REVOKE ALL ON DATABASE cementeria FROM PUBLIC;
+GRANT CONNECT ON DATABASE cementeria TO cementeria_app, cementeria_deploy;
+```
+
+- `unaccent` y `pg_trgm` las crea la primera migración si faltan (hace falta
+  el paquete contrib, que en Ubuntu viene con el servidor).
+- `pg_hba.conf`: `cementeria_app`, `cementeria_deploy` (y `cementeria_backup`)
+  solo desde la IP de la VM de producción, con `scram-sha-256`.
+- La clave de `cementeria_deploy` se entrega al responsable de la Dirección de
+  IA por un canal seguro y **no se guarda en el servidor**: la pide
+  `deploy/desplegar.sh` en cada despliegue.
+
+**Rol del `pg_dump` nocturno** (pendiente de acordar, pedido A7). Propuesta: un
+rol de solo lectura cuya clave queda en `/etc/cementeria/backup.env`:
+
+```sql
+CREATE ROLE cementeria_backup LOGIN BYPASSRLS;
+GRANT pg_read_all_data TO cementeria_backup;
+GRANT CONNECT ON DATABASE cementeria TO cementeria_backup;
+\password cementeria_backup
+```
+
+`pg_read_all_data` lee todo y no escribe nada; `BYPASSRLS` hace falta desde la
+migración `*_rls_defensa` (sin él, `pg_dump` se niega a volcar las tablas con
+RLS; sección 18.6). `pg_dump` igual vuelca los
+dueños reales (`cementeria_owner`). No hace falta en `scripts/roles.sql`: no
+es dueño de nada ni recibe permisos dentro de la base, así que el dump no lo
+nombra y la restauración no lo necesita. Si Sistemas prefiere hacer el dump
+con su propio usuario, `backup.env` lleva ese.
+
+**Verificación** [D] (la de A2): conectado como `cementeria_app`,
+`SELECT version();` (15.x), `SHOW timezone;` (`America/Argentina/Tucuman`);
+como `cementeria_deploy`, `SELECT current_user;` (`cementeria_owner`).
+
+**Staging:** otro clúster (pedido A2: los roles son globales del clúster y las
+migraciones dan permisos a esos nombres fijos), con los mismos pasos y otras
+claves.
+
+---
+
+## 5. Variables de entorno
+
+**[D]** con los valores que entregue **[S]**. Los modelos están en
+`deploy/env/`, con cada variable comentada; la referencia completa es
+`.env.example`.
+
+```bash
+sudo install -o root -g root -m 0600 deploy/env/cementeria.env.ejemplo /etc/cementeria/cementeria.env
+sudo install -o root -g root -m 0600 deploy/env/backup.env.ejemplo /etc/cementeria/backup.env
+sudoedit /etc/cementeria/cementeria.env
+```
+
+| Variable | Producción | Staging | Secreta |
+|---|---|---|---|
+| `DATABASE_URL` | `cementeria_app` del clúster de producción | la del clúster de staging | **Sí** |
+| `SESSION_SECRET` | 48 bytes aleatorios | otros 48 bytes | **Sí** |
+| `APP_URL` | `https://__DOMINIO_PROD__` | `https://__DOMINIO_STAGING__` | No |
+| `ADJUNTOS_DIR` | `/var/lib/cementeria/adjuntos` | `/var/lib/cementeria-staging/adjuntos` | No |
+| `CIDITUC_HABILITADO` | `1` (con B1 hecho) | `1`, o `0` con `AUTH_DEV_LOGIN_STAGING` | No |
+| `CIDITUC_DERIVADOR_URL` | `https://cidituc.smt.gob.ar/` | igual | No |
+| `CIDITUC_CLAVE` | `cementeria` | `cementeria-staging` | No |
+| `CIDITUC_API_URL` | `https://estadisticas.smt.gob.ar:5000` | igual | No |
+| `CIDITUC_CA_PEM` | opcional | opcional | No (es un certificado público) |
+| `DB_POOL_MAX` | opcional (5) | opcional | No |
+| `AUTH_DEV_LOGIN_STAGING` | **nunca** | lista blanca de CUIL ficticios, mientras falte B1 | No |
+| `AUTH_DEV_LOGIN` | **nunca** (la app no arranca) | **nunca** | — |
+| `MIGRATE_DATABASE_URL` | **no va**: la arma `desplegar.sh` en el momento | no va | **Sí** |
+| `NODE_ENV`, `TZ`, `HOSTNAME`, `PORT` | los fija la unidad | los fija la unidad | No |
+
+Backup (`/etc/cementeria/backup.env`, solo producción): `PGHOST`, `PGPORT`,
+`PGDATABASE`, `PGUSER`, **`PGPASSWORD`** (secreta), `RESTIC_REPOSITORY`,
+**`RESTIC_PASSWORD`** (secreta; custodia fuera del servidor de backup),
+`BACKUP_DIR`, `ADJUNTOS_DIR`, `RETENCION_DIARIAS`, `RETENCION_MENSUALES`,
+`RETENCION_EN_ESTE_SERVIDOR`.
+
+Generar un secreto:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+La app valida el entorno al arrancar (`src/lib/arranque.ts`): si falta algo o
+sobra `AUTH_DEV_LOGIN`, termina con código 1 y el motivo (sin el valor) queda
+en `journalctl -u cementeria`.
+
+---
+
+## 6. nginx
+
+**[S]** (o **[D]** con acceso). Pedido A4.
+
+```bash
+sudo cp deploy/nginx/conf.d/cementeria-log.conf /etc/nginx/conf.d/
+sudo cp deploy/nginx/snippets/cementeria-proxy.conf deploy/nginx/snippets/cementeria-seguridad.conf /etc/nginx/snippets/
+sudo cp deploy/nginx/00-cementeria-default.conf deploy/nginx/cementeria.conf /etc/nginx/sites-available/
+sudo sed -i 's/__DOMINIO_PROD__/<dominio>/g' /etc/nginx/sites-available/cementeria.conf
+# Certificado: ssl_certificate y ssl_certificate_key de cementeria.conf
+sudo rm /etc/nginx/sites-enabled/default        # un solo default_server por puerto
+sudo ln -s /etc/nginx/sites-available/00-cementeria-default.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/cementeria.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Qué cumple cada pedido de A4:
+
+| Pedido | Dónde |
+|---|---|
+| No registrar la query string de `/auth/callback` | `conf.d/cementeria-log.conf`: el formato `cementeria` no tiene query string **en ninguna ruta** (tampoco la del buscador, que lleva nombres y CUIL) ni Referer. En `location = /auth/callback`, el `error_log` solo registra lo crítico, porque un error de nginx escribe el request entero |
+, con `proxy_request_buffering off` (el Route Handler lee en streaming). Desde el 30/10/2026 también `location = /api/sitio/fotos` con `16m` (las fotos del sitio público, hasta 15 MB; la app las procesa con sharp, que el paquete trae para Linux x64: `npm run empaquetar` baja `@img/sharp-linux-x64` y `@img/sharp-libvips-linux-x64` con la versión y el integrity del package-lock, así que necesita acceso al registro de npm). El resto, `2m` |
 | Reenviar a `127.0.0.1:3010` | `upstream cementeria_produccion` |
 | `Host $host` y `X-Real-IP $remote_addr` | `snippets/cementeria-proxy.conf`. `X-Forwarded-For` se **reemplaza** por `$remote_addr`; `X-Forwarded-Host` no se manda |
 | `default_server` con `return 444` | `00-cementeria-default.conf`, también en 443 con `ssl_reject_handshake on` |

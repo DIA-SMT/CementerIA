@@ -365,7 +365,8 @@ export async function verificar(cfg, { mostrar = true } = {}) {
     await admin.end();
   }
 
-  // El bucket de adjuntos (Storage), como postgres: cementeria_app no ve el esquema storage.
+  // Los buckets (Storage), como postgres: cementeria_app no ve el esquema storage.
+  // El de las fotos del sitio (sitio-publico), desde el 30/10/2026.
   {
     const admin3 = await conectarConReintentos(cfg.urls.admin, { ca: cfg.ca, aplicacion: "cementeria-verificar" }, { intentos: 2 });
     try {
@@ -384,6 +385,18 @@ export async function verificar(cfg, { mostrar = true } = {}) {
           control: "Storage: bucket adjuntos (como postgres)",
           ok: Boolean(b) && b.public === false && b.limite === "10485760" && tipos === "application/pdf image/jpeg image/png",
           detalle: b ? `privado: ${!b.public}, límite ${b.limite} bytes, tipos: ${tipos}` : "no existe el bucket adjuntos",
+        });
+        const s = (
+          await admin3.query(
+            `SELECT public, file_size_limit::text AS limite, (SELECT array_agg(x ORDER BY x) FROM unnest(allowed_mime_types) x) AS tipos
+               FROM storage.buckets WHERE id = 'sitio-publico'`,
+          )
+        ).rows[0];
+        const tiposSitio = (s?.tipos ?? []).join(" ");
+        controles.push({
+          control: "Storage: bucket sitio-publico (como postgres)",
+          ok: Boolean(s) && s.public === false && s.limite === "15728640" && tiposSitio === "image/jpeg image/png image/webp",
+          detalle: s ? `privado: ${!s.public}, límite ${s.limite} bytes, tipos: ${tiposSitio}` : "no existe el bucket sitio-publico",
         });
       }
     } finally {

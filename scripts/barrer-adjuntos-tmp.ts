@@ -8,6 +8,8 @@
 // (src/lib/adjuntos/config.ts): el disco (en desarrollo, ./.data/adjuntos) o
 // Supabase Storage. En el servidor municipal lo dispara el timer
 // `cementeria-adjuntos-tmp` una vez por día; en Vercel, GET /api/cron/adjuntos-tmp.
+// Desde el 30/10/2026 barre también los temporales de las fotos del sitio
+// público (<ADJUNTOS_DIR>/sitio-publico/tmp o el bucket sitio-publico).
 //
 // Opciones:
 //   --horas N   antigüedad mínima en horas (por defecto 24).
@@ -15,7 +17,7 @@
 import { config as cargarEnv } from "dotenv";
 import { HORAS_TEMPORALES, raizAdjuntos } from "../src/lib/adjuntos/almacen";
 import { tipoDeAlmacen } from "../src/lib/adjuntos/config";
-import { crearAlmacenDesdeEntorno } from "../src/lib/adjuntos/fabrica";
+import { crearAlmacenDesdeEntorno, crearAlmacenFotosDesdeEntorno } from "../src/lib/adjuntos/fabrica";
 import { tareaBarrerAdjuntos } from "../src/lib/tareas/programadas";
 
 cargarEnv({ path: ".env.local", quiet: true });
@@ -34,7 +36,8 @@ async function main(): Promise<void> {
   // La carpeta se muestra (como antes); de Supabase, solo que es Supabase (nada de URL ni clave).
   const donde = tipo === "disco" ? { raiz: raizAdjuntos() } : { almacen: "supabase" };
   const r = await tareaBarrerAdjuntos(crearAlmacenDesdeEntorno(), new Date(), horas);
-  console.log(JSON.stringify({ nivel: "info", evento: "adjuntos.barrido", ...donde, horas, borrados: r.borrados }));
+  const f = await tareaBarrerAdjuntos(crearAlmacenFotosDesdeEntorno(), new Date(), horas);
+  console.log(JSON.stringify({ nivel: "info", evento: "adjuntos.barrido", ...donde, horas, borrados: r.borrados, borrados_fotos: f.borrados }));
 }
 
 main().catch((e: unknown) => {

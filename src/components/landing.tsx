@@ -3,7 +3,8 @@ import { ArrowRight, CalendarDays, Clock3, ExternalLink, FileText, MapPin, Megap
 import { Wordmark } from "@/components/marca-municipal";
 import { CONTENEDOR_PUBLICO as CONTENEDOR, FOCO_OSCURO, FOCO_PUBLICO as FOCO, FotoDeFondo, ICONOS_PAGINAS, type FotoKit } from "@/components/publico";
 import type { DatosLanding } from "@/lib/dominio/publico/landing";
-import type { CementerioPublico, ContactoSitio, ContenidoSitioPublico, FechaRecorridoPublica, FotoSitio, RecorridoPublico } from "@/lib/dominio/sitio";
+import type { CementerioPublico, ContactoSitio, ContenidoSitioPublico, FechaRecorridoPublica, ImagenSitio, RecorridoPublico } from "@/lib/dominio/sitio";
+import { ilustrativasDe } from "@/lib/dominio/sitio/imagenes";
 import {
   hrefComoLlegar,
   hrefCorreo,
@@ -57,21 +58,38 @@ const SECCION = "py-14 sm:py-20";
 // Piezas
 // ---------------------------------------------------------------------------
 
-function Foto({ foto, className }: { foto: FotoSitio; className: string }) {
+/**
+ * La foto de un cementerio o de un recorrido: una ilustrativa del kit
+ * (public/assets) o una que subió la Dirección (/sitio/fotos/…, 30/10/2026),
+ * las dos con sus dos anchos en `srcSet`, `width`/`height` (no salta al
+ * cargar) y perezosa: van debajo del encabezado. Ninguna lleva texto encima.
+ */
+function Foto({ foto, className }: { foto: ImagenSitio; className: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivo estático de public/assets.
+    // eslint-disable-next-line @next/next/no-img-element -- nginx cierra /_next/image: archivos estáticos o ya procesados (dos anchos en WebP).
     <img
-      src={foto.chica}
-      srcSet={`${foto.chica} 960w, ${foto.grande} ${foto.anchoGrande}w`}
+      src={foto.src}
+      srcSet={foto.srcSet}
       sizes="(min-width: 1160px) 560px, (min-width: 760px) 50vw, 100vw"
-      width={foto.anchoGrande}
-      height={foto.altoGrande}
+      width={foto.ancho}
+      height={foto.alto}
       alt={foto.alt}
       loading="lazy"
       decoding="async"
       className={className}
     />
   );
+}
+
+/**
+ * Debajo de la tarjeta: el crédito de una foto subida ("Foto: …") o, si en la
+ * lista hay fotos de las dos clases, "Foto ilustrativa" en las del kit (si
+ * todas son del kit, lo dice una sola frase para toda la lista).
+ */
+function PieFoto({ foto, marcarIlustrativa }: { foto: ImagenSitio | null; marcarIlustrativa: boolean }) {
+  if (!foto) return null;
+  const texto = foto.credito ? `Foto: ${foto.credito}` : foto.ilustrativa && marcarIlustrativa ? "Foto ilustrativa" : null;
+  return texto ? <p className="text-xs text-pub-texto-secundario [overflow-wrap:anywhere]">{texto}</p> : null;
 }
 
 /** Un dato de una ficha: la etiqueta a la izquierda y el valor. Si no hay valor, no se muestra. */
@@ -497,6 +515,7 @@ export function BandaConsulta() {
 export function CementeriosInicio({ cementerios }: { cementerios: CementerioPublico[] }) {
   if (cementerios.length === 0) return null;
   const tres = cementerios.slice(0, 3);
+  const ilustrativas = ilustrativasDe(tres.map((c) => c.foto));
   return (
     <section aria-labelledby="titulo-cementerios-inicio" className={`bg-pub-seccion ${SECCION}`}>
       <div className={CONTENEDOR}>
@@ -518,6 +537,8 @@ export function CementeriosInicio({ cementerios }: { cementerios: CementerioPubl
                   <span className="min-w-0">
                     <span className="block text-lg font-bold leading-tight text-pub-titulo">{c.nombre}</span>
                     {c.domicilio ? <span className="mt-1 block text-[0.875rem] text-pub-texto-secundario">{c.domicilio}</span> : null}
+                    {c.foto?.credito ? <span className="mt-1 block text-xs text-pub-texto-secundario [overflow-wrap:anywhere]">Foto: {c.foto.credito}</span> : null}
+                    {c.foto?.ilustrativa && ilustrativas === "algunas" ? <span className="mt-1 block text-xs text-pub-texto-secundario">Foto ilustrativa</span> : null}
                   </span>
                   <ArrowRight className="flecha mt-1 h-4 w-4 shrink-0 text-pub-enlace" aria-hidden="true" />
                 </span>
@@ -525,7 +546,7 @@ export function CementeriosInicio({ cementerios }: { cementerios: CementerioPubl
             </li>
           ))}
         </ul>
-        {tres.some((c) => c.foto) ? <p className="mt-4 text-xs text-pub-texto-secundario">Las fotos son ilustrativas.</p> : null}
+        {ilustrativas === "todas" ? <p className="mt-4 text-xs text-pub-texto-secundario">Las fotos son ilustrativas.</p> : null}
       </div>
     </section>
   );
@@ -593,7 +614,7 @@ export function Cierre({ contacto }: { contacto: ContactoSitio | null }) {
 // /cementerios
 // ---------------------------------------------------------------------------
 
-function TarjetaCementerio({ c, hayHorarios }: { c: CementerioPublico; hayHorarios: boolean }) {
+function TarjetaCementerio({ c, hayHorarios, marcarIlustrativa }: { c: CementerioPublico; hayHorarios: boolean; marcarIlustrativa: boolean }) {
   const tieneHorario = Boolean(c.horarioSemana || c.horarioFinDeSemana || c.horarioEspecial);
   return (
     <article aria-labelledby={`cementerio-${c.id}`} className={`flex flex-col overflow-hidden shadow-pub ${TARJETA}`}>
@@ -625,6 +646,7 @@ function TarjetaCementerio({ c, hayHorarios }: { c: CementerioPublico; hayHorari
             </Link>
           ) : null}
         </div>
+        <PieFoto foto={c.foto} marcarIlustrativa={marcarIlustrativa} />
       </div>
     </article>
   );
@@ -639,7 +661,7 @@ export function ContenidoCementerios({ sitio }: { sitio: ContenidoSitioPublico }
   ) : (
     <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
       {sitio.cementerios.map((c) => (
-        <TarjetaCementerio key={c.id} c={c} hayHorarios={sitio.hayHorarios} />
+        <TarjetaCementerio key={c.id} c={c} hayHorarios={sitio.hayHorarios} marcarIlustrativa={ilustrativasDe(sitio.cementerios.map((x) => x.foto)) === "algunas"} />
       ))}
     </div>
   );
@@ -773,7 +795,13 @@ function AccionesRecorrido({ r }: { r: RecorridoPublico }) {
   );
 }
 
-function FichaRecorrido({ r, destacada }: { r: RecorridoPublico; destacada: boolean }) {
+/**
+ * La ficha de un recorrido. En la destacada, la foto va al lado del texto (en
+ * su propia columna), nunca debajo de él: el texto queda siempre sobre el
+ * fondo opaco de la tarjeta, sea cual sea la foto (docs/diseno.md, "Fotos
+ * propias").
+ */
+function FichaRecorrido({ r, destacada, marcarIlustrativa }: { r: RecorridoPublico; destacada: boolean; marcarIlustrativa: boolean }) {
   return (
     <article
       aria-labelledby={`recorrido-${r.id}`}
@@ -796,6 +824,7 @@ function FichaRecorrido({ r, destacada }: { r: RecorridoPublico; destacada: bool
           </div>
         ) : null}
         <AccionesRecorrido r={r} />
+        <PieFoto foto={r.foto} marcarIlustrativa={marcarIlustrativa} />
       </div>
     </article>
   );
@@ -830,18 +859,19 @@ export function ContenidoRecorridos({ sitio }: { sitio: ContenidoSitioPublico })
       </div>
     );
   }
+  const marcar = ilustrativasDe(sitio.recorridos.map((r) => r.foto)) !== "ninguna";
   return (
     <>
-      <FichaRecorrido r={destacado} destacada />
+      <FichaRecorrido r={destacado} destacada marcarIlustrativa={marcar} />
       {/* Uno solo va a todo el ancho, como el destacado: en la grilla de dos dejaría media fila vacía. */}
       {otros.length === 1 ? (
         <div className="mt-5">
-          <FichaRecorrido r={otros[0]} destacada />
+          <FichaRecorrido r={otros[0]} destacada marcarIlustrativa={marcar} />
         </div>
       ) : otros.length > 1 ? (
         <div className="mt-5 grid gap-5 md:grid-cols-2">
           {otros.map((r) => (
-            <FichaRecorrido key={r.id} r={r} destacada={false} />
+            <FichaRecorrido key={r.id} r={r} destacada={false} marcarIlustrativa={marcar} />
           ))}
         </div>
       ) : null}

@@ -4,6 +4,7 @@ import { comoDatetimeLocal, fechaDesdeDb, fechaParaDb, hoyEnTucuman, interpretar
 import { ErrorDominio, errorValidacion, limpiarMotivo } from "../expedientes/errores";
 import type { Escritor } from "../expedientes/dependencias";
 import { exigirPermiso, type UsuarioPermisos } from "../permisos";
+import { fotosSitioAdmin, type DependenciasFotos, type FilaFoto } from "./fotos";
 import {
   EntradaCementerioSitio,
   EntradaContacto,
@@ -39,6 +40,8 @@ export interface LectorSitio {
   sitioNovedad: SoloLectura<Transaccion["sitioNovedad"]>;
   sitioContacto: SoloLectura<Transaccion["sitioContacto"]>;
   sitioPregunta: SoloLectura<Transaccion["sitioPregunta"]>;
+  /** Las fotos subidas (30/10/2026). */
+  sitioFoto: SoloLectura<Transaccion["sitioFoto"]>;
 }
 
 export interface DependenciasSitio {
@@ -46,6 +49,8 @@ export interface DependenciasSitio {
   /** `conActor()`. */
   escribir: Escritor;
   ahora?: () => Date;
+  /** Las fotos subidas (30/10/2026): dónde se guardan y cómo se procesan. Solo las usan subir y confirmar. */
+  fotos?: DependenciasFotos;
 }
 
 export interface ResultadoSitio {
@@ -75,7 +80,10 @@ export interface FilaCementerioSitio {
   horarioSemana: string | null;
   horarioFinDeSemana: string | null;
   horarioEspecial: string | null;
+  /** Una ilustrativa del kit… */
   foto: string | null;
+  /** …o una subida (nunca las dos). */
+  fotoId: string | null;
 }
 
 export interface FilaFechaRecorrido {
@@ -100,6 +108,7 @@ export interface FilaRecorrido {
   inscripcion: string | null;
   inscripcionUrl: string | null;
   foto: string | null;
+  fotoId: string | null;
   activo: boolean;
   orden: number;
   /** Las fechas que vienen y, para no perderlas de vista, las de los últimos 30 días. */
@@ -141,6 +150,10 @@ export interface ContenidoSitioAdmin {
   novedades: FilaNovedad[];
   contacto: ContactoSitio;
   preguntas: FilaPregunta[];
+  /** Las fotos subidas activas (30/10/2026), con dónde se usa cada una. */
+  fotos: FilaFoto[];
+  /** Cuántas se dieron de baja (no se muestran ni se ofrecen). */
+  fotosDadasDeBaja: number;
 }
 
 const CONTACTO_VACIO: ContactoSitio = { domicilio: null, horario: null, telefono: null, correo: null, mapaUrl: null };
@@ -165,6 +178,7 @@ export async function contenidoSitioAdmin(deps: DependenciasSitio, usuario: Usua
   const novedades = await l.sitioNovedad.findMany({ orderBy: [{ desde: "desc" }, { id: "desc" }] });
   const contacto = await l.sitioContacto.findUnique({ where: { id: 1 } });
   const preguntas = await l.sitioPregunta.findMany({ orderBy: [{ orden: "asc" }, { id: "asc" }] });
+  const fotos = await fotosSitioAdmin(deps);
 
   return {
     cementerios: cementerios.map((c) => ({
@@ -182,6 +196,7 @@ export async function contenidoSitioAdmin(deps: DependenciasSitio, usuario: Usua
       horarioFinDeSemana: c.sitio?.horarioFinDeSemana ?? null,
       horarioEspecial: c.sitio?.horarioEspecial ?? null,
       foto: c.sitio?.foto ?? null,
+      fotoId: c.sitio?.fotoId ?? null,
     })),
     recorridos: recorridos.map((r) => ({
       id: r.id,
@@ -196,6 +211,7 @@ export async function contenidoSitioAdmin(deps: DependenciasSitio, usuario: Usua
       inscripcion: r.inscripcion,
       inscripcionUrl: r.inscripcionUrl,
       foto: r.foto,
+      fotoId: r.fotoId,
       activo: r.activo,
       orden: r.orden,
       fechas: r.fechas.map((f) => ({ id: f.id, fecha: f.fecha, fechaLocal: comoDatetimeLocal(f.fecha), nota: f.nota, pasada: f.fecha.getTime() <= ahora.getTime() })),
@@ -210,6 +226,8 @@ export async function contenidoSitioAdmin(deps: DependenciasSitio, usuario: Usua
       ? { domicilio: contacto.domicilio, horario: contacto.horario, telefono: contacto.telefono, correo: contacto.correo, mapaUrl: contacto.mapaUrl }
       : CONTACTO_VACIO,
     preguntas: preguntas.map((p) => ({ id: p.id, pregunta: p.pregunta, respuesta: p.respuesta, orden: p.orden, activa: p.activa })),
+    fotos: fotos.fotos,
+    fotosDadasDeBaja: fotos.dadasDeBaja,
   };
 }
 
@@ -227,6 +245,17 @@ function noExiste(que: string): ErrorDominio {
 }
 
 /**
+ * Una foto subida que se elige para un cementerio o un recorrido tiene que
+ * existir y estar activa (también lo controla el trigger sitio_foto_activa).
+ * Si no cambia, no se mira: no traba un guardado por la foto que ya tenía.
+ */
+async function exigirFotoActiva(tx: Transaccion, fotoId: string | null, anterior: string | null): Promise<void> {
+  if (fotoId === null || fotoId === anterior) return;
+  const f = await tx.sitioFoto.findUnique({ where: { id: fotoId }, select: { activa: true } });
+  if (!f?.activa) throw errorValidacion([{ ruta: "foto", mensaje: "Esa foto ya no está disponible (la dieron de baja): elegí otra" }]);
+}
+
+/**
  * Los datos públicos de un cementerio del catálogo (alta la primera vez, después
  * modificación). El cementerio no se crea acá: es el del catálogo.
  *
@@ -238,6 +267,7 @@ export async function guardarCementerioSitio(deps: DependenciasSitio, usuario: U
   return deps.escribir(usuario.id, limpiarMotivo(motivo), async (tx) => {
     const cementerio = await tx.cementerio.findUnique({ where: { id: cementerioId }, include: { sitio: true } });
     if (!cementerio) throw noExiste("ese cementerio");
+    await exigirFotoActiva(tx, datos.fotoId, cementerio.sitio?.fotoId ?? null);
     if (cementerio.sitio) {
       if (sinCambios(cementerio.sitio, datos)) return { id: cementerioId, creado: false, repetido: true };
       await tx.sitioCementerio.update({ where: { cementerioId }, data: datos });
@@ -261,11 +291,13 @@ export async function guardarRecorrido(deps: DependenciasSitio, usuario: Usuario
       throw errorValidacion([{ ruta: "cementerioId", mensaje: "Ese cementerio no existe" }]);
     }
     if (id == null) {
+      await exigirFotoActiva(tx, datos.fotoId, null);
       const r = await tx.sitioRecorrido.create({ data: datos, select: { id: true } });
       return { id: r.id, creado: true, repetido: false };
     }
     const actual = await tx.sitioRecorrido.findUnique({ where: { id } });
     if (!actual) throw noExiste("ese recorrido");
+    await exigirFotoActiva(tx, datos.fotoId, actual.fotoId);
     if (sinCambios(actual, datos)) return { id, creado: false, repetido: true };
     await tx.sitioRecorrido.update({ where: { id }, data: datos });
     return { id, creado: false, repetido: false };

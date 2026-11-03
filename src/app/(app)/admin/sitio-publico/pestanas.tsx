@@ -25,7 +25,8 @@ import { accionSitio } from "./acciones";
 
 /**
  * Las pestañas de /admin/sitio-publico (28/10/2026): Cementerios, Recorridos
- * (con sus fechas), Novedades, Contacto y Preguntas frecuentes. Alta y
+ * (con sus fechas), Novedades, Contacto y Preguntas frecuentes (la de Fotos,
+ * desde el 30/10/2026, está en ./fotos.tsx). Alta y
  * modificación en un diálogo (el contacto, en la pestaña: es uno solo); quitar
  * (fechas y novedades) con confirmación. Cada formulario lleva un motivo
  * opcional, que queda en la auditoría con el cambio.
@@ -37,7 +38,31 @@ import { accionSitio } from "./acciones";
 
 const RUTA = "/admin/sitio-publico";
 
-type Foto = { clave: string; etiqueta: string };
+/**
+ * Las fotos que se pueden elegir (30/10/2026): las que subió la Dirección
+ * (activas) y las ilustrativas del kit, con la versión chica para la vista
+ * previa.
+ */
+export interface OpcionesFoto {
+  subidas: ReadonlyArray<{ id: string; alt: string; src: string }>;
+  kit: ReadonlyArray<{ clave: string; etiqueta: string; src: string }>;
+}
+
+/** El valor del select: `subida:<uuid>`, `kit:<clave>` o vacío ("Sin foto"). */
+function valorFoto(foto: string, fotoId: string): string {
+  return fotoId ? `subida:${fotoId}` : foto ? `kit:${foto}` : "";
+}
+
+/** Lo que va a la Server Action: o la clave del kit o el id de la subida (nunca las dos). */
+function fotoDeValor(valor: string): { foto: string; fotoId: string } {
+  if (valor.startsWith("subida:")) return { foto: "", fotoId: valor.slice("subida:".length) };
+  if (valor.startsWith("kit:")) return { foto: valor.slice("kit:".length), fotoId: "" };
+  return { foto: "", fotoId: "" };
+}
+
+function recortar(texto: string, max = 70): string {
+  return texto.length > max ? `${texto.slice(0, max - 1)}…` : texto;
+}
 
 /** Envía una acción del sitio y avisa (cierra el diálogo) si salió bien. */
 function useGuardar(onHecho: (m: string) => void) {
@@ -112,19 +137,67 @@ function CampoMotivo({ valor, poner }: { valor: string; poner: (v: string) => vo
   );
 }
 
-function SelectorFoto({ valor, poner, fotos, error }: { valor: string; poner: (v: string) => void; fotos: readonly Foto[]; error: EstadoError | null }) {
+/**
+ * La foto de un cementerio o de un recorrido: las de la Dirección y las
+ * ilustrativas, agrupadas, con la vista previa de la elegida.
+ */
+function SelectorFoto({
+  foto,
+  fotoId,
+  poner,
+  fotos,
+  error,
+}: {
+  foto: string;
+  fotoId: string;
+  poner: (v: { foto: string; fotoId: string }) => void;
+  fotos: OpcionesFoto;
+  error: EstadoError | null;
+}) {
   const errores = erroresDe(error, "foto");
+  const valor = valorFoto(foto, fotoId);
+  const subida = fotoId ? fotos.subidas.find((f) => f.id === fotoId) : undefined;
+  const kit = foto ? fotos.kit.find((f) => f.clave === foto) : undefined;
+  const previa = subida?.src ?? kit?.src ?? null;
   return (
-    <Campo ruta="foto" etiqueta="Foto" errores={errores} ayuda="Una de las fotos ilustrativas del sistema. Subir fotos propias queda para más adelante.">
-      <select {...atributosCampo("foto", errores, "campo-foto-ayuda")} value={valor} onChange={(e) => poner(e.target.value)} className={CLASE_CONTROL}>
-        <option value="">Sin foto</option>
-        {fotos.map((f) => (
-          <option key={f.clave} value={f.clave}>
-            {f.etiqueta}
-          </option>
-        ))}
-      </select>
-    </Campo>
+    <div className="space-y-2">
+      <Campo
+        ruta="foto"
+        etiqueta="Foto"
+        errores={errores}
+        ayuda="Las de la Dirección se suben en la pestaña Fotos. Las ilustrativas son imágenes conceptuales del sistema: la página aclara que lo son."
+      >
+        <select {...atributosCampo("foto", errores, "campo-foto-ayuda")} value={valor} onChange={(e) => poner(fotoDeValor(e.target.value))} className={CLASE_CONTROL}>
+          <option value="">Sin foto</option>
+          {fotoId && !subida ? <option value={valor}>(una foto que ya no está disponible)</option> : null}
+          {fotos.subidas.length > 0 ? (
+            <optgroup label="Fotos de la Dirección">
+              {fotos.subidas.map((f) => (
+                <option key={f.id} value={`subida:${f.id}`}>
+                  {recortar(f.alt)}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          <optgroup label="Ilustrativas">
+            {fotos.kit.map((f) => (
+              <option key={f.clave} value={`kit:${f.clave}`}>
+                {f.etiqueta}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </Campo>
+      {previa ? (
+        <figure className="max-w-xs" data-vista-previa-foto="">
+          {/* eslint-disable-next-line @next/next/no-img-element -- la versión chica, ya procesada (o el archivo del kit). */}
+          <img src={previa} alt="" width={320} height={180} className="aspect-video w-full rounded-control object-cover ring-1 ring-borde" />
+          <figcaption className="mt-1 text-xs text-texto-secundario">
+            Vista previa{kit ? " (ilustrativa)" : subida ? " (foto de la Dirección)" : ""}
+          </figcaption>
+        </figure>
+      ) : null}
+    </div>
   );
 }
 
@@ -154,7 +227,7 @@ function Cargado({ valor }: { valor: string | null }) {
 // Cementerios
 // ---------------------------------------------------------------------------
 
-export function PestanaCementerios({ filas, fotos }: { filas: readonly FilaCementerioSitio[]; fotos: readonly Foto[] }) {
+export function PestanaCementerios({ filas, fotos }: { filas: readonly FilaCementerioSitio[]; fotos: OpcionesFoto }) {
   const [editando, setEditando] = useState<FilaCementerioSitio | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
   return (
@@ -213,7 +286,7 @@ export function PestanaCementerios({ filas, fotos }: { filas: readonly FilaCemen
   );
 }
 
-function DialogoCementerio({ c, fotos, onCerrar, onHecho }: { c: FilaCementerioSitio; fotos: readonly Foto[]; onCerrar: () => void; onHecho: (m: string) => void }) {
+function DialogoCementerio({ c, fotos, onCerrar, onHecho }: { c: FilaCementerioSitio; fotos: OpcionesFoto; onCerrar: () => void; onHecho: (m: string) => void }) {
   const { pendiente, error, guardar } = useGuardar(onHecho);
   const [visible, setVisible] = useState(c.visible);
   const [domicilio, setDomicilio] = useState(c.domicilio ?? "");
@@ -223,7 +296,7 @@ function DialogoCementerio({ c, fotos, onCerrar, onHecho }: { c: FilaCementerioS
   const [horarioSemana, setHorarioSemana] = useState(c.horarioSemana ?? "");
   const [horarioFinDeSemana, setHorarioFinDeSemana] = useState(c.horarioFinDeSemana ?? "");
   const [horarioEspecial, setHorarioEspecial] = useState(c.horarioEspecial ?? "");
-  const [foto, setFoto] = useState(c.foto ?? "");
+  const [{ foto, fotoId }, setFoto] = useState({ foto: c.foto ?? "", fotoId: c.fotoId ?? "" });
   const [motivo, setMotivo] = useState("");
   return (
     <Dialogo titulo={`${c.nombre} en la página pública`} onCerrar={onCerrar} ocupado={pendiente} ancho="ancho">
@@ -233,7 +306,7 @@ function DialogoCementerio({ c, fotos, onCerrar, onHecho }: { c: FilaCementerioS
           e.preventDefault();
           guardar({
             accion: "cementerio",
-            datos: { cementerioId: c.cementerioId, visible, domicilio, mapaUrl, descripcion, queTiene, horarioSemana, horarioFinDeSemana, horarioEspecial, foto },
+            datos: { cementerioId: c.cementerioId, visible, domicilio, mapaUrl, descripcion, queTiene, horarioSemana, horarioFinDeSemana, horarioEspecial, foto, fotoId },
             motivo,
           });
         }}
@@ -262,7 +335,7 @@ function DialogoCementerio({ c, fotos, onCerrar, onHecho }: { c: FilaCementerioS
           </div>
           <Texto ruta="horarioEspecial" etiqueta="Fechas especiales" valor={horarioEspecial} poner={setHorarioEspecial} error={error} max={LARGOS.horarioEspecial} ayuda="Por ejemplo: 2 de noviembre, de 7 a 19." />
         </fieldset>
-        <SelectorFoto valor={foto} poner={setFoto} fotos={fotos} error={error} />
+        <SelectorFoto foto={foto} fotoId={fotoId} poner={setFoto} fotos={fotos} error={error} />
         <CampoMotivo valor={motivo} poner={setMotivo} />
         {error ? (
           <AvisoError
@@ -281,7 +354,7 @@ function DialogoCementerio({ c, fotos, onCerrar, onHecho }: { c: FilaCementerioS
 // Recorridos y sus fechas
 // ---------------------------------------------------------------------------
 
-export function PestanaRecorridos({ filas, cementerios, fotos }: { filas: readonly FilaRecorrido[]; cementerios: ReadonlyArray<{ id: number; nombre: string }>; fotos: readonly Foto[] }) {
+export function PestanaRecorridos({ filas, cementerios, fotos }: { filas: readonly FilaRecorrido[]; cementerios: ReadonlyArray<{ id: number; nombre: string }>; fotos: OpcionesFoto }) {
   const [editando, setEditando] = useState<FilaRecorrido | "nuevo" | null>(null);
   const [fechasDe, setFechasDe] = useState<number | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
@@ -370,7 +443,7 @@ function DialogoRecorrido({
 }: {
   r: FilaRecorrido | null;
   cementerios: ReadonlyArray<{ id: number; nombre: string }>;
-  fotos: readonly Foto[];
+  fotos: OpcionesFoto;
   onCerrar: () => void;
   onHecho: (m: string) => void;
 }) {
@@ -384,7 +457,7 @@ function DialogoRecorrido({
   const [cupo, setCupo] = useState(r?.cupo ?? "");
   const [inscripcion, setInscripcion] = useState(r?.inscripcion ?? "");
   const [inscripcionUrl, setInscripcionUrl] = useState(r?.inscripcionUrl ?? "");
-  const [foto, setFoto] = useState(r?.foto ?? "");
+  const [{ foto, fotoId }, setFoto] = useState({ foto: r?.foto ?? "", fotoId: r?.fotoId ?? "" });
   const [activo, setActivo] = useState(r?.activo ?? true);
   const [orden, setOrden] = useState(r?.orden ?? 0);
   const [motivo, setMotivo] = useState("");
@@ -410,6 +483,7 @@ function DialogoRecorrido({
               inscripcion,
               inscripcionUrl,
               foto,
+              fotoId,
               activo,
               orden,
             },
@@ -437,8 +511,8 @@ function DialogoRecorrido({
         <Texto ruta="puntoEncuentro" etiqueta="Punto de encuentro" valor={puntoEncuentro} poner={setPuntoEncuentro} error={error} max={LARGOS.puntoEncuentro} />
         <Texto ruta="inscripcion" etiqueta="Cómo inscribirse" valor={inscripcion} poner={setInscripcion} error={error} max={LARGOS.inscripcion} filas={2} />
         <Texto ruta="inscripcionUrl" etiqueta="Enlace de inscripción (opcional)" tipo="url" valor={inscripcionUrl} poner={setInscripcionUrl} error={error} max={LARGOS.url} ayuda="Un enlace que empiece con https:// (un formulario, por ejemplo)." />
-        <div className="grid gap-4 md:grid-cols-2">
-          <SelectorFoto valor={foto} poner={setFoto} fotos={fotos} error={error} />
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
+          <SelectorFoto foto={foto} fotoId={fotoId} poner={setFoto} fotos={fotos} error={error} />
           <Campo ruta="orden" etiqueta="Orden" errores={erroresOrden} ayuda="El de número más bajo va destacado.">
             <input
               {...atributosCampo("orden", erroresOrden, "campo-orden-ayuda")}

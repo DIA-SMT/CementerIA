@@ -106,7 +106,8 @@ datos AS (
     END AS preguntas
 ),
 almacen AS (
-  -- El bucket de adjuntos de Storage (el despliegue en Vercel; sql/storage.sql).
+  -- Los buckets de Storage (el despliegue en Vercel; sql/storage.sql): adjuntos
+  -- y, desde el 30/10/2026, sitio-publico (las fotos de la página pública).
   -- Solo si este rol puede leer storage.buckets (postgres sí; cementeria_app no
   -- ve el esquema storage: preparar.mjs lo controla aparte, como postgres).
   SELECT n.oid IS NOT NULL AS hay_storage,
@@ -120,7 +121,18 @@ almacen AS (
                           THEN '|ok' ELSE '|mal' END
              FROM storage.buckets WHERE id = 'adjuntos'),
           'no existe el bucket adjuntos (45_storage.sql)|mal') AS v $q$, false, true, '')))[1]::text
-    END AS bucket
+    END AS bucket,
+    CASE WHEN c.oid IS NOT NULL AND has_schema_privilege(n.oid, 'USAGE') AND has_table_privilege(c.oid, 'SELECT')
+      THEN (xpath('/row/v/text()', query_to_xml($q$
+        SELECT coalesce(
+          (SELECT format('privado: %s, límite %s bytes, tipos: %s', NOT public, file_size_limit,
+                         array_to_string(ARRAY(SELECT x FROM unnest(allowed_mime_types) x ORDER BY x), ' '))
+                  || CASE WHEN NOT public AND file_size_limit = 15728640
+                           AND ARRAY(SELECT x FROM unnest(allowed_mime_types) x ORDER BY x) = ARRAY['image/jpeg', 'image/png', 'image/webp']
+                          THEN '|ok' ELSE '|mal' END
+             FROM storage.buckets WHERE id = 'sitio-publico'),
+          'no existe el bucket sitio-publico (45_storage.sql)|mal') AS v $q$, false, true, '')))[1]::text
+    END AS bucket_sitio
     FROM (SELECT 1) uno
     LEFT JOIN pg_namespace n ON n.nspname = 'storage'
     LEFT JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = 'buckets'
@@ -362,5 +374,41 @@ SELECT control, ok, detalle FROM (
                           split_part(d.preguntas, '|', 2), split_part(d.preguntas, '|', 3))
                    || CASE WHEN split_part(d.preguntas, '|', 3) = '0' THEN ' (¿falta aplicar 32_sitio_publico.sql?)' ELSE '' END END
     FROM datos d
+
+  UNION ALL
+  -- Fotos del sitio (30/10/2026, migración *_sitio_fotos): RLS con la política
+  -- de la app, auditar_cambio y la protección (sitio_fotos_proteger) ALWAYS, la
+  -- app lee, sube y modifica pero nunca borra; y los cementerios y recorridos
+  -- con su foto_id controlada (sitio_foto_activa) y el CHECK de una sola foto.
+  SELECT 26, 'sitio público: fotos con RLS, auditoría y sin DELETE',
+         count(*) = 1
+           AND bool_and(t.relrowsecurity AND NOT t.relforcerowsecurity
+                        AND EXISTS (SELECT 1 FROM pg_policies p
+                                     WHERE p.schemaname = 'public' AND p.tablename = t.relname
+                                       AND p.policyname = 'cementeria_app' AND p.roles = '{cementeria_app}'))
+           AND bool_and((SELECT count(*) FROM pg_trigger g WHERE g.tgrelid = t.oid AND g.tgenabled = 'A'
+                          AND g.tgname IN ('auditar_cambio', 'sitio_fotos_proteger')) = 2)
+           AND bool_and(has_table_privilege('cementeria_app', t.oid, 'SELECT') AND has_table_privilege('cementeria_app', t.oid, 'INSERT')
+                        AND has_table_privilege('cementeria_app', t.oid, 'UPDATE')
+                        AND NOT has_table_privilege('cementeria_app', t.oid, 'DELETE') AND NOT has_table_privilege('cementeria_app', t.oid, 'TRUNCATE'))
+           AND (SELECT count(*) FROM pg_trigger g JOIN tablas x ON x.oid = g.tgrelid
+                 WHERE x.nspname = 'public' AND x.relname IN ('sitio_cementerios', 'sitio_recorridos')
+                   AND g.tgname = 'sitio_foto_activa' AND g.tgenabled = 'A') = 2
+           AND (SELECT count(*) FROM pg_constraint k JOIN tablas x ON x.oid = k.conrelid
+                 WHERE x.nspname = 'public' AND k.conname IN ('sitio_cementerios_una_foto_check', 'sitio_recorridos_una_foto_check')) = 2,
+         CASE WHEN count(*) = 1
+              THEN 'sitio_fotos: RLS con la política de la app, auditar_cambio y sitio_fotos_proteger ALWAYS; la app lee, sube y '
+                   || 'modifica, sin DELETE; sitio_cementerios y sitio_recorridos con sitio_foto_activa y una sola foto'
+              ELSE 'no está la tabla sitio_fotos (¿falta aplicar la migración *_sitio_fotos?)' END
+    FROM tablas t
+   WHERE t.nspname = 'public' AND t.relname = 'sitio_fotos'
+
+  UNION ALL
+  SELECT 27, 'Storage: bucket sitio-publico privado',
+         CASE WHEN a.bucket_sitio IS NULL THEN NULL ELSE a.bucket_sitio LIKE '%|ok' END,
+         CASE WHEN NOT a.hay_storage THEN 'no hay esquema storage (no es Supabase)'
+              WHEN a.bucket_sitio IS NULL THEN 'este rol no ve el esquema storage: lo controla npm run supabase:verificar como postgres'
+              ELSE split_part(a.bucket_sitio, '|', 1) END
+    FROM almacen a
 ) controles
 ORDER BY orden;

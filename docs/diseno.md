@@ -145,8 +145,10 @@ cambia una foto o un velo, volver a medir.
 ### Accesibilidad y responsive
 
 - Un solo `h1` por página; las imágenes decorativas con `alt=""` y las de
-  contenido (cementerios, recorridos) con "foto ilustrativa" en el `alt`; el
-  logo con su nombre.
+  contenido (cementerios, recorridos) con "foto ilustrativa" en el `alt` si
+  son del kit, o con el texto alternativo que escribió la Dirección si son
+  fotos propias (30/10/2026; obligatorio, de 5 a 200 caracteres); el logo con
+  su nombre.
 - Foco visible: blanco sobre la barra, las bandas y la foto (más de 6:1 contra
   el velo), `pub-foco` en el sitio, `primario` en la app, con el filete del
   color de la superficie en el sitio público.
@@ -388,7 +390,9 @@ cerrado `/_next/image`), `srcset`/`sizes` cuando hay versión de 960 px,
 `fetchpriority="high"` **solo** en la imagen principal de cada pantalla y
 `loading="lazy"` en las demás. Donde se ven como foto, dicen "Imagen
 ilustrativa generada con IA" (hero, patrimonio, panel de la foto del
-ingreso) o "foto ilustrativa" en el `alt` (cementerios y recorridos).
+ingreso) o "foto ilustrativa" en el `alt` (cementerios y recorridos). Las
+fotos propias de la Dirección (30/10/2026) no lo dicen: ver "Fotos propias",
+en "Página pública".
 
 | Archivo | Peso (original / 960) | Uso |
 |---|---|---|
@@ -1220,7 +1224,8 @@ o fondo fijo es de la versión anterior.
     Consulta → Trámites y Contacto; Contacto → Consulta y Trámites.
   - **Cementerios:** la bajada dice cuántos son ("Tres cementerios
     municipales: dónde están, qué tienen y cómo llegar.", y "Las fotos son
-    ilustrativas." si hay alguna); tarjetas con la foto 16:9 (si se eligió;
+    ilustrativas." si todas las que hay son del kit; ver "Fotos propias");
+    tarjetas con la foto 16:9 (si se eligió;
     si no, una franja `institucional` con el filete), nombre (`h2`),
     descripción, Domicilio · Visitas (lunes a viernes) · Tiene (solo lo
     cargado), "Cómo llegar" (primario, a otra pestaña) y "Horarios" (a
@@ -1269,6 +1274,50 @@ o fondo fijo es de la versión anterior.
   históricos»"; Contacto y Preguntas, a `/contacto`; Novedades, solo el
   inicio), pestañas en la URL, tablas apilables con "Modificar", diálogos
   (ancho en Cementerios y Recorridos) y "Quitar" en rojo con confirmación.
+
+### Fotos propias (30/10/2026)
+
+La Dirección sube sus fotos en la pestaña **Fotos** de /admin/sitio-publico y
+las elige para cada cementerio o recorrido junto a las ilustrativas del kit.
+
+- **Pestaña Fotos:** el párrafo de qué es, un aviso `advertencia` con el
+  escudo ("Las fotos del sitio son públicas" · "No subas fotos donde se
+  reconozcan personas ni nombres en lápidas sin autorización."), la tarjeta
+  "Subir una foto" (el archivo, el **texto alternativo** obligatorio con un
+  ejemplo, el crédito opcional y, a la derecha, la vista previa local 16:9 o
+  un recuadro punteado con el ícono) y "Fotos subidas (N de 200 activas; M
+  dadas de baja)": una grilla de tarjetas con la miniatura 16:9 (la versión de
+  960 px, con su `alt`), el texto, el crédito, el original (medidas, peso,
+  quién y cuándo), "En uso: …" o "Sin usar." y los botones "Editar texto" y
+  "Dar de baja" (rojo). Dar de baja confirma en un diálogo; si está en uso,
+  un aviso `advertencia` dice dónde y el botón pasa a "Dar de baja y
+  dejarlos sin foto". Lleno (200), en vez del formulario, un aviso `info`.
+- **Selector "Foto"** (Cementerios y Recorridos): un `<select>` nativo con
+  "Sin foto" y dos `<optgroup>`, **"Fotos de la Dirección"** (por su texto
+  alternativo, recortado) e **"Ilustrativas"**; debajo, la vista previa 16:9
+  (320 px, `alt=""`: la describe la opción elegida) con "Vista previa (foto
+  de la Dirección)" o "(ilustrativa)".
+- **En la página:** la foto propia va igual que una del kit (16:9 en las
+  tarjetas, la columna izquierda en la ficha destacada), con `srcset` de sus
+  dos versiones (960 y 1920 px, o el ancho del original si es más chico),
+  `width`/`height` de la grande (no salta al cargar), `loading="lazy"`
+  (van debajo de la banda) y `decoding="async"`. **No dice "ilustrativa"**:
+  ni en el `alt` ni al pie. Al pie de la tarjeta, chico (`text-xs
+  pub-texto-secundario`), "Foto: <crédito>" si lo cargaron. Cuando en una
+  lista conviven fotos propias y del kit, cada una del kit dice **"Foto
+  ilustrativa"** al pie y la frase general ("Las fotos son ilustrativas.") ya
+  no va; si todas son del kit, la frase general, como antes.
+- **Contraste:** ninguna foto que elige la Dirección lleva texto encima: en
+  las tarjetas el texto va debajo, y en la ficha destacada del recorrido, en
+  su propia columna sobre el fondo opaco de la tarjeta (`pub-superficie`).
+  Las fotos con texto encima (hero, bandas, cierre) siguen siendo las del kit,
+  fijas. Medido el 30/10/2026 con una foto propia casi blanca en la ficha
+  destacada: el texto más claro de la ficha da **5,95:1** en claro y
+  **7,41:1** en oscuro (AA pide 4,5), y el título no se superpone con la foto.
+  Una foto muy clara se funde con el blanco de la tarjeta (el borde de la
+  tarjeta queda), sin afectar la lectura.
+- **Procesamiento** (docs/api-dominio.md, 25.7): el servidor re-codifica cada
+  foto a WebP (calidad 82 la chica, 80 la grande), orientada y sin metadatos.
 
 ### Rendimiento
 

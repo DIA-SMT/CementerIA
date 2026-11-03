@@ -8,7 +8,9 @@ import { dialogo, entrarComo, letrasUnicas } from "./ayudas";
 // que marca la página actual; la navegación desde el inicio; Dirección que
 // edita un horario desde /admin/sitio-publico y lo ve en /horarios; un
 // operador que no entra; 375 px sin desplazamiento lateral en todas; y las
-// páginas VACÍAS (como arranca en producción) sin nada roto.
+// páginas VACÍAS (como arranca en producción) sin nada roto; y, desde el
+// 30/10/2026, las fotos propias (subir, elegir, verla sin "ilustrativa", la
+// ruta /sitio/fotos y la baja).
 //
 // Las pruebas de este archivo van en orden, en un mismo worker. La de las
 // páginas vacías saca el contenido del sitio (con la credencial del dueño de
@@ -365,6 +367,130 @@ test("las páginas vacías, como arrancan en producción: cada una dice qué hac
       }
       await c.query("COMMIT");
     }
+    await c.end();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Fotos propias (30/10/2026; docs/api-dominio.md, sección 25.7). Va en este
+// archivo, después de "las páginas vacías", para no cruzarse con ella (que
+// vacía y restituye sitio_cementerios). Al final deja el Cementerio del Norte
+// con la foto que tenía.
+// ---------------------------------------------------------------------------
+
+/** Una foto ficticia: un JPEG con una "cámara" y coordenadas GPS inventadas en el EXIF. */
+async function jpegDePrueba(): Promise<Buffer> {
+  const { default: sharp } = await import("sharp");
+  const color = { r: Math.floor(Math.random() * 200), g: 120, b: 160 };
+  return sharp({ create: { width: 1600, height: 1000, channels: 3, background: color } })
+    .withExifMerge({ IFD0: { Make: "CamaraFicticiaE2E" }, IFD3: { GPSLatitudeRef: "S", GPSLatitude: "26/1 49/1 0/1" } })
+    .jpeg()
+    .toBuffer();
+}
+
+test("Dirección sube una foto, la elige para un cementerio y se ve en /cementerios sin «ilustrativa»; la ruta de la foto y su baja", async ({ page, browser }) => {
+  const url = process.env.E2E_URL_BASE_DUENO;
+  test.skip(!url, "Falta E2E_URL_BASE_DUENO (la pone tests/e2e/global-setup.ts)");
+  const c = new pg.Client({ connectionString: url });
+  await c.connect();
+  const norte = (
+    await c.query<{ cementerio_id: number; foto: string | null }>(
+      "SELECT s.cementerio_id, s.foto FROM public.sitio_cementerios s JOIN public.cementerios k ON k.id = s.cementerio_id WHERE k.nombre = $1",
+      ["Cementerio del Norte"],
+    )
+  ).rows[0];
+  const alt = `Portón de ingreso, foto de prueba e2e ${letrasUnicas(5)}`;
+  try {
+    await entrarComo(page, "direccion");
+    await page.goto("/admin/sitio-publico?pestana=fotos");
+    await expect(page.getByRole("link", { name: "Fotos", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByText("No subas fotos donde se reconozcan personas ni nombres en lápidas sin autorización.")).toBeVisible();
+
+    // Subir: la foto, el texto alternativo y el crédito.
+    const formulario = page.getByRole("form", { name: "Subir una foto" });
+    await formulario.getByLabel("Foto").setInputFiles({ name: "porton.jpg", mimeType: "image/jpeg", buffer: await jpegDePrueba() });
+    await expect(formulario.getByText("Vista previa (todavía no se subió)")).toBeVisible();
+    await formulario.getByRole("textbox", { name: "Texto alternativo" }).fill(alt);
+    await formulario.getByRole("textbox", { name: "Crédito o descripción (opcional)" }).fill("Archivo ficticio de pruebas");
+    await formulario.getByRole("button", { name: "Subir foto" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Foto subida" })).toBeVisible();
+    const lista = page.getByRole("list", { name: "Fotos subidas" });
+    const tarjeta = lista.getByRole("listitem").filter({ hasText: alt });
+    await expect(tarjeta.getByRole("img", { name: alt })).toBeVisible();
+    await expect(tarjeta).toContainText("Original de 1600 × 1000 px");
+    await expect(tarjeta).toContainText("Sin usar.");
+    const src = (await tarjeta.getByRole("img", { name: alt }).getAttribute("src")) ?? "";
+    expect(src).toMatch(/^\/sitio\/fotos\/[0-9a-f-]{36}\/[0-9a-f]{16}-960\.webp$/);
+
+    // La ruta pública: WebP, caché larga e immutable, nosniff; sin los datos de la cámara.
+    const r = await page.request.get(src);
+    expect(r.status()).toBe(200);
+    expect(r.headers()["content-type"]).toBe("image/webp");
+    expect(r.headers()["cache-control"]).toMatch(/^public, max-age=31536000, s-maxage=\d+, immutable$/);
+    expect(r.headers()["x-content-type-options"]).toBe("nosniff");
+    expect((await r.body()).includes("CamaraFicticiaE2E")).toBe(false);
+    expect((await page.request.get(src.replace("-960.webp", "-1920.webp"))).status()).toBe(200);
+    for (const malo of [
+      src.replace(/[0-9a-f]{16}-960/, `${"0".repeat(16)}-960`),
+      "/sitio/fotos/00000000-0000-4000-8000-000000000000/0123456789abcdef-960.webp",
+      "/sitio/fotos/no-es-un-id/0123456789abcdef-960.webp",
+      "/sitio/fotos/no-es-un-id",
+    ]) {
+      expect((await page.request.get(malo)).status(), malo).toBe(404);
+    }
+
+    // Elegirla para el Cementerio del Norte, con la vista previa.
+    await page.getByRole("navigation", { name: "Partes del sitio público" }).getByRole("link", { name: "Cementerios" }).click();
+    await page.getByRole("button", { name: "Modificar Cementerio del Norte" }).click();
+    const d = dialogo(page, "Cementerio del Norte en la página pública");
+    const selector = d.getByRole("combobox", { name: "Foto" });
+    await expect(selector.locator("optgroup[label='Fotos de la Dirección'] option", { hasText: alt })).toHaveCount(1);
+    await expect(selector.locator("optgroup[label='Ilustrativas'] option")).toHaveCount(5);
+    await selector.selectOption({ label: alt });
+    await expect(d.locator("[data-vista-previa-foto] img")).toHaveAttribute("src", src);
+    await expect(d.locator("[data-vista-previa-foto]")).toContainText("Vista previa (foto de la Dirección)");
+    await d.getByRole("button", { name: "Guardar" }).click();
+    await expect(d).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "Datos del cementerio guardados" })).toBeVisible();
+
+    // En /cementerios (sin sesión): su texto alternativo, srcset con los dos anchos, sin «ilustrativa».
+    const anonimo = await browser.newContext();
+    const publica = await anonimo.newPage();
+    await publica.goto("/cementerios");
+    const articulo = publica.getByRole("article", { name: "Cementerio del Norte" });
+    const img = articulo.getByRole("img", { name: alt });
+    await expect(img).toHaveAttribute("srcset", /-960\.webp 960w, \/sitio\/fotos\/.*-1920\.webp 1600w$/);
+    await expect(img).toHaveAttribute("width", "1600");
+    await expect(img).toHaveAttribute("height", "1000");
+    await expect(img).toHaveAttribute("loading", "lazy");
+    await img.scrollIntoViewIfNeeded();
+    await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+    await expect(articulo).not.toContainText(/ilustrativa/i);
+    expect(await img.getAttribute("alt")).not.toMatch(/ilustrativa/i);
+    await expect(articulo).toContainText("Foto: Archivo ficticio de pruebas");
+    // Las otras siguen siendo del kit: cada una lo dice, y la bajada ya no lo dice para todas.
+    await expect(publica.getByRole("article", { name: "Cementerio del Oeste" })).toContainText("Foto ilustrativa");
+    await expect(publica.getByRole("main")).not.toContainText("Las fotos son ilustrativas.");
+    await anonimo.close();
+
+    // Darla de baja estando en uso: avisa dónde y, confirmada, el Norte queda sin foto y la ruta da 404.
+    await page.goto("/admin/sitio-publico?pestana=fotos");
+    await expect(tarjeta).toContainText("En uso: Cementerio del Norte.");
+    await tarjeta.getByRole("button", { name: /Dar de baja/ }).click();
+    const baja = dialogo(page, "Dar de baja la foto");
+    await expect(baja).toContainText("La usa: Cementerio del Norte");
+    await baja.getByRole("button", { name: "Dar de baja y dejarlos sin foto" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Quedaron sin foto: Cementerio del Norte" })).toBeVisible();
+    await expect(lista.getByRole("listitem").filter({ hasText: alt })).toHaveCount(0);
+    expect((await page.request.get(src)).status()).toBe(404);
+    const despues = (await c.query<{ foto_id: string | null }>("SELECT foto_id FROM public.sitio_cementerios WHERE cementerio_id = $1", [norte.cementerio_id])).rows[0];
+    expect(despues.foto_id).toBeNull();
+  } finally {
+    // El Norte vuelve a tener la foto que tenía (como SISTEMA: auditar_cambio exige actor).
+    await c.query("BEGIN");
+    await c.query("SELECT set_config('app.usuario_id', '1', true), set_config('app.motivo', 'Prueba e2e: se restituye la foto', true)");
+    await c.query("UPDATE public.sitio_cementerios SET foto_id = NULL, foto = $2 WHERE cementerio_id = $1", [norte.cementerio_id, norte.foto]);
+    await c.query("COMMIT");
     await c.end();
   }
 });

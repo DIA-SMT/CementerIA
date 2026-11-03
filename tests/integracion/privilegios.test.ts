@@ -38,6 +38,8 @@ const PRIVILEGIOS_APP: Record<string, string[]> = {
   // fechas de recorrido y novedades; lo demás se desactiva.
   "public.sitio_cementerios": [S, I, U],
   "public.sitio_contacto": [S, I, U],
+  // 30/10/2026 (*_sitio_fotos): las fotos se dan de baja, no se borran.
+  "public.sitio_fotos": [S, I, U],
   "public.sitio_novedades": [S, I, U, D],
   "public.sitio_preguntas": [S, I, U],
   "public.sitio_recorrido_fechas": [S, I, U, D],
@@ -103,6 +105,8 @@ describe("privilegios de cementeria_app", () => {
     "public.sitio_recorridos",
     "public.sitio_contacto",
     "public.sitio_preguntas",
+    // 30/10/2026: una foto subida se da de baja.
+    "public.sitio_fotos",
   ];
 
   it.each(SIN_DELETE)("no puede borrar en %s", async (tabla) => {
@@ -250,6 +254,9 @@ describe("dueños", () => {
           "movimientos_inmutables",
           "movimientos_sellar",
           "plantillas_congelar",
+          // 30/10/2026 (*_sitio_fotos): solo una foto activa; de una foto cambian el texto y la baja.
+          "sitio_foto_activa",
+          "sitio_fotos_proteger",
           "usuarios_area_interna",
         ].map((funcion) => ({ funcion, dueno: "cementeria_owner" })),
       );
@@ -299,11 +306,16 @@ describe("triggers (2.11)", () => {
     ["plantillas", "plantillas_congelar", "BEFORE INSERT OR DELETE OR UPDATE ON public.plantillas FOR EACH ROW EXECUTE FUNCTION plantillas_congelar()"],
     // 28/10/2026 (*_sitio_publico): el contenido de la página pública, auditado como la configuración.
     ["sitio_cementerios", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_cementerios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('cementerio_id')"],
+    // 30/10/2026 (*_sitio_fotos): solo una foto activa; de una foto cambian solo el texto y la baja.
+    ["sitio_cementerios", "sitio_foto_activa", "BEFORE INSERT OR UPDATE OF foto_id ON public.sitio_cementerios FOR EACH ROW EXECUTE FUNCTION sitio_foto_activa()"],
     ["sitio_contacto", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_contacto FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_fotos", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_fotos FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_fotos", "sitio_fotos_proteger", "BEFORE UPDATE ON public.sitio_fotos FOR EACH ROW EXECUTE FUNCTION sitio_fotos_proteger()"],
     ["sitio_novedades", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_novedades FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["sitio_preguntas", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_preguntas FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["sitio_recorrido_fechas", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_recorrido_fechas FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["sitio_recorridos", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.sitio_recorridos FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
+    ["sitio_recorridos", "sitio_foto_activa", "BEFORE INSERT OR UPDATE OF foto_id ON public.sitio_recorridos FOR EACH ROW EXECUTE FUNCTION sitio_foto_activa()"],
     ["tipos_monumento", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.tipos_monumento FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["tipos_tramite", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.tipos_tramite FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     // Login propio (27/10/2026): también debe_cambiar_clave; nunca el hash.
@@ -427,6 +439,11 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["plantillas_pkey", UNICO, "public.plantillas USING btree (id)"],
     // 28/10/2026 (*_sitio_publico): las fechas que vienen y las novedades vigentes.
     ["sitio_cementerios_pkey", UNICO, "public.sitio_cementerios USING btree (cementerio_id)"],
+    // 30/10/2026 (*_sitio_fotos): dónde se usa cada foto, y la misma foto activa una sola vez.
+    ["sitio_cementerios_foto_id_idx", "", "public.sitio_cementerios USING btree (foto_id)"],
+    ["sitio_fotos_pkey", UNICO, "public.sitio_fotos USING btree (id)"],
+    ["sitio_fotos_sha256_activa_key", UNICO, "public.sitio_fotos USING btree (sha256) WHERE activa"],
+    ["sitio_recorridos_foto_id_idx", "", "public.sitio_recorridos USING btree (foto_id)"],
     ["sitio_contacto_pkey", UNICO, "public.sitio_contacto USING btree (id)"],
     ["sitio_novedades_desde_hasta_idx", "", "public.sitio_novedades USING btree (desde, hasta)"],
     ["sitio_novedades_pkey", UNICO, "public.sitio_novedades USING btree (id)"],

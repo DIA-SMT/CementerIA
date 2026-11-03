@@ -18,16 +18,26 @@ import { RE_ID } from "./almacen";
 /** Lo que dura una URL firmada de subida de Supabase Storage. */
 export const VIGENCIA_TICKET_MS = 2 * 60 * 60 * 1000;
 
-const PREFIJO = "cementeria:subida-adjunto:v1";
+/**
+ * Un prefijo por uso, para que un ticket de un adjunto no sirva para confirmar
+ * una foto del sitio (30/10/2026) ni al revés.
+ */
+const PREFIJOS = {
+  adjunto: "cementeria:subida-adjunto:v1",
+  foto_sitio: "cementeria:subida-foto-sitio:v1",
+} as const;
 
 export interface DestinoTicket {
   usuarioId: number;
+  /** El expediente; en una foto del sitio, "sitio". */
   numero: string;
   comando: string;
+  /** Para qué es la subida (por defecto, un adjunto). */
+  tipo?: keyof typeof PREFIJOS;
 }
 
 function firma(secreto: string, d: DestinoTicket, id: string, vence: number): Buffer {
-  const datos = [PREFIJO, d.usuarioId, d.numero.trim().toUpperCase(), d.comando.trim().toLowerCase(), id, vence].join("\n");
+  const datos = [PREFIJOS[d.tipo ?? "adjunto"], d.usuarioId, d.numero.trim().toUpperCase(), d.comando.trim().toLowerCase(), id, vence].join("\n");
   return createHmac("sha256", secreto).update(datos).digest();
 }
 

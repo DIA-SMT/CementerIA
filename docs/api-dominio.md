@@ -2445,9 +2445,15 @@ pública".
 
 | Módulo | Qué tiene |
 |---|---|
-| `@/lib/dominio/sitio/validacion` | `LARGOS`, `FOTOS_SITIO` (la lista cerrada de fotos), `esUrlMapa()`, `esUrlHttps()`, `esCorreo()`, `limpiarLinea()`, `limpiarParrafos()`, los esquemas zod de cada entrada, `novedadVigente()` y `fechasProximas()`. Puro |
+| `@/lib/dominio/sitio/validacion` | `LARGOS`, `FOTOS_SITIO` (las fotos ilustrativas del kit), `EntradaFotoSitio` y `EntradaEditarFoto` (30/10/2026), `esUrlMapa()`, `esUrlHttps()`, `esCorreo()`, `limpiarLinea()`, `limpiarParrafos()`, los esquemas zod de cada entrada, `novedadVigente()` y `fechasProximas()`. Puro |
 | `@/lib/dominio/sitio/admin` | Lo de la administración: `contenidoSitioAdmin`, `guardarCementerioSitio`, `guardarRecorrido`, `agregarFechaRecorrido`, `quitarFechaRecorrido`, `guardarNovedad`, `quitarNovedad`, `guardarContacto`, `guardarPregunta` |
 | `@/lib/dominio/sitio/lectura` | `contenidoSitioPublico(leer, ahora)`: lo que ve la página, sin sesión |
+| `@/lib/dominio/sitio/fotos` | 30/10/2026: `subirFotoSitio`, `autorizarSubidaFoto`, `confirmarSubidaFoto`, `guardarFotoSitio`, `bajaFotoSitio`, `fotosSitioAdmin` (25.7) |
+| `@/lib/dominio/sitio/imagenes` | 30/10/2026: `ImagenSitio` (la foto como la muestra la página), `urlFotoSitio`, `imagenDeKit`, `imagenSubida`, `imagenDeFila`, `ilustrativasDe`. Puro |
+| `@/lib/imagenes/tipos` | 30/10/2026: los límites (15 MB, 600 px, proporción, 100 MP, 200 activas), los magic bytes (`detectarTipoFoto`, `rechazoPorCabecera`), `rechazoPorMedidas` y los mensajes. Puro (también en el navegador) |
+| `@/lib/imagenes/procesar` | 30/10/2026: `procesarFoto(original)` con sharp: dos WebP sin metadatos. `server-only` |
+| `@/lib/presentacion/fotos-http` | 30/10/2026: los Route Handlers de las fotos (subida por la app, autorizar, confirmar y la ruta pública), sin Next |
+| `@/lib/presentacion/subida-foto` | 30/10/2026: la subida desde el navegador (`app` o `directa`). Sin módulos de servidor |
 | `@/lib/dominio/sitio/servidor` | `sitio` = `crearServicioSitio({ leer: prisma, escribir: conActor })`. `server-only` |
 | `@/lib/presentacion/acciones-sitio` | `procesarSitio(servicio, usuario, entrada)`: la Server Action de /admin/sitio-publico, sin Next |
 | `@/lib/presentacion/sitio-publico` | Las páginas (`PAGINAS_PUBLICAS`: etiqueta, título, bajada y texto de acceso de cada una; `RutaInterna`, `RutaPublica`), la barra (`NAVEGACION_PUBLICA`), las invitaciones al pie (`INVITACIONES`), `TITULO_SITIO`, `partesFechaRecorrido`, `parrafosDe`, `hrefTelefono`, `hrefCorreo`, `hrefComoLlegar` y `RUTA_VISTA_PUBLICA`. Puro |
@@ -2483,7 +2489,8 @@ otra vida (un cementerio puede no tener nada cargado).
 - **Fotos:** una clave de `FOTOS_SITIO` (`panoramica`, `avenida-azul`,
   `avenida-memorial`, `ingreso-paseo-sereno`, `parque-memorial`): las
   imágenes de `public/assets/cementeria` (conceptuales, del kit institucional) con su versión de 960 px. Lista cerrada, en el
-  código y en el CHECK. **Subir fotos propias queda para más adelante.**
+  código y en el CHECK. Desde el 30/10/2026, **o** una foto subida por la
+  Dirección (`foto_id`, migración `*_sitio_fotos`; 25.7): nunca las dos.
 - **Auditoría:** `auditar_cambio` (ALWAYS) en las seis: cada alta, cambio o baja
   queda en `auditoria.cambios` con el antes, el después, el autor y el motivo,
   y se ve en /admin/auditoria ("Sitio: …").
@@ -2532,7 +2539,7 @@ campo (`ErrorDominio("validacion")`). Un guardado que no cambia nada no escribe
 
 La pantalla (`src/app/(app)/admin/sitio-publico/`): pestañas Cementerios,
 Recorridos (con el diálogo de sus fechas: agregar y quitar), Novedades,
-Contacto y Preguntas frecuentes, en la URL (`?pestana=`); alta y modificación
+Contacto, Preguntas frecuentes y, desde el 30/10/2026, Fotos (25.7), en la URL (`?pestana=`); alta y modificación
 en diálogos (el contacto, en la pestaña), quitar con confirmación, "Ver la
 página pública" (`/?vista=publica`, otra pestaña) y, al lado, la página donde
 se ve la pestaña abierta (Cementerios, `/cementerios`; Recorridos,
@@ -2540,7 +2547,9 @@ se ve la pestaña abierta (Cementerios, `/cementerios`; Recorridos,
 salen en el inicio y en `/horarios`), y su recorrido guiado
 (`admin-sitio-publico`). Una sola Server Action, `accionSitio`, con
 `procesarSitio` (`accion`: `cementerio`, `recorrido`, `fecha`,
-`quitar_fecha`, `novedad`, `quitar_novedad`, `contacto`, `pregunta`).
+`quitar_fecha`, `novedad`, `quitar_novedad`, `contacto`,
+`pregunta` y, desde el 30/10/2026, `foto` y `baja_foto`; la subida de una
+foto no es una Server Action: 25.7).
 
 ### 25.4 Lo que ve la página: `sitio.contenidoPublico()`
 
@@ -2550,7 +2559,7 @@ sabe qué hacer:
 
 | Parte | Qué devuelve | Dónde se ve | Si no hay nada |
 |---|---|---|---|
-| `cementerios` | Los activos del catálogo, salvo los marcados no visibles; de cada uno, lo cargado (y la foto resuelta) | `/cementerios`; los horarios, en `/horarios` | Se listan igual, con el nombre: "Para saber más, consultá en Mesa de Entradas." Sin domicilio no hay "Cómo llegar" (con domicilio y sin enlace, busca el domicilio en Google Maps) |
+| `cementerios` | Los activos del catálogo, salvo los marcados no visibles; de cada uno, lo cargado y la foto resuelta (`ImagenSitio`: la subida si está activa, o la del kit; 25.7) | `/cementerios`; los horarios, en `/horarios` | Se listan igual, con el nombre: "Para saber más, consultá en Mesa de Entradas." Sin domicilio no hay "Cómo llegar" (con domicilio y sin enlace, busca el domicilio en Google Maps) |
 | `hayHorarios` | Si algún cementerio tiene algún horario | `/horarios` (y el botón "Horarios" de cada tarjeta) | "Consultá los horarios en Mesa de Entradas." con el contacto, si hay |
 | `recorridos` | Los activos, por `orden` (el primero, destacado) | `/recorridos` | "Por ahora no hay recorridos programados. Para visitas de grupos o instituciones, escribinos." con el contacto. El acceso del inicio sigue |
 | `fechas` | Las futuras de recorridos activos, de la más cercana, hasta 6 (`MAXIMO_FECHAS_PROXIMAS`) | `/recorridos`; las 3 primeras, en el inicio ("Próximos recorridos") | En `/recorridos`, "Todavía no hay fechas programadas."; el inicio no muestra el adelanto |
@@ -2592,9 +2601,132 @@ una), y lo nuevo de `permisos.test.ts`,
 `tests/integracion/sitio-publico.test.ts` (alta, modificación, quitar y sin
 cambios con su auditoría; validación por campo; un operador no puede; los
 CHECKs por fuera de la app; la página devuelve solo lo activo, lo visible y lo
-vigente), más las listas de `privilegios.test.ts` y `humo.test.ts`. Punta a
+vigente), más las listas de `privilegios.test.ts` y `humo.test.ts`; desde el
+30/10/2026, `tests/integracion/sitio-fotos.test.ts` (25.7). Punta a
 punta: `tests/e2e/sitio-publico.spec.ts` (cada página con la semilla de
 desarrollo: su h1, su `<title>`, las migas, la barra con la actual en
 `aria-current` y las invitaciones; la navegación desde el inicio por los
 accesos, la barra y las migas; editar un horario desde la administración y
 verlo en `/horarios`; 375 px en las siete páginas; y las páginas vacías). Supabase: `npm run supabase:probar` (simuladores B, C y D).
+
+### 25.7 Fotos propias (30/10/2026; migración `*_sitio_fotos`)
+
+La Dirección sube sus fotos para los cementerios y los recorridos desde la
+pestaña **Fotos** de /admin/sitio-publico y las elige en el selector "Foto",
+junto a las ilustrativas del kit. Mismo permiso (`editar_sitio_publico`) y la
+misma auditoría que el resto del sitio. Diseño: [diseno.md](diseno.md),
+"Fotos propias"; datos personales: [borrador-tecnico-art22.md](borrador-tecnico-art22.md),
+"Fotos de la página pública".
+
+**Modelo.** `public.sitio_fotos`: `id` uuid (lo genera la app: es también la
+carpeta del almacén), `ruta` (`fotos/<id>`, CHECK), `alt` (5 a 200),
+`credito` (opcional, hasta 200), `ancho`, `alto`, `bytes` y `sha256` **del
+original** (ya orientado), `activa`, `subida_por`, `creado_en` y
+`actualizado_en`. CHECKs con los límites de `@/lib/imagenes/tipos` (600 px de
+ancho como mínimo, proporción entre 1:2 y 4:1, 100 megapíxeles, 15 MB). Índice
+único parcial `(sha256) WHERE activa`: la misma foto, una vez entre las activas.
+`sitio_cementerios.foto_id` y `sitio_recorridos.foto_id` (uuid, FK, con
+índice) y `CHECK (foto IS NULL OR foto_id IS NULL)`. Triggers ALWAYS:
+`sitio_fotos_proteger` (de una foto cambian solo `alt`, `credito` y la baja;
+la baja no se deshace ni se da mientras alguien la use) y `sitio_foto_activa`
+(no se elige una dada de baja; si `foto_id` no cambia, no se mira).
+`auditar_cambio` ALWAYS. La app: SELECT, INSERT y UPDATE, **sin DELETE**. RLS
+con la política de `cementeria_app`.
+
+**Qué se guarda.** Nunca el archivo como llegó: `procesarFoto()`
+(`@/lib/imagenes/procesar`, sharp) mira los magic bytes (JPEG, PNG o WebP; GIF,
+SVG, HEIC, PDF y lo demás se rechazan con su mensaje) y que el decodificador
+diga lo mismo; decodifica con `failOn: "error"`, un límite de 100 MP y solo el
+primer cuadro; **orienta según el EXIF** y recién después lo descarta; mide
+(600 px, proporción); y re-codifica a **WebP en dos anchos, 960 y 1920 px** (sin
+agrandar) en sRGB y **sin metadatos** (ni EXIF, ni GPS, ni cámara, ni XMP, ni
+IPTC, ni perfil ICC). Quedan en `fotos/<id>/960.webp` y `fotos/<id>/1920.webp`
+del almacén de fotos; el original no se guarda (en Vercel, el temporal se
+borra al confirmar, y si no se confirma lo barre el cron de las 04:30).
+
+**Almacén** (`crearAlmacenFotosDesdeEntorno()`, `@/lib/adjuntos/fabrica`): la
+misma abstracción y la misma configuración que los adjuntos (`ADJUNTOS_ALMACEN`):
+en el disco, `<ADJUNTOS_DIR>/sitio-publico/` (entra en el mismo backup); en
+Supabase Storage, el bucket **privado** `sitio-publico` (15 MB, JPEG/PNG/WebP,
+sin políticas; `45_storage.sql`). Las implementaciones aceptan
+`rutaValida` (acá, `RE_RUTA_FOTO`) y la de Storage, `tipoDe` (el Content-Type
+por magic bytes: WebP) y `leerTemporal()`.
+
+**Servicio** (`sitio`, `crearServicioSitio({ …, fotos: { almacen, procesar } })`):
+
+```ts
+sitio.subirFoto(usuario, original: Uint8Array, { alt, credito? }, motivo?)   // → { id, alt, src }
+sitio.autorizarSubidaFoto(usuario, { alt, credito? }, bytes)                  // → { id, url }: URL firmada a tmp/<id>
+sitio.confirmarSubidaFoto(usuario, idTemporal, { alt, credito? }, motivo?)     // → como subirFoto; borra el temporal siempre
+sitio.guardarFoto(usuario, { id, alt, credito? }, motivo?)                    // → { id, repetido }
+sitio.bajaFoto(usuario, { id, confirmarUso? }, motivo?)                       // → { id, repetido, sinFoto: UsoFoto[] }
+sitio.contenidoAdmin(usuario)  // + fotos: FilaFoto[] (activas, con `usos`) y fotosDadasDeBaja
+```
+
+Errores: `validacion` (el texto, por campo: `alt`, `credito`), `imagen_invalida`
+(en `archivo`: tipo, tamaño, medidas o ilegible), `ya_existe` (la misma foto
+activa), `limite_alcanzado` (200 activas), `en_uso` (dar de baja sin
+`confirmarUso`; el mensaje dice dónde: "La foto está en uso en Cementerio del
+Oeste, el recorrido «…». Si la das de baja, quedan sin foto."), `no_encontrado`.
+Subir guarda primero las dos versiones (nadie las nombra hasta que existe la
+fila) y después inserta; si la transacción falla, las borra. Dar de baja con
+`confirmarUso` deja sin foto (`foto_id = NULL`) a quien la usaba y después
+`activa = false`, todo en la misma transacción y en la auditoría con el motivo.
+`guardarCementerio` y `guardarRecorrido` aceptan `fotoId` (o `foto`, nunca los
+dos) y controlan que esté activa (error en `foto`).
+
+**Subida** (no es una Server Action: en Vercel una función no recibe más de
+4,5 MB y una foto llega a 15). La pantalla elige el transporte con
+`modoDeSubida()`, como los adjuntos (`@/lib/presentacion/subida-foto`); antes,
+en el navegador, mira los magic bytes, el tamaño y las medidas (si las puede
+leer) para avisar sin subir; el servidor vuelve a controlar todo.
+
+| Ruta | Para | Cuerpo | Respuesta |
+|---|---|---|---|
+| `POST /api/sitio/fotos?alt=&credito=` | el disco (servidor municipal, desarrollo) | la foto, en streaming hasta 15 MB (nginx: `16m`) | 201 `{ ok, id, alt, src }` |
+| `POST /api/sitio/fotos/autorizar` | Supabase Storage (Vercel) | `{ alt, credito, bytes }` | `{ ok, subida: { url, ticket } }` (ticket HMAC con su propio prefijo, 2 h) |
+| `PUT <url>` | el navegador, directo a Storage | el original, con su Content-Type por magic bytes | la de Storage |
+| `POST /api/sitio/fotos/confirmar` | Supabase Storage | `{ ticket, alt, credito }` | 201 `{ ok, id, alt, src }` |
+
+Las tres de la app van fuera del proxy (`api/sitio/fotos(?:/|$)`) y se
+autentican solas con `getUsuarioActual()`, con `mismoOrigen`. Status: 401 sin
+sesión, 403 sin permiso, 409 `ya_existe`/`limite_alcanzado`, 413 más de 15 MB,
+415 `imagen_invalida`, 422 lo demás. `maxDuration` 60 s.
+
+**La foto pública**: `GET /sitio/fotos/<id>/<16 del sha256>-<960|1920>.webp`
+(`src/app/sitio/fotos/[id]/[archivo]/route.ts`, `responderFotoPublica()`), sin
+sesión y fuera del proxy (`sitio/fotos(?:/|$)`):
+
+- solo si la foto existe, está **activa** y la versión coincide; todo lo demás
+  (id que no es uuid, otra versión, otro ancho u otro nombre, dada de baja) es
+  **404** igual, `Cache-Control: no-store`; si la base no responde, 503;
+- `Content-Type: image/webp`, `X-Content-Type-Options: nosniff`,
+  `Content-Disposition: inline`, `Content-Length` si el almacén lo da y
+  `Cache-Control: public, max-age=31536000, s-maxage=86400, immutable`: la URL
+  cambia si cambia la foto (lleva la versión), así que el navegador la guarda
+  un año; el CDN de Vercel, un día (una foto dada de baja deja de servirse
+  desde el CDN a más tardar al día siguiente);
+- el archivo sale del almacén en streaming (el bucket es privado: nada de URL
+  firmada ni pública); no hay listado y el id es un uuid aleatorio: no se
+  puede enumerar.
+
+**Página.** `imagenDeFila()` da la `ImagenSitio` de cada cementerio y recorrido
+(`src`, `srcSet` con los dos anchos reales, `ancho`/`alto` de la grande,
+`alt`, `ilustrativa` y `credito`): las propias no dicen "ilustrativa"; las del
+kit, sí (diseno.md, "Fotos propias").
+
+**Pruebas.** Unitarias: `src/lib/imagenes/tipos.test.ts` (magic bytes de
+JPEG, PNG y WebP; GIF, SVG, HEIC, AVIF, PDF, WAV y JPEG cortado rechazados;
+tamaño, medidas y que coincidan con los CHECKs), `src/lib/imagenes/procesar.test.ts`
+(genera un JPEG con EXIF de cámara y GPS ficticios y comprueba que las dos
+versiones no tienen EXIF, XMP, IPTC, ICC ni orientación, ni rastros en los
+bytes; la orientación aplicada; sin agrandar; GIF, SVG, angosta, alargada,
+cortada y falsa rechazadas), `src/lib/dominio/sitio/imagenes.test.ts`,
+`src/lib/presentacion/fotos-http.test.ts` (encabezados y cada 404),
+`src/lib/presentacion/subida-foto.test.ts` (los dos transportes), y lo nuevo de
+`supabase.test.ts` (bucket, rutas, WebP, `leerTemporal`), `config.test.ts` (el
+ticket de una foto no sirve para un adjunto ni al revés) y `proxy.test.ts`.
+Integración: `tests/integracion/sitio-fotos.test.ts`, más las listas de
+`privilegios.test.ts` y `humo.test.ts`. Punta a punta: la última prueba de
+`tests/e2e/sitio-publico.spec.ts`. Supabase: `npm run supabase:probar`
+(simulador D: solo lo nuevo sobre una base con todo lo anterior).

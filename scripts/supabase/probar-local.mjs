@@ -31,7 +31,11 @@
 //    actualizado_en, y el trigger que no deja cambiarlos), *_sitio_publico, 32
 //    (antes de la migración se niega; después, dos veces, y deja las preguntas
 //    una vez), 40 y la verificación (99) sin nada en falso. Repetidas, las
-//    migraciones se niegan.
+//    migraciones se niegan. Y después (30/10/2026), sobre esa base que YA TIENE
+//    TODO lo anterior (con contenido del sitio y fotos del kit elegidas, y el
+//    45 viejo, sin el bucket sitio-publico): solo lo nuevo, *_sitio_fotos, 45
+//    (el bucket nuevo; dos veces), 40 y 99, con las fotos (control 26) y el
+//    bucket (27) en verde y el contenido del sitio intacto.
 // 5. A y B son equivalentes: roles, dueños, ACL, triggers, políticas, RLS,
 //    privilegios por defecto, extensiones, _prisma_migrations (definición y
 //    checksums, que tienen que ser los que calcula Prisma), filas de la semilla
@@ -410,6 +414,8 @@ async function probarActualizacion(sim, simB, volcado, versionados) {
 const EXPEDIENTES_EN_USO = 300;
 /** Las migraciones que la base en uso todavía no tiene (28/10/2026), en orden. */
 const MIGRACIONES_NUEVAS = ["consulta_publica", "sitio_publico"];
+/** Lo del 30/10/2026: se aplica sobre la base que ya tiene todo lo anterior. */
+const MIGRACION_FOTOS = "sitio_fotos";
 
 /**
  * La base EN USO: el paquete que ya se aplicó en Supabase (roles, extensiones,
@@ -424,11 +430,13 @@ async function probarMigracionNueva(sim, versionados, volcado) {
   const nuevas = MIGRACIONES_NUEVAS.map((sufijo) => migraciones.find((n) => n.endsWith(`_${sufijo}.sql`)));
   if (nuevas.some((n) => !n)) throw new Error(`Falta alguna migración nueva: ${MIGRACIONES_NUEVAS.join(", ")}`);
   const [consulta, sitioPublico] = nuevas;
+  const fotos = migraciones.find((n) => n.endsWith(`_${MIGRACION_FOTOS}.sql`));
+  if (!fotos) throw new Error(`Falta la migración ${MIGRACION_FOTOS}`);
   // La semilla de entonces: sin la tabla de preguntas (no existía).
   const semillaAnterior = archivoSemilla({ ...volcado, tablas: volcado.tablas.filter((t) => t.tabla !== "sitio_preguntas") }, "semilla anterior (prueba)");
   const anteriores = [
     ...["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql"].map((n) => ({ n, sql: versionados.get(n) })),
-    ...migraciones.filter((n) => !nuevas.includes(n)).map((n) => ({ n, sql: versionados.get(n) })),
+    ...migraciones.filter((n) => !nuevas.includes(n) && n !== fotos).map((n) => ({ n, sql: versionados.get(n) })),
     { n: "30_semilla_produccion.sql (anterior)", sql: semillaAnterior },
     ...["31_inhumacion.sql", "40_cierre_api.sql", "45_storage.sql"].map((n) => ({ n, sql: versionados.get(n) })),
   ];
@@ -436,7 +444,9 @@ async function probarMigracionNueva(sim, versionados, volcado) {
   await admin.connect();
   try {
     for (const a of anteriores) await admin.query(a.sql);
-    ok(true, `D: la base con el paquete anterior (${anteriores.length} archivos, sin ${nuevas.join(" ni ")})`);
+    // El 45 de entonces creaba solo el bucket de adjuntos.
+    await conSuper(sim, (c) => c.query("DELETE FROM storage.buckets WHERE id = 'sitio-publico'"));
+    ok(true, `D: la base con el paquete anterior (${anteriores.length} archivos, sin ${[...nuevas, fotos].join(" ni ")} y sin el bucket sitio-publico)`);
 
     // Expedientes como los dejaría la app (firmados por SISTEMA), en una base que todavía no tiene la columna.
     await conSuper(sim, async (c) => {
@@ -520,13 +530,15 @@ async function probarMigracionNueva(sim, versionados, volcado) {
       const r = await admin.query(versionados.get(n));
       if (n === "99_verificar.sql") {
         const filas = (Array.isArray(r) ? r.at(-1) : r).rows;
-        const mal = filas.filter((f) => f.ok === false);
+        // Las fotos (26) y su bucket (27) son del paso siguiente (30/10/2026): todavía en falso.
+        const DESPUES = ["sitio público: fotos con RLS, auditoría y sin DELETE", "Storage: bucket sitio-publico privado"];
+        const mal = filas.filter((f) => f.ok === false && !DESPUES.includes(f.control));
         const control = (nombre) => filas.find((f) => f.control === nombre)?.ok;
         ok(
           mal.length === 0 &&
             control("consulta pública: código e intentos protegidos") === true &&
             control("sitio público: RLS, auditoría y privilegios") === true,
-          "D: 99_verificar.sql después: nada en falso, y el código, los intentos y las tablas del sitio protegidos",
+          "D: 99_verificar.sql después: nada en falso (salvo lo del paso siguiente), y el código, los intentos y las tablas del sitio protegidos",
           mal.map((f) => f.control).join(", "),
         );
       }
@@ -538,6 +550,110 @@ async function probarMigracionNueva(sim, versionados, volcado) {
       } catch (e) {
         ok(/ya está aplicada/.test(e.message), `D: ${m} repetida se niega`, e.message.slice(0, 100));
       }
+    }
+
+    // 3. Las fotos propias (30/10/2026), sobre la base que ya tiene TODO lo
+    // anterior, con contenido del sitio cargado (fotos del kit elegidas).
+    await conSuper(sim, async (c) => {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('app.usuario_id', '1', true)");
+      await c.query(`INSERT INTO public.sitio_cementerios (cementerio_id, domicilio, foto)
+                     SELECT id, 'Domicilio de prueba ' || id, 'panoramica' FROM public.cementerios ORDER BY id LIMIT 2`);
+      await c.query("INSERT INTO public.sitio_recorridos (nombre, foto) VALUES ('Recorrido de prueba', 'avenida-azul'), ('Sin foto', NULL)");
+      await c.query("COMMIT");
+    });
+    const contenidoAntes = await conSuper(sim, async (c) =>
+      (await c.query("SELECT (SELECT json_agg(t ORDER BY cementerio_id) FROM public.sitio_cementerios t)::text || (SELECT json_agg(t ORDER BY id) FROM public.sitio_recorridos t)::text AS j")).rows[0].j,
+    );
+    const v0 = (await admin.query(versionados.get("99_verificar.sql")));
+    const filas0 = (Array.isArray(v0) ? v0.at(-1) : v0).rows;
+    ok(
+      filas0.find((f) => f.control === "sitio público: fotos con RLS, auditoría y sin DELETE")?.ok === false &&
+        filas0.find((f) => f.control === "Storage: bucket sitio-publico privado")?.ok === false,
+      "D: antes de lo del 30/10, 99_verificar.sql marca en falso las fotos (26) y el bucket sitio-publico (27)",
+    );
+
+    await admin.query(versionados.get(fotos));
+    ok(true, `D: ${fotos} se aplica sobre la base que ya tiene todo lo anterior`);
+    const contenidoDespues = await conSuper(sim, async (c) =>
+      (await c.query(`SELECT (SELECT json_agg(t ORDER BY cementerio_id) FROM (SELECT * FROM public.sitio_cementerios) t)::text
+                            || (SELECT json_agg(t ORDER BY id) FROM (SELECT * FROM public.sitio_recorridos) t)::text AS j,
+                            (SELECT count(*) FROM public.sitio_cementerios WHERE foto_id IS NOT NULL)
+                            + (SELECT count(*) FROM public.sitio_recorridos WHERE foto_id IS NOT NULL) AS con_foto_id`)).rows[0],
+    );
+    ok(
+      contenidoDespues.j.replaceAll(',"foto_id":null', "") === contenidoAntes && Number(contenidoDespues.con_foto_id) === 0,
+      "D: el contenido del sitio quedó igual (las fotos del kit elegidas siguen; foto_id vacío)",
+    );
+    for (const vuelta of [1, 2]) {
+      await admin.query(versionados.get("45_storage.sql"));
+      ok(true, `D: 45_storage.sql (vuelta ${vuelta}) crea el bucket sitio-publico y deja el de adjuntos como estaba`);
+    }
+    const buckets = await conSuper(sim, async (c) =>
+      (await c.query("SELECT id, public, file_size_limit::text AS limite, allowed_mime_types::text AS tipos FROM storage.buckets ORDER BY id")).rows,
+    );
+    ok(
+      JSON.stringify(buckets) ===
+        JSON.stringify([
+          { id: "adjuntos", public: false, limite: "10485760", tipos: "{application/pdf,image/jpeg,image/png}" },
+          { id: "sitio-publico", public: false, limite: "15728640", tipos: "{image/jpeg,image/png,image/webp}" },
+        ]),
+      "D: los dos buckets, privados y con sus límites",
+      JSON.stringify(buckets),
+    );
+    for (const n of ["40_cierre_api.sql", "99_verificar.sql"]) {
+      const r = await admin.query(versionados.get(n));
+      if (n === "99_verificar.sql") {
+        const filas = (Array.isArray(r) ? r.at(-1) : r).rows;
+        const mal = filas.filter((f) => f.ok === false);
+        const control = (nombre) => filas.find((f) => f.control === nombre)?.ok;
+        ok(
+          mal.length === 0 &&
+            control("sitio público: fotos con RLS, auditoría y sin DELETE") === true &&
+            control("Storage: bucket sitio-publico privado") === true &&
+            control("sitio público: RLS, auditoría y privilegios") === true,
+          "D: 99_verificar.sql después de lo del 30/10: nada en falso, con las fotos (26) y el bucket sitio-publico (27) en verde",
+          mal.map((f) => f.control).join(", "),
+        );
+      }
+    }
+    // La app (cementeria_app) puede subir y dar de baja, nunca borrar; y la regla de una sola foto vale.
+    const reglas = await conSuper(sim, async (c) => {
+      const r = [];
+      await c.query("BEGIN");
+      try {
+        await c.query("SET LOCAL ROLE cementeria_app");
+        await c.query("SELECT set_config('app.usuario_id', '1', true)");
+        const id = (await c.query(`INSERT INTO public.sitio_fotos (id, ruta, alt, ancho, alto, bytes, sha256, subida_por)
+                                   SELECT g, 'fotos/' || g, 'Foto de prueba', 1920, 1080, 1000, repeat('a', 64), 1 FROM gen_random_uuid() g RETURNING id`)).rows[0].id;
+        r.push("subió");
+        await c.query("SAVEPOINT s");
+        try {
+          await c.query("UPDATE public.sitio_recorridos SET foto_id = $1 WHERE nombre = 'Recorrido de prueba'", [id]);
+          r.push("las dos fotos: se aceptó");
+        } catch {
+          r.push("las dos fotos: rechazado");
+          await c.query("ROLLBACK TO SAVEPOINT s");
+        }
+        await c.query("SAVEPOINT s2");
+        try {
+          await c.query("DELETE FROM public.sitio_fotos WHERE id = $1", [id]);
+          r.push("borrar: se aceptó");
+        } catch {
+          r.push("borrar: rechazado");
+          await c.query("ROLLBACK TO SAVEPOINT s2");
+        }
+      } finally {
+        await c.query("ROLLBACK");
+      }
+      return r;
+    });
+    ok(JSON.stringify(reglas) === JSON.stringify(["subió", "las dos fotos: rechazado", "borrar: rechazado"]), "D: la app sube una foto, no puede dejar dos fotos ni borrar", reglas.join("; "));
+    try {
+      await admin.query(versionados.get(fotos));
+      ok(false, `D: ${fotos} repetida se niega`);
+    } catch (e) {
+      ok(/ya está aplicada/.test(e.message), `D: ${fotos} repetida se niega`, e.message.slice(0, 100));
     }
   } finally {
     await admin.end();

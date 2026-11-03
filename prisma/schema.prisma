@@ -68,7 +68,7 @@ model Cementerio {
   tiposMonumento  String[] @default([]) @map("tipos_monumento")
   activo          Boolean  @default(true)
 
-  area        Area         @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  area        Area             @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   expedientes Expediente[]
   /// Lo que muestra la página pública (28/10/2026, migración *_sitio_publico).
   sitio       SitioCementerio?
@@ -137,9 +137,9 @@ model Usuario {
   intentosFallidos Int       @default(0) @map("intentos_fallidos") @db.SmallInt
   bloqueadoHasta   DateTime? @map("bloqueado_hasta") @db.Timestamptz
 
-  area                 Area?             @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  plantillasCreadas    Plantilla[]       @relation("PlantillaCreadaPor")
-  plantillasPublicadas Plantilla[]       @relation("PlantillaPublicadaPor")
+  area                 Area?              @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  plantillasCreadas    Plantilla[]        @relation("PlantillaCreadaPor")
+  plantillasPublicadas Plantilla[]        @relation("PlantillaPublicadaPor")
   expedientesCreados   Expediente[]
   movimientos          Movimiento[]
   aniosCerrados        FeriadoAnio[]
@@ -147,6 +147,7 @@ model Usuario {
   accesos              AuditoriaAcceso[]
   avisos               Aviso[]
   preferenciasAvisos   AvisoPreferencia[]
+  fotosSitio           SitioFoto[]
 
   @@map("usuarios")
   @@schema("public")
@@ -249,7 +250,7 @@ model Expediente {
   /// DEFAULT es para lo que se inserta por SQL (pruebas): el dominio lo pasa siempre.
   codigoConsulta       String    @unique @default(dbgenerated("f_codigo_consulta_aleatorio()")) @map("codigo_consulta")
 
-  tipoTramite       TipoTramite         @relation(fields: [tipoTramiteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  tipoTramite        TipoTramite         @relation(fields: [tipoTramiteId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   plantilla          Plantilla           @relation(fields: [plantillaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   expedienteAnterior Expediente?         @relation("ExpedienteReiniciado", fields: [expedienteAnteriorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   reiniciadoEn       Expediente[]        @relation("ExpedienteReiniciado")
@@ -620,11 +621,15 @@ model SitioCementerio {
   horarioEspecial    String?  @map("horario_especial")
   /// Una de las imágenes de public/assets/cementeria (lista cerrada: validacion.ts, FOTOS_SITIO).
   foto               String?
+  /// O una foto subida por la Dirección (30/10/2026, *_sitio_fotos). Nunca las dos (CHECK).
+  fotoId             String?  @map("foto_id") @db.Uuid
   creadoEn           DateTime @default(now()) @map("creado_en") @db.Timestamptz
   actualizadoEn      DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
 
   cementerio Cementerio @relation(fields: [cementerioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fotoSubida SitioFoto? @relation(fields: [fotoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
+  @@index([fotoId])
   @@map("sitio_cementerios")
   @@schema("public")
 }
@@ -644,14 +649,18 @@ model SitioRecorrido {
   inscripcion    String?
   inscripcionUrl String?  @map("inscripcion_url")
   foto           String?
+  /// O una foto subida (30/10/2026). Nunca las dos (CHECK).
+  fotoId         String?  @map("foto_id") @db.Uuid
   activo         Boolean  @default(true)
   orden          Int      @default(0) @db.SmallInt
   creadoEn       DateTime @default(now()) @map("creado_en") @db.Timestamptz
   actualizadoEn  DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
 
   cementerio Cementerio?           @relation(fields: [cementerioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fotoSubida SitioFoto?            @relation(fields: [fotoId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   fechas     SitioRecorridoFecha[]
 
+  @@index([fotoId])
   @@map("sitio_recorridos")
   @@schema("public")
 }
@@ -716,5 +725,40 @@ model SitioPregunta {
   actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
 
   @@map("sitio_preguntas")
+  @@schema("public")
+}
+
+/// Una foto que subió la Dirección para la página pública (30/10/2026,
+/// migración *_sitio_fotos). Se guarda solo lo procesado: dos WebP (960 y 1920
+/// px de ancho, sin agrandar) sin metadatos, en `<ruta>/960.webp` y
+/// `<ruta>/1920.webp` del almacén. El original (con su EXIF) no se guarda. No
+/// se borra: se da de baja (`activa = false`).
+model SitioFoto {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// `fotos/<id>` (CHECK): la carpeta de las dos versiones en el almacén.
+  ruta          String
+  /// El texto alternativo, de 5 a 200 caracteres.
+  alt           String
+  /// Crédito o descripción, opcional.
+  credito       String?
+  /// Del original, ya orientado.
+  ancho         Int
+  alto          Int
+  /// Del original que se subió.
+  bytes         Int
+  /// SHA-256 del original, en hexadecimal: la misma foto no se sube dos veces
+  /// mientras esté activa, y sus primeros 16 caracteres van en la URL pública.
+  sha256        String   @db.Char(64)
+  activa        Boolean  @default(true)
+  subidaPor     Int      @map("subida_por")
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  subidor     Usuario           @relation(fields: [subidaPor], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cementerios SitioCementerio[]
+  recorridos  SitioRecorrido[]
+
+  @@unique([sha256], map: "sitio_fotos_sha256_activa_key", where: raw("activa"))
+  @@map("sitio_fotos")
   @@schema("public")
 }

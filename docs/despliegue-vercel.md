@@ -13,7 +13,7 @@
 
 0. [Cómo queda](#0-cómo-queda)
 1. [Antes de empezar](#1-antes-de-empezar)
-2. [Bucket de adjuntos en Supabase Storage](#2-bucket-de-adjuntos-en-supabase-storage-d)
+2. [Buckets de adjuntos y de fotos en Supabase Storage](#2-buckets-de-adjuntos-y-de-fotos-en-supabase-storage-d)
 3. [Clave secreta de Supabase para el servidor](#3-clave-secreta-de-supabase-para-el-servidor-d)
 4. [Crear el proyecto en Vercel](#4-crear-el-proyecto-en-vercel-d)
 5. [Variables de entorno](#5-variables-de-entorno-d)
@@ -32,8 +32,9 @@
 Navegador ──https──► Vercel (región gru1, São Paulo; funciones Node)
    │                   ├─ páginas, Server Actions, /api/*  ── Transaction pooler (6543, TLS con la CA de Supabase) ──► Postgres de Supabase
    │                   ├─ /adjuntos/[id]: permisos, motivo, auditoría y el archivo EN STREAMING desde Storage
+   │                   ├─ /sitio/fotos/…: las fotos del sitio público (activas), desde Storage, cacheadas por el CDN
    │                   └─ /api/cron/*: Vercel Cron, con Authorization: Bearer CRON_SECRET
-   └──PUT con URL firmada (solo al subir un adjunto)──► Supabase Storage, bucket PRIVADO `adjuntos`
+   └──PUT con URL firmada (solo al subir un adjunto o una foto)──► Supabase Storage, buckets PRIVADOS `adjuntos` y `sitio-publico`
 ```
 
 | | Servidor municipal | Vercel |
@@ -42,6 +43,7 @@ Navegador ──https──► Vercel (región gru1, São Paulo; funciones Node)
 | Adjuntos | disco (`ADJUNTOS_DIR`) | Supabase Storage (`ADJUNTOS_ALMACEN=supabase`) |
 | Subida de un adjunto | `POST …/adjuntos` en streaming (hasta 10 MB) | en dos fases: autorizar → el navegador sube directo a Storage → confirmar |
 | Lectura de un adjunto | `/adjuntos/[id]` desde el disco | `/adjuntos/[id]` en streaming desde Storage |
+| Fotos del sitio (30/10/2026) | `POST /api/sitio/fotos` en streaming (hasta 15 MB) y `/sitio/fotos/…` desde `<ADJUNTOS_DIR>/sitio-publico` | en dos fases (autorizar → PUT a `sitio-publico/tmp/` → confirmar, que procesa con sharp) y `/sitio/fotos/…` desde Storage, con el CDN de Vercel delante |
 | Encabezados de seguridad | nginx (`cementeria-seguridad.conf`) | Next (`headers()` de `next.config.ts`), los mismos valores |
 | Tareas programadas | timers de systemd | Vercel Cron (`vercel.json`) |
 | Base | Session pooler (5432) | **Transaction pooler (6543)**, `DB_POOL_MAX=3` |
@@ -62,11 +64,15 @@ la misma (las fotos se siguen achicando en el navegador antes de subir).
   semana sin uso** y no tiene backups ni de la base ni de Storage: para
   producción, **Pro** (sección 11).
 
-## 2. Bucket de adjuntos en Supabase Storage [D]
+## 2. Buckets de adjuntos y de fotos en Supabase Storage [D]
 
 Un bucket **privado** `adjuntos`, de 10 MB por archivo, solo PDF, JPEG y PNG,
 **sin políticas** para `anon` ni `authenticated` (con RLS y sin políticas
-nadie entra salvo la clave secreta del servidor).
+nadie entra salvo la clave secreta del servidor). Desde el 30/10/2026, otro
+**privado** `sitio-publico` para las fotos que sube la Dirección para la
+página pública: 15 MB, solo JPEG, PNG y WebP, también **sin políticas**
+(aunque las fotos sean públicas, las sirve la app: ver sección 10, "Fotos
+del sitio").
 
 Cualquiera de los dos caminos (son equivalentes e idempotentes):
 
@@ -75,14 +81,16 @@ Cualquiera de los dos caminos (son equivalentes e idempotentes):
 - **A mano**: `npm run supabase:sql` y correr
   **`supabase/sql/45_storage.sql`** entero en el SQL Editor del panel (rol
   `postgres`). Después `99_verificar.sql`: los controles 19 ("Storage: bucket
-  adjuntos privado") y 20 ("Storage: sin políticas") tienen que salir en `true`.
+  adjuntos privado"), 20 ("Storage: sin políticas") y 27 ("Storage: bucket
+  sitio-publico privado") tienen que salir en `true`.
 
 Si el SQL Editor rechazara el `INSERT` en `storage.buckets` (Supabase puede
 restringir el acceso directo a las tablas de Storage en el futuro), crearlo
 desde el panel: **Storage → New bucket** → nombre `adjuntos`, **Public bucket
 apagado**, **Restrict file size** 10 MB, **Allowed MIME types**
-`application/pdf, image/jpeg, image/png`. No crear ninguna política en
-**Storage → Policies**.
+`application/pdf, image/jpeg, image/png`; y `sitio-publico`, igual pero con
+**Restrict file size** 15 MB y **Allowed MIME types** `image/jpeg, image/png,
+image/webp`. No crear ninguna política en **Storage → Policies**.
 
 ## 3. Clave secreta de Supabase para el servidor [D]
 
@@ -174,6 +182,13 @@ publicación [C], las páginas van con `noindex, nofollow`. Antes de desplegar,
 la migración `*_consulta_publica` en Supabase (supabase/sql/README.md, "La
 consulta pública"), si no, la app falla al leer los expedientes.
 
+**Fotos del sitio (30/10/2026).** **Ninguna variable nueva**: usan
+`ADJUNTOS_ALMACEN=supabase`, `SUPABASE_URL` y `SUPABASE_SECRET_KEY`, las de los
+adjuntos. Antes de desplegar, en Supabase, la migración `*_sitio_fotos` y
+`45_storage.sql` (el bucket nuevo): supabase/sql/README.md, "Las fotos del
+sitio (30/10/2026)". sharp va en el paquete de la función (se instala con
+`npm install` en el build de Vercel, Linux x64; ver sección 10).
+
 **Sitio público (28/10/2026).** Tampoco lleva variables: el contenido de la
 página (horarios, recorridos, novedades, contacto, preguntas) lo carga la
 Dirección desde /admin/sitio-publico y vive en la base. Antes de desplegar, la
@@ -260,11 +275,24 @@ Tucumán es UTC−3 todo el año):
    Auditoría quedan `ver_adjunto` y `descargar_adjunto`.
 6. **Una foto:** adjuntar una foto del celular: se achica antes de subir
    (igual que antes).
-7. **Cron:** `curl -i https://<dominio>/api/cron/adjuntos-tmp` sin encabezado →
+7. **Una foto del sitio** (30/10/2026): como Dirección, en Sitio público →
+   Fotos, subir una foto ficticia de **más de 4,5 MB** (por ejemplo, una del
+   celular de 8 MB). Tiene que decir "Foto subida". En Storage →
+   `sitio-publico`: `fotos/<uuid>/960.webp` y `1920.webp`, y nada en `tmp/`.
+   Elegirla para un cementerio y abrir `/cementerios` sin sesión: se ve, sin
+   "ilustrativa". `curl -sI https://<dominio>/sitio/fotos/<id>/<versión>-960.webp`
+   (la URL de la miniatura) → `200`, `content-type: image/webp`,
+   `cache-control: public, max-age=31536000, s-maxage=86400, immutable` y
+   `x-content-type-options: nosniff`; la segunda vez, `x-vercel-cache: HIT`.
+   Con otra versión o un id inventado, `404`. Darla de baja: la página deja
+   de mostrarla enseguida (el CDN puede servir esa URL hasta un día). En los
+   logs de la función `/api/sitio/fotos/confirmar` no tiene que haber
+   `ERR_DLOPEN_FAILED` (sería que sharp no cargó).
+8. **Cron:** `curl -i https://<dominio>/api/cron/adjuntos-tmp` sin encabezado →
    **401**; con `-H "Authorization: Bearer $CRON_SECRET"` → **200** con
    `{"ok":true,"tarea":"adjuntos_tmp",…}`. Después, `…/api/cron/historial`
    → 200 con `rotos: 0`.
-8. Al día siguiente: Settings → Cron Jobs, las tres con su última corrida en 200.
+9. Al día siguiente: Settings → Cron Jobs, las tres con su última corrida en 200.
 
 ## 10. Decisiones y fuentes
 
@@ -309,6 +337,47 @@ Por eso, con `ADJUNTOS_ALMACEN=supabase`:
 El disco sigue con el Route Handler en streaming de siempre (y con
 `supabase`, ese camino también funciona, juntando hasta 10 MB en memoria, para
 un servidor propio sin el límite de Vercel).
+
+**Fotos del sitio: subida directa y sharp (30/10/2026).** Una foto llega a
+15 MB y una función no recibe más de 4,5: se reusa la subida en dos fases de
+los adjuntos (autorizar → PUT del original a `sitio-publico/tmp/<uuid>` →
+confirmar, con su propio ticket HMAC). Al confirmar, la función lee el
+original desde Storage (hasta 15 MB, en memoria), lo procesa con **sharp**
+(magic bytes, orientación EXIF, dos WebP de 960 y 1920 px **sin metadatos**),
+guarda las dos versiones y borra el original; el servidor nunca sirve lo que
+mandó el navegador. Se eligió esto y no achicar en el navegador con canvas
+porque así se re-codifica una sola vez desde el original (mejor calidad), el
+límite de 15 MB lo controla el servidor y no depende de qué navegador se use.
+sharp ya venía como dependencia de Next; ahora está explícito en
+`dependencies` con la misma versión (0.35.5). El rastreo de archivos de Next
+copia su binario pero **no las bibliotecas de libvips** que ese binario carga
+(`@img/sharp-libvips-linux-x64/lib/*.so`): `next.config.ts` las suma con
+`outputFileTracingIncludes` en las dos rutas que procesan (`/api/sitio/fotos`
+y `…/confirmar`). Sin eso, la función fallaría con `ERR_DLOPEN_FAILED` (se vio
+en el standalone local: sin las DLL de libvips, sharp no cargaba). En Vercel,
+Next además excluye sharp del rastreo del servidor de Next (su optimizador de
+imágenes, que no se usa), no del de estas rutas. sharp se carga recién al
+procesar la primera foto: si algún día no cargara, fallaría solo la subida,
+nunca la página pública. Memoria: decodificar una foto de 50 MP con libvips
+entra holgado en la memoria por defecto de una función (2 GB); `maxDuration`
+60 s.
+
+**Fotos del sitio: privado + Route Handler, y su costo.** El bucket
+`sitio-publico` es privado y sin políticas, como `adjuntos`, para que
+`45_storage.sql`, `40_cierre_api.sql` y `99_verificar.sql` sigan exigiendo que
+no haya políticas para `anon` ni `authenticated`. Las fotos las sirve la app,
+`GET /sitio/fotos/<id>/<16 del sha256>-<960|1920>.webp`: solo las activas
+(una dada de baja da 404), sin listado posible (uuid aleatorio y la versión
+del hash), `image/webp` con `nosniff` y `Cache-Control: public,
+max-age=31536000, s-maxage=86400, immutable`. Como la URL cambia si cambia
+la foto, el navegador la guarda un año; el CDN de Vercel, un día. **Costo:
+cada pedido que el CDN no tiene en caché (un *miss*) es una invocación de la
+función** (con una lectura de la base y una descarga de Storage, unos 50 a
+300 KB); los demás los responde el CDN sin invocar nada. Con decenas de fotos,
+son a lo sumo unas pocas invocaciones por foto, por versión y por región del
+CDN por día: despreciable frente al límite del plan. Una foto dada de baja
+puede seguir saliendo del CDN hasta un día (o hasta el próximo despliegue)
+para quien tenga su URL exacta; las páginas dejan de mostrarla al instante.
 
 **Lectura en streaming, sin URL firmada.** El límite de 4,5 MB es del cuerpo
 del pedido; Vercel indica que las respuestas en streaming no lo tienen
@@ -396,6 +465,12 @@ base efímera (salud, login y los tres crons). En Vercel la CA va por
   Sistemas.
 - **Vercel Hobby** es para uso personal y no comercial y sus crons pueden
   demorarse hasta 59 minutos. Para producción, **Pro**.
+- **Fotos del sitio:** son públicas; que no muestren personas ni nombres
+  en lápidas sin autorización depende de quien las sube (la pantalla lo
+  recuerda; docs/borrador-tecnico-art22.md). Una dada de baja puede quedar
+  hasta un día en el CDN para quien tenga la URL. Los backups de la base no
+  incluyen Storage: las fotos (como los adjuntos) dependen de la copia del
+  bucket que se decida.
 - **La URL firmada de subida vale 2 horas** para `tmp/<uuid>`: después de
   confirmar (el temporal se mueve), quien la tenga podría volver a subir un
   archivo a ese mismo `tmp/<uuid>`. No llega a ningún expediente: confirmar

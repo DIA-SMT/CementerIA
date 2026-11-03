@@ -66,4 +66,13 @@ describe("ticket de la subida directa", () => {
     expect(verificarTicket(SECRETO, "basura", destino, 1_000_000)).toEqual(invalido);
     expect(verificarTicket(SECRETO, "", destino, 1_000_000)).toEqual(invalido);
   });
+
+  it("el de un adjunto no sirve para una foto del sitio ni al revés (30/10/2026)", () => {
+    const foto = { usuarioId: 7, numero: "sitio", comando: "", tipo: "foto_sitio" as const };
+    const t = firmarTicket(SECRETO, foto, id, 1_000_000);
+    expect(verificarTicket(SECRETO, t, foto, 1_000_000)).toEqual({ ok: true, id });
+    expect(verificarTicket(SECRETO, t, { ...foto, tipo: "adjunto" }, 1_000_000)).toEqual({ ok: false, motivo: "invalido" });
+    const adjunto = firmarTicket(SECRETO, { ...foto, tipo: undefined }, id, 1_000_000);
+    expect(verificarTicket(SECRETO, adjunto, foto, 1_000_000)).toEqual({ ok: false, motivo: "invalido" });
+  });
 });
