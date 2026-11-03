@@ -41,8 +41,14 @@ const panel = (page: Page) => page.getByRole("dialog", { name: "Migue" });
 /** En el sistema, la invitación a un recorrido ocupa el rincón de Migue: se pospone. */
 async function abrirMigue(page: Page): Promise<void> {
   const ahoraNo = page.getByRole("complementary").getByRole("button", { name: "Ahora no" });
-  await expect(ahoraNo.or(burbuja(page)).first()).toBeVisible();
-  if (await ahoraNo.isVisible()) await ahoraNo.click();
+  // La burbuja puede verse un instante antes de que llegue la invitación (y
+  // entonces se esconde): se espera la invitación, que en un navegador nuevo
+  // siempre aparece, y si en unos segundos no está, se sigue.
+  const hayInvitacion = await ahoraNo.waitFor({ timeout: 5_000 }).then(
+    () => true,
+    () => false,
+  );
+  if (hayInvitacion) await ahoraNo.click();
   await burbuja(page).click();
   await expect(panel(page)).toBeVisible();
   await expect(panel(page).getByRole("textbox", { name: "Escribí tu pregunta para Migue" })).toBeFocused();
