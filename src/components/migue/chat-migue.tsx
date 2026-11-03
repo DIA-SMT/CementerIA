@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ArrowUpRight, LogIn, MessageCircleQuestion, RefreshCw, Send, X } from "lucide-react";
 import type { EnlaceMigue } from "@/lib/migue/enlaces";
+import { TextoMigue } from "./texto-migue";
 import { ESTILO_SOBRE_LA_BARRA, useBurbujaMovible } from "./burbuja-movible";
 import { CuerpoMigue, RetratoMigue } from "./retrato-migue";
 
@@ -280,7 +281,8 @@ export function ChatMigue({
           {mensajes.map((m, i) => (
             <div key={i} data-mensaje="" className={`max-w-[88%] rounded-tarjeta px-3.5 py-2.5 text-sm leading-relaxed ${m.rol === "usuario" ? c.usuario : c.migue}`}>
               {m.rol === "migue" ? <span className="sr-only">Migue: </span> : <span className="sr-only">Vos: </span>}
-              <p className="whitespace-pre-wrap">{m.texto}</p>
+              {/* Lo de Migue, con su formato (negritas, listas); lo de la persona, tal cual lo escribió. */}
+              {m.rol === "migue" ? <TextoMigue texto={m.texto} /> : <p className="whitespace-pre-wrap">{m.texto}</p>}
               {m.enlaces?.length ? (
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {m.enlaces.map((e) => (

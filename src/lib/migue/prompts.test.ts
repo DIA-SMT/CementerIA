@@ -13,11 +13,11 @@ const sha256 = (texto: string) => createHash("sha256").update(texto.replace(/\r\
 
 describe("los prompts de Migue", () => {
   it("el público no cambió sin querer", () => {
-    expect(sha256(INSTRUCCIONES_PUBLICO)).toBe("0ba20a4cd45362ff16e7f17f9a710fb93c43884f07e534cfa7bd0b997cd4b117");
+    expect(sha256(INSTRUCCIONES_PUBLICO)).toBe("2ad2ac40d8f39293e3ea8df4ff9b4453acbec50bff43e64ad646d3c2b32a2d83");
   });
 
   it("el interno no cambió sin querer", () => {
-    expect(sha256(INSTRUCCIONES_INTERNO)).toBe("6d0e68c0d73364b012cacf01de0849bcfcd34fcf22b18f91ca94cc8ac2d19e8a");
+    expect(sha256(INSTRUCCIONES_INTERNO)).toBe("a99f8f716e2a5df96dff32225ee84b5bc9c0cbe847638f7617eebea6e147371a");
   });
 
   it.each([

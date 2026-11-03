@@ -2830,6 +2830,7 @@ de la sesión. Lo único suyo son dos tablas: lo que le preguntaron y cuánto.
 | `registro.ts` | `registrarConsulta(escribir, datos)`: `auditoria.consultas_migue`. Nunca hace fallar la respuesta |
 | `reporte.ts` | El reporte al tablero de organizacionDIA (`armarReporte`, `enviarReporte`) |
 | `enlaces.ts` | `interpretarRespuesta(crudo, validar)`: las líneas `ENLACE:` y la marca `[SIN_RESPUESTA]`, y los enlaces validados |
+| `formato.ts` | `bloquesDe(texto)` y `trozosDe(linea)`: el markdown que escribe el modelo (negrita, cursiva, listas, títulos) leído a bloques; el chat los dibuja con elementos de React (`TextoMigue`), nunca como HTML. Sin `server-only`: lo usa el chat |
 | `datos-publicos.ts` | La lista cerrada de los datos públicos y el bloque `<datos>…</datos>` escapado |
 | `atajos-publicos.ts` | Los atajos sin modelo de la página pública y el buscador por palabras |
 | `publico.ts` | `responderPublico(deps, { pregunta, historial }, ip)` |

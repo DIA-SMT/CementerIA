@@ -130,6 +130,17 @@ test.describe("Migue en el sistema", () => {
     await capturar(page, "sistema-ayuda-bandeja");
   });
 
+  test("la respuesta del modelo se muestra con su formato: negritas y lista, sin asteriscos", async ({ page }) => {
+    await entrarComo(page, "mesa");
+    await abrirMigue(page);
+    await preguntar(page, "¿Cómo manejo las plantillas? Con formato");
+    const respuesta = panel(page).locator("[data-mensaje]").last();
+    await expect(respuesta.locator("strong").first()).toHaveText("Plantillas de trámite");
+    await expect(respuesta.getByRole("listitem")).toHaveCount(2);
+    await expect(respuesta.locator("em")).toHaveText("borrador");
+    expect(await respuesta.innerText()).not.toContain("*");
+  });
+
   test("el estado de un expediente de la semilla: el modelo pide la herramienta y lo que le vuelve no trae datos personales", async ({ page }) => {
     // Un expediente de la semilla que está en Mesa de Entradas, con su titular (para buscarlo después en lo que viajó).
     const c = new pg.Client({ connectionString: process.env.E2E_URL_BASE_DUENO });

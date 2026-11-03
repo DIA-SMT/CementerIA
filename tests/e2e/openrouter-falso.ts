@@ -7,6 +7,8 @@
 // Contesta según lo que le llega, sin estado, para que las pruebas puedan
 // correr en paralelo:
 // - si la última pregunta dice «provocar falla», responde 500 (el fallback);
+// - si dice «con formato», una respuesta con markdown (negritas y una lista
+//   con renglones en blanco, como escribe el modelo de verdad);
 // - con herramientas (el Migue del sistema): si la pregunta trae un número de
 //   expediente, pide `estado_expediente`; cuando le vuelve el resultado, arma
 //   la respuesta con los datos de la herramienta y el enlace a la ficha;
@@ -37,6 +39,9 @@ export interface PedidoRecibido {
   mensajes: Mensaje[];
 }
 
+export const RESPUESTA_CON_FORMATO =
+  "Para manejar las plantillas, tené en cuenta lo siguiente:\n\n- **Plantillas de trámite**: definen los pasos y los documentos.\n\n- **Nueva plantilla**: nace como *borrador* y se publica después.";
+
 export const RESPUESTA_PUBLICA = "Respuesta de prueba de Migue: según lo que publica la Dirección, te conviene mirar los horarios.";
 
 function respuesta(cuerpo: { messages?: Mensaje[]; tools?: Array<{ function: { name: string } }> }): { status: number; json: unknown } {
@@ -47,6 +52,7 @@ function respuesta(cuerpo: { messages?: Mensaje[]; tools?: Array<{ function: { n
   if (/provocar falla/i.test(ultimaPregunta)) return { status: 500, json: { error: { code: 500, message: "falla provocada por la prueba" } } };
 
   const texto = (content: string) => ({ status: 200, json: { id: "falso", model: "openai/gpt-4o-mini", choices: [{ message: { role: "assistant", content } }], usage: uso } });
+  if (/con formato/i.test(ultimaPregunta)) return texto(RESPUESTA_CON_FORMATO);
 
   if (cuerpo.tools?.length) {
     if (ultimo?.role === "tool") {
