@@ -93,6 +93,7 @@ const pase = (e: string, fecha: string, de: string, a: string, extra: Partial<Mo
   mov(e, "pase", fecha, { pasoOrigen: de, pasoDestino: a, areaOrigenId: AREA_DE_PASO[de], areaDestinoId: AREA_DE_PASO[a], areaUsuarioId: AREA_DE_PASO[de] === DIM ? COMP : AREA_DE_PASO[de], ...extra });
 
 function expediente(id: string, fechaInicio: FechaISO, cambios: Partial<ExpedienteMetricas> = {}): ExpedienteMetricas {
+  const enAreaDesde = cambios.enAreaDesde ?? new Date(`${fechaInicio}T10:00:00-03:00`);
   return {
     id,
     numero: `CEM-2026-0000${id}`,
@@ -108,7 +109,8 @@ function expediente(id: string, fechaInicio: FechaISO, cambios: Partial<Expedien
     origen: "sistema",
     areaActualId: MESA,
     pasoClave: "MESA",
-    enAreaDesde: new Date(`${fechaInicio}T10:00:00-03:00`),
+    enAreaDesde,
+    relojDesde: enAreaDesde,
     ...cambios,
   };
 }
@@ -300,7 +302,7 @@ describe("calcularMetricas", () => {
   it("un número se enlaza a la búsqueda solo si la búsqueda trae exactamente eso", () => {
     // Marzo: la búsqueda por fecha de inicio traería también el 6 (iniciado antes del sistema).
     expect(m.flujo[0].busquedaIngresados).toBeNull();
-    expect(m.flujo[1].busquedaIngresados).toEqual({ fechaInicioDesde: "2026-04-01", fechaInicioHasta: "2026-04-30", incluirAnulados: true, cargaHistorica: false });
+    expect(m.flujo[1].busquedaIngresados).toEqual({ fechaInicioDesde: "2026-04-01", fechaInicioHasta: "2026-04-30", incluirAnulados: true, cargaAbierta: false });
     // Cómputo hoy: el 2 (y el 6, que no se cuenta).
     expect(m.carga.find((c) => c.area.id === COMP)).toMatchObject({ hoy: 1, busquedaHoy: null, demoradosHoy: 1 });
     expect(m.resumen.busquedaEnTramiteHoy).toBeNull();
@@ -309,9 +311,9 @@ describe("calcularMetricas", () => {
     expect(conHistoricos.flujo[0]).toMatchObject({ ingresados: 3, busquedaIngresados: { tipoTramiteId: 1, fechaInicioDesde: "2026-03-01", fechaInicioHasta: "2026-03-31" } });
     expect(conHistoricos.carga.find((c) => c.area.id === COMP)).toMatchObject({
       hoy: 2,
-      busquedaHoy: { tipoTramiteId: 1, areaActualId: COMP, estados: ["en_tramite", "espera_pago_dim"], cargaHistorica: false },
+      busquedaHoy: { tipoTramiteId: 1, areaActualId: COMP, estados: ["en_tramite", "espera_pago_dim"], cargaAbierta: false },
     });
-    expect(conHistoricos.resumen.busquedaEnTramiteHoy).toEqual({ tipoTramiteId: 1, estados: ["en_tramite", "espera_pago_dim"], cargaHistorica: false });
+    expect(conHistoricos.resumen.busquedaEnTramiteHoy).toEqual({ tipoTramiteId: 1, estados: ["en_tramite", "espera_pago_dim"], cargaAbierta: false });
   });
 
   it("devoluciones: de qué área a qué área y motivos agrupados", () => {

@@ -4,6 +4,7 @@ import { fechaParaDb, hoyEnTucuman, type FechaISO } from "@/lib/fechas";
 import { DIAS_PLAZO_POR_VENCER } from "../expedientes/flujo";
 import { DIAS_SIN_CONFIRMAR } from "../expedientes/panel";
 import { sqlPlazo } from "../expedientes/plazos";
+import { sqlDiasEnArea } from "../expedientes/reloj";
 import type { DependenciasAvisos } from "./dependencias";
 import { datosDeFila, type FilaAviso } from "./eventos";
 import {
@@ -25,7 +26,11 @@ import {
  * que mira los expedientes en trabajo (estados activos y sin la carga
  * histórica abierta) con las mismas reglas que el panel y la bandeja, y
  * calcula los días hábiles en la base (`f_dias_habiles_entre`,
- * `f_sumar_dias_habiles`): los feriados cuentan.
+ * `f_sumar_dias_habiles`): los feriados cuentan. Los días en el área y el
+ * plazo corren desde la llegada (o el inicio del plazo) o, si es posterior,
+ * desde que terminó la carga histórica (reloj.ts, el mismo SQL que la bandeja
+ * y el panel): un expediente de papel no avisa "demorado" por los años que
+ * pasó en el papel.
  *
  * **Idempotente**: la clave de cada aviso es por expediente y situación (el
  * plazo por su inicio, el envío por su movimiento, la demora por la estadía en
@@ -155,7 +160,7 @@ async function expedientesEnTrabajo(tx: Pick<Transaccion, "$queryRaw">, hoy: Fec
            e.area_actual_id::int AS area_actual_id, aa.nombre AS area_actual,
            e.area_responsable_id::int AS area_responsable_id,
            e.en_area_desde, e.recibido_en,
-           public.f_dias_habiles_entre((e.en_area_desde AT TIME ZONE 'America/Argentina/Tucuman')::date, ${hoy}::date) AS dias_en_area,
+           ${sqlDiasEnArea(hoy)} AS dias_en_area,
            e.plazo_desde::text AS plazo_desde, e.plazo_dias_habiles::int AS plazo_dias_habiles,
            e.plazo_cumplido_en::text AS plazo_cumplido_en, pz.vence, pz.faltan, pz.anios_sin_cerrar,
            env.id AS envio_id, env.area_usuario_id::int AS envio_area_id

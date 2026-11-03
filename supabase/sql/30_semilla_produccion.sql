@@ -13,7 +13,7 @@
 -- ni expedientes. El administrador inicial va aparte, en
 -- .local/35_admin_inicial.sql (lleva un CUIL real y no se versiona).
 -- Idempotente: lo que ya existe (por clave) no se toca.
--- Huella de prisma/semilla/ y prisma/seed.ts: 4510f294a44babba76b097fa532e7683dd2461fabb55ea005dd2f613847d5f09
+-- Huella de prisma/semilla/ y prisma/seed.ts: 7214494f8e76c2a469829e0252ad39a1e574826977249c8dcb17b4975804c467
 
 DO $$
 BEGIN

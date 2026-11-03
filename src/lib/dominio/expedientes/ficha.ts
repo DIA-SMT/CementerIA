@@ -25,7 +25,9 @@ import { leerItems, type EstadoDocumento } from "./items";
 import { numeroCorto } from "./numero";
 import type { VinculoAnterior } from "./alta";
 import { correccionesPosibles, type TipoCorreccion } from "./correcciones";
+import { esDelPapel } from "./origen";
 import { calcularPlazo, type PlazoCalculado } from "./plazos";
+import { sqlDiasEnArea, SQL_RELOJ_DESDE } from "./reloj";
 import { fechasCorregidas, movimientosRevertidos, observacionesCorregidas } from "./reconstruccion";
 import { pendientesHistoricos } from "./transcripcion";
 import { areasDelPaso } from "./proyeccion";
@@ -268,7 +270,10 @@ export interface Ficha {
   /** Para el bloqueo optimista: se manda de vuelta con cada acción. */
   version: number;
   fechaInicio: FechaISO;
+  /** La transcripción de la ficha de papel sigue abierta (`expedientes.carga_historica`). */
   cargaHistorica: boolean;
+  /** Vino del papel: el alta fue una carga histórica (origen.ts). No cambia al terminar la carga. */
+  delPapel: boolean;
   ubicacionArchivo: string | null;
   tipoTramite: CodigoNombre;
   plantilla: {
@@ -304,6 +309,14 @@ export interface Ficha {
   /** Ídem para `recibidoEn`. */
   recibidoEnPrecision: PrecisionFecha;
   plazo: PlazoFicha | null;
+  /**
+   * La demora como la cuentan la bandeja y el panel (reloj.ts): los días
+   * hábiles desde que llegó al área o, si es posterior, desde que terminó la
+   * carga histórica (`desde`). Null si no está en trabajo (fuera de los
+   * estados activos o con la carga abierta). Los tramos, en cambio, son la
+   * historia: cuentan desde la fecha del papel.
+   */
+  demora: { desde: Date; diasEnArea: number; diasAlerta: number | null; demorado: boolean } | null;
   situaciones: Situacion[];
   expedienteAnterior: string | null;
   expedientesSiguientes: string[];
@@ -498,6 +511,11 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
   const areas = await tx.area.findMany({ select: { id: true, codigo: true, nombre: true, tipo: true } });
   const cementerios = await tx.cementerio.findMany({ select: { codigo: true, nombre: true, areaId: true } });
   const plazo = await calcularPlazo(tx, e, hoy);
+  const enTrabajo = (e.estado === "en_tramite" || e.estado === "espera_pago_dim") && !e.cargaHistorica;
+  const [reloj] = enTrabajo
+    ? await tx.$queryRaw<Array<{ desde: Date; dias: number }>>`
+        SELECT ${SQL_RELOJ_DESDE} AS desde, ${sqlDiasEnArea(hoy)} AS dias FROM public.expedientes e WHERE e.id = ${e.id}`
+    : [];
 
   const areaPorId = new Map(areas.map((a) => [a.id, a]));
   const areaPorCodigo = new Map(areas.map((a) => [a.codigo, a]));
@@ -750,6 +768,7 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     version: e.version,
     fechaInicio: fechaDesdeDb(e.fechaInicio),
     cargaHistorica: e.cargaHistorica,
+    delPapel: esDelPapel(movimientos),
     ubicacionArchivo: e.ubicacionArchivo,
     tipoTramite: e.tipoTramite,
     plantilla: {
@@ -795,6 +814,14 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     recibidoEn: e.recibidoEn,
     recibidoEnPrecision: precisionDe(e.recibidoEn),
     plazo,
+    demora: reloj
+      ? {
+          desde: reloj.desde,
+          diasEnArea: reloj.dias,
+          diasAlerta: pasoActual?.dias_alerta ?? null,
+          demorado: pasoActual?.dias_alerta !== undefined && reloj.dias >= pasoActual.dias_alerta,
+        }
+      : null,
     situaciones,
     expedienteAnterior: e.expedienteAnterior?.numeroInterno ?? null,
     expedientesSiguientes: e.reiniciadoEn.map((x) => x.numeroInterno),

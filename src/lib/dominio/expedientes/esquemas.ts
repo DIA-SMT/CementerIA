@@ -33,7 +33,10 @@ import { validarUbicacion, type CampoUbicacion, type Ubicacion } from "./ubicaci
  *   cementerio y, si dependen de una persona jurídica, a las personas cargadas.
  * - Contacto: si `requiere_contacto`, exactamente una persona; nunca un
  *   fallecido; tiene que tener teléfono o correo. Si no se marcó ninguna y hay
- *   una sola persona que puede serlo, se la marca sola.
+ *   una sola persona que puede serlo, se la marca sola. En un expediente
+ *   iniciado antes del sistema (el alta con carga histórica, o la edición de
+ *   uno que vino del papel) el contacto no es obligatorio: la ficha de papel
+ *   puede no tener un teléfono que sirva hoy, y exigirlo llevaba a inventarlo.
  * - Ubicación: campos activos del cementerio, obligatorios si la plantilla dice
  *   `ubicacion_obligatoria`, patrón, normalización.
  * - Forma de pago: fija si la plantilla la fija; se elige si es `a_elegir`;
@@ -405,8 +408,27 @@ function reglasPersonas(def: DefinicionPlantilla, personas: PersonaValidada[], h
 
   const contactos = personas.filter((p) => p.esContacto).length;
   if (contactos > 1) problema(ctx, [], "Solo una persona puede ser el contacto");
-  if (def.requiere_contacto && contactos === 0) problema(ctx, [], "Marcá qué persona es el contacto (tiene que tener teléfono o correo)");
+  // Que haya uno (`requiere_contacto`) depende de otro campo: `exigirContacto`.
 }
+
+/**
+ * "Marcá qué persona es el contacto" (`requiere_contacto`). Va aparte de
+ * `reglasPersonas` porque depende de otro campo: con carga histórica (o en un
+ * expediente que vino del papel) no es obligatorio. Si alguien tiene teléfono
+ * o correo se puede marcar igual, y si es uno solo `completarPersonas` ya lo
+ * marcó.
+ */
+function exigirContacto(def: DefinicionPlantilla, personas: readonly PersonaValidada[] | undefined, opcional: boolean, ctx: Ctx): void {
+  if (!def.requiere_contacto || opcional || personas === undefined) return;
+  if (!personas.some((p) => p.esContacto)) problema(ctx, ["personas"], "Marcá qué persona es el contacto (tiene que tener teléfono o correo)");
+}
+
+/**
+ * Para `when`: el contacto se mira si las personas pasaron sin errores, aunque
+ * haya errores en otros campos (así sale junto con ellos, como las demás
+ * reglas de las personas, y no en una segunda vuelta).
+ */
+const conPersonasValidas = { when: (payload: { issues: ReadonlyArray<{ path?: ReadonlyArray<PropertyKey> }> }) => !payload.issues.some((i) => i.path?.[0] === "personas") };
 
 function esquemaPersonas(def: DefinicionPlantilla, hoy: FechaISO, conId: boolean) {
   return z
@@ -556,6 +578,8 @@ export function construirEsquemaAlta(ctx: ContextoEsquema): z.ZodType<AltaValida
         .nullable()
         .default(null),
     })
+    // Con "Iniciado antes del sistema", el contacto es opcional.
+    .superRefine((d, zctx) => exigirContacto(def, d.personas, d.cargaHistorica === true, zctx), conPersonasValidas)
     .superRefine((d, zctx) => {
       const error = errorFechaInicio(d.fechaInicio, ctx.hoy, d.cargaHistorica);
       if (error) problema(zctx, ["fechaInicio"], error);
@@ -579,6 +603,12 @@ export interface ContextoEdicion extends ContextoEsquema {
   ubicacionAnterior: Ubicacion;
   /** `expedientes.carga_historica`: cambia el rango admitido para la fecha de inicio. */
   cargaHistorica: boolean;
+  /**
+   * Vino del papel (el alta fue una carga histórica, origen.ts): el contacto
+   * no es obligatorio, como no lo fue en el alta. Si no, corregir el DNI de una
+   * persona de un expediente de 1998 obligaba a inventarle un teléfono.
+   */
+  delPapel?: boolean;
 }
 
 /** El esquema de la edición. Ver `CambiosEdicion`. */
@@ -598,6 +628,7 @@ export function construirEsquemaEdicion(ctx: ContextoEdicion): z.ZodType<Edicion
       datosExtra: esquemaDatosExtra(def, ctx.cementerios).optional(),
       personas: esquemaPersonas(def, ctx.hoy, true).optional(),
     })
+    .superRefine((d, zctx) => exigirContacto(def, d.personas, ctx.delPapel === true, zctx), conPersonasValidas)
     .superRefine((d, zctx) => {
       if (d.fechaInicio !== undefined) {
         const error = errorFechaInicio(d.fechaInicio, ctx.hoy, ctx.cargaHistorica);

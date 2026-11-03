@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { inicioDelDiaEnTucuman } from "@/lib/fechas";
 import { exigirPermiso, type UsuarioPermisos } from "../permisos";
 import { exigirNumero } from "./acceso";
 import { validarComando } from "./alta";
@@ -18,6 +19,7 @@ import type { ItemsExpediente } from "./items";
 import {
   areasDePaso,
   busquedaActual,
+  cargarMovimientos,
   contextoBloqueado,
   ejecutarAccion,
   fechaInicioDe,
@@ -26,7 +28,7 @@ import {
   type ContextoAccion,
 } from "./operacion";
 import { plazoParaDb } from "./pase";
-import { plazoPorSubtarea } from "./reconstruccion";
+import { llegadaAlPaso, plazoPorSubtarea } from "./reconstruccion";
 import { validarDato } from "./subtareas";
 
 /**
@@ -44,14 +46,16 @@ import { validarDato } from "./subtareas";
  *   último movimiento del papel): por día si alguna tiene precisión de día.
  *   El lote es una transacción: si una fila falla, no se registra ninguna.
  * - `tildarSubtareaHistorica`: tildar una subtarea de un paso ya recorrido (o
- *   del actual) con su fecha, opcional.
+ *   del actual) con su fecha, opcional: sin fecha, la de la llegada a ese paso.
  * - `transcribirEstado`: llevar el expediente a concluido o a archivado
  *   (`ubicacion_archivo` puede ser `DESCONOCIDA`).
  * - `terminarCargaHistorica`: un movimiento `edicion` que apaga la marca. Las
  *   subtareas obligatorias y los documentos obligatorios de los pasos
  *   anteriores al actual (de todos, si está concluido) que siguen sin marcar
  *   pasan a "histórico", y "Faltan N" los acepta. Desde ahí rigen las reglas
- *   normales.
+ *   normales, y los días en el área, el plazo y los avisos por tiempo cuentan
+ *   desde ese momento, no desde las fechas del papel (reloj.ts). Las fechas
+ *   del papel no cambian: la ficha y la línea de tiempo las siguen mostrando.
  *
  * Mientras la carga está abierta el expediente no da pases ni devoluciones
  * normales, no aparece en las bandejas de trabajo ni cuenta como demorado
@@ -302,7 +306,11 @@ async function repetidoHistorico(tx: ContextoAccion["tx"], expedienteId: bigint,
 }
 
 export interface OpcionesSubtareaHistorica {
-  /** El día en que se hizo según la ficha (`"YYYY-MM-DD"`). Si no, la fecha del dato (si es una fecha) o ahora. */
+  /**
+   * El día en que se hizo según la ficha (`"YYYY-MM-DD"`). Si no, la fecha del
+   * dato (si es una fecha) o, si no, cuándo llegó el expediente al paso de la
+   * subtarea (el alta, si es el primero), con la precisión de ese movimiento.
+   */
   fecha?: string | null;
   fuente: string | null;
   observacion?: string | null;
@@ -338,7 +346,13 @@ export async function tildarSubtareaHistorica(
     const anterior = ctx.items.subtareas[s.clave];
     if (anterior?.hecha && (anterior.dato ?? null) === valor) throw new ErrorDominio("sin_cambios", `"${s.nombre}" ya está tildada`);
     const texto = limpiarMotivo(opciones.fecha) ?? (s.dato === "fecha" && valor !== null ? valor : null);
-    const fecha = texto === null ? { instante: ctx.ahora, precision: "minuto" as const } : fechaDe(texto, "dia", ctx.ahora, "fecha");
+    // Sin fecha, no "hoy": la subtarea es de la ficha de papel, y hoy es solo
+    // el día en que se transcribe. Se hizo mientras el expediente estaba en su
+    // paso: vale la llegada a ese paso, con la precisión con que se cargó.
+    const fecha =
+      texto === null
+        ? (llegadaAlPaso(def, await cargarMovimientos(tx, exp.id), def.pasos[orden - 1].clave) ?? { instante: inicioDelDiaEnTucuman(fechaInicioDe(exp)), precision: "dia" as const })
+        : fechaDe(texto, "dia", ctx.ahora, "fecha");
     // Las subtareas no entran en la regla de no retroceso (decisión 6).
     await validarFechaHistorica(ctx, fecha, "fecha", false);
     const m = await tx.movimiento.create({

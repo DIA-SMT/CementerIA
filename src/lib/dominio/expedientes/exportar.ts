@@ -33,6 +33,8 @@ export const COLUMNAS_CSV = [
   "Paso",
   "Área actual",
   "Titular",
+  // Sí si vino del papel (origen.ts), con la carga abierta o ya terminada. Antes
+  // era la carga abierta: uno con la carga terminada salía como nacido en el sistema.
   "Carga histórica",
 ] as const;
 
@@ -75,7 +77,7 @@ export function filaCsv(r: ResultadoBusquedaFila): ValorCsv[] {
     r.paso.nombre,
     r.areaActual.nombre,
     r.titular,
-    r.cargaHistorica,
+    r.delPapel,
   ];
 }
 

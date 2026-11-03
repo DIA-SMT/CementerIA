@@ -30,7 +30,8 @@ export function etiquetaEstado(estado: string): string {
 export const ETIQUETA_SITUACION: Record<string, string> = {
   sin_confirmar: "Sin confirmar recepción",
   devuelto: "Devuelto",
-  carga_historica: "Iniciado antes del sistema",
+  // La carga abierta; el origen ("Del papel") es otra etiqueta, que queda al terminarla.
+  carga_historica: "Carga histórica abierta",
   reiniciado: "Reiniciado",
   plazo_por_vencer: "Plazo por vencer",
   plazo_vencido: "Plazo vencido",

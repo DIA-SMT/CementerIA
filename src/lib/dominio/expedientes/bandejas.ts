@@ -9,6 +9,7 @@ import { DIAS_PLAZO_POR_VENCER, destinosPosibles, type RefPaso } from "./flujo";
 import { leerItems } from "./items";
 import { numeroCorto } from "./numero";
 import { completarPlazo, sqlPlazo, type PlazoCalculado } from "./plazos";
+import { cuentaDesdeDe, sqlDiasEnArea, SQL_RELOJ_DESDE } from "./reloj";
 
 /**
  * Las bandejas de `/bandeja` (docs/propuesta-mvp.md, sección 5) y el contador
@@ -34,7 +35,8 @@ import { completarPlazo, sqlPlazo, type PlazoCalculado } from "./plazos";
  *
  * Mientras la carga histórica está abierta, el expediente NO aparece en las
  * otras pestañas ni en el contador, y no cuenta como demorado: sus pases se
- * transcriben, no se trabajan.
+ * transcriben, no se trabajan. Al terminarla, los días en el área y el plazo
+ * cuentan desde ese momento, no desde las fechas del papel (reloj.ts).
  *
  * Salvo Carga histórica, siempre en estados activos (en trámite o en espera de
  * pago en la DIM), del que lleva más tiempo en el área al más nuevo. Leer la
@@ -71,8 +73,13 @@ export interface FilaBandeja {
   /** Con `dia` (carga histórica, pase con solo el día) se muestra sin hora. */
   enAreaDesdePrecision: "dia" | "minuto";
   recibidoEn: Date | null;
-  /** Días hábiles desde que llegó al área (`f_dias_habiles_entre`). */
+  /**
+   * Días hábiles en el área (`f_dias_habiles_entre`): desde que llegó o, si
+   * es posterior, desde que terminó la carga histórica (reloj.ts).
+   */
   diasEnArea: number;
+  /** Desde cuándo cuentan los días si no es la llegada (el fin de la carga histórica); si no, null. */
+  cuentaDesde: Date | null;
   /** `dias_alerta` del paso. */
   diasAlerta: number;
   /** `diasEnArea >= diasAlerta`: la bandeja lo pinta demorado. */
@@ -126,6 +133,7 @@ interface FilaSql {
   area_responsable_codigo: string;
   area_responsable_nombre: string;
   en_area_desde: Date;
+  reloj_desde: Date | null;
   en_area_precision: string | null;
   recibido_en: Date | null;
   plazo_desde: string | null;
@@ -201,7 +209,8 @@ export async function bandeja(deps: DependenciasExpedientes, usuario: UsuarioPer
            e.plazo_desde::text AS plazo_desde, e.plazo_dias_habiles::int AS plazo_dias_habiles,
            e.plazo_cumplido_en::text AS plazo_cumplido_en,
            pz.vence, pz.faltan, pz.anios_sin_cerrar,
-           public.f_dias_habiles_entre((e.en_area_desde AT TIME ZONE 'America/Argentina/Tucuman')::date, ${hoy}::date) AS dias_en_area,
+           ${SQL_RELOJ_DESDE} AS reloj_desde,
+           ${sqlDiasEnArea(hoy)} AS dias_en_area,
            (SELECT nullif(coalesce(t.razon_social, concat_ws(', ', t.apellido, t.nombres)), '') FROM public.expediente_personas t
              WHERE t.expediente_id = e.id AND t.vigente AND t.rol = 'titular' ORDER BY t.orden LIMIT 1) AS titular,
            d.motivo AS devolucion_motivo, d.area AS devolucion_area, d.paso AS devolucion_paso
@@ -303,6 +312,7 @@ export async function bandeja(deps: DependenciasExpedientes, usuario: UsuarioPer
         enAreaDesdePrecision: f.en_area_precision === "dia" ? "dia" : "minuto",
         recibidoEn: f.recibido_en,
         diasEnArea,
+        cuentaDesde: cuentaDesdeDe(f.en_area_desde, f.reloj_desde),
         diasAlerta: paso?.dias_alerta ?? 0,
         // Con la carga histórica abierta no hay demora: los pases se transcriben.
         demorado: !f.carga_historica && diasEnArea >= diasAlerta,

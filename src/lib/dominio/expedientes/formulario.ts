@@ -5,6 +5,7 @@ import { cargarCementerio, cargarContexto, cargarPlantilla, type ContextoFormula
 import type { DependenciasExpedientes } from "./dependencias";
 import { ErrorDominio, errorValidacion, noEncontrado } from "./errores";
 import type { CambiosEdicion, ContextoEdicion, PersonaEntrada, ValorCampoExtra } from "./esquemas";
+import { delPapelDe } from "./origen";
 import type { Ubicacion } from "./ubicacion";
 
 /**
@@ -128,6 +129,7 @@ export async function formularioEdicion(
         tiposMonumento: [...new Set([...contexto.esquema.tiposMonumento, e.tipoMonumento])],
         ubicacionAnterior: ubicacion,
         cargaHistorica: e.cargaHistorica,
+        delPapel: await delPapelDe(tx, e.id),
       },
       valores: {
         tipoMonumento: e.tipoMonumento,

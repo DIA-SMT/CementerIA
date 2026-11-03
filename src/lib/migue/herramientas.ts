@@ -143,6 +143,7 @@ export const CAMPOS_PERMITIDOS: ReadonlySet<string> = new Set([
   "demorado",
   // estado_expediente
   "enAreaDesde",
+  "cuentaDesde",
   "recibido",
   "alertas",
   "plazo",
@@ -305,10 +306,13 @@ function fecha(valor: Date | null): string | null {
 export function salidaEstado(f: Ficha): Record<string, unknown> {
   const tramoActual = f.tramos.find((t) => t.actual) ?? null;
   const pasoActual = f.recorrido.find((p) => p.situacion === "actual") ?? null;
-  const diasEnArea = tramoActual?.diasHabiles ?? null;
+  // La demora como la cuentan la bandeja y el panel (`ficha.demora`, reloj.ts): en un
+  // expediente que vino del papel, desde que se terminó la carga histórica. Fuera de
+  // trabajo no hay demora, y los días son los del tramo (la historia).
+  const diasEnArea = f.demora?.diasEnArea ?? tramoActual?.diasHabiles ?? null;
   const diasAlerta = pasoActual?.diasAlerta ?? null;
-  const activo = f.estado === "en_tramite" || f.estado === "espera_pago_dim";
-  const demorado = activo && !f.cargaHistorica && diasEnArea !== null && diasAlerta !== null && diasEnArea >= diasAlerta;
+  const demorado = f.demora?.demorado ?? false;
+  const cuentaDesde = f.demora && f.demora.desde.getTime() > f.enAreaDesde.getTime() ? fecha(f.demora.desde) : null;
   const alertas = [...f.situaciones, ...(demorado ? ["demorado"] : [])].map((s) => TEXTO_ALERTA[s] ?? s);
   return {
     numero: f.numero,
@@ -320,6 +324,7 @@ export function salidaEstado(f: Ficha): Record<string, unknown> {
     areaActual: f.areaActual.nombre,
     areaResponsable: f.areaResponsable.nombre,
     enAreaDesde: fecha(f.enAreaDesde),
+    cuentaDesde,
     recibido: f.recibidoEn !== null,
     diasEnArea,
     diasAlerta,

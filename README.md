@@ -568,7 +568,11 @@ Dirección y el admin no reciben avisos.
 - Los plazos por vencer y vencido necesitan una notificación de hace más de 25
   días hábiles, que el límite de 30 días corridos no admite en un expediente
   normal: D2 y D3 son "iniciados antes del sistema", transcriptos de la ficha
-  de papel con la notificación y su fecha, y con la carga histórica terminada.
+  de papel con la notificación y su fecha, y con la carga histórica terminada
+  el día en que se pasó la ficha (27 y 33 días hábiles atrás): desde el
+  03/11/2026 el plazo, los demorados y los avisos por tiempo corren desde que
+  se terminó la carga, no desde las fechas del papel (docs/api-dominio.md,
+  15.5). Una carga terminada hoy no llega vencida.
 - No hay escenario de "archivar y abrir vinculado" (caducidad): la plantilla de
   caducidad todavía no existe (docs/api-dominio.md, 15.2) y ninguna de las de
   la semilla sirve para abrir el expediente vinculado.

@@ -395,7 +395,11 @@ function CasillaFila({
   );
 }
 
-/** Días hábiles en el área (rojo con reloj si está demorado) y desde cuándo. */
+/**
+ * Días hábiles en el área (rojo con reloj si está demorado) y desde cuándo.
+ * Si vino del papel, el "desde" es el de la ficha, pero los días cuentan desde
+ * que se terminó la carga histórica: se dice, para que no parezca un error.
+ */
 function EnElArea({ fila: f }: { fila: FilaBandeja }) {
   return (
     <>
@@ -410,6 +414,7 @@ function EnElArea({ fila: f }: { fila: FilaBandeja }) {
         </span>
       </span>
       <span className="block text-xs text-texto-secundario">desde {formatearSegunPrecision(f.enAreaDesde, f.enAreaDesdePrecision)}</span>
+      {f.cuentaDesde ? <span className="block text-xs text-texto-secundario">cuenta desde el {formatearFecha(f.cuentaDesde)} (fin de la carga histórica)</span> : null}
     </>
   );
 }

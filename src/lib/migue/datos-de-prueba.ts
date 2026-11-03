@@ -92,6 +92,7 @@ export function fichaConDatosPersonales(): Ficha {
     enAreaDesde: new Date("2026-10-28T13:00:00Z"),
     recibidoEn: null,
     plazo: null,
+    demora: { desde: new Date("2026-10-28T13:00:00Z"), diasEnArea: 4, diasAlerta: 3, demorado: true },
     situaciones: ["sin_confirmar", "devuelto"],
     recorrido: [{ orden: 2, clave: "COMPUTO", nombre: "Cómputo", situacion: "actual", diasAlerta: 3, subtareas: [] }],
     tramos: [{ orden: 2, actual: true, diasHabiles: 4, area, paso: { clave: "COMPUTO", nombre: "Cómputo" }, movimientos: [] }],

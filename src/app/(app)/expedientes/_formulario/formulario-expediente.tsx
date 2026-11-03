@@ -128,6 +128,8 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
   const bloqueadoIdent = !permisos.identificatorios;
   const bloqueadoContacto = !permisos.contacto;
   const bloqueadoExtras = !permisos.extras;
+  // Iniciado antes del sistema: el dominio no exige contacto (esquemas.ts, `exigirContacto`).
+  const contactoOpcional = alta ? valores.cargaHistorica : edicion?.esquema.delPapel === true;
 
   // Lo que se muestra: los errores del navegador, o si no, los del servidor.
   const mostrado = useMemo(
@@ -448,7 +450,18 @@ export function FormularioExpediente(props: PropsAlta | PropsEdicion) {
         </div>
       </Seccion>
 
-      <Seccion numero={numeroDe("personas")} titulo="Personas" recorrido="form-personas" descripcion={def.requiere_contacto ? "Marcá qué persona es el contacto: tiene que tener teléfono o correo." : undefined}>
+      <Seccion
+        numero={numeroDe("personas")}
+        titulo="Personas"
+        recorrido="form-personas"
+        descripcion={
+          def.requiere_contacto
+            ? contactoOpcional
+              ? "Contacto opcional: en un expediente iniciado antes del sistema, si la ficha de papel no tiene un teléfono o correo que sirva hoy, no marques a nadie."
+              : "Marcá qué persona es el contacto: tiene que tener teléfono o correo."
+            : undefined
+        }
+      >
         <div id={idDeCampo("personas")} tabIndex={-1}>
           <MensajeError ruta="personas" errores={err("personas")} />
         </div>

@@ -7,7 +7,7 @@ import type { DefinicionPlantilla, PasoPlantilla } from "../plantillas/esquema";
 import { exigirNumero, permisosDelExpediente } from "./acceso";
 import { extrasBuscables, validarComando } from "./alta";
 import { definicionDelExpediente } from "./contexto";
-import type { DependenciasExpedientes } from "./dependencias";
+import type { DependenciasExpedientes, Lector } from "./dependencias";
 import { ErrorDominio, MENSAJE_CONFLICTO_VERSION, noEncontrado } from "./errores";
 import type { FechaEfectiva, PrecisionFecha } from "./flujo";
 import { leerItems, type ItemsExpediente } from "./items";
@@ -164,7 +164,7 @@ export async function ultimoMovimientoDeUbicacion(tx: Pick<Transaccion, "movimie
 }
 
 /** Todos los movimientos de un expediente, con lo que necesita la reconstrucción, en orden de secuencia. */
-export async function cargarMovimientos(lector: Pick<Transaccion, "movimiento">, expedienteId: bigint): Promise<MovimientoReconstruible[]> {
+export async function cargarMovimientos(lector: Pick<Lector, "movimiento">, expedienteId: bigint): Promise<MovimientoReconstruible[]> {
   return lector.movimiento.findMany({
     where: { expedienteId },
     select: {

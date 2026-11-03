@@ -8,7 +8,8 @@ import { conActorEn } from "@/lib/db/actor";
 import { crearServicioExpedientes, ErrorDominio } from "@/lib/dominio/expedientes";
 import { PermisoDenegado, type UsuarioPermisos } from "@/lib/dominio/permisos";
 import { anioEnTucuman, hoyEnTucuman, inicioDelDiaEnTucuman, sumarDias } from "@/lib/fechas";
-import { asegurarSemilla, comando, datosAlta, idArea, loteUnico, servicio, titular, unicoLetras, usuario, forzarEstado } from "./dominio";
+import { procesarVinculado } from "@/lib/presentacion/acciones-estados";
+import { asegurarSemilla, avanzar, comando, datosAlta, dniUnico, idArea, idPlantilla, loteUnico, proyeccion, servicio, titular, unicoLetras, usuario, forzarEstado } from "./dominio";
 import { SISTEMA, clientePrisma, unico } from "./helper";
 
 const prisma = clientePrisma();
@@ -174,6 +175,39 @@ describe("alta histórica (2.13(c))", () => {
   it("sin carga histórica no pasa de 30 días atrás", async () => {
     const vieja = sumarDias(hoyEnTucuman(), -31);
     expect(await codigoDeError(exp.alta(mesa, await datosAlta(prisma, { fechaInicio: vieja }), comando()))).toBe("validacion");
+  });
+
+  it("con carga histórica el contacto no es obligatorio, y nada de lo que sigue lo necesita", async () => {
+    // La ficha de 1998 no tiene un teléfono que sirva hoy.
+    const sinContacto = titular({ telefono: null, telefonoWhatsapp: false, email: null });
+    expect(await codigoDeError(exp.alta(mesa, await datosAlta(prisma, { personas: [sinContacto] }), comando()))).toBe("validacion");
+    const r = await exp.alta(mesa, await datosAlta(prisma, { personas: [sinContacto], fechaInicio: "1998-03-02", cargaHistorica: true, fuente: "Ficha papel" }), comando());
+    const personas = await prisma.expedientePersona.findMany({ where: { expediente: { numeroInterno: r.numero } }, select: { esContacto: true } });
+    expect(personas).toEqual([{ esContacto: false }]);
+    const fin = await exp.terminarCargaHistorica(mesa, r.numero, r.version, comando());
+    const f = await exp.obtenerFicha(mesa, r.numero);
+    expect(f.delPapel).toBe(true);
+    expect(f.personas.some((p) => p.esContacto)).toBe(false);
+
+    // Editar una persona (corregir el DNI) no obliga a inventarle un teléfono.
+    const form = await exp.formularioEdicion(mesa, r.numero);
+    expect(form.version).toBe(fin.version);
+    const e = await exp.editar(mesa, r.numero, { personas: form.valores.personas.map((p) => ({ ...p, dni: dniUnico() })) }, form.version, null, comando());
+    expect(e.campos.length).toBeGreaterThan(0);
+
+    // "Archivar y abrir vinculado" es un alta de hoy, que sí lo pide: lo dice, y no archiva nada.
+    const plan = await idPlantilla(prisma, "RENOV_PLAN");
+    const v = await procesarVinculado(
+      exp,
+      mesa,
+      { numero: r.numero, versionVista: e.version, comandoId: comando(), motivo: "No pagó: se tramita la caducidad", plantillaId: plan, ubicacionArchivo: "Caja C-1" },
+      null,
+    );
+    expect(v).toMatchObject({ ok: false, codigo: "validacion", mensaje: expect.stringMatching(/no tiene una persona de contacto.*Editar datos/) });
+    expect((await proyeccion(prisma, r.numero)).estado).toBe("en_tramite");
+
+    // El pase no usa el contacto.
+    await expect(avanzar(exp, prisma, r.numero)).resolves.toMatchObject({ repetido: false });
   });
 
   it("la carga histórica es de Mesa de Entradas y del admin", async () => {

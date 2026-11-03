@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CircleCheck, FileUp, Flag, Plus, Save, Trash2 } from "lucide-react";
+import { Aviso } from "@/components/aviso";
 import { AvisoError } from "@/components/aviso-error";
 import { Dialogo } from "@/components/dialogo";
 import {
@@ -55,7 +56,9 @@ export interface DatosTranscripcion {
   version: number;
   rutaFicha: string;
   estado: EstadoExpediente;
-  paso: { orden: number; nombre: string; esFinal: boolean };
+  paso: { orden: number; nombre: string; total: number; esFinal: boolean };
+  /** Dónde está el papel según la ficha (el área actual): ahí queda en trámite al terminar. */
+  area: string;
   fechaInicio: string;
   pasos: Array<{ clave: string; nombre: string; orden: number }>;
   /** Las de los pasos recorridos y el actual. */
@@ -446,7 +449,7 @@ function DialogoSubtarea({
             <input {...atributosCampo("dato", e("dato"))} type={s.dato === "fecha" ? "date" : "text"} max={s.dato === "fecha" ? hoy : undefined} maxLength={200} value={dato} onChange={(x) => setDato(x.target.value)} data-autofocus className={CLASE_CONTROL} />
           </Campo>
         ) : null}
-        <Campo ruta="fecha" etiqueta="Cuándo se hizo (opcional)" errores={e("fecha")} ayuda={s.dato === "fecha" ? "Si queda vacío, la fecha del dato." : "Si queda vacío, hoy."}>
+        <Campo ruta="fecha" etiqueta="Cuándo se hizo (opcional)" errores={e("fecha")} ayuda={s.dato === "fecha" ? "Si queda vacío, la fecha del dato." : "Si queda vacío, el día en que llegó a ese paso (en el primero, el del alta)."}>
           <input {...atributosCampo("fecha", e("fecha"), "campo-fecha-ayuda")} type="date" min={datos.fechaInicio} max={hoy} value={fecha} onChange={(x) => setFecha(x.target.value)} data-autofocus={s.dato ? undefined : true} className={`${CLASE_CONTROL} max-w-48`} />
         </Campo>
         <Campo ruta="fuente" etiqueta="Fuente" obligatorio errores={e("fuente")}>
@@ -707,6 +710,11 @@ function DialogoTerminar({ datos, version, onCerrar }: { datos: DatosTranscripci
   const [pendiente, iniciar] = useTransition();
   const p = datos.pendientes;
   const errores = error?.errores.filter((x) => x.ruta === "confirmado").map((x) => x.mensaje);
+  // Sin concluir ni archivar, al terminar entra al trabajo de hoy en el paso
+  // donde quedó la ficha. Los demorados y los avisos cuentan desde hoy (no desde
+  // la fecha del papel), pero conviene decirlo: si en el papel quedó abandonado,
+  // lo que corresponde es archivarlo antes, no sumarlo a la bandeja del área.
+  const quedaEnTramite = datos.estado === "en_tramite" || datos.estado === "espera_pago_dim";
   return (
     <Dialogo titulo="Terminar carga histórica" descripcion={`${datos.numero} · ${datos.paso.orden}. ${datos.paso.nombre}`} onCerrar={onCerrar} ocupado={pendiente}>
       <form
@@ -724,6 +732,14 @@ function DialogoTerminar({ datos, version, onCerrar }: { datos: DatosTranscripci
           });
         }}
       >
+        {quedaEnTramite ? (
+          <Aviso tono="advertencia" titulo={`Va a quedar ${datos.estado === "en_tramite" ? "en trámite" : "en espera de pago"} en ${datos.area}, paso ${datos.paso.orden} de ${datos.paso.total}.`}>
+            <p>
+              Los demorados y los avisos cuentan desde hoy. Si en el papel quedó abandonado, cargá antes en &quot;Cómo terminó según la ficha&quot; que se
+              archivó.
+            </p>
+          </Aviso>
+        ) : null}
         {p && (p.subtareas.length > 0 || p.documentos.length > 0) ? (
           <div className="text-sm text-texto">
             <p>Lo obligatorio de los pasos ya recorridos que sigue sin marcar pasa a &quot;histórico&quot; (el pase lo acepta):</p>

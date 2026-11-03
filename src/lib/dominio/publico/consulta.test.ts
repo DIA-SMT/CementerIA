@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { RENOV_CONTADO } from "../../../../prisma/semilla/plantillas/renov-contado";
+import type { MovimientoReconstruible } from "../expedientes/reconstruccion";
 import {
   armarTramitePublico,
   codigosIguales,
@@ -8,6 +9,7 @@ import {
   MAXIMO_FALLOS_NUMERO,
   MENSAJE_LIMITE,
   MENSAJE_NO_ENCONTRADO,
+  ultimoMovimientoPublico,
   type DependenciasConsulta,
   type FilaConsulta,
 } from "./consulta";
@@ -38,6 +40,63 @@ function filaConDatosDeMas(): FilaConsulta & Record<string, unknown> {
     motivo: "Falta documentación",
   };
 }
+
+let secuencia = 0;
+/** Un movimiento con lo mínimo que mira `ultimoMovimientoPublico`. */
+function mov(tipo: string, fecha: string, cambios: Partial<MovimientoReconstruible> = {}): MovimientoReconstruible {
+  secuencia += 1;
+  return {
+    id: BigInt(secuencia),
+    secuencia,
+    tipo,
+    fechaEfectiva: new Date(fecha),
+    precisionFecha: "dia",
+    usuarioId: 2,
+    areaUsuarioId: 1,
+    pasoOrigen: null,
+    pasoDestino: null,
+    areaOrigenId: null,
+    areaDestinoId: null,
+    estadoAnterior: null,
+    estadoNuevo: null,
+    observacion: null,
+    motivo: null,
+    datos: {},
+    corrigeMovimientoId: null,
+    cargaHistorica: false,
+    comandoId: `c-${secuencia}`,
+    registradoEn: new Date("2026-11-03T12:00:00Z"),
+    ...cambios,
+  };
+}
+
+describe("ultimoMovimientoPublico", () => {
+  it("una ficha de papel archivada en 1999 y terminada hoy: el último movimiento es el archivo, no la edición de hoy", () => {
+    const movimientos = [
+      mov("alta", "1998-03-02T03:00:00Z", { cargaHistorica: true }),
+      mov("pase", "1998-09-15T03:00:00Z", { cargaHistorica: true }),
+      mov("estado", "1999-06-10T03:00:00Z", { cargaHistorica: true, estadoNuevo: "archivado" }),
+      // Lo que no cambia dónde ni cómo está: no cuenta.
+      mov("subtarea", "2026-11-03T13:00:00Z", { cargaHistorica: true }),
+      mov("adjunto", "2026-11-03T13:05:00Z"),
+      mov("nota", "2026-11-03T13:06:00Z"),
+      mov("edicion", "2026-11-03T13:10:00Z", { datos: { cambios: { carga_historica: [true, false] } } }),
+    ];
+    expect(ultimoMovimientoPublico(movimientos)).toEqual(new Date("1999-06-10T03:00:00Z"));
+  });
+
+  it("sin los revertidos y con la fecha corregida", () => {
+    const alta = mov("alta", "2026-10-01T13:00:00Z");
+    const pase = mov("pase", "2026-10-05T13:00:00Z");
+    const errado = mov("pase", "2026-10-20T13:00:00Z");
+    const revertir = mov("correccion", "2026-10-20T14:00:00Z", { corrigeMovimientoId: errado.id, datos: { revertir: true } });
+    const fecha = mov("correccion", "2026-10-21T14:00:00Z", {
+      corrigeMovimientoId: pase.id,
+      datos: { fecha_efectiva: ["2026-10-05T13:00:00.000Z", "2026-10-07T13:00:00.000Z"], precision: ["minuto", "minuto"] },
+    });
+    expect(ultimoMovimientoPublico([alta, pase, errado, revertir, fecha])).toEqual(new Date("2026-10-07T13:00:00.000Z"));
+  });
+});
 
 describe("armarTramitePublico", () => {
   it("lleva solo los campos de la lista: número, trámite, cementerio, inicio, estado, área, avance y último movimiento", () => {
@@ -100,7 +159,7 @@ function depsFalsas(opciones: { porIp?: number; porNumero?: number; fila?: Retur
       $queryRaw: vi.fn(async () => [{ por_ip: opciones.porIp ?? 0, por_numero: opciones.porNumero ?? 0 }]),
       expediente: { findUnique: vi.fn(async ({ where }: { where: { numeroInterno: string } }) => (fila && where.numeroInterno === fila.numeroInterno ? fila : null)) },
       cementerio: { findFirst: vi.fn(async () => null) },
-      movimiento: { findFirst: vi.fn(async () => ({ fechaEfectiva: new Date("2026-10-21T15:00:00Z") })) },
+      movimiento: { findMany: vi.fn(async () => [mov("alta", "2026-10-01T13:00:00Z"), mov("pase", "2026-10-21T15:00:00Z")]) },
     },
     escribir: vi.fn(async (_usuario: number, _motivo: string | null, fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
   } as unknown as DependenciasConsulta;

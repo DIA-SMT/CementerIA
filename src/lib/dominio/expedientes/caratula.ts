@@ -9,6 +9,7 @@ import { numeroCorto } from "./numero";
 import { areasDelPaso } from "./proyeccion";
 import { leerCamposUbicacion } from "./ubicacion";
 import { huellaDelHistorial, type ResultadoIntegridad } from "./integridad";
+import { delPapelDe } from "./origen";
 
 /**
  * La carátula (docs/propuesta-mvp.md, sección 5, "Imprimibles"): se abrocha al
@@ -59,7 +60,8 @@ export interface Caratula {
   ubicacionTexto: string;
   padron: string | null;
   fechaInicio: FechaISO;
-  cargaHistorica: boolean;
+  /** Vino del papel (origen.ts): "iniciado antes del sistema", también con la carga ya terminada. */
+  delPapel: boolean;
   titulares: PersonaCaratula[];
   solicitantes: PersonaCaratula[];
   recorrido: PasoCaratula[];
@@ -173,7 +175,7 @@ export async function datosCaratula(
       ubicacionTexto: e.ubicacionTexto,
       padron: e.padron,
       fechaInicio: fechaDesdeDb(e.fechaInicio),
-      cargaHistorica: e.cargaHistorica,
+      delPapel: await delPapelDe(tx, e.id),
       titulares: e.personas.filter((p) => p.rol === "titular").map(persona),
       solicitantes: e.personas.filter((p) => p.rol === "solicitante").map(persona),
       recorrido,

@@ -323,3 +323,16 @@ describe("la migración *_consulta_publica sobre una base con expedientes", () =
     }
   }, 120_000);
 });
+
+describe("último movimiento", () => {
+  it("una ficha de papel archivada en 1999 y terminada hoy: el último movimiento es el archivo, no la edición de terminar", async () => {
+    const a = await exp.alta(mesa, await datosAlta(prisma, { cargaHistorica: true, fuente: "Ficha papel", fechaInicio: "1998-03-02" }), comando());
+    const t = await exp.transcribir(mesa, a.numero, [{ comandoId: comando(), fecha: "1998-09-15", pasoDestino: "LEGAL", fuente: "Ficha papel" }], 0);
+    const archivo = { estado: "archivado" as const, fecha: "1999-06-10", fuente: "Ficha papel", ubicacionArchivo: "desconocida", motivo: "Abandonado: el concesionario no volvió" };
+    const r = await exp.transcribirEstado(mesa, a.numero, archivo, t.version, comando());
+    await exp.terminarCargaHistorica(mesa, a.numero, r.version, comando());
+    const { codigoConsulta } = await prisma.expediente.findUniqueOrThrow({ where: { numeroInterno: a.numero }, select: { codigoConsulta: true } });
+    const c = await consultarTramite(deps, { numero: a.numero, codigo: codigoConsulta }, ipUnica());
+    expect(c).toMatchObject({ ok: true, tramite: { estado: "archivado", ultimoMovimiento: "1999-06-10" } });
+  });
+});

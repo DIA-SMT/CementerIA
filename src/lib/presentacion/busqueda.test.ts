@@ -72,7 +72,8 @@ describe("rutaBusqueda (semana 4: los enlaces del panel)", () => {
       areaActualId: 4,
       fechaInicioDesde: "2026-01-01",
       incluirAnulados: true,
-      cargaHistorica: false,
+      delPapel: true,
+      cargaAbierta: false,
     };
     const ruta = rutaBusqueda(filtros);
     expect(ruta.startsWith("/expedientes?")).toBe(true);
@@ -83,6 +84,9 @@ describe("rutaBusqueda (semana 4: los enlaces del panel)", () => {
     }
     expect(leerParametrosBusqueda(parametros).entrada.filtros).toEqual(filtros);
     expect(rutaBusqueda({})).toBe("/expedientes");
-    expect(leerParametrosBusqueda({ historica: "1" }).entrada.filtros).toEqual({ cargaHistorica: true });
+    // historica: el origen (vino del papel, con la carga abierta o terminada); carga_abierta: la carga sigue abierta.
+    expect(leerParametrosBusqueda({ historica: "1" }).entrada.filtros).toEqual({ delPapel: true });
+    expect(leerParametrosBusqueda({ historica: "1" }).valores.delPapel).toBe(true);
+    expect(leerParametrosBusqueda({ carga_abierta: "0" }).entrada.filtros).toEqual({ cargaAbierta: false });
   });
 });

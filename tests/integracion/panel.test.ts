@@ -63,12 +63,12 @@ describe("panel (sección 5)", () => {
     expect(p.diferidos.filas.find((m) => m.numero === enviado.numero)).toMatchObject({ tipo: "pase", movimientoId: pase.movimientoId, precisionFecha: "dia" });
     expect(p.correcciones.filas.find((m) => m.numero === enviado.numero)).toMatchObject({ tipo: "correccion", motivo: "Faltaba anotar la carátula" });
     expect(p.cargasHistoricas.filas.map((f) => f.numero)).toContain(historico.numero);
-    expect(p.cargasHistoricas.busqueda).toEqual({ cargaHistorica: true });
+    expect(p.cargasHistoricas.busqueda).toEqual({ cargaAbierta: true });
 
     // Conteos por estado: sin las cargas históricas abiertas, y el enlace lleva a la misma lista.
     for (const c of p.conteos) {
       expect(c.cantidad).toBe(await prisma.expediente.count({ where: { estado: c.estado, cargaHistorica: false } }));
-      expect(c.busqueda).toMatchObject({ estados: [c.estado], cargaHistorica: false });
+      expect(c.busqueda).toMatchObject({ estados: [c.estado], cargaAbierta: false });
     }
     const conteo = p.conteos.find((c) => c.estado === "en_tramite");
     if (!conteo) throw new Error("falta en_tramite");
@@ -84,7 +84,7 @@ describe("panel (sección 5)", () => {
         where: { areaActualId: idComputo, tipoTramiteId: tipo.id, estado: { in: ["en_tramite", "espera_pago_dim"] }, cargaHistorica: false },
       }),
     );
-    expect(celda?.busqueda).toEqual({ areaActualId: idComputo, tipoTramiteId: tipo.id, estados: ["en_tramite", "espera_pago_dim"], cargaHistorica: false });
+    expect(celda?.busqueda).toEqual({ areaActualId: idComputo, tipoTramiteId: tipo.id, estados: ["en_tramite", "espera_pago_dim"], cargaAbierta: false });
     expect(p.matriz.areas.map((a) => a.codigo)).toContain("COMPUTO");
     const enCelda = await exp.buscar(direccion, { filtros: celda?.busqueda });
     expect(enCelda.resultados.map((r) => r.numero)).toContain(enviado.numero);

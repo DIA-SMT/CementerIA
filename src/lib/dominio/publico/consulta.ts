@@ -6,6 +6,8 @@ import { normalizarCodigoConsulta } from "../expedientes/codigo-consulta";
 import { leerDefinicion } from "../expedientes/contexto";
 import type { Escritor, Lector } from "../expedientes/dependencias";
 import { canonizarNumeroInterno } from "../expedientes/numero";
+import { cargarMovimientos } from "../expedientes/operacion";
+import { movimientosVigentes, type MovimientoReconstruible } from "../expedientes/reconstruccion";
 import { ESTADOS_EXPEDIENTE, type EstadoExpediente } from "../permisos";
 
 /**
@@ -47,6 +49,31 @@ export const VENTANA_MINUTOS = 15;
 export const MENSAJE_NO_ENCONTRADO = "No encontramos un trámite con ese número y código";
 /** El límite no dice nada de ningún expediente: se puede explicar. */
 export const MENSAJE_LIMITE = `Hubo demasiados intentos fallidos. Esperá ${VENTANA_MINUTOS} minutos y volvé a probar, o consultá en Mesa de Entradas.`;
+
+/**
+ * Los movimientos que cambian dónde está o cómo está el trámite: el alta, los
+ * pases, las devoluciones y los cambios de estado (concluir, archivar,
+ * desarchivar, anular, reabrir, también los transcriptos de la ficha). Solo
+ * estos cuentan para "Último movimiento": una edición de datos, una subtarea,
+ * un documento, un adjunto, una nota, una recepción o una corrección no le
+ * dicen al concesionario que su trámite se movió. Sin esta lista, "Terminar
+ * carga histórica" (una edición con la fecha del día) mostraba "hoy" en un
+ * trámite archivado en 1999.
+ */
+export const TIPOS_ULTIMO_MOVIMIENTO: ReadonlySet<string> = new Set(["alta", "pase", "devolucion", "estado"]);
+
+/**
+ * La fecha del último movimiento que cuenta (`TIPOS_ULTIMO_MOVIMIENTO`), como
+ * quedó: sin los revertidos y con la fecha corregida, si se corrigió
+ * (`movimientosVigentes`). Null si no hay ninguno (no pasa: siempre está el alta).
+ */
+export function ultimoMovimientoPublico(movimientos: readonly MovimientoReconstruible[]): Date | null {
+  let ultimo: Date | null = null;
+  for (const m of movimientosVigentes(movimientos)) {
+    if (TIPOS_ULTIMO_MOVIMIENTO.has(m.tipo) && (ultimo === null || m.fechaEfectiva.getTime() > ultimo.getTime())) ultimo = m.fechaEfectiva;
+  }
+  return ultimo;
+}
 
 /** Contra qué se compara cuando el número no existe: así el tiempo es el mismo. */
 const CODIGO_SENUELO = "00000000";
@@ -181,12 +208,8 @@ export async function consultarTramite(deps: DependenciasConsulta, entrada: Entr
   }
 
   const cementerioDelArea = await deps.leer.cementerio.findFirst({ where: { areaId: e.areaActual.id }, select: { nombre: true } });
-  const ultimo = await deps.leer.movimiento.findFirst({
-    where: { expedienteId: e.id },
-    orderBy: [{ fechaEfectiva: "desc" }, { secuencia: "desc" }],
-    select: { fechaEfectiva: true },
-  });
-  const tramite = armarTramitePublico(e, { cementerioDelArea: cementerioDelArea?.nombre ?? null, ultimoMovimiento: ultimo?.fechaEfectiva ?? null });
+  const ultimo = ultimoMovimientoPublico(await cargarMovimientos(deps.leer, e.id));
+  const tramite = armarTramitePublico(e, { cementerioDelArea: cementerioDelArea?.nombre ?? null, ultimoMovimiento: ultimo });
   await deps.escribir(SISTEMA_ID, "Consulta pública", (tx) =>
     tx.auditoriaAcceso.create({ data: { usuarioId: null, accion: "consulta_publica", expedienteId: e.id, detalle: {}, ip: ipValida } }),
   );

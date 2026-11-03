@@ -42,7 +42,7 @@ test("como Dirección, las métricas se abren desde el panel y la barra, se enla
   // terminada) lleva a la búsqueda equivalente: esa área, en trámite o en espera de pago.
   const carga = page.getByRole("table", { name: "Carga por área" });
   await carga.getByRole("link", { name: /en trámite en Mesa de Entradas: ver en la búsqueda$/ }).click();
-  await expect(page).toHaveURL(/\/expedientes\?estado=en_tramite&estado=espera_pago_dim&area=\d+&historica=0$/);
+  await expect(page).toHaveURL(/\/expedientes\?estado=en_tramite&estado=espera_pago_dim&area=\d+&carga_abierta=0$/);
   await expect(page.getByLabel("Área actual").locator("option:checked")).toHaveText("Mesa de Entradas");
   await expect(page.getByRole("table", { name: "Resultados de la búsqueda" }).getByRole("row").nth(1)).toBeVisible();
   await page.goBack();

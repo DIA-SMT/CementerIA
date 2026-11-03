@@ -21,3 +21,17 @@ export function EtiquetaSituacion({ situacion }: { situacion: string }) {
     </span>
   );
 }
+
+/**
+ * "Del papel": el expediente se dio de alta como iniciado antes del sistema y
+ * su ficha de papel se transcribió (expedientes/origen.ts). Es el origen: no
+ * se va al terminar la carga histórica. Neutra, como las situaciones que no
+ * son alertas (los mismos colores que `EtiquetaSituacion`).
+ */
+export function EtiquetaDelPapel() {
+  return (
+    <span title="Iniciado antes del sistema: su historia se cargó de la ficha de papel" className="insignia bg-fondo text-texto ring-1 ring-inset ring-borde">
+      Del papel
+    </span>
+  );
+}

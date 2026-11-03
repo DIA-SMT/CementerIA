@@ -1,6 +1,8 @@
 import { Prisma } from "@/generated/prisma/client";
 import { inicioDelDiaEnTucuman, type FechaISO } from "@/lib/fechas";
 import type { Lector } from "../expedientes/dependencias";
+import { SQL_DEL_PAPEL } from "../expedientes/origen";
+import { SQL_RELOJ_DESDE } from "../expedientes/reloj";
 import type { AreaMetricas, ExpedienteMetricas } from "./calculo";
 import type { FiltrosMetricas } from "./periodos";
 import type { MovimientoMetricas, PasoMetricas } from "./recorrido";
@@ -55,14 +57,16 @@ export async function leerExpedientes(lector: Lector, f: FiltrosMetricas): Promi
       area_actual_id: number;
       paso_clave: string;
       en_area_desde: Date;
+      reloj_desde: Date;
     }>
   >`
     SELECT e.id::text AS id, e.numero_interno, e.fecha_inicio::text AS fecha_inicio, e.estado, e.plantilla_id::int AS plantilla_id,
            pl.codigo AS plantilla_codigo, pl.nombre AS plantilla_nombre, e.tipo_tramite_id::int AS tipo_tramite_id,
            tt.nombre AS tramite, e.cementerio_id::int AS cementerio_id, e.carga_historica,
-           coalesce((SELECT m.carga_historica FROM public.movimientos m
-                      WHERE m.expediente_id = e.id AND m.tipo = 'alta' ORDER BY m.secuencia LIMIT 1), false) AS alta_historica,
-           e.area_actual_id::int AS area_actual_id, e.paso_clave, e.en_area_desde
+           ${SQL_DEL_PAPEL} AS alta_historica,
+           e.area_actual_id::int AS area_actual_id, e.paso_clave, e.en_area_desde,
+           -- Los demorados de hoy cuentan como en el panel (reloj.ts).
+           ${SQL_RELOJ_DESDE} AS reloj_desde
       FROM public.expedientes e
       JOIN public.plantillas pl ON pl.id = e.plantilla_id
       JOIN public.tipos_tramite tt ON tt.id = e.tipo_tramite_id
@@ -90,6 +94,7 @@ export async function leerExpedientes(lector: Lector, f: FiltrosMetricas): Promi
     areaActualId: x.area_actual_id,
     pasoClave: x.paso_clave,
     enAreaDesde: x.en_area_desde,
+    relojDesde: x.reloj_desde,
   }));
 }
 

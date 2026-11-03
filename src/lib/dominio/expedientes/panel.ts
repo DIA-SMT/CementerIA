@@ -6,6 +6,7 @@ import type { DependenciasExpedientes } from "./dependencias";
 import { DIAS_PLAZO_POR_VENCER } from "./flujo";
 import { numeroCorto } from "./numero";
 import { aniosSinCerrarDe, completarPlazo, sqlPlazo, type PlazoCalculado } from "./plazos";
+import { cuentaDesdeDe, sqlDiasEnArea, SQL_RELOJ_DESDE } from "./reloj";
 
 /**
  * El panel general (docs/propuesta-mvp.md, sección 5, `/panel`): la vista de
@@ -22,7 +23,9 @@ import { aniosSinCerrarDe, completarPlazo, sqlPlazo, type PlazoCalculado } from 
  *
  * Todo excluye los expedientes con la carga histórica abierta (sus fechas son
  * de la ficha de papel, no del trabajo de hoy), salvo el bloque que los
- * cuenta. Cada conteo trae `busqueda`: los filtros del buscador que llevan a
+ * cuenta. Los que ya la terminaron cuentan como cualquier otro, pero sus días
+ * en el área y su plazo corren desde que se terminó (reloj.ts, la misma regla
+ * que la bandeja y los avisos por tiempo). Cada conteo trae `busqueda`: los filtros del buscador que llevan a
  * esa lista (`rutaBusqueda()` de `@/lib/presentacion/busqueda` arma la URL).
  * Las listas traen 50 filas como máximo y el total.
  *
@@ -47,8 +50,10 @@ export interface FilaPanel {
   paso: string;
   areaActual: { codigo: string; nombre: string };
   enAreaDesde: Date;
-  /** Días hábiles en el área (`f_dias_habiles_entre`). */
+  /** Días hábiles en el área (`f_dias_habiles_entre`), desde la llegada o el fin de la carga histórica (reloj.ts). */
   diasEnArea: number;
+  /** Desde cuándo cuentan los días si no es la llegada (el fin de la carga histórica); si no, null. */
+  cuentaDesde: Date | null;
   diasAlerta: number | null;
 }
 
@@ -103,6 +108,7 @@ interface FilaSql {
   area_codigo: string;
   area_nombre: string;
   en_area_desde: Date;
+  reloj_desde: Date | null;
   dias_en_area: number | null;
   dias_alerta: number | null;
   plazo_desde: string | null;
@@ -123,6 +129,7 @@ function fila(f: FilaSql): FilaPanel {
     areaActual: { codigo: f.area_codigo, nombre: f.area_nombre },
     enAreaDesde: f.en_area_desde,
     diasEnArea: f.dias_en_area ?? 0,
+    cuentaDesde: cuentaDesdeDe(f.en_area_desde, f.reloj_desde),
     diasAlerta: f.dias_alerta,
   };
 }
@@ -178,7 +185,7 @@ export async function panel(deps: DependenciasExpedientes, usuario: UsuarioPermi
   const conteos = ESTADOS_EXPEDIENTE.map((estado) => ({
     estado,
     cantidad: porEstado.find((c) => c.estado === estado)?.cantidad ?? 0,
-    busqueda: { ...filtrosBusqueda, estados: [estado], cargaHistorica: false, ...(estado === "anulado" ? { incluirAnulados: true } : {}) },
+    busqueda: { ...filtrosBusqueda, estados: [estado], cargaAbierta: false, ...(estado === "anulado" ? { incluirAnulados: true } : {}) },
   }));
 
   // --- Matriz área × tipo de trámite (activos) ------------------------------
@@ -199,7 +206,9 @@ export async function panel(deps: DependenciasExpedientes, usuario: UsuarioPermi
         SELECT e.*,
                -- Solo lo que se trabaja: un expediente de 2019 no cuenta días (y el cálculo recorre cada día).
                CASE WHEN e.estado IN ('en_tramite', 'espera_pago_dim') AND NOT e.carga_historica
-                    THEN public.f_dias_habiles_entre((e.en_area_desde AT TIME ZONE 'America/Argentina/Tucuman')::date, ${hoy}::date) END AS dias_en_area,
+                    THEN ${SQL_RELOJ_DESDE} END AS reloj_desde,
+               CASE WHEN e.estado IN ('en_tramite', 'espera_pago_dim') AND NOT e.carga_historica
+                    THEN ${sqlDiasEnArea(hoy)} END AS dias_en_area,
                (SELECT (x ->> 'dias_alerta')::int FROM jsonb_array_elements(pl.definicion -> 'pasos') AS x
                  WHERE x ->> 'clave' = e.paso_clave LIMIT 1) AS dias_alerta,
                (SELECT x ->> 'nombre' FROM jsonb_array_elements(pl.definicion -> 'pasos') AS x
@@ -210,7 +219,7 @@ export async function panel(deps: DependenciasExpedientes, usuario: UsuarioPermi
          WHERE e.estado <> 'anulado' ${deFiltros}
       )
       SELECT e.numero_interno, e.anio, e.secuencia, e.tramite, e.paso, e.paso_clave,
-             a.codigo AS area_codigo, a.nombre AS area_nombre, e.en_area_desde, e.dias_en_area, e.dias_alerta,
+             a.codigo AS area_codigo, a.nombre AS area_nombre, e.en_area_desde, e.reloj_desde, e.dias_en_area, e.dias_alerta,
              e.plazo_desde::text AS plazo_desde, e.plazo_dias_habiles::int AS plazo_dias_habiles,
              e.plazo_cumplido_en::text AS plazo_cumplido_en, pz.vence, pz.faltan, pz.anios_sin_cerrar,
              (SELECT nullif(coalesce(t.razon_social, concat_ws(', ', t.apellido, t.nombres)), '') FROM public.expediente_personas t
@@ -306,7 +315,7 @@ export async function panel(deps: DependenciasExpedientes, usuario: UsuarioPermi
         areaId: c.area_id,
         tipoTramiteId: c.tipo_tramite_id,
         cantidad: c.cantidad,
-        busqueda: { ...filtrosBusqueda, areaActualId: c.area_id, tipoTramiteId: c.tipo_tramite_id, estados: activos, cargaHistorica: false },
+        busqueda: { ...filtrosBusqueda, areaActualId: c.area_id, tipoTramiteId: c.tipo_tramite_id, estados: activos, cargaAbierta: false },
       })),
     },
     demorados: { cantidad: demorados.total, filas: demorados.filas.map(fila), busqueda: null },
@@ -317,7 +326,7 @@ export async function panel(deps: DependenciasExpedientes, usuario: UsuarioPermi
     sinConfirmar: { cantidad: sinConfirmar.total, filas: sinConfirmar.filas.map(fila), busqueda: null },
     diferidos,
     correcciones,
-    cargasHistoricas: { cantidad: cargas.total, filas: cargas.filas.map(fila), busqueda: { ...filtrosBusqueda, cargaHistorica: true } },
+    cargasHistoricas: { cantidad: cargas.total, filas: cargas.filas.map(fila), busqueda: { ...filtrosBusqueda, cargaAbierta: true } },
     avisos: sinCerrar.map((a) => ({ tipo: "feriados_sin_cerrar" as const, anio: a, mensaje: `Feriados de ${a} sin cerrar` })),
   };
 }

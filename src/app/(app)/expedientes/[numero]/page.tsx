@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, EyeOff, FileClock, MessageCircle, Pencil, Printer, ShieldX, Square, SquareCheck } from "lucide-react";
 import { Aviso } from "@/components/aviso";
-import { EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
+import { EtiquetaDelPapel, EtiquetaEstado, EtiquetaSituacion } from "@/components/etiquetas";
 import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { CLASE_BOTON_COMPACTO, CLASE_BOTON_COMPACTO_PELIGRO, CLASE_ENLACE } from "@/components/formulario";
 import { modoDeSubida } from "@/lib/adjuntos/config";
@@ -146,6 +146,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
               </h1>
               <span className="text-sm text-texto-secundario tabular-nums">({ficha.numeroCorto})</span>
               <EtiquetaEstado estado={ficha.estado} />
+              {ficha.delPapel ? <EtiquetaDelPapel /> : null}
               {ficha.situaciones.map((s) => (
                 <EtiquetaSituacion key={s} situacion={s} />
               ))}
@@ -286,7 +287,7 @@ export default async function PaginaFicha(props: PageProps<"/expedientes/[numero
             <Dato titulo="Forma de pago">{ficha.formaPago ? (ETIQUETA_FORMA_PAGO[ficha.formaPago] ?? ficha.formaPago) : "—"}</Dato>
             <Dato titulo="Fecha de inicio">
               {formatearFecha(ficha.fechaInicio)}
-              {ficha.cargaHistorica ? <span className="block text-texto-secundario">Iniciado antes del sistema</span> : null}
+              {ficha.delPapel ? <span className="block text-texto-secundario">Iniciado antes del sistema</span> : null}
             </Dato>
             <Dato titulo="Alta">
               {formatearFechaHora(ficha.creadoEn)} por {ficha.creadoPor.corto}

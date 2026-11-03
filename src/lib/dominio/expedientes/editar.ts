@@ -11,6 +11,7 @@ import type { DependenciasExpedientes } from "./dependencias";
 import { buscarDuplicados, type AvisoDuplicado } from "./duplicados";
 import { ErrorDominio, MENSAJE_CONFLICTO_VERSION, exigirMotivo, limpiarMotivo, noEncontrado } from "./errores";
 import { construirEsquemaEdicion, validarCon, type PersonaValidada, type ValorCampoExtra } from "./esquemas";
+import { delPapelDe } from "./origen";
 import { claveDeUbicacion, textoDeUbicacion, type Ubicacion } from "./ubicacion";
 
 /**
@@ -211,6 +212,7 @@ export async function editar(
         tiposMonumento: [...new Set([...contexto.esquema.tiposMonumento, exp.tipoMonumento])],
         ubicacionAnterior,
         cargaHistorica: exp.cargaHistorica,
+        delPapel: await delPapelDe(tx, exp.id),
       }),
       cambios,
     );

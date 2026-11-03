@@ -55,6 +55,7 @@ import {
   ErrorDominio,
   type DatosAlta,
   type EntradaFechaEfectiva,
+  type Escritor,
   type PersonaEntrada,
   type ServicioExpedientes,
 } from "../../src/lib/dominio/expedientes";
@@ -63,7 +64,7 @@ import type { PrecargaAlta } from "../../src/lib/dominio/expedientes/estados";
 import { esRol, PermisoDenegado, type UsuarioPermisos } from "../../src/lib/dominio/permisos";
 import type { DefinicionPlantilla, PasoPlantilla } from "../../src/lib/dominio/plantillas/esquema";
 import { resolverDefinicion } from "../../src/lib/dominio/plantillas/resolver";
-import { fechaDesdeDb, hoyEnTucuman, sumarDias, type FechaISO } from "../../src/lib/fechas";
+import { fechaDesdeDb, hoyEnTucuman, interpretarDatetimeLocal, sumarDias, type FechaISO } from "../../src/lib/fechas";
 import { cuitFicticio } from "./expedientes";
 import { USUARIOS_FICTICIOS } from "./usuarios";
 
@@ -291,6 +292,8 @@ interface PlantillaPublicada {
 export interface Contexto {
   cliente: Cliente;
   servicio: ServicioExpedientes;
+  /** El mismo servicio con el reloj en otro instante: terminar una carga histórica el día en que se pasó la ficha. */
+  servicioEn: (instante: Date) => ServicioExpedientes;
   calendario: Calendario;
   usuarios: ReadonlyMap<string, UsuarioPermisos>;
   plantillas: ReadonlyMap<string, PlantillaPublicada>;
@@ -613,8 +616,16 @@ export class Guion {
     this.hechas.add(clave);
   }
 
-  async terminarCargaHistorica(): Promise<void> {
-    const r = await this.c.servicio.terminarCargaHistorica(this.usuario("MESA_ENTRADAS"), this.numero, this.version, this.comando());
+  /**
+   * "Terminar carga histórica", hoy o `n` días hábiles atrás (a las 18:00): el
+   * día en que se terminó de pasar la ficha. Desde ahí cuentan los demorados y
+   * el plazo (src/lib/dominio/expedientes/reloj.ts): para que un plazo de la
+   * DIM transcripto llegue por vencer o vencido, la carga se tiene que haber
+   * terminado antes.
+   */
+  async terminarCargaHistorica(n?: number): Promise<void> {
+    const servicio = n === undefined ? this.c.servicio : this.c.servicioEn(interpretarDatetimeLocal(`${this.c.calendario.atras(n)}T18:00`));
+    const r = await servicio.terminarCargaHistorica(this.usuario("MESA_ENTRADAS"), this.numero, this.version, this.comando());
     this.version = r.version;
   }
 }
@@ -898,7 +909,8 @@ export const ESCENARIOS: readonly Escenario[] = [
         ["TRIBUTARIO", 28],
       ]);
       await g.tildarHistorica("TRIB_NOTIFICADA", 27);
-      await g.terminarCargaHistorica();
+      // La ficha se terminó de pasar ese mismo día: el plazo corre desde la notificación.
+      await g.terminarCargaHistorica(27);
       await g.tildar("TRIB_DEBITOS", 16);
       await g.avanzar(15);
     },
@@ -921,7 +933,8 @@ export const ESCENARIOS: readonly Escenario[] = [
       await g.tildarHistorica("TRIB_DEBITOS", 34);
       await g.tildarHistorica("TRIB_REMITIDO", 33);
       await g.transcribir([["DIM", 33]]);
-      await g.terminarCargaHistorica();
+      // Terminada el día en que llegó a la DIM: el plazo corre desde ahí y ya venció.
+      await g.terminarCargaHistorica(33);
       await g.nota(2, "TRIBUTARIO", "Se volvió a llamar al concesionario: no inició el plan de pagos. Venció el plazo.");
     },
   },
@@ -1118,16 +1131,18 @@ async function cargarContexto(cliente: Cliente, opciones: OpcionesEscenarios): P
   }
   const cementerios = new Map((await cliente.cementerio.findMany({ select: { id: true, codigo: true } })).map((c) => [c.codigo, c.id]));
   const feriados = new Set((await cliente.feriado.findMany({ select: { fecha: true } })).map((f) => fechaDesdeDb(f.fecha)));
-  const servicio = crearServicioExpedientes({
+  const escribir: Escritor = (usuarioId, motivo, fn) => conActorEn(cliente, usuarioId, motivo, fn);
+  const dependencias = {
     leer: cliente,
-    escribir: (usuarioId, motivo, fn) => conActorEn(cliente, usuarioId, motivo, fn),
-    ahora: opciones.ahora,
+    escribir,
     almacen: opciones.almacen ?? crearAlmacenEnDisco(raizAdjuntos()),
     // Códigos de consulta deterministas (28/10/2026): los del README, para probar /consulta.
     generarCodigoConsulta: codigoDeSemilla,
-  });
+  };
+  const servicio = crearServicioExpedientes({ ...dependencias, ahora: opciones.ahora });
+  const servicioEn = (instante: Date) => crearServicioExpedientes({ ...dependencias, ahora: () => instante });
   const hoy = hoyEnTucuman(opciones.ahora?.() ?? new Date());
-  return { cliente, servicio, calendario: new Calendario(hoy, feriados), usuarios, plantillas, cementerios };
+  return { cliente, servicio, servicioEn, calendario: new Calendario(hoy, feriados), usuarios, plantillas, cementerios };
 }
 
 /**

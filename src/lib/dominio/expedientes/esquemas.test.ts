@@ -396,11 +396,33 @@ describe("alta: fecha de inicio y carga histórica (2.13(c))", () => {
   it("sin carga histórica la fuente no se guarda", () => {
     expect(alta(datos({ fuente: "Ficha papel" })).fuente).toBeNull();
   });
+
+  it("histórica: el contacto no es obligatorio (la ficha de papel puede no tener un teléfono que sirva)", () => {
+    const sinTelefono = { ...TITULAR, telefono: null, telefonoWhatsapp: false };
+    const MENSAJE = "Marcá qué persona es el contacto (tiene que tener teléfono o correo)";
+    expect(errores(() => alta(datos({ personas: [sinTelefono] })))).toContainEqual({ ruta: "personas", mensaje: MENSAJE });
+    const v = alta(datos({ personas: [sinTelefono], fechaInicio: "1998-03-02", cargaHistorica: true, fuente: "Ficha papel" }));
+    expect(v.personas.map((x) => x.esContacto)).toEqual([false]);
+    // Si hay uno solo posible, se marca igual; y las demás reglas del contacto siguen.
+    expect(alta(datos({ cargaHistorica: true, fechaInicio: "1998-03-02", fuente: "Ficha papel" })).personas[0].esContacto).toBe(true);
+    expect(errores(() => alta(datos({ personas: [{ ...sinTelefono, esContacto: true }], cargaHistorica: true, fechaInicio: "1998-03-02", fuente: "Ficha papel" })))).toContainEqual({
+      ruta: "personas[0].telefono",
+      mensaje: "El contacto tiene que tener teléfono o correo",
+    });
+    // Sale junto con los errores de otros campos, no en una segunda vuelta.
+    expect(errores(() => alta(datos({ personas: [sinTelefono], fechaInicio: "2026-02-30" }))).map((e) => e.ruta)).toEqual(expect.arrayContaining(["fechaInicio", "personas"]));
+  });
 });
 
 describe("edición", () => {
-  const edicion = (d: unknown) =>
-    validarCon(construirEsquemaEdicion({ ...contexto(), ubicacionAnterior: { seccion: "3", cuadro: "B", lote: "12" }, cargaHistorica: false }), d);
+  const edicion = (d: unknown, delPapel = false) =>
+    validarCon(construirEsquemaEdicion({ ...contexto(), ubicacionAnterior: { seccion: "3", cuadro: "B", lote: "12" }, cargaHistorica: false, delPapel }), d);
+
+  it("un expediente que vino del papel no exige contacto al cambiar las personas (como en su alta)", () => {
+    const sinTelefono = { ...TITULAR, id: "5", telefono: null, telefonoWhatsapp: false };
+    expect(errores(() => edicion({ personas: [sinTelefono] }))).toContainEqual({ ruta: "personas", mensaje: "Marcá qué persona es el contacto (tiene que tener teléfono o correo)" });
+    expect(edicion({ personas: [sinTelefono] }, true).personas?.map((x) => x.esContacto)).toEqual([false]);
+  });
 
   it("lo que no viene no cambia; null borra", () => {
     expect(edicion({})).toEqual({});

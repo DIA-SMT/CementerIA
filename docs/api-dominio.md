@@ -229,6 +229,16 @@ Reglas que conviene reflejar en el formulario (las valida igual el servidor):
   teléfono o correo. Si no se marca ninguna y hay una sola posible, el servidor
   la marca (por ejemplo, en RENOV_SPT_CONTADO el solicitante). Con dos posibles,
   hay que elegir (`ruta: "personas"`, "Marcá qué persona es el contacto").
+  **Con carga histórica** (03/11/2026) el contacto no es obligatorio: la ficha
+  de papel de 1998 no tiene un teléfono que sirva hoy, y exigirlo llevaba a
+  inventarlo. El formulario lo dice en la sección Personas. Si alguien tiene
+  teléfono o correo se puede marcar (y si es uno solo, se marca solo); si se
+  marca, las reglas del contacto valen igual. Lo mismo en la edición de un
+  expediente que vino del papel (`ContextoEdicion.delPapel`). Nada de lo que
+  sigue lo necesita: el pase, la ficha (el enlace de WhatsApp aparece solo si
+  hay contacto), la carátula y el comprobante (no lo llevan) y los avisos (son
+  internos). "Archivar y abrir vinculado" sí: el nuevo es un alta de hoy, y
+  sin contacto el diálogo pide cargarlo antes con "Editar datos".
 - **Fecha de inicio**: sin carga histórica, de hoy a 30 días atrás
   (`DIAS_RETROACTIVOS_MAX`). Con carga histórica, de 1950 a hoy y con `fuente`.
   La carga histórica es de Mesa de Entradas y del admin.
@@ -349,7 +359,7 @@ Registra `ver_expediente` en `auditoria.accesos`. Cualquiera la ve. Lo que trae
 
 | Bloque | Campos |
 |---|---|
-| Cabecera | `numero`, `numeroCorto`, `numeroMunicipal`, `estado`, `version`, `fechaInicio`, `cargaHistorica`, `tipoTramite`, `plantilla` (`texto`: "Renovación, pago de contado · v1 (hay v2)", `hayVersionNueva`), `cementerio`, `tipoMonumento`, `ubicacion` (etiqueta y valor) y `ubicacionTexto`, `padron`, `formaPago`, `observaciones`, `datosExtra` (con etiqueta y `valorTexto`), `paso` (`orden`/`total`, `esFinal`), `areaActual`, `areaResponsable`, `enAreaDesde`, `recibidoEn`, `plazo`, `situaciones` (`sin_confirmar`, `devuelto`, `carga_historica`, `reiniciado`, `plazo_por_vencer`, `plazo_vencido`), `expedienteAnterior` / `expedientesSiguientes`, `creadoPor` |
+| Cabecera | `numero`, `numeroCorto`, `numeroMunicipal`, `estado`, `version`, `fechaInicio`, `cargaHistorica` (la transcripción sigue abierta), `delPapel` (03/11/2026: el alta fue una carga histórica; no cambia al terminarla), `demora` (03/11/2026: `{ desde, diasEnArea, diasAlerta, demorado }` como la bandeja, sección 15.5; null fuera de trabajo), `tipoTramite`, `plantilla` (`texto`: "Renovación, pago de contado · v1 (hay v2)", `hayVersionNueva`), `cementerio`, `tipoMonumento`, `ubicacion` (etiqueta y valor) y `ubicacionTexto`, `padron`, `formaPago`, `observaciones`, `datosExtra` (con etiqueta y `valorTexto`), `paso` (`orden`/`total`, `esFinal`), `areaActual`, `areaResponsable`, `enAreaDesde`, `recibidoEn`, `plazo`, `situaciones` (`sin_confirmar`, `devuelto`, `carga_historica`, `reiniciado`, `plazo_por_vencer`, `plazo_vencido`), `expedienteAnterior` / `expedientesSiguientes`, `creadoPor` |
 | Recorrido | `recorrido[]`: cada paso con `area` resuelta (también `$CEMENTERIO`), `custodia`, `diasAlerta`, `instrucciones`, `situacion` (`cumplido` / `actual` / `pendiente`) y sus `subtareas` (`hecha`, `valor`, `obligatoria`, `dato`) |
 | Documentación | `documentacion.direccion[]` y `documentacion.concesionario[]`: `estado` (`pendiente`, `presentado`, `no_corresponde`, `historico`), `exigirAlSalirDe`, `adjunto`, `adjuntos` (ids; `null` si están enmascarados) y `cantidadAdjuntos` |
 | Personas | `personas[]` vigentes (por rol en el orden de la plantilla) y `personasHistoricas[]` (versiones viejas y bajas): `etiquetaRol`, `tipo` (física o jurídica), nombre o `razonSocial`, DNI o `cuit`, `fallecido`, `vinculo`, `esContacto`, `suprimida`, `contacto`. La razón social y el CUIT, como el nombre y el DNI, no se enmascaran |
@@ -394,7 +404,7 @@ Registra `imprimir` (`detalle.hoja = "caratula"`). Todos pueden imprimir.
 { numero, numeroCorto, numeroMunicipal,
   rutaFicha: "/expedientes/CEM-2026-00042",       // QR: new URL(rutaFicha, APP_URL), con qrcode (SVG)
   tramite: { tipo, plantilla, version }, cementerio, tipoMonumento,
-  ubicacion: [{ etiqueta, valor }], ubicacionTexto, padron, fechaInicio, cargaHistorica,
+  ubicacion: [{ etiqueta, valor }], ubicacionTexto, padron, fechaInicio, delPapel /* "(iniciado antes del sistema)" */,
   titulares: [{ tipo, apellido, nombres, dni, razonSocial, cuit, fallecido, vinculo }],   // sin teléfono, correo ni domicilio
   solicitantes: [ … ],
   recorrido: [{ orden, clave, nombre, area, custodia, subtareas: [{ clave, nombre, obligatoria }] }], // casilleros (las del cementerio del expediente)
@@ -410,7 +420,7 @@ teléfono, correo ni domicilio:
 
 ```ts
 { numero, numeroCorto, numeroMunicipal, estado, tramite /* plantilla.texto */, tipoTramite, cementerio,
-  ubicacionTexto, padron, fechaInicio, cargaHistorica, paso, areaActual,
+  ubicacionTexto, padron, fechaInicio, delPapel, paso, areaActual,
   personas: [{ id, etiquetaRol, apellido, nombres, dni, razonSocial, cuit, vigente, suprimida }],  // vigentes e históricas
   camposExtra: [{ clave, etiqueta }],      // para leer "datos_extra.<clave>" en las ediciones
   subtareas: [{ clave, nombre }], documentos: [{ clave, nombre }],  // 26/10/2026: para nombrar tildes y marcas, como la ficha
@@ -438,7 +448,8 @@ Si `abrir` no es `null`, ir directo a la ficha. Si no, listar `resultados`
 (como máximo 50; `hayMas` dice que hay que afinar). Cada fila trae `numero`,
 `numeroCorto`, `numeroMunicipal`, `estado`, `fechaInicio`, `tipoTramite`,
 `plantilla`, `cementerio`, `ubicacionTexto`, `paso`, `areaActual`, `titular`
-("APELLIDO, Nombres"), `sinConfirmar`, `cargaHistorica` y, en la búsqueda
+("APELLIDO, Nombres"), `sinConfirmar`, `cargaHistorica` (la carga sigue abierta), `delPapel`
+(vino del papel: la etiqueta "Del papel") y, en la búsqueda
 numérica, `coincidencias` (`{ campo, etiqueta }`: "N° municipal", "N° interno",
 "Padrón", "DNI del solicitante") para mostrar por dónde coincidió.
 
@@ -452,6 +463,8 @@ filtros?: {
   areaActualId?: number;
   fechaInicioDesde?: string; fechaInicioHasta?: string;
   incluirAnulados?: boolean;                  // por defecto no
+  delPapel?: boolean;                         // 03/11/2026: el alta fue una carga histórica (abierta o terminada); historica=1|0
+  cargaAbierta?: boolean;                     // la carga histórica sigue abierta (los enlaces del panel); carga_abierta=1|0
 }
 ```
 
@@ -904,7 +917,9 @@ llegó antes al más nuevo, 200 filas como máximo (`hayMas`).
             tramite: { tipo, plantilla, codigo, version }, paso: { clave, nombre, orden, total },
             estado, version /* para el lote */, areaActual: { codigo, nombre, externa }, areaResponsable,
             enAreaDesde, recibidoEn,
-            diasEnArea /* hábiles, f_dias_habiles_entre */, diasAlerta, demorado /* diasEnArea >= diasAlerta */,
+            diasEnArea /* hábiles, f_dias_habiles_entre, desde la llegada o el fin de la carga histórica (15.5) */,
+            cuentaDesde /* el fin de la carga, si es posterior a la llegada; si no, null */,
+            diasAlerta, demorado /* diasEnArea >= diasAlerta */,
             etiquetas: Array<{ tipo: "sin_confirmar" }
                            | { tipo: "devuelto"; porArea; desdePaso; motivo }   // "Devuelto por Asesoría Legal: …"
                            | { tipo: "plazo"; desde; diasHabiles; cumplidoEn }>,
@@ -1229,7 +1244,12 @@ Solo con `carga_historica` abierta; Mesa de Entradas y admin (permiso
   confirma en la ficha). Devuelve `{ numero, version, filas: [{ comandoId,
   movimientoId, tipo, repetida, paso }], paso }`.
 - `tildarSubtareaHistorica(usuario, numero, clave, dato, { fecha?, fuente, observacion? }, versionVista, comandoId)`:
-  una subtarea de un paso recorrido o del actual, con su fecha.
+  una subtarea de un paso recorrido o del actual, con su fecha. Sin `fecha`,
+  la del dato si es una fecha; si no (03/11/2026), cuándo llegó el expediente
+  a ese paso, con la precisión de ese movimiento: el último pase o devolución
+  vigente hacia él (el que lo salteó, si la ficha no lo registra) o el alta, en
+  el primer paso (`llegadaAlPaso`, reconstruccion.ts). Antes era "ahora": el
+  día en que se transcribe no es el día en que se hizo.
 - `transcribirEstado(usuario, numero, { estado, fecha, precision?, fuente, ubicacionArchivo?, motivo? }, versionVista, comandoId)`:
   `estado` es `concluido` (desde el último paso) o `archivado` (desde
   concluido o, con motivo, sin concluir); `ubicacionArchivo` admite
@@ -1240,6 +1260,43 @@ Solo con `carga_historica` abierta; Mesa de Entradas y admin (permiso
   (de todos, si está concluido) pasa a histórico. `ficha.cargaHistoricaPendiente`
   dice qué pasaría.
 
+**Después de terminar** (03/11/2026). Si el expediente no quedó concluido ni
+archivado, entra al trabajo de hoy en el paso donde lo dejó la ficha, con las
+fechas del papel. Contar desde ahí lo daba demorado al instante (una ficha que
+quedó en Legal "desde 15/09/1998" aparecía con 7324 días hábiles, en el panel y
+en la bandeja de Legal), con el plazo de la DIM vencido hace años, y la próxima
+corrida de los avisos por tiempo le escribía "demorado" a toda el área. Por
+eso **los demorados, el plazo y los avisos por tiempo cuentan desde el momento
+de terminar**:
+
+- Una sola regla, en `src/lib/dominio/expedientes/reloj.ts`, que usan con el
+  mismo SQL la bandeja, el panel, los avisos por tiempo, las métricas
+  (demorados hoy) y la ficha (`plazo` y `demora`, lo que dice Migue): los
+  días en el área cuentan desde `GREATEST(en_area_desde, fin de la carga)` y
+  el plazo desde `GREATEST(plazo_desde, día del fin de la carga)`.
+- El fin de la carga es la fecha efectiva del `edicion` de terminar, que no se
+  revierte ni se corrige: no hay columna nueva ni migración. Después del
+  primer pase con el sistema, `en_area_desde` ya es posterior y la regla no
+  cambia nada.
+- La historia no se toca: `en_area_desde`, `plazo_desde`, la línea de tiempo,
+  los tramos y la ficha siguen con las fechas del papel. La bandeja y el panel
+  muestran el "desde" del papel y, debajo, "cuenta desde el … (fin de la carga
+  histórica)" (`cuentaDesde`).
+- El diálogo de Terminar, si el expediente no está concluido ni archivado,
+  avisa: "Va a quedar en trámite en <área>, paso N de M. Los demorados y los
+  avisos cuentan desde hoy. Si en el papel quedó abandonado, cargá antes en
+  'Cómo terminó según la ficha' que se archivó."
+
+**"Del papel".** Terminar apaga `expedientes.carga_historica` (la carga
+abierta), pero el expediente sigue siendo del papel: el origen es el alta con
+`carga_historica`, el mismo criterio de las métricas (`origen.ts`:
+`SQL_DEL_PAPEL`, `esDelPapel`, `delPapelDe`). Lo usan el filtro `historica`
+del buscador (con la casilla "Solo los cargados del papel"), la etiqueta "Del
+papel" del buscador y de la ficha, la columna "Carga histórica" del CSV, la carátula
+y la hoja del historial ("iniciado antes del sistema") y la edición (el
+contacto no es obligatorio). La situación `carga_historica` de la ficha dice
+ahora "Carga histórica abierta".
+
 ### 15.6 Bandejas y panel
 
 - `PESTANAS_BANDEJA` suma `plazos` (lo que está en un paso con plazo y cuya
@@ -1249,21 +1306,28 @@ Solo con `carga_historica` abierta; Mesa de Entradas y admin (permiso
   `plazosAlerta` (ámbar y rojo de la custodia) y `carga_historica`. Con la
   carga histórica abierta, el expediente no está en Por confirmar, En mi área,
   Afuera ni Plazos, no suma al contador del encabezado y no es `demorado`.
+  Terminada, está en todas como cualquier otro, con los días y el plazo
+  contados desde el fin de la carga (15.5).
 - `panel(usuario, { tipoTramiteId?, cementerioId? })` (todos): `conteos` por
   estado, `matriz` área × tipo de trámite (estados activos), `demorados`,
   `plazos.porVencer` y `plazos.vencidos`, `sinConfirmar` (más de 2 días
   hábiles), `diferidos` y `correcciones` del mes, `cargasHistoricas` y
   `avisos` ("Feriados de 2027 sin cerrar"). Todo sin las cargas históricas
-  abiertas, salvo su bloque. Las listas traen 50 filas y la cantidad. Cada
+  abiertas, salvo su bloque; las terminadas cuentan como cualquier otro (son
+  trabajo real), con la demora y el plazo de 15.5. Las listas traen 50 filas y la cantidad. Cada
   conteo y cada celda traen `busqueda` (`FiltrosBusqueda`); `rutaBusqueda()`
   de `@/lib/presentacion/busqueda` arma la URL. El buscador suma el filtro
-  `cargaHistorica` (`historica=1|0` en la URL).
+  `cargaAbierta` (`carga_abierta=1|0` en la URL): la carga sigue abierta o no.
+  Es el que llevan los enlaces del panel y de las métricas, que no cuentan las
+  cargas abiertas pero sí las terminadas. Hasta el 03/11/2026 se llamaba
+  `cargaHistorica` e iba en `historica`; ese parámetro es ahora `delPapel`,
+  el origen (15.5).
 
 ### 15.7 CSV del buscador
 
 `exportarCsv(usuario, { q?, filtros? }, { ip? })` (Dirección y admin):
 `{ nombreArchivo, tipo, contenido, filas, truncado }`, hasta 5000 filas, sin
-teléfono, correo ni domicilio; separador `;`, CRLF, UTF-8 con BOM y las celdas
+teléfono, correo ni domicilio (la última columna, "Carga histórica", dice si vino del papel, con la carga abierta o terminada: 15.5); separador `;`, CRLF, UTF-8 con BOM y las celdas
 que empiezan con `=`, `+`, `-` o `@` neutralizadas. Registra `exportar` en
 `auditoria.accesos` (`expediente_id` nulo, `detalle: { formato, q, filtros,
 filas, truncado }`). El Route Handler responde con `Content-Disposition:
@@ -1297,7 +1361,7 @@ attachment` y `Cache-Control: private, no-store`.
 |---|---|
 | `/expedientes/[numero]` | `obtenerFicha` (y `opcionesAlta` si puede reiniciar o abrir un vinculado). Barra "Estado del expediente" según `ficha.acciones` (`botonesEstado()`): Concluir (con "Faltan N" de `ficha.concluir.faltan`, como el pase), Archivar, Archivar sin concluir (desde un paso externo, con la fecha en que volvió el papel; vuelve a la custodia), Archivar y abrir vinculado, Desarchivar, Cambiar ubicación de archivo, Reabrir, Reiniciar con otra plantilla, Anular y Agregar nota. Plazo DIM con semáforo en la cabecera y en el recorrido. "Reinicio de / Reiniciado en" y "Vinculado a / Sigue (vinculado) en" con `ficha.enlaces`. En el historial, el menú "Corregir" de cada movimiento con `correcciones`; Suprimir datos en cada persona (admin) |
 | `/expedientes/nuevo?desde=<numero>&plantilla=<id>` | `precargaAlta` (cementerio fijo, el del anterior), `contextoAlta`; el formulario abre con `valoresDesdePrecarga()` y manda `expedienteAnteriorId` si el anterior es `reiniciable`. Aviso "Reinicio de CEM-…" (y qué roles no pasan) |
-| `/expedientes/[numero]/transcribir` | `obtenerFicha` (`acciones.transcribir`, `cargaHistoricaPendiente`). Arriba lo ya transcripto (los movimientos con `cargaHistorica` y el alta); la grilla (`accionTranscribir` → `transcribir`), las subtareas de los pasos recorridos (`accionSubtareaHistorica`), "Cómo terminó según la ficha" (`accionEstadoHistorico`, con "No se sabe" = `DESCONOCIDA`), la foto de la ficha (el Route Handler de adjuntos, suelto, con el nombre "Ficha de papel - …") y "Terminar carga histórica" con confirmación (`accionTerminarCarga`, vuelve a la ficha) |
+| `/expedientes/[numero]/transcribir` | `obtenerFicha` (`acciones.transcribir`, `cargaHistoricaPendiente`). Arriba lo ya transcripto (los movimientos con `cargaHistorica` y el alta); la grilla (`accionTranscribir` → `transcribir`), las subtareas de los pasos recorridos (`accionSubtareaHistorica`), "Cómo terminó según la ficha" (`accionEstadoHistorico`, con "No se sabe" = `DESCONOCIDA`), la foto de la ficha (el Route Handler de adjuntos, suelto, con el nombre "Ficha de papel - …") y "Terminar carga histórica" con confirmación (`accionTerminarCarga`, vuelve a la ficha). 03/11/2026: el diálogo de Terminar, si el expediente no está concluido ni archivado, avisa dónde queda en trámite (área y paso N de M) y que los demorados y avisos cuentan desde hoy (15.5); el de la subtarea dice "Si queda vacío, el día en que llegó a ese paso (en el primero, el del alta)" |
 | `/bandeja?pestana=plazos` y `?pestana=carga_historica` | `bandeja` y `contadoresBandeja`. Plazos: columna Vencimiento con semáforo, texto y "provisorio"; la pestaña aparece si hay algo (`contadores.plazos`) y muestra aparte cuántos están en ámbar o rojo (`plazosAlerta`). Carga histórica: solo Mesa de Entradas, con "Transcribir" en cada fila (`pestanasVisibles()`) |
 | `/panel?tramite=&cementerio=` | `panel` y `opcionesBusqueda`. Cada conteo, celda y lista con `busqueda` es un enlace a `rutaBusqueda()`; las filas van a la ficha y los movimientos (diferidos, correcciones) a `#mov-<id>`. Imprimible (`@media print`: sin encabezado ni filtros) |
 | `GET /expedientes/exportar?<los filtros del buscador>` | `exportarCsv`. 200 `text/csv; charset=utf-8` con `Content-Disposition: attachment; filename="expedientes-AAAA-MM-DD.csv"`, `Cache-Control: private, no-store`, `X-Filas` y `X-Truncado`; 401 sin sesión, 403 sin permiso, 422 con filtros inválidos (texto plano). El botón "Exportar CSV" del buscador (Dirección y admin) lleva los mismos parámetros (`rutaExportarDesde()`) |
@@ -1725,10 +1789,11 @@ Todo sale de `movimientos` y `expedientes`:
 
 **Enlaces a la búsqueda.** Un número trae `busqueda` (`FiltrosBusqueda`) solo
 si la búsqueda trae **exactamente** esos expedientes: ingresados por fecha de
-inicio (`desde`, `hasta`, anulados incluidos, `historica=0`) y en trámite hoy,
-total y por área. La búsqueda no distingue una carga histórica ya terminada:
-si con `historicos: "excluir"` hay alguna en ese conteo, el número va sin
-enlace. Los tiempos no tienen equivalente.
+inicio (`desde`, `hasta`, anulados incluidos, `carga_abierta=0`) y en trámite hoy,
+total y por área. El enlace filtra la carga abierta (`cargaAbierta`), no el
+origen: si con `historicos: "excluir"` hay una carga histórica ya terminada en
+ese conteo, el número va sin enlace. Los demorados de hoy cuentan como el
+panel (15.5). Los tiempos no tienen equivalente.
 
 **Papel** (`papel.ts`). Fichas reemplazadas: un dato. Hojas: una estimación,
 `max(1, ⌈anotaciones ÷ anotacionesPorHoja⌉)` por expediente, con las
@@ -1790,10 +1855,10 @@ inactivo, ni **quien hizo la acción** (no se avisa a sí mismo).
 |---|---|---|---|
 | `llego` "Llegó un expediente" | Un pase llega a un área | El área de destino; si el paso es externo (la DIM, un cementerio), la custodia | normal |
 | `devuelto` "Te devolvieron un expediente" | Una devolución, con el motivo | El área de destino (externo: la custodia) | **alta** |
-| `plazo_por_vencer` "Plazo DIM por vencer" | Plazo empezado y sin cumplir con 5 días hábiles o menos (`DIAS_PLAZO_POR_VENCER`) | La custodia (Tributario) | normal |
+| `plazo_por_vencer` "Plazo DIM por vencer" | Plazo empezado y sin cumplir con 5 días hábiles o menos (`DIAS_PLAZO_POR_VENCER`; el plazo corre como en la bandeja, 15.5) | La custodia (Tributario) | normal |
 | `plazo_vencido` "Plazo DIM vencido" | `faltan < 0` | La custodia | **alta** |
 | `sin_confirmar` "Enviado sin confirmar" | `recibido_en` nulo y más de 2 días hábiles en el área (`DIAS_SIN_CONFIRMAR`, como el panel) | El área que lo envió (`area_usuario_id` del pase o la devolución) | normal |
-| `demorado` "Demorado" | `dias_en_area >= dias_alerta` del paso (como la bandeja) | El área responsable | normal |
+| `demorado` "Demorado" | `dias_en_area >= dias_alerta` del paso (como la bandeja: después de una carga histórica, desde que se terminó, 15.5) | El área responsable | normal |
 | `cerrado` "Concluido o archivado" | Concluir, archivar y archivar sin concluir (también "archivar y abrir vinculado") | Mesa de Entradas; cada usuario lo puede apagar | baja |
 
 - Una devolución genera **solo** `devuelto` (no además `llego`): es la misma
@@ -2357,7 +2422,13 @@ el aviso con el enlace al comprobante.
    `fechaInicio`, `estado`, `area: { nombre, desde }`, `paso: { orden, total,
    nombre }`, `ultimoMovimiento`) y deja `consulta_publica` en
    `auditoria.accesos` sin usuario. El área de un cementerio se nombra con el
-   nombre del cementerio.
+   nombre del cementerio. `ultimoMovimiento` (03/11/2026) es el día del último
+   movimiento que cambia dónde está o cómo está el trámite
+   (`TIPOS_ULTIMO_MOVIMIENTO`: `alta`, `pase`, `devolucion` y `estado`, que
+   cubre concluir, archivar, desarchivar, anular y reabrir), sin los revertidos
+   y con la fecha corregida. No cuentan las ediciones, subtareas, documentos,
+   adjuntos, notas, recepciones ni correcciones: "Terminar carga histórica"
+   (una edición) mostraba "hoy" en un trámite archivado en 1999.
 
 Lo escribe SISTEMA (`conActor`), como un ingreso rechazado. La IP es la de
 `ipDeSolicitud()`, como en el resto. La pantalla (`src/app/(publico)/consulta/`) llama

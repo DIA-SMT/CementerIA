@@ -55,6 +55,12 @@ export interface ExpedienteMetricas {
   areaActualId: number;
   pasoClave: string;
   enAreaDesde: Date;
+  /**
+   * Desde cuándo cuentan los días en el área para "demorado": `enAreaDesde`
+   * o, si es posterior, el fin de la carga histórica (expedientes/reloj.ts,
+   * como el panel y la bandeja).
+   */
+  relojDesde: Date;
 }
 
 export interface AreaMetricas {
@@ -425,7 +431,7 @@ export function calcularMetricas(e: EntradaCalculo, cal: Calendario): Metricas {
   const tiemposPorArea = agruparPor(delPeriodo, (s) => s.estadia.areaId);
   const demorado = (x: ExpedienteMetricas) => {
     const alerta = pasosDe(x).get(x.pasoClave)?.diasAlerta;
-    return alerta !== null && alerta !== undefined && dias(x.enAreaDesde, hoy) >= alerta;
+    return alerta !== null && alerta !== undefined && dias(x.relojDesde, hoy) >= alerta;
   };
   const idsCarga = new Set<number>([...hoyPorArea.keys(), ...presencia.keys(), ...tiemposPorArea.keys()]);
   const carga: FilaCarga[] = [...idsCarga]
@@ -437,7 +443,7 @@ export function calcularMetricas(e: EntradaCalculo, cal: Calendario): Metricas {
         hoy: hoyLista.length,
         busquedaHoy:
           hoyLista.length > 0 && equivalentes.length === hoyLista.length
-            ? { ...filtrosBusqueda, areaActualId: id, estados: ["en_tramite", "espera_pago_dim"], cargaHistorica: false }
+            ? { ...filtrosBusqueda, areaActualId: id, estados: ["en_tramite", "espera_pago_dim"], cargaAbierta: false }
             : null,
         promedioPeriodo: unDecimal((presencia.get(id) ?? 0) / largoPeriodo),
         demoradosHoy: hoyLista.filter(demorado).length,
@@ -466,7 +472,7 @@ export function calcularMetricas(e: EntradaCalculo, cal: Calendario): Metricas {
       ingresados,
       busquedaIngresados:
         ingresados > 0 && ingresados === equivalentes
-          ? { ...filtrosBusqueda, fechaInicioDesde: p.desde, fechaInicioHasta: p.hasta, incluirAnulados: true, cargaHistorica: false }
+          ? { ...filtrosBusqueda, fechaInicioDesde: p.desde, fechaInicioHasta: p.hasta, incluirAnulados: true, cargaAbierta: false }
           : null,
       concluidos: contar("concluido"),
       archivados: contar("archivado"),
@@ -572,14 +578,14 @@ export function calcularMetricas(e: EntradaCalculo, cal: Calendario): Metricas {
       ingresados,
       busquedaIngresados:
         ingresados > 0 && ingresados === ingresadosEquivalentes
-          ? { ...filtrosBusqueda, fechaInicioDesde: filtros.desde, fechaInicioHasta: filtros.hasta, incluirAnulados: true, cargaHistorica: false }
+          ? { ...filtrosBusqueda, fechaInicioDesde: filtros.desde, fechaInicioHasta: filtros.hasta, incluirAnulados: true, cargaAbierta: false }
           : null,
       concluidos: flujo.reduce((s, f) => s + f.concluidos, 0),
       puntaAPunta: { conSistema: totalPuntaAPunta.conSistema, antes: totalPuntaAPunta.antes },
       enTramiteHoy,
       busquedaEnTramiteHoy:
         enTramiteHoy > 0 && enTramiteHoy === activosMedibles.length
-          ? { ...filtrosBusqueda, estados: ["en_tramite", "espera_pago_dim"], cargaHistorica: false }
+          ? { ...filtrosBusqueda, estados: ["en_tramite", "espera_pago_dim"], cargaAbierta: false }
           : null,
       demoradosHoy: abiertasHoy.filter(demorado).length,
       devoluciones: devueltas.length,

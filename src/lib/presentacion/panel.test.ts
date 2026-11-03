@@ -8,8 +8,8 @@ describe("panel (sección 5)", () => {
   });
 
   it("cada número lleva a la búsqueda filtrada (si tiene filtro equivalente)", () => {
-    expect(enlaceConteo({ estados: ["en_tramite", "espera_pago_dim"], areaActualId: 4, tipoTramiteId: 1, cargaHistorica: false })).toBe(
-      "/expedientes?estado=en_tramite&estado=espera_pago_dim&tramite=1&area=4&historica=0",
+    expect(enlaceConteo({ estados: ["en_tramite", "espera_pago_dim"], areaActualId: 4, tipoTramiteId: 1, cargaAbierta: false })).toBe(
+      "/expedientes?estado=en_tramite&estado=espera_pago_dim&tramite=1&area=4&carga_abierta=0",
     );
     expect(enlaceConteo({ estados: ["anulado"], incluirAnulados: true })).toBe("/expedientes?estado=anulado&anulados=1");
     expect(enlaceConteo(null)).toBeNull();

@@ -180,6 +180,28 @@ export function ultimaUbicacionVigente(movimientos: readonly MovimientoReconstru
   return u ? { instante: u.fechaEfectiva, precision: precisionDe(u) } : null;
 }
 
+/**
+ * Cuándo llegó el expediente al paso `clave` (la última vez), con la precisión
+ * de ese movimiento: el pase o la devolución vigente que lo llevó ahí (con la
+ * fecha corregida, si se corrigió), o el alta si es el primer paso. Un paso que
+ * la ficha de papel no registra (`pasos_salteados`) se recorrió en el pase que
+ * lo salteó. Lo usa la transcripción: una subtarea histórica sin fecha se
+ * fecha cuando el expediente estaba en su paso, no el día en que se transcribe.
+ * Null si nunca llegó.
+ */
+export function llegadaAlPaso(def: DefinicionPlantilla, movimientos: readonly MovimientoReconstruible[], clave: string): FechaEfectiva | null {
+  let r: FechaEfectiva | null = null;
+  for (const m of movimientosVigentes(movimientos)) {
+    const d = datosDe(m);
+    const llega =
+      m.tipo === "alta"
+        ? (m.pasoDestino ?? def.pasos[0]?.clave) === clave
+        : (m.tipo === "pase" || m.tipo === "devolucion") && (m.pasoDestino === clave || listaDeTextos(d.pasos_salteados).includes(clave));
+    if (llega) r = { instante: m.fechaEfectiva, precision: precisionDe(m) };
+  }
+  return r;
+}
+
 function exigirArea(entorno: EntornoReconstruccion, id: number | null, m: MovimientoReconstruible): AreaReconstruccion {
   const a = id === null ? undefined : entorno.areas.get(id);
   if (!a) throw new ErrorDominio("configuracion_incompleta", `El movimiento ${m.id} (${m.tipo}) no tiene un área de destino conocida`);

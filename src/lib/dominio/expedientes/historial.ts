@@ -44,7 +44,8 @@ export interface HojaHistorial {
   ubicacionTexto: string;
   padron: string | null;
   fechaInicio: FechaISO;
-  cargaHistorica: boolean;
+  /** Vino del papel (origen.ts), con la carga abierta o terminada. */
+  delPapel: boolean;
   paso: Ficha["paso"];
   areaActual: string;
   /** Vigentes e históricas, sin datos de contacto. */
@@ -115,7 +116,7 @@ export async function datosHistorial(
       ubicacionTexto: ficha.ubicacionTexto,
       padron: ficha.padron,
       fechaInicio: ficha.fechaInicio,
-      cargaHistorica: ficha.cargaHistorica,
+      delPapel: ficha.delPapel,
       paso: ficha.paso,
       areaActual: ficha.areaActual.nombre,
       personas: [...ficha.personas, ...ficha.personasHistoricas].map(persona),

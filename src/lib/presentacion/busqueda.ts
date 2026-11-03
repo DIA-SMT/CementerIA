@@ -17,7 +17,8 @@ import { ESTADOS_EXPEDIENTE, type EstadoExpediente } from "@/lib/dominio/permiso
  * | `area` | `areaActualId` |
  * | `desde`, `hasta` | `fechaInicioDesde`, `fechaInicioHasta` |
  * | `anulados=1` | `incluirAnulados` |
- * | `historica=1` / `historica=0` | `cargaHistorica` (semana 4: los enlaces del panel) |
+ * | `historica=1` / `historica=0` | `delPapel`: vino (o no) del papel, con la carga abierta o terminada (la casilla "Solo los cargados del papel") |
+ * | `carga_abierta=1` / `carga_abierta=0` | `cargaAbierta`: la carga histórica sigue (o no) abierta (los enlaces del panel y las métricas) |
  *
  * Lo que no tiene forma válida se ignora (un enlace viejo o tipeado no rompe
  * la pantalla); las fechas pasan tal cual y las valida el dominio.
@@ -37,6 +38,8 @@ export interface ValoresBusqueda {
   desde: string;
   hasta: string;
   anulados: boolean;
+  /** "Solo los cargados del papel" (`historica=1`). */
+  delPapel: boolean;
 }
 
 export const PREFIJO_UBICACION = "u.";
@@ -77,6 +80,7 @@ export function leerParametrosBusqueda(parametros: ParametrosUrl): BusquedaLeida
   const hasta = primero(parametros.hasta).slice(0, 10);
   const anulados = primero(parametros.anulados) === "1";
   const historica = primero(parametros.historica);
+  const cargaAbierta = primero(parametros.carga_abierta);
 
   const ubicacion: Record<string, string> = {};
   for (const [nombre, valor] of Object.entries(parametros)) {
@@ -96,10 +100,11 @@ export function leerParametrosBusqueda(parametros: ParametrosUrl): BusquedaLeida
   if (desde) filtros.fechaInicioDesde = desde;
   if (hasta) filtros.fechaInicioHasta = hasta;
   if (anulados) filtros.incluirAnulados = true;
-  if (historica === "1" || historica === "0") filtros.cargaHistorica = historica === "1";
+  if (historica === "1" || historica === "0") filtros.delPapel = historica === "1";
+  if (cargaAbierta === "1" || cargaAbierta === "0") filtros.cargaAbierta = cargaAbierta === "1";
 
   return {
-    valores: { q, estados, tramite, plantilla, cementerio, ubicacion, area, desde, hasta, anulados },
+    valores: { q, estados, tramite, plantilla, cementerio, ubicacion, area, desde, hasta, anulados, delPapel: historica === "1" },
     entrada: { q: q === "" ? null : q, filtros },
     conCriterio: q !== "" || Object.keys(filtros).length > 0,
   };
@@ -117,6 +122,7 @@ export function cantidadDeFiltros(v: ValoresBusqueda): number {
     v.desde !== "",
     v.hasta !== "",
     v.anulados,
+    v.delPapel,
   ].filter(Boolean).length;
 }
 
@@ -137,7 +143,8 @@ export function rutaBusqueda(filtros: FiltrosBusqueda, q?: string | null): strin
   if (filtros.fechaInicioDesde !== undefined) p.set("desde", filtros.fechaInicioDesde);
   if (filtros.fechaInicioHasta !== undefined) p.set("hasta", filtros.fechaInicioHasta);
   if (filtros.incluirAnulados) p.set("anulados", "1");
-  if (filtros.cargaHistorica !== undefined) p.set("historica", filtros.cargaHistorica ? "1" : "0");
+  if (filtros.delPapel !== undefined) p.set("historica", filtros.delPapel ? "1" : "0");
+  if (filtros.cargaAbierta !== undefined) p.set("carga_abierta", filtros.cargaAbierta ? "1" : "0");
   const texto = p.toString();
   return texto === "" ? "/expedientes" : `/expedientes?${texto}`;
 }

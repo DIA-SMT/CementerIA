@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ResultadoFilaTranscripcion, ServicioExpedientes } from "@/lib/dominio/expedientes";
+import type { DatosAlta, ResultadoFilaTranscripcion, ServicioExpedientes } from "@/lib/dominio/expedientes";
 import { ErrorDominio, errorValidacion } from "@/lib/dominio/expedientes/errores";
 import type { UsuarioPermisos } from "@/lib/dominio/permisos";
 import { BaseAccion, FechaAccion, leerEntrada, TextoAccion, vacioANull, type ResultadoFlujo } from "./acciones";
@@ -119,6 +119,23 @@ const EntradaVinculado = BaseAccion.extend({
 export type EntradaVinculado = z.input<typeof EntradaVinculado>;
 
 /**
+ * Un expediente que vino del papel puede no tener contacto: su alta no lo
+ * exige (esquemas.ts). El vinculado, en cambio, es un alta de hoy y sí lo
+ * exige si la plantilla lo pide. Sin esto, el diálogo decía "Marcá qué persona
+ * es el contacto", y en el diálogo no hay personas que marcar: se dice qué
+ * hacer. Con una sola persona posible no hace falta (el alta la marca sola).
+ */
+function exigirContactoParaVinculado(requiereContacto: boolean, datos: DatosAlta): void {
+  if (!requiereContacto || datos.personas.some((p) => p.esContacto)) return;
+  const posibles = datos.personas.filter((p) => !p.fallecido && (Boolean(p.telefono?.trim()) || Boolean(p.email?.trim())));
+  if (posibles.length === 1) return;
+  throw new ErrorDominio(
+    "validacion",
+    "El expediente no tiene una persona de contacto, y el trámite nuevo la pide: cargala desde «Editar datos» (teléfono o correo y «Es el contacto del trámite») y volvé a intentar.",
+  );
+}
+
+/**
  * "Archivar y abrir vinculado" (la caducidad, docs/fuentes punto 6): el alta
  * del nuevo es la precarga del expediente acomodada a la plantilla elegida
  * (`datosAltaVinculado`); el dominio archiva sin concluir y da el alta en una
@@ -142,6 +159,7 @@ export async function procesarVinculado(
       tiposMonumento: ctx.tiposMonumento.map((t) => t.codigo),
       clavesUbicacion: ctx.camposUbicacion.map((c) => c.clave),
     });
+    exigirContactoParaVinculado(ctx.definicion.requiere_contacto, datos);
     const r = await servicio.archivarYAbrirVinculado(
       usuario,
       d.numero,

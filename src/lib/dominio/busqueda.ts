@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { esFechaValida, type FechaISO } from "@/lib/fechas";
 import type { Lector } from "./expedientes/dependencias";
 import { ErrorDominio } from "./expedientes/errores";
+import { SQL_DEL_PAPEL } from "./expedientes/origen";
 import { formatearNumeroInterno, interpretarFormaCorta, interpretarNumeroInterno, numeroCorto } from "./expedientes/numero";
 import { leerCamposUbicacion, normalizarValorUbicacion } from "./expedientes/ubicacion";
 import { dniDeCuil, normalizar, normalizarDni, normalizarNumero, tokens } from "./normalizar";
@@ -170,11 +171,19 @@ export interface FiltrosBusqueda {
   /** Por defecto los anulados no aparecen. */
   incluirAnulados?: boolean;
   /**
-   * Semana 4: `true`, solo los que tienen la carga histórica abierta; `false`,
-   * solo los que no (lo usan los enlaces del panel, que no cuentan las cargas
-   * abiertas). Sin valor, todos.
+   * "Del papel" (`historica=1|0` en la URL): `true`, solo los que se dieron
+   * de alta como iniciados antes del sistema (carga histórica), abierta o ya
+   * terminada; `false`, solo los nacidos en el sistema. Es el origen
+   * (expedientes/origen.ts): terminar la carga no lo cambia. Sin valor, todos.
    */
-  cargaHistorica?: boolean;
+  delPapel?: boolean;
+  /**
+   * `true`, solo los que tienen la carga histórica ABIERTA; `false`, solo los
+   * que no (`carga_abierta=1|0`). Lo usan los enlaces del panel y de las
+   * métricas, que no cuentan las cargas abiertas pero sí las terminadas.
+   * Sin valor, todos.
+   */
+  cargaAbierta?: boolean;
 }
 
 export interface OpcionesBusquedaInterna {
@@ -208,7 +217,10 @@ export interface ResultadoBusquedaFila {
   numeroMunicipal: string | null;
   estado: EstadoExpediente;
   fechaInicio: FechaISO;
+  /** La transcripción de la ficha de papel sigue abierta. */
   cargaHistorica: boolean;
+  /** Vino del papel (el alta fue una carga histórica): la marca "Del papel". */
+  delPapel: boolean;
   sinConfirmar: boolean;
   tipoTramite: { codigo: string; nombre: string };
   plantilla: { codigo: string; nombre: string; version: number };
@@ -245,6 +257,7 @@ interface FilaSql {
   estado: string;
   fecha_inicio: string;
   carga_historica: boolean;
+  del_papel: boolean;
   sin_confirmar: boolean;
   paso_clave: string;
   paso_nombre: string | null;
@@ -290,7 +303,8 @@ async function condicionesDeFiltros(lector: Lector, f: FiltrosBusqueda): Promise
   if (f.tipoTramiteId !== undefined) c.push(Prisma.sql`e.tipo_tramite_id = ${f.tipoTramiteId}`);
   if (f.plantillaCodigo !== undefined) c.push(Prisma.sql`pl.codigo = ${f.plantillaCodigo}`);
   if (f.areaActualId !== undefined) c.push(Prisma.sql`e.area_actual_id = ${f.areaActualId}`);
-  if (f.cargaHistorica !== undefined) c.push(Prisma.sql`e.carga_historica = ${f.cargaHistorica}`);
+  if (f.cargaAbierta !== undefined) c.push(Prisma.sql`e.carga_historica = ${f.cargaAbierta}`);
+  if (f.delPapel !== undefined) c.push(Prisma.sql`${SQL_DEL_PAPEL} = ${f.delPapel}`);
   for (const [clave, valor] of [
     ["fechaInicioDesde", f.fechaInicioDesde],
     ["fechaInicioHasta", f.fechaInicioHasta],
@@ -396,7 +410,8 @@ export async function buscarExpedientes(
   const filas = await lector.$queryRaw<FilaSql[]>`
     ${conCoincidencias}
     SELECT e.id, e.numero_interno, e.anio, e.secuencia, e.numero_municipal, e.estado,
-           e.fecha_inicio::text AS fecha_inicio, e.carga_historica, (e.recibido_en IS NULL) AS sin_confirmar,
+           e.fecha_inicio::text AS fecha_inicio, e.carga_historica, ${SQL_DEL_PAPEL} AS del_papel,
+           (e.recibido_en IS NULL) AS sin_confirmar,
            e.paso_clave, e.ubicacion_texto,
            (SELECT x ->> 'nombre' FROM jsonb_array_elements(pl.definicion -> 'pasos') AS x
              WHERE x ->> 'clave' = e.paso_clave LIMIT 1) AS paso_nombre,
@@ -426,6 +441,7 @@ export async function buscarExpedientes(
       estado: esEstado(f.estado) ? f.estado : "en_tramite",
       fechaInicio: f.fecha_inicio,
       cargaHistorica: f.carga_historica,
+      delPapel: f.del_papel,
       sinConfirmar: f.sin_confirmar,
       tipoTramite: { codigo: f.tipo_codigo, nombre: f.tipo_nombre },
       plantilla: { codigo: f.plantilla_codigo, nombre: f.plantilla_nombre, version: f.plantilla_version },

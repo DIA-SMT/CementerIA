@@ -133,7 +133,7 @@ export function textoDeResultado(nombre: string, d: Datos): string {
       const paso = d.paso as { orden: number; total: number; nombre: string };
       const partes = [
         `${d.numero} (${d.tramite}): ${String(d.estado).toLowerCase()}, en el paso ${paso.orden} de ${paso.total} («${paso.nombre}»).`,
-        `Está en ${d.areaActual}${d.enAreaDesde ? ` desde el ${formatearFecha(String(d.enAreaDesde))}` : ""}${typeof d.diasEnArea === "number" ? ` (${d.diasEnArea} días hábiles)` : ""}${d.recibido ? "" : ", sin confirmar la recepción"}.`,
+        `Está en ${d.areaActual}${d.enAreaDesde ? ` desde el ${formatearFecha(String(d.enAreaDesde))}` : ""}${typeof d.diasEnArea === "number" ? ` (${d.diasEnArea} días hábiles${d.cuentaDesde ? `, contados desde el ${formatearFecha(String(d.cuentaDesde))}, cuando se terminó la carga histórica` : ""})` : ""}${d.recibido ? "" : ", sin confirmar la recepción"}.`,
       ];
       const alertas = (d.alertas as string[] | undefined) ?? [];
       if (alertas.length) partes.push(`Alertas: ${alertas.join(", ")}.`);

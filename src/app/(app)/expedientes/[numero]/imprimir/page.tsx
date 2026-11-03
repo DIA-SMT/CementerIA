@@ -180,7 +180,7 @@ function HojaCaratula({ caratula: c, url, qr }: { caratula: Caratula; url: strin
           <Fila titulo="Padrón">{c.padron ?? "—"}</Fila>
           <Fila titulo="Fecha de inicio">
             {formatearFecha(c.fechaInicio)}
-            {c.cargaHistorica ? " (iniciado antes del sistema)" : ""}
+            {c.delPapel ? " (iniciado antes del sistema)" : ""}
           </Fila>
           <Fila titulo={c.titulares.length > 1 ? "Titulares" : "Titular"}>{personas(c.titulares)}</Fila>
           {c.solicitantes.length > 0 ? <Fila titulo={c.solicitantes.length > 1 ? "Solicitantes" : "Solicitante"}>{personas(c.solicitantes)}</Fila> : null}
@@ -345,7 +345,7 @@ function HojaDelHistorial({ hoja: d }: { hoja: HojaHistorial }) {
         <p>
           Estado: {etiquetaEstado(d.estado)} · Paso {d.paso.orden} de {d.paso.total}: {d.paso.nombre} · {d.areaActual} · Inicio{" "}
           {formatearFecha(d.fechaInicio)}
-          {d.cargaHistorica ? " (antes del sistema)" : ""}
+          {d.delPapel ? " (antes del sistema)" : ""}
         </p>
         <p>
           Personas:{" "}

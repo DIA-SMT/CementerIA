@@ -27,7 +27,9 @@ describe("CSV del buscador (semana 4)", () => {
       numeroMunicipal: "12.345/2026",
       estado: "espera_pago_dim",
       fechaInicio: "2026-10-15",
+      // Vino del papel y ya terminó la carga: la columna es el origen.
       cargaHistorica: false,
+      delPapel: true,
       sinConfirmar: false,
       tipoTramite: { codigo: "RENOVACION", nombre: "Renovación de concesión" },
       plantilla: { codigo: "RENOV_PLAN", nombre: "Renovación, plan de pagos", version: 1 },
@@ -54,7 +56,7 @@ describe("CSV del buscador (semana 4)", () => {
       "DIM",
       "Dirección de Ingresos Municipales",
       "FICTICIO, Titular",
-      false,
+      true,
     ]);
     expect(COLUMNAS_CSV.join(" ")).not.toMatch(/tel|correo|mail|domicilio/i);
   });

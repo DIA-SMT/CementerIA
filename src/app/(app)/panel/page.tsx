@@ -473,6 +473,7 @@ function TablaFilas({ filas, conAlerta = false }: { filas: FilaPanel[]; conAlert
                 <span className={conAlerta ? "font-medium text-error" : undefined}>{textoDias(f.diasEnArea)}</span>
                 {conAlerta && f.diasAlerta !== null ? <span className="block text-xs text-texto-secundario">alerta a los {f.diasAlerta}</span> : null}
                 <span className="block text-xs text-texto-secundario">desde {formatearFecha(f.enAreaDesde)}</span>
+                {f.cuentaDesde ? <span className="block text-xs text-texto-secundario">cuenta desde el {formatearFecha(f.cuentaDesde)} (fin de la carga histórica)</span> : null}
               </td>
             </tr>
           ))}

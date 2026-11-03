@@ -57,7 +57,8 @@ export default async function PaginaTranscribir(props: PageProps<"/expedientes/[
     version: ficha.version,
     rutaFicha: rutaFicha(ficha.numero),
     estado: ficha.estado,
-    paso: { orden: ficha.paso.orden, nombre: ficha.paso.nombre, esFinal: ficha.paso.esFinal },
+    paso: { orden: ficha.paso.orden, nombre: ficha.paso.nombre, total: ficha.paso.total, esFinal: ficha.paso.esFinal },
+    area: ficha.areaActual.nombre,
     fechaInicio: ficha.fechaInicio,
     pasos: ficha.recorrido.map((p) => ({ clave: p.clave, nombre: p.nombre, orden: p.orden })),
     subtareas: ficha.recorrido

@@ -6,7 +6,7 @@ import { ChevronRight, FileSpreadsheet, Plus, Search, SearchX, SlidersHorizontal
 import { Aviso } from "@/components/aviso";
 import { EncabezadoPagina } from "@/components/encabezado-pagina";
 import { EstadoVacio } from "@/components/estado-vacio";
-import { EtiquetaEstado } from "@/components/etiquetas";
+import { EtiquetaDelPapel, EtiquetaEstado } from "@/components/etiquetas";
 import { CLASE_BOTON_PRIMARIO, CLASE_BOTON_SECUNDARIO, CLASE_CASILLA, CLASE_CONTROL, CLASE_ENLACE, CLASE_FOCO } from "@/components/formulario";
 import { PantallaConRecorrido } from "@/components/recorrido/proveedor";
 import { exigirPantalla } from "@/lib/auth/sesion";
@@ -140,6 +140,11 @@ export default async function PaginaExpedientes(props: PageProps<"/expedientes">
                 <label className={CLASE_OPCION}>
                   <input type="checkbox" name="anulados" value="1" defaultChecked={valores.anulados} className={CLASE_CASILLA} />
                   Incluir anulados
+                </label>
+                {/* El origen, no la carga abierta: también los que ya terminaron su carga histórica. */}
+                <label className={CLASE_OPCION}>
+                  <input type="checkbox" name="historica" value="1" defaultChecked={valores.delPapel} className={CLASE_CASILLA} />
+                  Solo los cargados del papel
                 </label>
               </div>
             </fieldset>
@@ -391,7 +396,12 @@ function EstadoResultado({ resultado: r }: { resultado: ResultadoBusqueda["resul
     <>
       <EtiquetaEstado estado={r.estado} />
       {r.sinConfirmar ? <div className="mt-1 text-xs font-medium text-advertencia">Sin confirmar recepción</div> : null}
-      {r.cargaHistorica ? <div className="mt-1 text-xs text-texto-secundario">Antes del sistema</div> : null}
+      {r.delPapel ? (
+        <div className="mt-1">
+          <EtiquetaDelPapel />
+        </div>
+      ) : null}
+      {r.cargaHistorica ? <div className="mt-1 text-xs text-texto-secundario">Carga histórica abierta</div> : null}
       <div className="mt-1 whitespace-nowrap text-xs text-texto-secundario">Inicio {formatearFecha(r.fechaInicio)}</div>
     </>
   );
