@@ -1332,6 +1332,97 @@ costaba cuadros al desplazar (docs de la versión del 28/10) ya no está.
 En "Kit institucional", "Contraste (resumen)": los pares de tokens en los dos
 modos y el texto sobre las fotos reales en 390, 768 y 1440.
 
+## Migue (02/11/2026)
+
+El asistente con IA, en la página pública y en el sistema
+([api-dominio.md](api-dominio.md), sección 26). Es el chat de El Sanmiguelino
+(`src/components/migue/migue-chat.tsx` de DiarioDigital) llevado al kit de
+CementerIA, sin sus dependencias: acá no hay `@radix-ui/react-dialog` ni
+`motion`, así que es HTML nativo con transiciones de CSS.
+
+**Piezas** (`src/components/migue/`):
+
+- `chat-migue.tsx`: la burbuja y el panel, con dos pieles (`publico`, `interno`).
+- `migue-publico.tsx`: lo monta `src/app/(publico)/layout.tsx`, al final del
+  contenedor del sitio (así toma el modo claro u oscuro).
+- `migue-interno.tsx`: lo monta `src/app/(app)/layout.tsx`, dentro del
+  proveedor de los recorridos guiados.
+- `burbuja-movible.ts`: `useBurbujaMovible`, copiado del diario.
+- `retrato-migue.tsx`: `RetratoMigue` (`public/migue/retrato.webp`, la cara,
+  320 × 320, opaca: el fondo es el cementerio desenfocado de la ilustración) y
+  `CuerpoMigue` (`public/migue/cuerpo.webp`, de frente y entero, 243 × 640, con
+  transparencia), con un `<img>` común porque nginx cierra `/_next/image`.
+  Salen de la hoja de personaje de CementerIA (`docs/migue/hoja-personaje.webp`,
+  con `scripts/migue-recortes.mjs`; procedencia en `public/migue/LEEME.md`).
+
+**La burbuja.** Abajo a la derecha, a 16 px de los bordes: en el celular, un
+círculo de 56 px con la cara de Migue (una foto redonda, igual en claro y en
+oscuro) y un anillo; desde `sm`,
+además el texto "Preguntale a Migue". Azul primario (#006BFF, blanco encima
+4,62:1). Nombre accesible "Abrir el chat con Migue, el asistente de la
+Dirección de Cementerios" y `aria-controls` al panel. **Se arrastra** con el
+mouse o el dedo a donde moleste menos y se queda ahí (localStorage, una
+posición para el sitio y otra para el sistema; sin almacenamiento, vuelve a su
+lugar). Un toque abre; un arrastre no.
+
+**El panel.** `<section role="dialog" aria-modal="false">` de unos 390 × 580
+(como mucho el ancho y el alto de la ventana menos 2 rem), en el mismo rincón.
+**No modal**: no tapa la página con un velo ni atrapa el foco; lo de atrás se
+sigue usando. Cerrado, queda oculto (`inert`, `invisible`). Al abrirse, el foco
+va al campo; **Esc** lo cierra y el foco vuelve a la burbuja. Aparece con
+opacidad y un desplazamiento chico (200 ms); con movimiento reducido, sin
+animación (la regla global de `globals.css`).
+
+- **Cabecera** en el azul institucional (#0F2F5D) con la cara, "Migue" (`h2`,
+  el nombre del diálogo), el subtítulo ("Asistente de la Dirección de
+  Cementerios" o "Ayuda del sistema · <pantalla>") y "Cerrar el chat con
+  Migue"; abajo, el filete amarillo → celeste → azul del kit (#F4D900,
+  #32B2F6, #006BFF).
+- **El historial** es una región viva (`aria-live="polite"`): cada burbuja
+  empieza con "Vos:" o "Migue:" para lectores de pantalla. Lo de quien pregunta,
+  a la derecha en azul primario; lo de Migue, a la izquierda en una superficie
+  tintada, con los **enlaces** debajo como botones chicos (los externos, en otra
+  pestaña y avisándolo). Una respuesta nueva se muestra desde la pregunta que
+  la pidió.
+- **"Migue está escribiendo"**: tres puntos con `role="status"` (sin animación
+  con movimiento reducido).
+- **Error de conexión**: `role="alert"`, "No pude responder por un problema de
+  conexión" y **Reintentar**.
+- **Bienvenida**: Migue entero, de frente (`cuerpo.webp`), y "¡Hola! Soy Migue…", con **3 sugerencias** en lo
+  público (horarios, trámites, cómo consultar el trámite). En el sistema, "Estás
+  en <pantalla>: estas son las dudas más comunes" y **las preguntas de esa
+  pantalla**, que siguen al pie después de cada respuesta (las que faltan) con
+  "Otra consulta", que lleva al campo.
+- **El campo**: un `textarea` de una línea, con `maxlength` (500 o
+  600); Enter envía y Shift+Enter hace otra línea.
+- **Sesión vencida** (en el sistema, 401): "Se venció tu sesión" e "Ingresar".
+
+**Las pieles.** En lo público, los tokens `pub-*` (superficie, tinte, bordes,
+texto, foco), así que el panel sigue al modo claro u oscuro del sitio. En el
+sistema, los del sistema (blanco, `fondo`, `borde`, `primario`).
+
+**Que no tape lo que no tiene que tapar.**
+
+- No aparece en el login ni en `/cambiar-clave` (están fuera de las dos
+  cáscaras), ni en los imprimibles (`/expedientes/[numero]/imprimir`), ni en el
+  papel (`print:hidden`).
+- En el sistema se esconde mientras la **invitación a un recorrido** ocupa ese
+  rincón, y se apoya por encima de la **barra de acciones fija** del formulario
+  del expediente (publica su alto en `--alto-barra-inferior`).
+- `globals.css` le reserva lugar al pie: 6 rem de más en el `main` del sistema y
+  5 rem en el pie del sitio, y `scroll-padding-bottom` para que el foco al
+  tabular no quede debajo (WCAG 2.4.11). Mientras se desplaza, la burbuja pasa
+  por encima del contenido, como cualquier botón flotante; por eso se arrastra.
+  `tests/e2e/migue.spec.ts` controla en 375 px que no tape la barra ni el
+  encabezado, que al pie de la página no tape nada y que no haya
+  desplazamiento lateral.
+
+**Capturas** (con el OpenRouter de mentira del arnés e2e,
+`E2E_CAPTURAS_MIGUE=<carpeta> npx playwright test tests/e2e/migue.spec.ts`):
+inicio con Migue abierto en claro, en oscuro y en 375 px; el sistema
+contestando el estado de un expediente; la ayuda de la bandeja. No se
+versionan.
+
 ## Capturas
 
 En `docs/capturas/rediseno/` (base efímera con la semilla y `next start`, como

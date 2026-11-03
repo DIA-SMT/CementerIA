@@ -216,6 +216,63 @@ describe("esHostDeStaging y devLoginPara", () => {
   });
 });
 
+describe("leerEntorno: Migue (02/11/2026)", () => {
+  it("sin nada: sin modelo, gpt-4o-mini, la URL de OpenRouter, 20 por persona y 300 entre todos, sin tablero", () => {
+    expect(leerEntorno({ SESSION_SECRET: SECRETO }).migue).toEqual({
+      clave: null,
+      modelo: "openai/gpt-4o-mini",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      topePersona: 20,
+      topeGlobal: 300,
+      tablero: null,
+    });
+  });
+
+  it("toma la clave, el modelo, la URL (la de las pruebas, un servidor falso), los topes y el tablero", () => {
+    const m = leerEntorno({
+      SESSION_SECRET: SECRETO,
+      OPENROUTER_API_KEY: "sk-or-clave-de-prueba-ficticia",
+      OPENROUTER_MODEL: "anthropic/claude-haiku",
+      OPENROUTER_URL: "http://127.0.0.1:4010/api/v1/chat/completions",
+      MIGUE_TOPE_PERSONA: "5",
+      MIGUE_TOPE_GLOBAL: "50",
+      MIGUE_API_KEY: "clave-del-tablero-ficticia",
+      MIGUE_DASHBOARD_URL: "https://tablero.ejemplo.test/",
+    }).migue;
+    expect(m).toEqual({
+      clave: "sk-or-clave-de-prueba-ficticia",
+      modelo: "anthropic/claude-haiku",
+      url: "http://127.0.0.1:4010/api/v1/chat/completions",
+      topePersona: 5,
+      topeGlobal: 50,
+      tablero: { clave: "clave-del-tablero-ficticia", url: "https://tablero.ejemplo.test" },
+    });
+  });
+
+  it("valida sin repetir los valores: topes enteros positivos, modelo con proveedor, https en producción y el tablero completo", () => {
+    const problemas = problemasDe(() =>
+      leerEntorno({ SESSION_SECRET: SECRETO, MIGUE_TOPE_PERSONA: "0", MIGUE_TOPE_GLOBAL: "muchos", OPENROUTER_MODEL: "gpt-4o-mini", OPENROUTER_API_KEY: "sk-or-secreta-ficticia" }),
+    );
+    expect(problemas).toEqual([expect.stringMatching(/^OPENROUTER_MODEL: /), expect.stringMatching(/^MIGUE_TOPE_PERSONA: /), expect.stringMatching(/^MIGUE_TOPE_GLOBAL: /)]);
+    expect(problemas.join(" ")).not.toContain("sk-or-secreta-ficticia");
+    expect(
+      problemasDe(() => leerEntorno({ NODE_ENV: "production", SESSION_SECRET: SECRETO, OPENROUTER_API_KEY: "sk-or-secreta-ficticia", OPENROUTER_URL: "http://proxy.ejemplo.test/v1" })),
+    ).toEqual([expect.stringMatching(/^OPENROUTER_URL: en producción tiene que ser https/)]);
+    expect(problemasDe(() => leerEntorno({ SESSION_SECRET: SECRETO, MIGUE_API_KEY: "clave-del-tablero-ficticia" }))).toEqual([
+      expect.stringMatching(/^MIGUE_API_KEY y MIGUE_DASHBOARD_URL: van las dos juntas/),
+    ]);
+  });
+
+  it("sin OPENROUTER_API_KEY arranca igual y deja el aviso en el log", () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    validarEntornoAlIniciar({ SESSION_SECRET: SECRETO, DATABASE_URL: BASE });
+    expect(aviso.mock.calls.map((c) => String(c[0]))).toContainEqual(expect.stringContaining('"evento":"entorno.migue_sin_modelo"'));
+    aviso.mockClear();
+    validarEntornoAlIniciar({ SESSION_SECRET: SECRETO, DATABASE_URL: BASE, OPENROUTER_API_KEY: "sk-or-clave-de-prueba-ficticia" });
+    expect(aviso.mock.calls.map((c) => String(c[0]))).not.toContainEqual(expect.stringContaining("migue_sin_modelo"));
+  });
+});
+
 describe("arranque (src/instrumentation.ts)", () => {
   it("validarEntornoAlIniciar exige además DATABASE_URL", () => {
     expect(problemasDe(() => validarEntornoAlIniciar({ SESSION_SECRET: SECRETO }))).toEqual([

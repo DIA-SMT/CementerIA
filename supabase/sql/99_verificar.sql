@@ -421,5 +421,31 @@ SELECT control, ok, detalle FROM (
               WHEN a.bucket_sitio IS NULL THEN 'este rol no ve el esquema storage: lo controla npm run supabase:verificar como postgres'
               ELSE split_part(a.bucket_sitio, '|', 1) END
     FROM almacen a
+
+  UNION ALL
+  -- Migue (02/11/2026, migración *_migue): el registro (auditoria.consultas_migue)
+  -- y los topes (public.consumo_migue) con RLS y la política de la app, y sus
+  -- protecciones ALWAYS: el registro es solo inserción y se borra a los 90
+  -- días; el contador solo sube y una hora se borra al día siguiente. La app
+  -- lee, inserta y borra (solo lo vencido, por el trigger) el registro, sin
+  -- UPDATE; los topes, además, los actualiza. Nunca TRUNCATE.
+  SELECT 28, 'Migue: registro y topes con RLS, protegidos y con privilegios mínimos',
+         count(*) = 2
+           AND bool_and(t.relrowsecurity AND NOT t.relforcerowsecurity
+                        AND EXISTS (SELECT 1 FROM pg_policies p
+                                     WHERE p.schemaname = t.nspname AND p.tablename = t.relname
+                                       AND p.policyname = 'cementeria_app' AND p.roles = '{cementeria_app}'))
+           AND bool_and((SELECT count(*) FROM pg_trigger g WHERE g.tgrelid = t.oid AND g.tgenabled = 'A'
+                          AND g.tgname IN (t.relname || '_proteger', t.relname || '_proteger_truncate')) = 2)
+           AND bool_and(has_table_privilege('cementeria_app', t.oid, 'SELECT') AND has_table_privilege('cementeria_app', t.oid, 'INSERT')
+                        AND has_table_privilege('cementeria_app', t.oid, 'DELETE') AND NOT has_table_privilege('cementeria_app', t.oid, 'TRUNCATE')
+                        AND has_table_privilege('cementeria_app', t.oid, 'UPDATE') = (t.relname = 'consumo_migue'))
+           AND to_regprocedure('public.f_purgar_migue()') IS NOT NULL,
+         CASE WHEN count(*) = 2
+              THEN 'auditoria.consultas_migue y public.consumo_migue: RLS con la política de la app, *_proteger ALWAYS, '
+                   || 'f_purgar_migue(); la app no modifica el registro y nunca hace TRUNCATE'
+              ELSE format('hay %s de las 2 tablas de Migue (¿falta aplicar la migración *_migue?)', count(*)) END
+    FROM tablas t
+   WHERE (t.nspname = 'auditoria' AND t.relname = 'consultas_migue') OR (t.nspname = 'public' AND t.relname = 'consumo_migue')
 ) controles
 ORDER BY orden;

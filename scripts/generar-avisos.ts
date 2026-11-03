@@ -12,6 +12,8 @@
 //
 // 28/10/2026: después borra los intentos fallidos de la consulta pública de
 // más de 7 días (src/lib/tareas/programadas.ts, tareaPurgarIntentosConsulta).
+// 02/11/2026: y la retención de Migue (tareaPurgarMigue): el registro de más de
+// 90 días y los contadores de los topes de más de un día.
 //
 // Escribe una línea JSON (como el barrido de adjuntos y la verificación del
 // historial). Sale con 0 si generó (aunque no haya creado ninguno) y con 2 si
@@ -24,7 +26,7 @@
 import { config as cargarEnv } from "dotenv";
 import { crearCliente } from "../src/lib/db/crear-cliente";
 import { esFechaValida, inicioDelDiaEnTucuman } from "../src/lib/fechas";
-import { tareaAvisos, tareaPurgarIntentosConsulta } from "../src/lib/tareas/programadas";
+import { tareaAvisos, tareaPurgarIntentosConsulta, tareaPurgarMigue } from "../src/lib/tareas/programadas";
 
 cargarEnv({ path: ".env.local", quiet: true });
 
@@ -50,6 +52,8 @@ async function main(): Promise<number> {
     log("info", "avisos.generados", { dia: r.dia, expedientes: r.expedientes, creados: r.creados, por_tipo: r.porTipo, duracion_ms: r.duracionMs });
     const i = await tareaPurgarIntentosConsulta(cliente);
     log("info", "consulta_publica.intentos_purgados", { borrados: i.borrados });
+    const m = await tareaPurgarMigue(cliente);
+    log("info", "migue.purgado", { consultas: m.consultas, consumo: m.consumo });
     return 0;
   } finally {
     await cliente.$disconnect();

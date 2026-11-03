@@ -11,6 +11,7 @@ import { COOKIE_BARRA, leerPreferenciaBarra } from "@/lib/presentacion/barra-lat
 import { mostrarFranja } from "@/lib/presentacion/perfil-prueba";
 import { rutaBandeja } from "@/lib/presentacion/flujo";
 import { CLASE_FOCO } from "@/components/formulario";
+import { MigueInterno } from "@/components/migue/migue-interno";
 import { BotonRecorrido } from "@/components/recorrido/botones";
 import { ProveedorRecorridos } from "@/components/recorrido/proveedor";
 import { perfilDe } from "@/lib/presentacion/recorridos/motor";
@@ -62,6 +63,11 @@ import { FranjaPerfilPrueba, SelectorPerfilPrueba } from "./perfil-prueba";
  * fila no da para un botón más (con "Por confirmar" y la campana empujaba el
  * nombre sobre la llave) y el perfil ya lo dicen la franja y el nombre
  * accesible del selector.
+ *
+ * Migue (02/11/2026, docs/diseno.md "Migue"): el asistente del sistema, dentro
+ * del proveedor de los recorridos (sabe qué pantalla está a la vista para
+ * ofrecer sus preguntas, y se esconde mientras la invitación ocupa su rincón).
+ * Con el perfil efectivo: con "Ver como…", el del perfil elegido.
  *
  * Este layout NO es la barrera: Next puede renderizar una página sin volver a
  * renderizar su layout (navegación del lado del cliente), así que cada página
@@ -185,6 +191,7 @@ export default async function LayoutConSesion({ children }: { children: React.Re
           <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 lg:px-8 lg:py-8 print:max-w-none print:p-0">{children}</main>
         </div>
       </div>
+      <MigueInterno perfil={perfilDe(usuario)} />
     </ProveedorRecorridos>
   );
 }

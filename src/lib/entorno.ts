@@ -43,6 +43,34 @@ const ESQUEMA = z.object({
   // Modo prueba (27/10/2026): los CUILs que pueden usar "Ver como…" para entrar
   // a cada perfil con su propio usuario. Se valida en leerPerfilesPrueba().
   PERFILES_PRUEBA_CUILS: z.string().optional(),
+  // Migue (02/11/2026, src/lib/migue/): el asistente con IA. Todas opcionales:
+  // sin OPENROUTER_API_KEY, Migue contesta solo con el buscador y los atajos.
+  // La clave es un secreto: el error nombra la variable y nunca el valor.
+  OPENROUTER_API_KEY: z.string().min(8, "no parece una clave de OpenRouter").optional(),
+  OPENROUTER_MODEL: z
+    .string()
+    .regex(/^[a-z0-9][\w.-]*\/[\w.:-]+$/i, "tiene que ser <proveedor>/<modelo>, como openai/gpt-4o-mini")
+    .default("openai/gpt-4o-mini"),
+  OPENROUTER_URL: z
+    .url({ protocol: /^https?$/, error: "tiene que ser una URL http(s)" })
+    .default("https://openrouter.ai/api/v1/chat/completions"),
+  MIGUE_TOPE_PERSONA: z.coerce
+    .number({ error: "tiene que ser un número entero" })
+    .int("tiene que ser un número entero")
+    .min(1, "tiene que ser 1 o más")
+    .max(10_000, "tiene que ser 10000 o menos")
+    .default(20),
+  MIGUE_TOPE_GLOBAL: z.coerce
+    .number({ error: "tiene que ser un número entero" })
+    .int("tiene que ser un número entero")
+    .min(1, "tiene que ser 1 o más")
+    .max(1_000_000, "tiene que ser 1000000 o menos")
+    .default(300),
+  // El tablero de Migues de la Dirección de IA (organizacionDIA,
+  // docs/migue-conexion.md), con los mismos nombres que Applaza y Presupuesto
+  // Participativo. Sin las dos, no se reporta.
+  MIGUE_API_KEY: z.string().min(8, "no parece una clave del tablero").optional(),
+  MIGUE_DASHBOARD_URL: z.url({ protocol: /^https?$/, error: "tiene que ser una URL http(s)" }).optional(),
 });
 
 export type PoliticaClave = "estricta" | "libre";
@@ -76,6 +104,24 @@ export interface Entorno {
    * src/lib/dominio/admin/perfil-prueba.ts.
    */
   perfilesPrueba: ReadonlySet<string>;
+  /** Migue, el asistente con IA (src/lib/migue/). */
+  migue: ConfigMigue;
+}
+
+/**
+ * Migue (src/lib/migue/). `clave` en null: sin modelo, solo el buscador y los
+ * atajos deterministas. `tablero` en null: no se reporta a organizacionDIA.
+ */
+export interface ConfigMigue {
+  clave: string | null;
+  modelo: string;
+  /** El endpoint de chat completions (las pruebas lo apuntan a un servidor falso). */
+  url: string;
+  /** Consultas al modelo por persona (la IP en lo público, el usuario en lo interno) y por hora. */
+  topePersona: number;
+  /** Consultas al modelo entre todos, por hora: el techo de gasto. */
+  topeGlobal: number;
+  tablero: { clave: string; url: string } | null;
 }
 
 export class EntornoInvalido extends Error {
@@ -213,6 +259,13 @@ export function leerEntorno(fuente: Readonly<Record<string, string | undefined>>
     }
   }
 
+  if (produccion && e.OPENROUTER_API_KEY && !e.OPENROUTER_URL.startsWith("https:")) {
+    problemas.push("OPENROUTER_URL: en producción tiene que ser https (la clave viaja en ese pedido)");
+  }
+  if (Boolean(e.MIGUE_API_KEY) !== Boolean(e.MIGUE_DASHBOARD_URL)) {
+    problemas.push("MIGUE_API_KEY y MIGUE_DASHBOARD_URL: van las dos juntas (o ninguna, y no se reporta al tablero)");
+  }
+
   if (problemas.length > 0) throw new EntornoInvalido(problemas);
 
   let devLogin: ConfigDevLogin = { habilitado: false };
@@ -231,6 +284,15 @@ export function leerEntorno(fuente: Readonly<Record<string, string | undefined>>
     devLogin,
     politicaClave: e.CLAVE_POLITICA,
     perfilesPrueba,
+    migue: {
+      clave: e.OPENROUTER_API_KEY ?? null,
+      modelo: e.OPENROUTER_MODEL,
+      url: e.OPENROUTER_URL,
+      topePersona: e.MIGUE_TOPE_PERSONA,
+      topeGlobal: e.MIGUE_TOPE_GLOBAL,
+      tablero:
+        e.MIGUE_API_KEY && e.MIGUE_DASHBOARD_URL ? { clave: e.MIGUE_API_KEY, url: e.MIGUE_DASHBOARD_URL.replace(/\/+$/, "") } : null,
+    },
   };
 }
 
@@ -313,7 +375,16 @@ export function validarEntornoAlIniciar(fuente: Readonly<Record<string, string |
     devLoginListaBlanca: resultado.devLogin.habilitado ? (resultado.devLogin.listaBlanca?.size ?? null) : null,
     politicaClave: resultado.politicaClave,
     perfilesPrueba: resultado.perfilesPrueba.size,
+    migueModelo: resultado.migue.clave ? resultado.migue.modelo : null,
+    migueTablero: resultado.migue.tablero !== null,
   });
+  // Sin la clave de OpenRouter Migue no se rompe: contesta con el buscador y
+  // los atajos. Pero tiene que quedar a la vista en el log.
+  if (!resultado.migue.clave) {
+    log.warn("entorno.migue_sin_modelo", {
+      aviso: "Falta OPENROUTER_API_KEY: Migue contesta solo con el buscador y los atajos deterministas, sin modelo.",
+    });
+  }
   // No impide arrancar (sirve para probar un despliegue), pero no puede pasar
   // desapercibido: con datos reales, una contraseña como 123456 se adivina al
   // primer intento y el bloqueo por intentos no la protege.

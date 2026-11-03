@@ -16,6 +16,10 @@
 //    NODE_ENV=development).
 // 4. Espera a que /api/salud responda 200 y deja la URL en E2E_BASE_URL, que
 //    los workers heredan (playwright.config.ts la usa como baseURL).
+// 5. (02/11/2026) Antes de arrancar la app, un OpenRouter de mentira en otro
+//    puerto libre (./openrouter-falso.ts): la app lo usa con OPENROUTER_URL y
+//    una clave ficticia, así Migue se prueba entero sin llamar nunca a
+//    OpenRouter real. Su URL queda en E2E_OPENROUTER_FALSO.
 //
 // Devuelve el teardown: detiene la app y PostgreSQL y borra el directorio.
 //
@@ -35,6 +39,7 @@ import { puertoLibre } from "../../scripts/lib/postgres-local.mjs";
 import { ADMIN_CUIL_DESARROLLO } from "../../prisma/semilla/usuarios";
 import { levantarBaseEfimera } from "../integracion/base-efimera";
 import { USUARIO_MODO_PRUEBA } from "./ayudas";
+import { levantarOpenRouterFalso } from "./openrouter-falso";
 
 const ESPERA_ARRANQUE_MS = 120_000;
 
@@ -71,6 +76,15 @@ const VARIABLES_AJENAS = [
   "ENCABEZADOS_SEGURIDAD",
   "DB_POOL_MAX",
   "PERFILES_PRUEBA_CUILS",
+  // Migue: nunca la clave ni el modelo de quien corre las pruebas (02/11/2026).
+  "OPENROUTER_API_KEY",
+  "OPENROUTER_MODEL",
+  "OPENROUTER_URL",
+  "MIGUE_TOPE_PERSONA",
+  "MIGUE_TOPE_GLOBAL",
+  "MIGUE_API_KEY",
+  "MIGUE_DASHBOARD_URL",
+  "MIGUE_ENVIAR_PREGUNTAS",
   "NODE_ENV",
   "PORT",
   "HOSTNAME",
@@ -162,9 +176,12 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
   if (config.configFile) RAIZ = path.dirname(config.configFile);
   const { base, dir, limpiar } = await levantarBaseEfimera("cementeria-e2e-", RAIZ);
   let app: ChildProcess | null = null;
+  let openRouter: Awaited<ReturnType<typeof levantarOpenRouterFalso>> | null = null;
   const teardown = async (): Promise<void> => {
     if (app) await terminar(app);
     app = null;
+    await openRouter?.cerrar();
+    openRouter = null;
     await limpiar();
   };
 
@@ -199,6 +216,7 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
       await correr("next build", [next, "build"], entornoLimpio({}), logBuild);
     }
 
+    openRouter = await levantarOpenRouterFalso();
     const puerto = await puertoLibre();
     const url = `http://127.0.0.1:${puerto}`;
     const salidaApp = createWriteStream(logApp, { flags: "a" });
@@ -217,6 +235,12 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
         PERFILES_PRUEBA_CUILS: USUARIO_MODO_PRUEBA.cuil,
         CIDITUC_HABILITADO: "0",
         ADJUNTOS_DIR: adjuntos,
+        // Migue contra el OpenRouter de mentira (nunca el real), con una clave
+        // ficticia y topes holgados: todas las pruebas comparten la IP.
+        OPENROUTER_API_KEY: "sk-or-clave-ficticia-de-las-pruebas",
+        OPENROUTER_URL: `${openRouter.url}/api/v1/chat/completions`,
+        MIGUE_TOPE_PERSONA: "500",
+        MIGUE_TOPE_GLOBAL: "5000",
       }),
     });
     app.stdout?.pipe(salidaApp);
@@ -228,6 +252,8 @@ export default async function globalSetup(config: FullConfig): Promise<() => Pro
     // contenido del sitio público para ver la página como arranca en producción y
     // lo restituye al terminar. Los workers la heredan, como E2E_BASE_URL.
     process.env.E2E_URL_BASE_DUENO = base.urlDeploy;
+    // El OpenRouter de mentira: tests/e2e/migue.spec.ts mira qué le llegó (GET /__registro).
+    process.env.E2E_OPENROUTER_FALSO = openRouter.url;
     console.log(`[e2e] App en ${url} con base efímera en el puerto ${base.puerto} (${Math.round((Date.now() - inicio) / 1000)} s)`);
   } catch (e) {
     await teardown().catch(() => undefined);

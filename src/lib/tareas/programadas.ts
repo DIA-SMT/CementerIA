@@ -106,3 +106,25 @@ export async function tareaPurgarIntentosConsulta(cliente: Cliente): Promise<Res
   );
   return { borrados: Number(fila?.borrados ?? 0), duracionMs: Date.now() - inicio };
 }
+
+export interface ResumenPurgaMigue {
+  consultas: number;
+  consumo: number;
+  duracionMs: number;
+}
+
+/**
+ * La retención de Migue (02/11/2026; docs/api-dominio.md, 26.5): borra las
+ * consultas de más de 90 días (auditoria.consultas_migue) y los contadores de
+ * los topes de más de un día (public.consumo_migue) con `f_purgar_migue()`: la
+ * retención está en la base, y los triggers no dejan borrar nada más nuevo.
+ * Corre con los avisos de cada mañana, como la de los intentos de la consulta
+ * pública. Idempotente.
+ */
+export async function tareaPurgarMigue(cliente: Cliente): Promise<ResumenPurgaMigue> {
+  const inicio = Date.now();
+  const [fila] = await conActorEn(cliente, SISTEMA_ID, "Limpieza del registro y los topes de Migue", (tx) =>
+    tx.$queryRaw<Array<{ consultas: number; consumo: number }>>`SELECT consultas, consumo FROM public.f_purgar_migue()`,
+  );
+  return { consultas: Number(fila?.consultas ?? 0), consumo: Number(fila?.consumo ?? 0), duracionMs: Date.now() - inicio };
+}

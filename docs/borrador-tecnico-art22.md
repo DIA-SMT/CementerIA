@@ -134,7 +134,7 @@ Hoy cubre cuatro trámites: renovación de concesión de contado, renovación de
 
 ## 7. Cesiones, transferencias e interconexiones
 
-**Ninguna.** No se ceden datos a terceros ni a otros organismos, y la herramienta no se conecta con otros sistemas.
+**Ninguna.** No se ceden datos a terceros ni a otros organismos, y la herramienta no se conecta con otros sistemas, salvo en las situaciones de la lista de abajo (desde el 02/11/2026, además, Migue: puntos 6 y 7).
 
 Acceden solo empleados de la Dirección de Cementerios dados de alta y el administrador. La DIM y los cementerios no tienen acceso: el expediente de papel viaja, la herramienta no.
 
@@ -145,6 +145,8 @@ Acceden solo empleados de la Dirección de Cementerios dados de alta y el admini
 3. **Botón de WhatsApp.** Abre en el equipo del empleado una conversación con el número de contacto, y el mensaje solo lleva el número interno del expediente y el área. El número de teléfono llega a WhatsApp cuando el empleado decide usar el botón.
 4. **Exportación de listados** (CSV) sin teléfono, correo ni domicilio. Solo la pueden hacer la Dirección y el administrador, y queda registrada.
 5. **Impresiones** (carátula e historial) que se agregan al expediente de papel. La carátula no lleva teléfono ni domicilio.
+6. **Migue, el asistente con IA** (agregado el 02/11/2026). Para redactar sus respuestas, la herramienta envía la pregunta a un **proveedor externo de modelos de lenguaje**: OpenRouter (una empresa privada que deriva el pedido al proveedor del modelo; hoy `openai/gpt-4o-mini`), fuera de los servidores municipales. Es una **transferencia a un tercero, probablemente internacional**, que Asesoría Legal tiene que evaluar. Qué viaja y qué no, en la sección 9, "Migue". En resumen: en la página pública, **nada personal** (la pregunta del vecino y la información institucional que ya publica la página); en el sistema, la pregunta del empleado, su rol y su área (no su nombre) y **solo campos no personales** de los expedientes que consulta. Cada pedido exige al proveedor que **no guarde ni entrene** con lo que recibe (`data_collection: deny`). Sin la clave del proveedor, Migue funciona igual con un buscador local y no se envía nada.
+7. **Tablero de la Dirección de IA** (organizacionDIA, municipal; agregado el 02/11/2026). Si se configura, cada consulta a Migue se informa con cuatro datos: un identificador al azar, la hora, el canal (página pública o sistema) y si se pudo responder. Ni la pregunta, ni la respuesta, ni el usuario, ni la dirección IP.
 
 ## 8. Responsable y oficina para ejercer derechos
 
@@ -217,6 +219,18 @@ Lo que hace la herramienta, para no publicar más de lo que se ve:
 - Una foto se puede **dar de baja**: deja de mostrarse en la página y de ofrecerse para elegir. No se borra de la herramienta (queda registrada, con quién la subió, cuándo y quién la dio de baja), pero la dirección pública de la foto deja de responder; un navegador que ya la había descargado, o la red de distribución del hosting por hasta un día, pueden seguir teniendo una copia.
 - Las fotos no forman parte del archivo de expedientes: no se relacionan con ningún trámite ni persona.
 
+**Migue, el asistente con IA** (agregado el 02/11/2026)
+
+Migue contesta preguntas en dos lugares: en la **página pública**, a cualquier persona, sin ingresar; y en el **sistema**, a los empleados con su usuario. Para redactar la respuesta usa un modelo de lenguaje de un proveedor externo (OpenRouter; ver la sección 7, punto 6).
+
+- **Qué viaja al proveedor en la página pública:** la pregunta (hasta 500 caracteres), los últimos mensajes de esa conversación y la información institucional que ya muestra la página (cementerios, horarios, recorridos, novedades, contacto de Mesa de Entradas, preguntas frecuentes y trámites con lo que hay que traer). **Ningún dato de expedientes ni de personas**: Migue no consulta expedientes; si le preguntan por un trámite, explica la consulta con el número y el código del comprobante.
+- **Qué viaja en el sistema:** la pregunta del empleado (hasta 600 caracteres), los últimos mensajes, su **rol y su área** (no su nombre ni su CUIL), la pantalla en la que está y la guía de uso del sistema. Si pregunta por expedientes, Migue los consulta con **el usuario del empleado** (con sus mismos permisos, y la apertura de una ficha queda en el registro de accesos, como si la abriera) y le pasa al proveedor **solo campos no personales**, de una lista cerrada probada: número, tipo de trámite, estado, paso y área, fechas y días en el área, alertas, plazo y qué falta para el pase. **Nunca** nombres, DNI, CUIL o CUIT, domicilios, teléfonos, correos, ubicación de la sepultura, observaciones, motivos de devolución ni copias digitales. Migue solo consulta: no puede cambiar nada.
+- **Filtro de la pregunta:** una pregunta que trae algo con forma de DNI, CUIL, CUIT, teléfono o correo **no se envía ni se guarda**: se le pide amablemente a la persona que no los escriba. El número de expediente sí se acepta. Un nombre escrito en la pregunta no se puede detectar con certeza: la pantalla y Migue piden no escribir datos personales, y en el registro se tapan los que se presentan ("soy…").
+- **Condiciones al proveedor:** cada pedido exige que el proveedor **no guarde ni use para entrenar** lo que recibe (`data_collection: deny`). Hay que confirmar con Asesoría Legal si esa condición contractual del proveedor alcanza.
+- **Topes:** se limita cuántas preguntas por hora van al modelo, por persona y en total. Para contar en la página pública se usa la dirección IP, **cifrada de forma irreversible** (no se guarda la IP) y solo por un día.
+- **Registro:** cada pregunta queda registrada con el canal, el resultado, las consultas que hizo, la duración y el modelo, con **la pregunta y la respuesta recortadas a 500 caracteres**, para mejorar las respuestas. En el sistema, con el usuario que preguntó; en la página pública, **sin nada que identifique a la persona** (ni la IP). Se conserva **90 días** y se borra solo; nadie lo puede modificar.
+- **Sin el proveedor**, Migue sigue contestando con un buscador local y no envía nada afuera.
+
 **Integridad del historial**
 - La base de datos impide modificar o borrar el historial, incluso ante un error de la aplicación.
 - El único que puede alterarlo es un administrador del servidor de base de datos (superusuario), que es del Área de Sistemas. Para que una alteración así se detecte, se pide a Sistemas que registre los cambios de estructura y las sesiones de cualquier usuario distinto de la aplicación, y se compara contra los backups.
@@ -242,6 +256,9 @@ Lo que hace la herramienta, para no publicar más de lo que se ve:
 | Registro de accesos | 24 meses | Propuesto, a confirmar |
 | Intentos fallidos de la consulta pública (IP y número consultado) | 7 días; se borran solos todos los días | Diseño (28/10/2026) |
 | Fotos de la página pública (no son datos del archivo de expedientes; no deben tener datos personales) | Mientras se usen; dadas de baja, quedan registradas (no se sirven) | Diseño (30/10/2026) |
+| Registro de las preguntas a Migue (pregunta y respuesta recortadas; en el sistema, con el usuario) | 90 días; se borran solos todos los días | Diseño (02/11/2026), a confirmar |
+| Contadores de los topes de Migue (IP o usuario cifrados de forma irreversible) | 1 día; se borran solos | Diseño (02/11/2026) |
+| Lo que recibe el proveedor del modelo (OpenRouter) | Se le exige no guardarlo ni usarlo para entrenar (`data_collection: deny`) | A evaluar por Asesoría Legal |
 | Registro de cambios de configuración | Sin propuesta | **A definir** |
 | Backups | 30 copias diarias y 12 mensuales: los datos suprimidos desaparecen de todas las copias en alrededor de 12 meses | Propuesto, a confirmar |
 | Logs del servidor de base de datos | Los define el Área de Sistemas | A informar por Sistemas |

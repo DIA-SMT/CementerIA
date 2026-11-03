@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PiePublico, SaltarAlContenido } from "@/components/publico";
+import { MiguePublico } from "@/components/migue/migue-publico";
 import { ScriptTema } from "@/components/tema-publico";
 import { TITULO_SITIO } from "@/lib/presentacion/sitio-publico";
 
@@ -26,6 +27,10 @@ import { TITULO_SITIO } from "@/lib/presentacion/sitio-publico";
  * actual=…`, o `PaginaInterna`): un layout no recibe la ruta ni se vuelve a
  * renderizar al navegar, y así el enlace de la página actual
  * (`aria-current="page"`, el subrayado amarillo) sale del servidor.
+ *
+ * Migue (02/11/2026, docs/diseno.md "Migue"): el chat abierto de la página
+ * pública, al final del contenedor (toma el modo claro u oscuro y la
+ * conversación sobrevive al cambio de página).
  */
 export const metadata: Metadata = {
   // "Recorridos históricos · Cementerios de San Miguel de Tucumán". El inicio pone el suyo, absoluto.
@@ -41,6 +46,7 @@ export default function LayoutPublico({ children }: { children: React.ReactNode 
       <SaltarAlContenido />
       {children}
       <PiePublico />
+      <MiguePublico />
     </div>
   );
 }

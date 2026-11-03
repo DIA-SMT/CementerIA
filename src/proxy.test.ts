@@ -50,6 +50,12 @@ describe("matcher del proxy", () => {
     "/sitio/fotosx",
     "/api/sitio/otra-cosa",
     "/api/sitio/fotosx",
+    // 02/11/2026: el Migue del sistema va con sesión; solo /api/migue (el público) queda afuera.
+    "/api/migue/interno",
+    "/api/migue/interno/",
+    "/api/migue/internox",
+    "/api/miguex",
+    "/api/migue-interno",
   ])("corre en %s", (url) => {
     expect(corre(url)).toBe(true);
   });
@@ -99,6 +105,9 @@ describe("matcher del proxy", () => {
     "/api/sitio/fotos?alt=x",
     "/api/sitio/fotos/autorizar",
     "/api/sitio/fotos/confirmar",
+    // 02/11/2026: Migue de la página pública, abierto (tope por IP y global en la ruta).
+    "/api/migue",
+    "/api/migue/",
   ])("no corre en %s", (url) => {
     expect(corre(url)).toBe(false);
   });

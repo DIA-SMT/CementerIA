@@ -17,6 +17,9 @@ const D = "DELETE";
 const PRIVILEGIOS_APP: Record<string, string[]> = {
   "auditoria.accesos": [S, I],
   "auditoria.cambios": [S, I],
+  // 02/11/2026 (*_migue): el registro de Migue, solo inserción; DELETE solo de lo
+  // vencido (trigger consultas_migue_proteger; migue.test.ts).
+  "auditoria.consultas_migue": [S, I, D],
   // 28/10/2026 (*_consulta_publica): los intentos fallidos de la consulta pública.
   // DELETE solo de lo vencido (trigger intentos_consulta_proteger; consulta-publica.test.ts).
   "auditoria.intentos_consulta": [S, I, D],
@@ -28,6 +31,9 @@ const PRIVILEGIOS_APP: Record<string, string[]> = {
   "public.avisos_corridas": [S, I, U],
   "public.avisos_preferencias": [S, I, U],
   "public.cementerios": [S, I, U],
+  // 02/11/2026 (*_migue): el incremento atómico del tope es un upsert; el trigger
+  // consumo_migue_proteger deja solo subir el contador y borrar lo de más de un día.
+  "public.consumo_migue": [S, I, U, D],
   "public.expediente_personas": [S, I, U],
   "public.expedientes": [S, I, U],
   "public.feriados": [S, I, U, D],
@@ -233,6 +239,9 @@ describe("dueños", () => {
           "areas_tipo_coherente",
           "auditar_cambio",
           "cementerios_area_externa",
+          // 02/11/2026 (*_migue): el registro y los topes de Migue, y su retención.
+          "consultas_migue_proteger",
+          "consumo_migue_proteger",
           "expediente_personas_proteger",
           // 28/10/2026 (*_consulta_publica): el código de consulta y los intentos de la consulta pública.
           "expedientes_codigo_consulta",
@@ -247,6 +256,7 @@ describe("dueños", () => {
           "f_hash_movimiento",
           "f_normalizar",
           "f_purgar_intentos_consulta",
+          "f_purgar_migue",
           "f_sumar_dias_habiles",
           "f_unaccent",
           "f_verificar_cadena",
@@ -290,6 +300,11 @@ describe("triggers (2.11)", () => {
     ["areas", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.areas FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["cementerios", "auditar_cambio", "AFTER INSERT OR DELETE OR UPDATE ON public.cementerios FOR EACH ROW EXECUTE FUNCTION auditar_cambio('id')"],
     ["cementerios", "cementerios_area_externa", "BEFORE INSERT OR UPDATE OF area_id ON public.cementerios FOR EACH ROW EXECUTE FUNCTION cementerios_area_externa()"],
+    // 02/11/2026 (*_migue): el registro es solo inserción y el contador del tope solo sube.
+    ["consultas_migue", "consultas_migue_proteger", "BEFORE DELETE OR UPDATE ON auditoria.consultas_migue FOR EACH ROW EXECUTE FUNCTION consultas_migue_proteger()"],
+    ["consultas_migue", "consultas_migue_proteger_truncate", "BEFORE TRUNCATE ON auditoria.consultas_migue FOR EACH STATEMENT EXECUTE FUNCTION consultas_migue_proteger()"],
+    ["consumo_migue", "consumo_migue_proteger", "BEFORE DELETE OR UPDATE ON public.consumo_migue FOR EACH ROW EXECUTE FUNCTION consumo_migue_proteger()"],
+    ["consumo_migue", "consumo_migue_proteger_truncate", "BEFORE TRUNCATE ON public.consumo_migue FOR EACH STATEMENT EXECUTE FUNCTION consumo_migue_proteger()"],
     ["expediente_personas", "expediente_personas_proteger", "BEFORE INSERT OR DELETE OR UPDATE ON public.expediente_personas FOR EACH ROW EXECUTE FUNCTION expediente_personas_proteger()"],
     // 28/10/2026 (*_consulta_publica): el código de consulta cambia solo con "Regenerar código de consulta".
     ["expedientes", "expedientes_codigo_consulta", "BEFORE UPDATE OF codigo_consulta ON public.expedientes FOR EACH ROW EXECUTE FUNCTION expedientes_codigo_consulta()"],
@@ -354,6 +369,7 @@ describe("columnas identity", () => {
       expect(r.rows).toEqual([
         { tabla: "auditoria.accesos", identity: "a" },
         { tabla: "auditoria.cambios", identity: "a" },
+        { tabla: "auditoria.consultas_migue", identity: "a" },
         { tabla: "auditoria.intentos_consulta", identity: "a" },
         { tabla: "public.areas", identity: "d" },
         { tabla: "public.avisos", identity: "a" },
@@ -389,6 +405,12 @@ describe("índices (pg_indexes contra la lista esperada)", () => {
     ["intentos_consulta_ip_en_idx", "", "auditoria.intentos_consulta USING btree (ip, en)"],
     ["intentos_consulta_numero_en_idx", "", "auditoria.intentos_consulta USING btree (numero, en)"],
     ["intentos_consulta_pkey", UNICO, "auditoria.intentos_consulta USING btree (id)"],
+    // 02/11/2026 (*_migue): la purga y el registro por fecha; el tope por clave y hora, y el global por hora.
+    ["consultas_migue_canal_resultado_en_idx", "", "auditoria.consultas_migue USING btree (canal, resultado, en)"],
+    ["consultas_migue_en_idx", "", "auditoria.consultas_migue USING btree (en)"],
+    ["consultas_migue_pkey", UNICO, "auditoria.consultas_migue USING btree (id)"],
+    ["consumo_migue_pkey", UNICO, "public.consumo_migue USING btree (clave, ventana)"],
+    ["consumo_migue_ventana_idx", "", "public.consumo_migue USING btree (ventana)"],
     ["areas_codigo_key", UNICO, "public.areas USING btree (codigo)"],
     ["areas_pkey", UNICO, "public.areas USING btree (id)"],
     // 26/10/2026 (*_avisos): "mis no leídos" (parcial), la lista y no duplicar.

@@ -447,6 +447,27 @@ html:has(.barra-acciones) {
 }
 
 /*
+ * La burbuja de Migue (src/components/migue/chat-migue.tsx, docs/diseno.md
+ * "Migue"): flota abajo a la derecha. Se le reserva lugar al pie para que lo
+ * último de la página (la tabla de la bandeja, los botones del panel, el pie
+ * del sitio) pueda subir por encima de ella, y el scroll-padding hace que lo
+ * que recibe el foco al tabular no quede debajo (WCAG 2.4.11). Va ANTES de la
+ * regla de la invitación: si hay invitación, gana su lugar, que es más alto.
+ * Solo en pantalla: en el papel no hay burbuja.
+ */
+@media screen {
+  html:has([data-migue] [data-migue-burbuja]) {
+    scroll-padding-bottom: 5.5rem;
+  }
+  html:has([data-migue="interno"] [data-migue-burbuja]) main:not(:has(.barra-acciones)) {
+    padding-bottom: 6rem;
+  }
+  .sitio-publico:has([data-migue="publico"] [data-migue-burbuja]) > footer {
+    padding-bottom: 5rem;
+  }
+}
+
+/*
  * Invitación a un recorrido guiado (src/components/recorrido/invitacion.tsx,
  * docs/diseno.md "Recorridos guiados"): mientras la tarjeta flota abajo a la
  * derecha, se reserva su lugar. El contenido tiene espacio de más al pie para

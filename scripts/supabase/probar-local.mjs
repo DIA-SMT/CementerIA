@@ -35,7 +35,10 @@
 //    TODO lo anterior (con contenido del sitio y fotos del kit elegidas, y el
 //    45 viejo, sin el bucket sitio-publico): solo lo nuevo, *_sitio_fotos, 45
 //    (el bucket nuevo; dos veces), 40 y 99, con las fotos (control 26) y el
-//    bucket (27) en verde y el contenido del sitio intacto.
+//    bucket (27) en verde y el contenido del sitio intacto. Y (02/11/2026), sobre
+//    esa misma base con TODO lo anterior: solo *_migue, 40 y 99, con Migue (28)
+//    en verde, los expedientes sin tocar y las reglas del registro y los topes
+//    (solo inserción, contador que solo sube) probadas con el rol de la app.
 // 5. A y B son equivalentes: roles, dueños, ACL, triggers, políticas, RLS,
 //    privilegios por defecto, extensiones, _prisma_migrations (definición y
 //    checksums, que tienen que ser los que calcula Prisma), filas de la semilla
@@ -416,6 +419,9 @@ const EXPEDIENTES_EN_USO = 300;
 const MIGRACIONES_NUEVAS = ["consulta_publica", "sitio_publico"];
 /** Lo del 30/10/2026: se aplica sobre la base que ya tiene todo lo anterior. */
 const MIGRACION_FOTOS = "sitio_fotos";
+/** Lo del 02/11/2026 (Migue): sobre la base que ya tiene todo lo anterior, fotos incluidas. */
+const MIGRACION_MIGUE = "migue";
+const CONTROL_MIGUE = "Migue: registro y topes con RLS, protegidos y con privilegios mínimos";
 
 /**
  * La base EN USO: el paquete que ya se aplicó en Supabase (roles, extensiones,
@@ -432,11 +438,13 @@ async function probarMigracionNueva(sim, versionados, volcado) {
   const [consulta, sitioPublico] = nuevas;
   const fotos = migraciones.find((n) => n.endsWith(`_${MIGRACION_FOTOS}.sql`));
   if (!fotos) throw new Error(`Falta la migración ${MIGRACION_FOTOS}`);
+  const migue = migraciones.find((n) => n.endsWith(`_${MIGRACION_MIGUE}.sql`));
+  if (!migue) throw new Error(`Falta la migración ${MIGRACION_MIGUE}`);
   // La semilla de entonces: sin la tabla de preguntas (no existía).
   const semillaAnterior = archivoSemilla({ ...volcado, tablas: volcado.tablas.filter((t) => t.tabla !== "sitio_preguntas") }, "semilla anterior (prueba)");
   const anteriores = [
     ...["00_roles.sql", "01_extensiones.sql", "02_prisma_migrations.sql"].map((n) => ({ n, sql: versionados.get(n) })),
-    ...migraciones.filter((n) => !nuevas.includes(n) && n !== fotos).map((n) => ({ n, sql: versionados.get(n) })),
+    ...migraciones.filter((n) => !nuevas.includes(n) && n !== fotos && n !== migue).map((n) => ({ n, sql: versionados.get(n) })),
     { n: "30_semilla_produccion.sql (anterior)", sql: semillaAnterior },
     ...["31_inhumacion.sql", "40_cierre_api.sql", "45_storage.sql"].map((n) => ({ n, sql: versionados.get(n) })),
   ];
@@ -446,7 +454,7 @@ async function probarMigracionNueva(sim, versionados, volcado) {
     for (const a of anteriores) await admin.query(a.sql);
     // El 45 de entonces creaba solo el bucket de adjuntos.
     await conSuper(sim, (c) => c.query("DELETE FROM storage.buckets WHERE id = 'sitio-publico'"));
-    ok(true, `D: la base con el paquete anterior (${anteriores.length} archivos, sin ${[...nuevas, fotos].join(" ni ")} y sin el bucket sitio-publico)`);
+    ok(true, `D: la base con el paquete anterior (${anteriores.length} archivos, sin ${[...nuevas, fotos, migue].join(" ni ")} y sin el bucket sitio-publico)`);
 
     // Expedientes como los dejaría la app (firmados por SISTEMA), en una base que todavía no tiene la columna.
     await conSuper(sim, async (c) => {
@@ -531,7 +539,7 @@ async function probarMigracionNueva(sim, versionados, volcado) {
       if (n === "99_verificar.sql") {
         const filas = (Array.isArray(r) ? r.at(-1) : r).rows;
         // Las fotos (26) y su bucket (27) son del paso siguiente (30/10/2026): todavía en falso.
-        const DESPUES = ["sitio público: fotos con RLS, auditoría y sin DELETE", "Storage: bucket sitio-publico privado"];
+        const DESPUES = ["sitio público: fotos con RLS, auditoría y sin DELETE", "Storage: bucket sitio-publico privado", CONTROL_MIGUE];
         const mal = filas.filter((f) => f.ok === false && !DESPUES.includes(f.control));
         const control = (nombre) => filas.find((f) => f.control === nombre)?.ok;
         ok(
@@ -605,14 +613,16 @@ async function probarMigracionNueva(sim, versionados, volcado) {
       const r = await admin.query(versionados.get(n));
       if (n === "99_verificar.sql") {
         const filas = (Array.isArray(r) ? r.at(-1) : r).rows;
-        const mal = filas.filter((f) => f.ok === false);
+        // Migue (28) es del paso siguiente (02/11/2026): todavía en falso.
+        const mal = filas.filter((f) => f.ok === false && f.control !== CONTROL_MIGUE);
         const control = (nombre) => filas.find((f) => f.control === nombre)?.ok;
         ok(
           mal.length === 0 &&
             control("sitio público: fotos con RLS, auditoría y sin DELETE") === true &&
             control("Storage: bucket sitio-publico privado") === true &&
-            control("sitio público: RLS, auditoría y privilegios") === true,
-          "D: 99_verificar.sql después de lo del 30/10: nada en falso, con las fotos (26) y el bucket sitio-publico (27) en verde",
+            control("sitio público: RLS, auditoría y privilegios") === true &&
+            control(CONTROL_MIGUE) === false,
+          "D: 99_verificar.sql después de lo del 30/10: nada en falso (salvo Migue, del paso siguiente), con las fotos (26) y el bucket sitio-publico (27) en verde",
           mal.map((f) => f.control).join(", "),
         );
       }
@@ -654,6 +664,79 @@ async function probarMigracionNueva(sim, versionados, volcado) {
       ok(false, `D: ${fotos} repetida se niega`);
     } catch (e) {
       ok(/ya está aplicada/.test(e.message), `D: ${fotos} repetida se niega`, e.message.slice(0, 100));
+    }
+
+    // 4. Migue (02/11/2026), sobre la base que ya tiene TODO lo anterior (fotos incluidas).
+    const expedientesAntes = await conSuper(sim, async (c) => (await c.query("SELECT count(*)::int AS n, max(actualizado_en) AS ultimo FROM public.expedientes")).rows[0]);
+    await admin.query(versionados.get(migue));
+    ok(true, `D: ${migue} se aplica sobre la base que ya tiene todo lo anterior`);
+    const expedientesDespues = await conSuper(sim, async (c) => (await c.query("SELECT count(*)::int AS n, max(actualizado_en) AS ultimo FROM public.expedientes")).rows[0]);
+    ok(
+      expedientesDespues.n === expedientesAntes.n && String(expedientesDespues.ultimo) === String(expedientesAntes.ultimo),
+      "D: la migración de Migue no toca los expedientes",
+    );
+    for (const n of ["40_cierre_api.sql", "99_verificar.sql"]) {
+      const r = await admin.query(versionados.get(n));
+      if (n === "99_verificar.sql") {
+        const filas = (Array.isArray(r) ? r.at(-1) : r).rows;
+        const mal = filas.filter((f) => f.ok === false);
+        ok(
+          mal.length === 0 && filas.find((f) => f.control === CONTROL_MIGUE)?.ok === true,
+          "D: 99_verificar.sql después de lo del 02/11: nada en falso, con Migue (28) en verde",
+          mal.map((f) => f.control).join(", "),
+        );
+      }
+    }
+    // La app: el registro es solo inserción (lo público sin usuario), el contador solo sube y nada nuevo se borra.
+    const reglasMigue = await conSuper(sim, async (c) => {
+      const r = [];
+      const intentar = async (nombre, sql) => {
+        await c.query("SAVEPOINT m");
+        try {
+          await c.query(sql);
+          r.push(`${nombre}: se aceptó`);
+        } catch {
+          r.push(`${nombre}: rechazado`);
+          await c.query("ROLLBACK TO SAVEPOINT m");
+        }
+      };
+      await c.query("BEGIN");
+      try {
+        await c.query("SET LOCAL ROLE cementeria_app");
+        await c.query("SELECT set_config('app.usuario_id', '1', true)");
+        await intentar("registrar lo público", "INSERT INTO auditoria.consultas_migue (canal, resultado, duracion_ms, pregunta, respuesta) VALUES ('publico', 'respondida', 10, 'horarios', 'De 8 a 18 h')");
+        await intentar("lo público con usuario", "INSERT INTO auditoria.consultas_migue (canal, resultado, duracion_ms, pregunta, respuesta, usuario_id) VALUES ('publico', 'respondida', 10, 'x', 'y', 1)");
+        await intentar("modificar el registro", "UPDATE auditoria.consultas_migue SET respuesta = 'otra'");
+        await intentar("borrar una consulta nueva", "DELETE FROM auditoria.consultas_migue");
+        await intentar("contar", "INSERT INTO public.consumo_migue (clave, ventana, consultas) VALUES (repeat('a', 32), date_trunc('hour', now()), 1) ON CONFLICT (clave, ventana) DO UPDATE SET consultas = consumo_migue.consultas + 1");
+        await intentar("bajar el contador", "UPDATE public.consumo_migue SET consultas = 0");
+        await intentar("borrar la hora en curso", "DELETE FROM public.consumo_migue");
+        await intentar("la purga", "SELECT * FROM public.f_purgar_migue()");
+      } finally {
+        await c.query("ROLLBACK");
+      }
+      return r;
+    });
+    ok(
+      JSON.stringify(reglasMigue) ===
+        JSON.stringify([
+          "registrar lo público: se aceptó",
+          "lo público con usuario: rechazado",
+          "modificar el registro: rechazado",
+          "borrar una consulta nueva: rechazado",
+          "contar: se aceptó",
+          "bajar el contador: rechazado",
+          "borrar la hora en curso: rechazado",
+          "la purga: se aceptó",
+        ]),
+      "D: Migue: el registro es solo inserción (lo público sin usuario), el contador solo sube y nada nuevo se borra",
+      reglasMigue.join("; "),
+    );
+    try {
+      await admin.query(versionados.get(migue));
+      ok(false, `D: ${migue} repetida se niega`);
+    } catch (e) {
+      ok(/ya está aplicada/.test(e.message), `D: ${migue} repetida se niega`, e.message.slice(0, 100));
     }
   } finally {
     await admin.end();

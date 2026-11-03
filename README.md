@@ -747,6 +747,59 @@ diseño en [docs/diseno.md](docs/diseno.md), "Página pública"; migración
   de 960 px (`hero-landing-960.webp`). Cada página interna tiene su foto del
   kit en la banda del encabezado; el panel usa `hero-dashboard`.
 
+## Migue
+
+Desde el 02/11/2026: **Migue**, el asistente con IA de los sistemas municipales
+(el de El Sanmiguelino, AppAmbiente y los demás), en la página pública y en el
+sistema. Detalle técnico: [docs/api-dominio.md](docs/api-dominio.md), sección
+26; diseño: [docs/diseno.md](docs/diseno.md), "Migue"; datos personales:
+[docs/borrador-tecnico-art22.md](docs/borrador-tecnico-art22.md).
+
+- **El modelo:** el mismo que El Sanmiguelino, por OpenRouter con `fetch`:
+  `openai/gpt-4o-mini` por defecto (`OPENROUTER_MODEL`), temperatura 0,2,
+  12 s como mucho, sin streaming, 400 tokens en lo público y 700 en lo
+  interno, `provider.data_collection: "deny"` (solo proveedores que no guardan
+  ni entrenan con lo que reciben) y los encabezados `HTTP-Referer` (`APP_URL`)
+  y `X-Title: CementerIA`. **Sin `OPENROUTER_API_KEY` no se rompe nada:**
+  contesta con el buscador y los atajos, y al arrancar queda el aviso
+  `entorno.migue_sin_modelo` en el log.
+- **En la página pública** (abierto, sin ingresar; `POST /api/migue`, fuera
+  del proxy): la burbuja "Preguntale a Migue" abajo a la derecha. Sabe lo que
+  ya publica la Dirección (cementerios con domicilio, horarios y qué tienen;
+  recorridos y sus próximas fechas; novedades; contacto; preguntas frecuentes;
+  trámites y qué traer), metido en el prompt dentro de `<datos>…</datos>`.
+  **No consulta expedientes:** si preguntan por su trámite, explica
+  «Consultá tu trámite» (número y código del comprobante). Sin modelo:
+  saludo, qué trámites hay, horarios y contacto con atajos exactos, y el
+  resto con el buscador por palabras sobre los mismos datos.
+- **En el sistema** (`POST /api/migue/interno`, con sesión): "explica y
+  consulta". Primero, las **preguntas de la pantalla** (las de la bandeja, la
+  ficha, el panel…), que se contestan con el texto del recorrido guiado de esa
+  pantalla, sin modelo. "Otra consulta" va al modelo, con la guía del sistema y
+  cinco **herramientas de solo lectura** que llaman al dominio con el usuario
+  de la sesión (sus permisos, su área y su rol; con "Ver como…", el perfil
+  elegido): `estado_expediente`, `mi_bandeja`, `vencidos_y_demorados`,
+  `plantilla_tramite` y `como_se_hace`. **Nunca devuelven datos personales**
+  (lista cerrada de campos). No aparece en el login ni en los imprimibles.
+- **Topes** (en la base, atómicos): `MIGUE_TOPE_PERSONA` consultas al modelo
+  por hora y por persona (la IP en lo público, guardada como HMAC; el usuario
+  en lo interno; 20 por defecto) y `MIGUE_TOPE_GLOBAL` entre todos (300).
+  Pasado el tope, contesta el buscador.
+- **Preguntas que no se aceptan:** con un DNI, CUIL, CUIT, teléfono o correo
+  (el número de expediente sí). Hasta 500 caracteres en lo público y 600 en lo
+  interno.
+- **Registro** (`auditoria.consultas_migue`): canal, resultado, herramientas,
+  duración, tokens y modelo; la pregunta y la respuesta recortadas a 500
+  caracteres; en lo interno, el usuario; en lo público, nada que identifique a
+  la persona. 90 días, y lo borra la limpieza de cada mañana. Solo inserción.
+- **Tablero de la Dirección de IA** (organizacionDIA, sección Migue): con
+  `MIGUE_API_KEY` y `MIGUE_DASHBOARD_URL`, cada consulta se reporta después de
+  contestar con cuatro campos (un id propio, la hora, el canal y si se
+  resolvió). Para que aparezca, en organizacionDIA hay que **dar de alta el
+  Migue con el slug `cementeria`** ("Migue > Agregar Migue", o en
+  `lib/migue.ts`) y generarle la clave ("Generar la clave" o
+  `npm run migue:token -- cementeria`), que va en `MIGUE_API_KEY`.
+
 ## Ingreso
 
 **Desde el 27/10/2026 se entra con usuario y contraseña propios; el ingreso
@@ -961,6 +1014,11 @@ Documentadas una por una en [.env.example](.env.example).
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Con `ADJUNTOS_ALMACEN=supabase`: el origen del proyecto y la clave **secreta** del servidor (`sb_secret_…`, solo en `apikey`; nunca llega al navegador) |
 | `CRON_SECRET` | Vercel Cron: `Authorization: Bearer` de `/api/cron/*` (32 caracteres o más; obligatoria en Vercel) |
 | `ENCABEZADOS_SEGURIDAD` | `app` (en el build): los encabezados de seguridad desde Next fuera de Vercel, para un hosting sin nginx |
+| `OPENROUTER_API_KEY` | Opcional: la clave de OpenRouter para Migue (secreta, solo en el servidor). Sin ella, Migue contesta con el buscador y los atajos |
+| `OPENROUTER_MODEL` | Opcional: el modelo de Migue (`openai/gpt-4o-mini` por defecto) |
+| `OPENROUTER_URL` | Opcional: el endpoint de chat (por defecto el de OpenRouter; las pruebas lo apuntan a un servidor falso). https en producción |
+| `MIGUE_TOPE_PERSONA`, `MIGUE_TOPE_GLOBAL` | Opcionales: consultas al modelo por hora, por persona (20) y entre todos (300) |
+| `MIGUE_API_KEY`, `MIGUE_DASHBOARD_URL` | Opcionales, juntas: el reporte al tablero de Migues de organizacionDIA. Sin ellas no se reporta |
 
 ## Documentos
 

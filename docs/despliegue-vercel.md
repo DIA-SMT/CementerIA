@@ -142,6 +142,11 @@ mostrar).
 | `SUPABASE_SECRET_KEY` | `sb_secret_…` | sección 3 | **Sí** |
 | `CRON_SECRET` | `openssl rand -base64 48` (32 caracteres o más) | se genera; Vercel Cron lo manda como `Authorization: Bearer …` | **Sí** |
 | `PERFILES_PRUEBA_CUILS` | **Opcional, solo mientras se prueba**: tu CUIL (o varios, separados por coma; con o sin guiones) | el CUIL con el que entrás (el de `ADMIN_INICIAL_CUIL`) | No, pero son CUILs de personas: no pegarlos en capturas ni tickets |
+| `OPENROUTER_API_KEY` | **Opcional** (Migue con modelo, 02/11/2026): `sk-or-…` | openrouter.ai → Keys (la cuenta de la Dirección de IA; conviene una clave propia de CementerIA, con límite de crédito) | **Sí** |
+| `OPENROUTER_MODEL` | Opcional: `openai/gpt-4o-mini` (el valor por defecto) | — | No |
+| `MIGUE_TOPE_PERSONA`, `MIGUE_TOPE_GLOBAL` | Opcionales: `20` y `300` (los valores por defecto), consultas al modelo por hora | — | No |
+| `MIGUE_API_KEY` | **Opcional** (el tablero de Migues): la clave del slug `cementeria` | organizacionDIA, "Migue > cementeria > Generar la clave" (o `npm run migue:token -- cementeria` en ese repo) | **Sí** |
+| `MIGUE_DASHBOARD_URL` | Opcional, junto con la anterior: `https://<dominio-del-tablero>` (sin barra final) | el dominio del tablero de la Dirección de IA | No |
 
 Las que **NO** van en Vercel:
 
@@ -189,6 +194,19 @@ adjuntos. Antes de desplegar, en Supabase, la migración `*_sitio_fotos` y
 sitio (30/10/2026)". sharp va en el paquete de la función (se instala con
 `npm install` en el build de Vercel, Linux x64; ver sección 10).
 
+**Migue (02/11/2026).** Todas las variables son **opcionales**: sin
+`OPENROUTER_API_KEY`, Migue contesta igual (con el buscador y los atajos, sin
+modelo) y el log de la función muestra `entorno.migue_sin_modelo` al arrancar.
+`OPENROUTER_URL` no se carga en Vercel (es la de OpenRouter por defecto; en
+producción tiene que ser https). `MIGUE_API_KEY` y `MIGUE_DASHBOARD_URL` van
+**las dos o ninguna** (si falta una, la app no arranca); sin ellas no se
+reporta al tablero. `POST /api/migue/interno` tiene `maxDuration` de 60 s
+(entra en Hobby). Antes de desplegar, la migración `*_migue` en Supabase
+(supabase/sql/README.md, "Migue (02/11/2026)"): sin ella, Migue contesta igual,
+pero no anota el registro ni cuenta los topes (lo deja en el log). La retención
+(90 días el registro, un día los topes) la hace el cron de los avisos
+(`/api/cron/avisos`, sección 8): no hay un cron nuevo.
+
 **Sitio público (28/10/2026).** Tampoco lleva variables: el contenido de la
 página (horarios, recorridos, novedades, contacto, preguntas) lo carga la
 Dirección desde /admin/sitio-publico y vive en la base. Antes de desplegar, la
@@ -232,7 +250,7 @@ Tucumán es UTC−3 todo el año):
 |---|---|---|---|---|
 | `/api/cron/historial` | `30 6 * * *` | 03:30 | verificación de la cadena de hash de todo el historial (`historial:verificar`); **500 si hay alguna rota** | 300 s |
 | `/api/cron/adjuntos-tmp` | `30 7 * * *` | 04:30 | borra temporales de Storage de más de 24 h (`adjuntos:barrer`) | 120 s |
-| `/api/cron/avisos` | `0 9 * * *` | 06:00 | avisos por tiempo del día (`avisos:generar`) y, desde el 28/10/2026, borra los intentos fallidos de la consulta pública de más de 7 días (`intentos_consulta_borrados` en la respuesta) | 300 s |
+| `/api/cron/avisos` | `0 9 * * *` | 06:00 | avisos por tiempo del día (`avisos:generar`) y, desde el 28/10/2026, borra los intentos fallidos de la consulta pública de más de 7 días (`intentos_consulta_borrados` en la respuesta) y, desde el 02/11/2026, el registro de Migue de más de 90 días y los topes de más de un día (`migue_consultas_borradas`, `migue_consumo_borrado`) | 300 s |
 
 - Las tres son **idempotentes** (Vercel puede saltear una o llamarla dos veces).
 - Responden **401** sin `Authorization: Bearer <CRON_SECRET>` (comparación en

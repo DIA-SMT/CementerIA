@@ -46,8 +46,9 @@ El de los números, mezclando las dos carpetas: 00, 01, 02, .local/05, 20_*, 30,
 (el 30 ya trae todo), pero se pueden correr igual.
 
 **¿Es la base que ya está en uso** (con todo hasta `*_login_propio` y la
-inhumación)? Entonces no es este orden completo: ver "Las fotos del sitio
-(30/10/2026): qué correr en la base en uso", más abajo.
+inhumación)? Entonces no es este orden completo: ver "Migue (02/11/2026): qué
+correr en la base en uso" y, si falta lo anterior, "Las fotos del sitio
+(30/10/2026)", más abajo.
 
 Cada archivo se pega **entero** en el SQL Editor y se ejecuta **de una sola
 vez** (Run): todo el archivo es una única transacción, y si algo falla no queda
@@ -66,7 +67,7 @@ nada a medias. Con psql: `psql -1 -v ON_ERROR_STOP=1 -f <archivo>`.
 | 7 | `.local/35_admin_inicial.sql` | El administrador inicial (`ADMIN_INICIAL_CUIL`) con el hash de su contraseña temporal y `debe_cambiar_clave`. Si ya existe con contraseña, no lo toca; si existe sin, le pone la temporal | Sí |
 | 8 | `40_cierre_api.sql` | Les saca todo a `anon`, `authenticated` y `service_role` sobre las tablas, secuencias y funciones de `public` y `auditoria`, y los privilegios por defecto | Sí |
 | 8b | `45_storage.sql` | Los buckets **privados** de Supabase Storage, sin políticas: `adjuntos` (10 MB, PDF/JPEG/PNG) y, desde el 30/10/2026, `sitio-publico` (las fotos del sitio público: 15 MB, JPEG/PNG/WebP). Solo los usa el despliegue en Vercel ([docs/despliegue-vercel.md](../../docs/despliegue-vercel.md)); controles 19, 20 y 27 de `99_verificar.sql` | Sí (crea lo que falta y deja los dos como deben estar) |
-| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; el 24 (28/10/2026), si las 6 tablas del sitio público tienen RLS, auditoría y los privilegios mínimos; el 25, si están las preguntas frecuentes iniciales; el 26 (30/10/2026), si `sitio_fotos` tiene RLS, auditoría, su protección y ningún DELETE para la app (y los cementerios y recorridos, su control de la foto); el 27, si el bucket `sitio-publico` es privado y con sus límites. Como los otros que leen datos, el 21 y el 25 salen en null con `postgres` y los hace `npm run supabase:verificar` | Sí, las veces que haga falta |
+| 9 | `99_verificar.sql` | **Solo lectura**: una fila por control (`ok` true/false/null). El control 21 ("plantillas de la semilla publicadas") dice si falta alguna de las 6; el 24 (28/10/2026), si las 6 tablas del sitio público tienen RLS, auditoría y los privilegios mínimos; el 25, si están las preguntas frecuentes iniciales; el 26 (30/10/2026), si `sitio_fotos` tiene RLS, auditoría, su protección y ningún DELETE para la app (y los cementerios y recorridos, su control de la foto); el 27, si el bucket `sitio-publico` es privado y con sus límites; el 28 (02/11/2026), si las dos tablas de Migue tienen RLS, sus protecciones ALWAYS, `f_purgar_migue()` y los privilegios mínimos. Como los otros que leen datos, el 21 y el 25 salen en null con `postgres` y los hace `npm run supabase:verificar` | Sí, las veces que haga falta |
 
 Los archivos que corren como dueño hacen `GRANT cementeria_owner TO postgres`,
 `SET LOCAL ROLE cementeria_owner` y, al final, `REVOKE`: `postgres` no queda
@@ -150,6 +151,41 @@ base vacía, el orden completo de arriba (el 30 ya las trae y el 31 no hace nada
 Si la migración nueva crea tablas, tiene que habilitarles RLS y crear la
 política de `cementeria_app` (ver la migración `*_rls_defensa`):
 `tests/integracion/rls.test.ts` falla si falta.
+
+### Migue (02/11/2026): qué correr en la base en uso
+
+Agrega `20_migracion_20261102120000_migue.sql`: las tablas de Migue, el
+asistente con IA (docs/api-dominio.md, sección 26), `auditoria.consultas_migue`
+(el registro: solo inserción, 90 días) y `public.consumo_migue` (los topes por
+hora), con sus CHECKs, los triggers `consultas_migue_proteger` y
+`consumo_migue_proteger` (ALWAYS), la función `f_purgar_migue()`, los GRANTs
+mínimos y RLS con la política de `cementeria_app`. Cambia `99_verificar.sql`
+(control 28). La semilla no cambia; el 45 tampoco. En el SQL Editor, cada archivo
+entero y de una sola vez, **en este orden exacto**:
+
+**A. Si en la base ya se aplicó lo del 30/10/2026** (`*_sitio_fotos`; en el
+panel, Table Editor muestra `sitio_fotos`):
+
+1. `20_migracion_20261102120000_migue.sql`: una sola vez (repetida, se niega y
+   no cambia nada). No toca expedientes ni el contenido del sitio.
+2. `40_cierre_api.sql` (idempotente): hay dos tablas y tres funciones nuevas; les
+   saca todo a `anon`, `authenticated` y `service_role`.
+3. `99_verificar.sql`: nada en falso, y en verde el 28 ("Migue: registro y
+   topes con RLS, protegidos y con privilegios mínimos").
+
+**B. Si lo del 30/10/2026 todavía no se aplicó**: primero los pasos 1 y 2 de
+"Las fotos del sitio" (y, si falta, lo del 28/10/2026), después el 1 de A. El 40
+y el 99, una sola vez, al final.
+
+**Después**, redesplegar la app en Vercel. En ese orden: la versión anterior
+convive con la base migrada; la nueva anda sin la migración, pero Migue no
+anota el registro ni cuenta los topes (lo deja en el log). Las variables de
+Migue son todas opcionales (docs/despliegue-vercel.md, sección 5). Probado en
+`npm run supabase:probar`, simulador D: sobre la base con todo lo anterior
+(fotos incluidas, 300 expedientes), la migración, el 40 y el 99 en verde, los
+expedientes intactos, las reglas del registro y los topes con el rol de la app,
+y la migración repetida se niega. Con conexión desde la máquina, en lugar de
+todo esto: `npm run supabase:preparar`.
 
 ### Las fotos del sitio (30/10/2026): qué correr en la base en uso
 

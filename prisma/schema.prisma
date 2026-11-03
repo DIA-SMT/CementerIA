@@ -148,6 +148,7 @@ model Usuario {
   avisos               Aviso[]
   preferenciasAvisos   AvisoPreferencia[]
   fotosSitio           SitioFoto[]
+  consultasMigue       ConsultaMigue[]
 
   @@map("usuarios")
   @@schema("public")
@@ -586,6 +587,69 @@ model IntentoConsulta {
   @@index([numero, en])
   @@map("intentos_consulta")
   @@schema("auditoria")
+}
+
+// ---------------------------------------------------------------------------
+// Migue, el asistente con IA (migración *_migue, 02/11/2026)
+// ---------------------------------------------------------------------------
+//
+// docs/api-dominio.md, sección 26. Dos tablas y nada más: Migue no tiene
+// puerta propia al dominio (en lo interno lee con las funciones de siempre y
+// el usuario de la sesión), así que lo único suyo es qué le preguntaron y
+// cuánto se le preguntó.
+
+/// Lo que le preguntaron a Migue, para mejorar las respuestas (src/lib/migue/registro.ts).
+/// Solo inserción: el trigger consultas_migue_proteger no deja modificarla ni
+/// borrar una consulta de menos de 90 días, y `f_purgar_migue()` borra las más
+/// viejas (la tarea diaria). En lo público NO guarda nada que identifique a la
+/// persona (ni la IP): un CHECK exige `usuario_id` NULL en el canal publico.
+model ConsultaMigue {
+  id            BigInt   @id @default(autoincrement())
+  en            DateTime @default(now()) @db.Timestamptz
+  /// publico (la landing, sin sesión) o interno (el sistema, con sesión).
+  canal         String
+  /// respondida, sin_respuesta, fallback, tope, rechazada o error (CHECK).
+  resultado     String
+  /// Las herramientas que usó, en orden (solo en lo interno; vacío si ninguna).
+  herramientas  String[] @default([])
+  duracionMs    Int      @map("duracion_ms")
+  /// Los tokens, si el modelo los informó (sin modelo, NULL).
+  tokensEntrada Int?     @map("tokens_entrada")
+  tokensSalida  Int?     @map("tokens_salida")
+  /// El modelo que contestó, si contestó uno.
+  modelo        String?
+  /// La pantalla del sistema desde la que se preguntó (solo en lo interno).
+  pantalla      String?
+  /// Recortadas a 500 caracteres (CHECK).
+  pregunta      String
+  respuesta     String
+  /// Quién preguntó, solo en lo interno (como el resto de los registros del sistema).
+  usuarioId     Int?     @map("usuario_id")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([en])
+  @@index([canal, resultado, en])
+  @@map("consultas_migue")
+  @@schema("auditoria")
+}
+
+/// Cuántas consultas al MODELO lleva cada quien en la hora en curso: el tope
+/// por persona (MIGUE_TOPE_PERSONA) y el global (MIGUE_TOPE_GLOBAL), en la base
+/// para que valgan con varias instancias (src/lib/migue/tope.ts). `clave` es un
+/// HMAC con SESSION_SECRET de la IP (lo público) o del usuario (lo interno):
+/// nunca la IP ni el id en claro. El contador solo sube (trigger
+/// consumo_migue_proteger) y una ventana se borra recién al día siguiente.
+model ConsumoMigue {
+  clave     String
+  /// El comienzo de la hora (truncada).
+  ventana   DateTime @db.Timestamptz
+  consultas Int      @default(0)
+
+  @@id([clave, ventana])
+  @@index([ventana])
+  @@map("consumo_migue")
+  @@schema("public")
 }
 
 // ---------------------------------------------------------------------------
