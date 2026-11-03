@@ -370,6 +370,9 @@ describe("semana 3: pases, recepción, subtareas, documentos, adjuntos y bandeja
     expect(evaluarPermiso("devolver", historico, liquidacion)).toEqual({ permitido: false, motivo: "carga_historica_abierta" });
     expect(puede("confirmar_recepcion", historico, liquidacion)).toBe(true);
     expect(puede("tildar_subtarea", historico, liquidacion)).toBe(true);
+    // Cómo terminó va en la transcripción; anular sigue disponible para una carga equivocada.
+    expect(evaluarPermiso("archivar_sin_concluir", historico, mesa)).toEqual({ permitido: false, motivo: "carga_historica_abierta" });
+    expect(puede("anular", historico, mesa)).toBe(true);
   });
 
   it("el último paso no da pase (se concluye) y el primero no devuelve", () => {

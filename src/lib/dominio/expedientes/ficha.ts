@@ -180,7 +180,7 @@ export interface MovimientoFicha {
   fechaEfectiva: Date;
   precisionFecha: "dia" | "minuto";
   registradoEn: Date;
-  /** Más de 48 h entre la fecha efectiva y la de registro (2.13(c)). */
+  /** Más de 48 h entre la fecha efectiva y la de registro (2.13(c)); nunca en lo transcripto del papel. */
   diferido: boolean;
   usuario: UsuarioFicha;
   areaUsuario: CodigoNombre | null;
@@ -620,7 +620,8 @@ export async function armarFicha(tx: Transaccion, usuario: UsuarioPermisos, nume
     fechaEfectiva: m.fechaEfectiva,
     precisionFecha: m.precisionFecha === "dia" ? "dia" : "minuto",
     registradoEn: m.registradoEn,
-    diferido: m.registradoEn.getTime() - m.fechaEfectiva.getTime() > MS_48_HORAS,
+    // Lo transcripto del papel se carga tarde por definición: ya lo dice "del papel".
+    diferido: !m.cargaHistorica && m.registradoEn.getTime() - m.fechaEfectiva.getTime() > MS_48_HORAS,
     usuario: usuarioFicha(m.usuario),
     areaUsuario: refArea(m.areaUsuarioId),
     pasoOrigen: refPaso(m.pasoOrigen),

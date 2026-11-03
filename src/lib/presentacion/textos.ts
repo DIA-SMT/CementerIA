@@ -96,7 +96,7 @@ export const TEXTO_DENEGACION: Record<MotivoDenegacion, string> = {
   plazo_vencido: "Venció el plazo para hacerlo.",
   requiere_expediente: "Falta el expediente.",
   requiere_movimiento: "Falta el movimiento.",
-  carga_historica_abierta: "El expediente tiene la carga histórica abierta: los pases se registran en la transcripción.",
+  carga_historica_abierta: "El expediente tiene la carga histórica abierta: los pases y cómo terminó se registran en la transcripción.",
   paso_final: "Es el último paso: el expediente se concluye.",
   primer_paso: "Está en el primer paso: no hay a dónde devolverlo.",
   no_es_paso_final: "Se concluye desde el último paso del trámite.",

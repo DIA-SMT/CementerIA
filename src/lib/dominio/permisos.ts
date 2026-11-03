@@ -245,7 +245,11 @@ export function evaluarPermiso(
       // Semana 4 (3.1): cada una desde su estado. Sin expediente decide el rol.
       if (!expediente) return SI;
       if (accion === "desarchivar") return expediente.estado === "archivado" ? SI : no("estado_no_admite");
-      return ESTADOS_ACTIVOS.has(expediente.estado) ? SI : no("estado_no_admite");
+      if (!ESTADOS_ACTIVOS.has(expediente.estado)) return no("estado_no_admite");
+      // Con la carga histórica abierta, cómo terminó se registra en la transcripción
+      // (con la fecha y la fuente del papel), no con un archivo de hoy.
+      if (accion === "archivar_sin_concluir" && expediente.cargaHistorica) return no("carga_historica_abierta");
+      return SI;
     }
 
     case "transcribir": {

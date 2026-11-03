@@ -506,6 +506,8 @@ function EstadoFinal({ datos, version, hecho }: PropsSeccion) {
       titulo="Cómo terminó según la ficha"
       descripcion="Si el papel dice que el trámite terminó o que se archivó, se registra acá. Si no se sabe en qué caja está, marcá “No se sabe”."
     >
+      {/* Los ids van con "final." porque el diálogo de subtarea, que se abre
+          encima de esta sección, también tiene fecha y fuente. */}
       <form
         className="space-y-3"
         onSubmit={(ev) => {
@@ -548,18 +550,18 @@ function EstadoFinal({ datos, version, hecho }: PropsSeccion) {
           </div>
         </fieldset>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Campo ruta="fecha" etiqueta="Fecha (según la ficha)" obligatorio errores={e("fecha")}>
-            <input {...atributosCampo("fecha", e("fecha"))} type="date" min={datos.fechaInicio} max={hoyEnTucuman(new Date())} value={fecha} onChange={(x) => setFecha(x.target.value)} className={`${CLASE_CONTROL} max-w-48`} />
+          <Campo ruta="final.fecha" etiqueta="Fecha (según la ficha)" obligatorio errores={e("fecha")}>
+            <input {...atributosCampo("final.fecha", e("fecha"))} type="date" min={datos.fechaInicio} max={hoyEnTucuman(new Date())} value={fecha} onChange={(x) => setFecha(x.target.value)} className={`${CLASE_CONTROL} max-w-48`} />
           </Campo>
-          <Campo ruta="fuente" etiqueta="Fuente" obligatorio errores={e("fuente")}>
-            <input {...atributosCampo("fuente", e("fuente"))} type="text" maxLength={200} value={fuente} onChange={(x) => setFuente(x.target.value)} className={CLASE_CONTROL} />
+          <Campo ruta="final.fuente" etiqueta="Fuente" obligatorio errores={e("fuente")}>
+            <input {...atributosCampo("final.fuente", e("fuente"))} type="text" maxLength={200} value={fuente} onChange={(x) => setFuente(x.target.value)} className={CLASE_CONTROL} />
           </Campo>
         </div>
         {elegido === "archivado" ? (
           <div className="space-y-2">
-            <Campo ruta="ubicacionArchivo" etiqueta="Ubicación en el archivo (caja o estante)" obligatorio={!desconocida} errores={e("ubicacionArchivo")}>
+            <Campo ruta="final.ubicacionArchivo" etiqueta="Ubicación en el archivo (caja o estante)" obligatorio={!desconocida} errores={e("ubicacionArchivo")}>
               <input
-                {...atributosCampo("ubicacionArchivo", e("ubicacionArchivo"))}
+                {...atributosCampo("final.ubicacionArchivo", e("ubicacionArchivo"))}
                 type="text"
                 maxLength={120}
                 value={desconocida ? "" : ubicacion}
@@ -575,8 +577,8 @@ function EstadoFinal({ datos, version, hecho }: PropsSeccion) {
           </div>
         ) : null}
         {sinConcluir ? (
-          <Campo ruta="motivo" etiqueta="Motivo (archivado sin concluir)" obligatorio errores={e("motivo")} ayuda="10 caracteres o más">
-            <textarea {...atributosCampo("motivo", e("motivo"), "campo-motivo-ayuda")} rows={2} maxLength={2000} value={motivo} onChange={(x) => setMotivo(x.target.value)} className={CLASE_CONTROL} />
+          <Campo ruta="final.motivo" etiqueta="Motivo (archivado sin concluir)" obligatorio errores={e("motivo")} ayuda="10 caracteres o más">
+            <textarea {...atributosCampo("final.motivo", e("motivo"), "campo-final-motivo-ayuda")} rows={2} maxLength={2000} value={motivo} onChange={(x) => setMotivo(x.target.value)} className={CLASE_CONTROL} />
           </Campo>
         ) : null}
         {error ? <AvisoError error={error} recargar={`${datos.rutaFicha}/transcribir`} yaMostradas={["fecha", "fuente", "ubicacionArchivo", "motivo"]} /> : null}

@@ -226,7 +226,7 @@ describe("historial y versiones", () => {
     expect(f.plantilla).toMatchObject({ version: 1, versionPublicada: 2, hayVersionNueva: true, texto: "Prueba versionada · v1 (hay v2)" });
     expect(f.fechaInicio).toBe("2018-05-02");
     expect(f.situaciones).toContain("carga_historica");
-    expect(f.historial[0]).toMatchObject({ cargaHistorica: true, fuente: "Libro de pases de Legal", precisionFecha: "dia", diferido: true });
+    expect(f.historial[0]).toMatchObject({ cargaHistorica: true, fuente: "Libro de pases de Legal", precisionFecha: "dia", diferido: false });
   });
 });
 

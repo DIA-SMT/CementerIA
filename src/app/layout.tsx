@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 // compilar: el build para los servidores municipales no sale a internet.
 import "@fontsource-variable/inter";
 import "./globals.css";
+import { ValidacionEnCastellano } from "@/components/validacion-en-castellano";
 
 export const metadata: Metadata = {
   title: { default: "CementerIA", template: "%s · CementerIA" },
@@ -15,7 +16,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="h-full antialiased">
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <ValidacionEnCastellano />
+        {children}
+      </body>
     </html>
   );
 }
