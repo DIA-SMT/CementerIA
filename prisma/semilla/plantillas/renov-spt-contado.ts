@@ -10,7 +10,7 @@
 // (a) o (b)). Por eso tampoco lleva la personería ni la designación de asamblea.
 
 import type { DefinicionPlantilla } from "../../../src/lib/dominio/plantillas/esquema";
-import { CAMPOS_CONCESION, CONCEPTO, SUB, documento, obligatoria, pasoLegal } from "./comun";
+import { CAMPOS_CONCESION, CONCEPTO, DOC, SUB, documento, obligatoria, pasoLegal } from "./comun";
 import { MONUMENTOS_RENOVACION, documentosRenovacion, pasosRenovacionContado } from "./renov-contado";
 
 const FORM_INICIO_RENOV_SPT = documento(
@@ -41,8 +41,10 @@ export const RENOV_SPT_CONTADO: DefinicionPlantilla = {
     { rol: "solicitante", etiqueta: "Solicitante", min: 1, max: 1, fallecido: "no", pide_vinculo: true, admite_juridica: false },
   ],
   campos_extra: CAMPOS_CONCESION,
+  // El comprobante de pago va al final de la lista (pedido de la Dirección para
+  // el sitio público, 10/11/2026), después de las actas.
   documentos: [
-    ...documentosRenovacion(FORM_INICIO_RENOV_SPT),
+    ...documentosRenovacion(FORM_INICIO_RENOV_SPT).filter((d) => d.clave !== DOC.COMPROBANTE_PAGO.clave),
     // [I] En Mesa. No se escanea por defecto: puede incluir la causa de muerte (C-4).
     // [F] Si no se consigue, la reemplaza un informe del cementerio de
     // inhumación: se marca "no corresponde" con esa observación.
@@ -50,6 +52,7 @@ export const RENOV_SPT_CONTADO: DefinicionPlantilla = {
     // [I] En Mesa, sin escanear (C-5). [F] El hijo de crianza no tiene acta:
     // "no corresponde" con observación, y Legal acredita el vínculo.
     documento("ACTAS_VINCULO", "Actas que acrediten el vínculo con el titular", "concesionario", "MESA", "no"),
+    DOC.COMPROBANTE_PAGO,
   ],
   conceptos: [CONCEPTO.DERECHO_OFICINA, CONCEPTO.INSPECCION_TECNICA, CONCEPTO.ARRENDAMIENTO],
   // [I] Legal acredita el vínculo (pregunta C-3). Va antes del dictamen, que es

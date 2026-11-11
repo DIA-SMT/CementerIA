@@ -40,12 +40,10 @@ import { FORM_INICIO_RENOV, MONUMENTOS_RENOVACION, documentosRenovacion } from "
 // Jardín, tampoco inspección técnica: solo el derecho de oficina.
 const BOLETAS_SIN_ARRENDAMIENTO = boletas("Boleta emitida: oficina e inspección técnica", "Boleta emitida: derecho de oficina");
 
-// La misma documentación que (a); el comprobante es el de la boleta inicial.
-const documentos = documentosRenovacion(FORM_INICIO_RENOV, DOC_JURIDICA).map((d) =>
-  d.clave === "COMPROBANTE_PAGO"
-    ? { ...d, nombre: "Copia del comprobante de pago de la boleta inicial" }
-    : d,
-);
+// La misma documentación que (a). El comprobante es el de la boleta inicial,
+// pero se llama como en (a): la Dirección pidió (10/11/2026) que el sitio
+// público, que une los documentos de las dos, no muestre "de la boleta inicial".
+const documentos = documentosRenovacion(FORM_INICIO_RENOV, DOC_JURIDICA);
 
 export const RENOV_PLAN: DefinicionPlantilla = {
   forma_pago: "plan_pagos",

@@ -157,11 +157,15 @@ const pasoConocimiento = (): PasoPlantilla =>
  * Liquidación, como en la renovación. Las mismas claves que en las demás
  * plantillas. [I] En qué paso y si se escanean (pregunta E-4).
  */
+const PRESENTA_EN_DIRECCION = (nombre: string) => `${nombre} (se presenta en la Dirección, al iniciar el trámite)`;
+
 const DOCUMENTOS_MESA: DocumentoPlantilla[] = [
   { ...DOC.CONST_COMPUTOS, nombre: "Constancia de Cómputos (datos personales y catastrales, concesión vigente)", exigir_al_salir_de: "MESA" },
   { ...DOC.ESTADO_CUENTA, nombre: "Estado de cuenta (Conservación de los últimos 5 años)", exigir_al_salir_de: "MESA" },
-  DOC.DNI,
-  documento("CONST_INHUMAR", "Constancia para inhumar", "concesionario", "MESA"),
+  // Pedido de la Dirección (10/11/2026): que el sitio público aclare dónde se
+  // presentan, frente a los comprobantes de la empresa fúnebre, que van al cementerio.
+  { ...DOC.DNI, nombre: PRESENTA_EN_DIRECCION(DOC.DNI.nombre) },
+  documento("CONST_INHUMAR", PRESENTA_EN_DIRECCION("Constancia para inhumar"), "concesionario", "MESA"),
 ];
 
 // ---------------------------------------------------------------------------
@@ -191,7 +195,8 @@ export const INHUMACION_DIRECCION: DefinicionPlantilla = {
   documentos: [
     ...DOCUMENTOS_MESA,
     // [F] "trae una copia del pago para ser adjuntado al expediente".
-    { ...DOC.COMPROBANTE_PAGO, nombre: "Copia del comprobante de pago de la boleta" },
+    // El paréntesis, pedido de la Dirección para el sitio público (10/11/2026).
+    { ...DOC.COMPROBANTE_PAGO, nombre: "Copia del comprobante de pago de la boleta (se adjunta al expediente en la Dirección)" },
   ],
   // [F] Las claves de concepto de la nueva concesión. La apertura, solo en Jardín.
   conceptos: [
@@ -248,7 +253,13 @@ export const INHUMACION_EMPRESA: DefinicionPlantilla = {
     // [F] "se tiene que presentar en el cementerio con todos los comprobantes".
     // [I] No obligatorio: los ve el cementerio; si llega una copia, se adjunta (pregunta F-3).
     {
-      ...documento("COMPROBANTES_EMPRESA", "Comprobantes de pago de la empresa fúnebre", "concesionario", "CEMENTERIO", "sugerido"),
+      ...documento(
+        "COMPROBANTES_EMPRESA",
+        "Comprobantes de pago de la empresa fúnebre (se presentan en el cementerio, al momento de inhumar)",
+        "concesionario",
+        "CEMENTERIO",
+        "sugerido",
+      ),
       obligatorio: false,
     },
   ],

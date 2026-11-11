@@ -303,7 +303,14 @@ export const DOC = {
     "MESA",
   ),
   // [I] Figura en los pasos, no en la lista de documentos del pedido (A-6).
-  COMPROBANTE_PAGO: documento("COMPROBANTE_PAGO", "Copia del comprobante de pago", "concesionario", "LIQUIDACION", "sugerido"),
+  // El paréntesis, pedido de la Dirección para el sitio público (10/11/2026).
+  COMPROBANTE_PAGO: documento(
+    "COMPROBANTE_PAGO",
+    "Copia del comprobante de pago (que emite la Dirección de Cementerios, una vez iniciado el expediente)",
+    "concesionario",
+    "LIQUIDACION",
+    "sugerido",
+  ),
   // [F] Requisito de las renovaciones del Oeste y de Jardín: "Tener abonado
   // Conservación los últimos 5 (cinco) años" (procedimientos, páginas 5 y 6).
   // Va como documento provisto por la Dirección y no como subtarea porque los

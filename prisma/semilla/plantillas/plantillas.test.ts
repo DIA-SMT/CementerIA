@@ -171,9 +171,10 @@ const ESPERADAS: Record<string, { nombre: string; tipoTramite: string; resumen: 
       documentos: [
         "FORM_INICIO_RENOV_SPT direccion MESA no",
         ...DOCUMENTOS_RENOVACION,
-        COMPROBANTE,
         "ACTA_DEFUNCION concesionario MESA no",
         "ACTAS_VINCULO concesionario MESA no",
+        // Al final (pedido de la Dirección para el sitio público, 10/11/2026).
+        COMPROBANTE,
       ],
       conceptos: ["DERECHO_OFICINA boleta LIQUIDACION", INSPECCION, "ARRENDAMIENTO boleta LIQUIDACION"],
       pasos: [
@@ -358,7 +359,7 @@ const NOMBRES_DOCUMENTO: Record<string, string> = {
   INFORME_TECNICO: "Informe técnico (lo pide el concesionario en el cementerio)",
   DNI: "Fotocopia del DNI",
   BOLETA_SERVICIO: "Fotocopia de una boleta de servicio, para verificar el domicilio",
-  COMPROBANTE_PAGO: "Copia del comprobante de pago",
+  COMPROBANTE_PAGO: "Copia del comprobante de pago (que emite la Dirección de Cementerios, una vez iniciado el expediente)",
   ACTA_DEFUNCION: "Acta de defunción del titular",
   ACTAS_VINCULO: "Actas que acrediten el vínculo con el titular",
   COPIA_RES_CADUCIDAD: "Fotocopia de la resolución de caducidad",
@@ -367,13 +368,16 @@ const NOMBRES_DOCUMENTO: Record<string, string> = {
   CONSERVACION: "Conservación abonada de los últimos 5 años (surge del estado de cuenta)",
   PERSONERIA: "Personería jurídica de la asociación o sociedad",
   DESIGNACION_ASAMBLEA: "Acta de asamblea con la designación de autoridades",
-  COMPROBANTES_EMPRESA: "Comprobantes de pago de la empresa fúnebre",
+  COMPROBANTES_EMPRESA: "Comprobantes de pago de la empresa fúnebre (se presentan en el cementerio, al momento de inhumar)",
 };
 
 // Inhumación: la constancia y el estado de cuenta dicen qué se verifica con ellos.
 const DOCUMENTOS_PROPIOS_INHUMACION = {
   CONST_COMPUTOS: "Constancia de Cómputos (datos personales y catastrales, concesión vigente)",
   ESTADO_CUENTA: "Estado de cuenta (Conservación de los últimos 5 años)",
+  // Dónde se presentan (pedido de la Dirección para el sitio público, 10/11/2026).
+  DNI: "Fotocopia del DNI (se presenta en la Dirección, al iniciar el trámite)",
+  CONST_INHUMAR: "Constancia para inhumar (se presenta en la Dirección, al iniciar el trámite)",
 };
 
 /** Lo que cambia en cada plantilla respecto de los nombres comunes. */
@@ -386,7 +390,6 @@ const NOMBRES_PROPIOS: Record<string, { subtareas?: Record<string, string>; docu
       LIQ_BOLETA_JARDIN: "Boleta emitida: derecho de oficina",
       COMP_FINAL: "Finalización grabada",
     },
-    documentos: { COMPROBANTE_PAGO: "Copia del comprobante de pago de la boleta inicial" },
   },
   RENOV_SPT_CONTADO: {},
   // 4(d): cinco conceptos en una boleta.
@@ -397,7 +400,7 @@ const NOMBRES_PROPIOS: Record<string, { subtareas?: Record<string, string>; docu
       LIQ_BOLETA: "Boleta emitida: oficina, inhumación y conducción",
       LIQ_BOLETA_JARDIN: "Boleta emitida: oficina, apertura, inhumación y conducción",
     },
-    documentos: { ...DOCUMENTOS_PROPIOS_INHUMACION, COMPROBANTE_PAGO: "Copia del comprobante de pago de la boleta" },
+    documentos: { ...DOCUMENTOS_PROPIOS_INHUMACION, COMPROBANTE_PAGO: "Copia del comprobante de pago de la boleta (se adjunta al expediente en la Dirección)" },
   },
   INHUMACION_EMPRESA: { documentos: DOCUMENTOS_PROPIOS_INHUMACION },
 };
