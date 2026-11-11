@@ -68,5 +68,12 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "5.0.5"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "prisma@7.9.1": true,
+    "unrs-resolver@1.12.2": true,
+    "@embedded-postgres/windows-x64@15.18.0-beta.17": true,
+    "@prisma/engines@7.9.1": true
   }
 }
